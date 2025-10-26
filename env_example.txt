@@ -1,0 +1,15 @@
+# Umgebungsvariablen für die Flask-Anwendung
+# Kopieren Sie diese Datei zu .env und passen Sie die Werte an
+
+# Flask-Konfiguration
+FLASK_ENV=development
+FLASK_DEBUG=True
+
+# Sicherheit (WICHTIG: Ändern Sie diese Werte in der Produktion!)
+SECRET_KEY=ihr-super-geheimer-schluessel-hier-12345
+
+# Datenbank
+DATABASE_URL=database.db
+
+# SQL-Tracing (nur für Entwicklung)
+SQL_TRACING=True

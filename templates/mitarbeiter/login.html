@@ -1,0 +1,27 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<div class="container mt-5" style="max-width: 400px;">
+  <h3 class="mb-4 text-center">Anmeldung</h3>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <form method="post">
+    <div class="mb-3">
+      <label for="personalnummer" class="form-label">Personalnummer</label>
+      <input type="text" name="personalnummer" id="personalnummer" class="form-control" required>
+    </div>
+    <div class="mb-3">
+      <label for="passwort" class="form-label">Passwort</label>
+      <input type="password" name="passwort" id="passwort" class="form-control" required>
+    </div>
+    <button type="submit" class="btn btn-primary w-100">Anmelden</button>
+  </form>
+</div>
+{% endblock %}

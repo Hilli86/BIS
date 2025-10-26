@@ -1,0 +1,16 @@
+{% extends "layout/base.html" %}
+
+{% block title %}Server-Fehler{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 text-center">
+            <h1 class="display-1 text-danger">500</h1>
+            <h2>Interner Server-Fehler</h2>
+            <p class="lead">Es ist ein unerwarteter Fehler aufgetreten. Bitte versuchen Sie es später erneut.</p>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-primary">Zurück zum Dashboard</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

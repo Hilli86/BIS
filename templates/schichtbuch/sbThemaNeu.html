@@ -1,0 +1,147 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<h1 class="mb-4">Neues Thema anlegen</h1>
+
+{% if message %}
+<div class="alert alert-success">{{ message }}</div>
+{% endif %}
+
+<form id="themaForm" method="POST" class="bg-white p-4 rounded shadow-sm">
+
+    <div class="mb-3">
+        <label for="bereich" class="form-label">Bereich</label>
+        <select class="form-select" id="bereich" required>
+            <option value="">-- bitte wählen --</option>
+            {% for b in bereiche %}
+            <option value="{{ b.ID }}">{{ b.Bezeichnung }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label for="gewerk" class="form-label">Gewerk</label>
+        <select class="form-select" id="gewerk" name="gewerk" required disabled>
+            <option value="">-- zuerst Bereich wählen --</option>
+            {% for g in gewerke %}
+            <option value="{{ g.ID }}" data-bereich="{{ g.BereichID }}">{{ g.Bezeichnung }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label for="taetigkeit" class="form-label">Tätigkeit</label>
+        <select class="form-select" id="taetigkeit" name="taetigkeit" required>
+            <option value="">-- bitte wählen --</option>
+            {% for t in taetigkeiten %}
+            <option value="{{ t.ID }}">{{ t.Bezeichnung }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label for="status" class="form-label">Status</label>
+        <select class="form-select" id="status" name="status" required>
+            <option value="">-- bitte wählen --</option>
+            {% for s in status %}
+            <option value="{{ s.ID }}">{{ s.Bezeichnung }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label for="bemerkung" class="form-label">Erste Bemerkung</label>
+        <textarea class="form-control" id="bemerkung" name="bemerkung" rows="4" required></textarea>
+    </div>
+
+    <button type="submit" class="btn btn-success">
+            <i class="bi bi-save"></i> Speichern
+    </button>
+    <a href="/" class="btn btn-secondary">Abbrechen</a>
+</form>
+
+<hr class="my-4">
+<h3>Zuletzt erstellte Themen</h3>
+<table class="table table-striped" id="themenTabelle">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Bereich</th>
+            <th>Gewerk</th>
+            <th>Status</th>
+            <th>Letzte Bemerkung</th>
+        </tr>
+    </thead>
+    <tbody>
+        <!-- wird dynamisch gefüllt -->
+    </tbody>
+</table>
+
+<script>
+    const bereichSelect = document.getElementById('bereich');
+    const gewerkSelect = document.getElementById('gewerk');
+
+    // 🔸 Gewerke nach Bereich filtern
+    bereichSelect.addEventListener('change', function() {
+        const selectedBereich = this.value;
+        gewerkSelect.disabled = !selectedBereich;
+        Array.from(gewerkSelect.options).forEach(opt => {
+            if(opt.value === "") return;
+            opt.style.display = (opt.dataset.bereich === selectedBereich) ? "block" : "none";
+        });
+        gewerkSelect.value = "";
+    });
+
+    // 🔸 Tabelle initial laden
+    function ladeThemen() {
+        fetch('/sbthemaneu/aktuelle_themen')
+            .then(res => res.json())
+            .then(data => {
+                const tbody = document.querySelector('#themenTabelle tbody');
+                tbody.innerHTML = "";
+                data.themen.forEach(t => tbody.appendChild(baueZeile(t)));
+            });
+    }
+
+    // 🔸 Zeile bauen
+    function baueZeile(t) {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${t.ID}</td>
+            <td>${t.Bereich}</td>
+            <td>${t.Gewerk}</td>
+            <td>${t.Status}</td>
+            <td>${t.LetzteBemerkung ? t.LetzteBemerkung + '<br><small class="text-muted">' + t.LetzteBemerkungDatum + '</small>' : '-'}</td>
+        `;
+        return row;
+    }
+
+    // 🔸 Formular absenden
+    document.getElementById('themaForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const formData = new FormData(this);
+
+        fetch('/sbthemaneu', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(neuesThema => {
+            // Formular leeren
+            this.reset();
+            gewerkSelect.disabled = true;
+
+            // Neue Zeile an den Anfang der Tabelle setzen
+            const tbody = document.querySelector('#themenTabelle tbody');
+            const neueZeile = baueZeile(neuesThema);
+            tbody.prepend(neueZeile);
+        })
+        .catch(err => console.error(err));
+    });
+
+    // 🔸 Beim Laden Tabelle einmal füllen
+    window.addEventListener('load', ladeThemen);
+</script>
+
+{% endblock %}

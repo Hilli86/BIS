@@ -1,0 +1,73 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+    <h1 class="mb-4">Thema #{{ thema.ID }}</h1>
+
+    <div class="card mb-4 shadow-sm">
+        <div class="card-body">
+            <h5 class="card-title">Gewerk: {{ thema.Gewerk }}</h5>
+            <p class="card-text mb-1"><strong>Tätigkeit:</strong> {{ thema.Taetigkeit }}</p>
+            <p class="card-text"><strong>Status:</strong> {{ thema.Status }}</p>
+        </div>
+    </div>
+
+    <h4>Bemerkungen</h4>
+    <table class="table table-bordered bg-white shadow-sm">
+        <thead class="table-dark">
+            <tr>
+                <th>Datum</th>
+                <th>Mitarbeiter</th>
+                <th>Bemerkung</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for b in bemerkungen %}
+            <tr>
+                <td>{{ b.Datum }}</td>
+                <td>{{ b.Vorname }} {{ b.Nachname }}</td>
+                <td>{{ b.Bemerkung }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="3" class="text-center text-muted">Keine Bemerkungen vorhanden.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h4 class="mt-4">Neue Bemerkung hinzufügen / Status ändern</h4>
+    <form method="POST" class="bg-white p-4 rounded shadow-sm">
+
+        <div class="mb-3">
+            <label for="bemerkung" class="form-label">Bemerkung</label>
+            <textarea class="form-control" id="bemerkung" name="bemerkung" rows="3" required></textarea>
+            <div class="form-text text-muted">
+                Eine Bemerkung ist immer erforderlich – auch bei Statusänderung.
+            </div>
+        </div>
+
+        
+        <div class="mb-3">
+            <label for="status" class="form-label">Status ändern (optional)</label>
+            <select class="form-select" id="status" name="status">
+                <option value="">-- keine Änderung --</option>
+                {% for s in status_liste %}
+                <option value="{{ s.ID }}" {% if s.ID == thema.StatusID %}selected{% endif %}>
+                    {{ s.Bezeichnung }}
+                </option>
+                {% endfor %}
+            </select>
+
+            <select name="taetigkeit_id" class="form-select" required>
+                <option value="">-- Tätigkeit wählen --</option>
+                {% for t in taetigkeiten %}
+                    <option value="{{ t.ID }}">{{ t.Bezeichnung }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <button type="submit" class="btn btn-success">Speichern</button>
+        <a href="{{ previous_page }}" class="btn btn-secondary">⬅️ Zurück</a>
+    </form>
+
+{% endblock %}

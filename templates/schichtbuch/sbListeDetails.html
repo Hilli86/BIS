@@ -1,0 +1,289 @@
+
+{% extends "layout/base.html" %}
+
+{% block styles %}
+  <style>
+  /* 1) Themenzeile: alle TDs dieser TR immer hellgrau */
+  .table tbody tr.thema-row > td {
+    background-color: #e9ecef !important;
+  }
+
+  /* 2) Bemerkungszeile & Collapse-Zeile: TDs immer weiß */
+  .table tbody tr.bemerkung-row > td,
+  .table tbody tr.collapse-row > td {
+    background-color: #ffffff !important;
+  }
+
+  /* 3) Falls List-Group-Items verwendet werden, sicherstellen, dass sie weiß sind */
+  .table .list-group-item {
+    background-color: #ffffff !important;
+    border-left: 3px solid #dee2e6; /* optional: dezenter linker Balken */
+  }
+
+  /* 4) Verhindern, dass .table-striped wieder einfärbt (falls irgendwo noch gesetzt) */
+  .table.table-striped tbody tr:nth-of-type(odd) > td {
+    background-color: transparent !important;
+  }
+
+  /* 5) Optional: etwas Abstand / Padding für die Bemerkungsbox */
+  .table tbody tr.bemerkung-row td .list-group {
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Themenzeilen grau */
+  .thema-row {
+    background-color: #f2f2f2 !important;
+  }
+
+  /* Bemerkungen immer weiß */
+  .bemerkung-row,
+  .collapse-row {
+    background-color: #ffffff !important;
+  }
+
+  /* Dezent abgesetzte Bemerkungen */
+  .bemerkung-list li {
+    border-left: 3px solid #dee2e6;
+    margin-bottom: 4px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>Details aller Einträge</h1>
+
+<!-- 🔹 Filterleiste -->
+<form method="get" class="row g-2 mb-4">
+  <div class="col-md-3">
+    <select name="status" class="form-select">
+      <option value="">-- Status wählen --</option>
+      {% for s in status_liste %}
+        <option value="{{ s.Bezeichnung }}" {% if s.Bezeichnung == status_filter %}selected{% endif %}>
+          {{ s.Bezeichnung }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-md-3">
+    <select name="bereich" class="form-select">
+      <option value="">-- Bereich wählen --</option>
+      {% for b in bereich_liste %}
+        <option value="{{ b.Bezeichnung }}" {% if b.Bezeichnung == bereich_filter %}selected{% endif %}>
+          {{ b.Bezeichnung }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-md-3 d-flex">
+    <button type="submit" class="btn btn-primary me-2">Filtern</button>
+    <a href="{{ url_for('sblistedetails') }}" class="btn btn-secondary">Alle anzeigen</a>
+  </div>
+</form>
+
+<table class="table align-middle">
+  <thead class="table-dark">
+    <tr>
+      <th>ID</th>
+      <th>Bereich – Gewerk</th>
+      <th>Status</th>
+      <th>Aktionen</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for thema in themen %}
+    <!-- 🔸 Themen-Zeile -->
+    <tr class="thema-row" style="color: {{ thema.Farbe or 'inherit' }};">
+      <td>
+        <a href="{{ url_for('thema_detail', thema_id=thema.ID, next=request.full_path) }}" class="text-decoration-none">
+          #{{ thema.ID }}
+        </a>
+      </td>
+      <td>{{ thema.Bereich }} – {{ thema.Gewerk }}</td>
+      <td>
+        <span class="badge rounded-pill" style="background-color: {{ thema.Farbe|default('#ccc')|trim }}; color: #fff;">
+          {{ thema.Status }}
+        </span>
+      </td>
+      <td class="text-center">
+        <!-- 🔸 Neue Bemerkung Button -->
+        <button class="btn btn-sm btn-outline-success me-1" type="button"
+                data-bs-toggle="collapse" data-bs-target="#newBemerkung{{ thema.ID }}" aria-expanded="false">
+          <i class="bi bi-plus-lg"></i>
+        </button>
+        
+        <form action="{{ url_for('sbDeleteThema', thema_id=thema.ID) }}" method="post" class="m-0 p-0 d-inline">
+          <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Thema wirklich löschen?');">
+              <i class="bi bi-trash"></i>
+          </button>
+        </form>
+      </td>
+    </tr>
+
+    <!-- 🔹 Bemerkungen -->
+    <tr class="bemerkung-row">
+      <td colspan="5">
+        {% if bemerk_dict.get(thema.ID) %}
+          <ul class="list-group list-group-flush bemerkung-list">
+            {% for b in bemerk_dict[thema.ID] %}
+            <li class="list-group-item bg-white">
+              <div class="d-flex">
+                <small class="text-muted">
+                  {{ b.Datum }} - <strong>{{ b.Vorname }} {{ b.Nachname }}</strong>
+                  {% if b.Taetigkeit %}
+                    <span class="text-secondary">({{ b.Taetigkeit }})</span>
+                  {% endif %}
+                </small>
+              </div>
+              <div>{{ b.Bemerkung }}</div>
+            </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-muted fst-italic mb-0">Keine Bemerkungen vorhanden.</p>
+        {% endif %}
+      </td>
+    </tr>
+
+    <!-- 🔸 Eingeklappter Bereich -->
+    <tr class="collapse collapse-row" id="newBemerkung{{ thema.ID }}">
+      <td colspan="5">
+        <form action="{{ url_for('sbAddBemerkung') }}" method="post" class="mt-2">
+          <input type="hidden" name="thema_id" value="{{ thema.ID }}">
+          <input type="hidden" name="next" value="{{ request.full_path }}">
+          
+          <!-- 🔸 Status -->
+          <div class="mb-1">
+            <label for="status{{ thema.ID }}" class="form-label fw-bold">Status ändern:</label>
+            <select name="status_id" id="status{{ thema.ID }}" class="form-select">
+              <option value="">-- unverändert --</option>
+              {% for s in status_liste %}
+                <option value="{{ s.ID }}" {% if s.Bezeichnung == thema.Status %}selected{% endif %}>
+                  {{ s.Bezeichnung }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- 🔸 Tätigkeit -->
+          <div class="mb-1">
+            <label for="taetigkeit{{ thema.ID }}" class="form-label fw-bold">Tätigkeit:</label>
+            <select name="taetigkeit_id" id="taetigkeit{{ thema.ID }}" class="form-select" required>
+              <option value="">-- Tätigkeit wählen --</option>
+              {% for t in taetigkeiten_liste %}
+                <option value="{{ t.ID }}">{{ t.Bezeichnung }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- 🔸 Bemerkung -->
+          <div class="mb-1">
+            <label for="bemerkung{{ thema.ID }}" class="form-label fw-bold">Neue Bemerkung:</label>
+            <textarea
+              name="bemerkung"
+              id="bemerkung{{ thema.ID }}"
+              class="form-control"
+              rows="3"
+              placeholder="Neue Bemerkung eingeben..."
+              required
+            ></textarea>
+          </div>
+
+          <!-- 🔸 Speichern -->
+          <div class="mb-0">
+            <button type="submit" class="btn btn-success">
+              <i class="bi bi-save"></i> Speichern
+            </button>
+          </div>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener("submit", async (e) => {
+  const form = e.target.closest("form[action='/sblistedetails/add']");
+  if (!form) return;
+  e.preventDefault();
+  console.log("Formular abgefangen");
+  
+  const formData = new FormData(form);
+  const themaId = formData.get("thema_id");
+  const submitBtn = form.querySelector("button[type='submit']");
+  submitBtn.disabled = true;
+
+  try {
+    const response = await fetch(form.action, {
+      method: "POST",
+      body: formData,
+      headers: { "X-Requested-With": "XMLHttpRequest" }
+    });
+    const data = await response.json();
+
+    if (!data.success) {
+      alert("Fehler beim Speichern.");
+      return;
+    }
+
+    // Rest: Bemerkung hinzufügen, Collapse schließen, Toast anzeigen
+    const collapseRow = form.closest("tr.collapse-row");
+    const bemerkungsRow = collapseRow.previousElementSibling;
+    const themaRow = bemerkungsRow.previousElementSibling;
+
+    let bemerkungsList = bemerkungsRow.querySelector(".list-group");
+    if (!bemerkungsList) {
+      bemerkungsList = document.createElement("ul");
+      bemerkungsList.className = "list-group list-group-flush bemerkung-list";
+      bemerkungsRow.querySelector("td").innerHTML = "";
+      bemerkungsRow.querySelector("td").appendChild(bemerkungsList);
+    }
+
+    const newItem = document.createElement("li");
+    newItem.className = "list-group-item bg-white";
+    newItem.innerHTML = `
+      <div class="d-flex">
+        <small class="text-muted">
+          ${data.datum} – <strong>${data.vorname} ${data.nachname}</strong>
+          ${data.taetigkeit ? `<span class="text-secondary">(${data.taetigkeit})</span>` : ""}
+        </small>
+      </div>
+      <div>${data.bemerkung}</div>
+    `;
+    bemerkungsList.prepend(newItem);
+
+    if (data.neuer_status && data.neue_farbe) {
+      const badge = themaRow.querySelector(".badge");
+      if (badge) {
+        badge.textContent = data.neuer_status;
+        badge.style.backgroundColor = data.neue_farbe;
+      }
+    }
+
+    const scrollY = window.scrollY;
+    form.reset();
+    bootstrap.Collapse.getOrCreateInstance(document.querySelector(`#newBemerkung${themaId}`)).hide();
+    window.scrollTo(0, scrollY);
+
+    const toast = document.createElement("div");
+    toast.className = "alert alert-success position-fixed top-0 end-0 m-3 shadow";
+    toast.style.zIndex = "2000";
+    toast.textContent = "Bemerkung erfolgreich gespeichert.";
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+
+  } catch (err) {
+    console.error(err);
+    alert("Fehler beim Speichern.");
+  } finally {
+    submitBtn.disabled = false;
+  }
+});
+</script>
+{% endblock %}
