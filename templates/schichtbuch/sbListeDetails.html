@@ -203,6 +203,15 @@
     {% endfor %}
   </tbody>
 </table>
+
+<!-- Loading Indicator -->
+<div id="loadingIndicator" class="text-center my-4" style="display: none;">
+  <div class="spinner-border text-primary" role="status">
+    <span class="visually-hidden">Laden...</span>
+  </div>
+  <p class="mt-2">Weitere Einträge werden geladen...</p>
+</div>
+
 </div>
 {% endblock %}
 
@@ -285,5 +294,165 @@ document.addEventListener("submit", async (e) => {
     submitBtn.disabled = false;
   }
 });
+
+// Infinite Scroll
+let isLoading = false;
+let currentOffset = {{ themen|length }};
+let statusFilter = '{{ status_filter or '' }}';
+let bereichFilter = '{{ bereich_filter or '' }}';
+
+async function loadMoreThemen() {
+  if (isLoading) return;
+  isLoading = true;
+
+  const loadingIndicator = document.getElementById('loadingIndicator');
+  const tbody = document.querySelector('table tbody');
+  
+  loadingIndicator.style.display = 'block';
+
+  try {
+    const url = new URL('/sblistedetails/load_more', window.location.origin);
+    url.searchParams.append('offset', currentOffset);
+    url.searchParams.append('limit', 50);
+    if (statusFilter) url.searchParams.append('status', statusFilter);
+    if (bereichFilter) url.searchParams.append('bereich', bereichFilter);
+
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.themen && data.themen.length > 0) {
+      data.themen.forEach(thema => {
+        // Themen-Zeile
+        const themaRow = document.createElement('tr');
+        themaRow.className = 'thema-row';
+        themaRow.style.color = thema.Farbe || 'inherit';
+        themaRow.innerHTML = `
+          <td>
+            <a href="/thema/${thema.ID}?next=${encodeURIComponent(window.location.pathname + window.location.search)}" class="text-decoration-none">
+              #${thema.ID}
+            </a>
+          </td>
+          <td>${thema.Bereich} – ${thema.Gewerk}</td>
+          <td>
+            <span class="badge rounded-pill" style="background-color: ${thema.Farbe || '#ccc'}; color: #fff;">
+              ${thema.Status}
+            </span>
+          </td>
+          <td class="text-center">
+            <button class="btn btn-sm btn-outline-success me-1" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#newBemerkung${thema.ID}" aria-expanded="false">
+              <i class="bi bi-plus-lg"></i>
+            </button>
+            <form action="/sbDeleteThema/${thema.ID}" method="post" class="m-0 p-0 d-inline">
+              <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Thema wirklich löschen?');">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </td>
+        `;
+
+        // Bemerkungen-Zeile
+        const bemerkungRow = document.createElement('tr');
+        bemerkungRow.className = 'bemerkung-row';
+        const bemerkungen = data.bemerk_dict[thema.ID] || [];
+        if (bemerkungen.length > 0) {
+          let bemerkHtml = '<ul class="list-group list-group-flush bemerkung-list">';
+          bemerkungen.forEach(b => {
+            bemerkHtml += `
+              <li class="list-group-item bg-white">
+                <div class="d-flex">
+                  <small class="text-muted">
+                    ${b.Datum} - <strong>${b.Vorname} ${b.Nachname}</strong>
+                    ${b.Taetigkeit ? `<span class="text-secondary">(${b.Taetigkeit})</span>` : ''}
+                  </small>
+                </div>
+                <div>${b.Bemerkung}</div>
+              </li>
+            `;
+          });
+          bemerkHtml += '</ul>';
+          bemerkungRow.innerHTML = `<td colspan="5">${bemerkHtml}</td>`;
+        } else {
+          bemerkungRow.innerHTML = '<td colspan="5"><p class="text-muted fst-italic mb-0">Keine Bemerkungen vorhanden.</p></td>';
+        }
+
+        // Collapse-Zeile
+        const collapseRow = document.createElement('tr');
+        collapseRow.className = 'collapse collapse-row';
+        collapseRow.id = `newBemerkung${thema.ID}`;
+        collapseRow.innerHTML = `
+          <td colspan="5">
+            <form action="/sblistedetails/add" method="post" class="mt-2">
+              <input type="hidden" name="thema_id" value="${thema.ID}">
+              <input type="hidden" name="next" value="${window.location.pathname}${window.location.search}">
+              
+              <div class="mb-1">
+                <label for="status${thema.ID}" class="form-label fw-bold">Status ändern:</label>
+                <select name="status_id" id="status${thema.ID}" class="form-select">
+                  <option value="">-- unverändert --</option>
+                  {% for s in status_liste %}
+                    <option value="{{ s.ID }}">{{ s.Bezeichnung }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="mb-1">
+                <label for="taetigkeit${thema.ID}" class="form-label fw-bold">Tätigkeit:</label>
+                <select name="taetigkeit_id" id="taetigkeit${thema.ID}" class="form-select" required>
+                  <option value="">-- Tätigkeit wählen --</option>
+                  {% for t in taetigkeiten_liste %}
+                    <option value="{{ t.ID }}">{{ t.Bezeichnung }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="mb-1">
+                <label for="bemerkung${thema.ID}" class="form-label fw-bold">Neue Bemerkung:</label>
+                <textarea name="bemerkung" id="bemerkung${thema.ID}" class="form-control" rows="3" placeholder="Neue Bemerkung eingeben..." required></textarea>
+              </div>
+
+              <div class="mb-0">
+                <button type="submit" class="btn btn-success">
+                  <i class="bi bi-save"></i> Speichern
+                </button>
+              </div>
+            </form>
+          </td>
+        `;
+
+        tbody.appendChild(themaRow);
+        tbody.appendChild(bemerkungRow);
+        tbody.appendChild(collapseRow);
+      });
+
+      currentOffset += data.themen.length;
+    } else {
+      loadingIndicator.innerHTML = '<p class="text-muted">Alle Einträge geladen.</p>';
+    }
+  } catch (error) {
+    console.error('Fehler beim Laden:', error);
+    loadingIndicator.innerHTML = '<p class="text-danger">Fehler beim Laden weiterer Einträge.</p>';
+  } finally {
+    isLoading = false;
+    loadingIndicator.style.display = 'none';
+  }
+}
+
+// Scroll-Listener
+window.addEventListener('scroll', () => {
+  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+  const windowHeight = window.innerHeight;
+  const documentHeight = document.documentElement.scrollHeight;
+
+  // Wenn der Benutzer 200px vor dem Ende ist, lade mehr
+  if (scrollTop + windowHeight >= documentHeight - 200) {
+    loadMoreThemen();
+  }
+});
+
+// Initial prüfen, ob bereits mehr geladen werden soll
+if (currentOffset < 50) {
+  document.getElementById('loadingIndicator').innerHTML = '<p class="text-muted">Alle Einträge geladen.</p>';
+}
 </script>
 {% endblock %}

@@ -139,6 +139,111 @@ def sblistedetails():
     # 🔹 Filterparameter aus der URL lesen
     status_filter = request.args.get('status')
     bereich_filter = request.args.get('bereich')
+    
+    # 🔹 Initial limit: nur 50 Themen auf einmal laden
+    items_per_page = 50
+
+    with get_db_connection() as conn:
+        # 🔹 Basis-SQL mit neuer Sortierung
+        query = '''
+            SELECT 
+                t.ID,
+                b.Bezeichnung AS Bereich,
+                g.Bezeichnung AS Gewerk,
+                s.Bezeichnung AS Status,
+                s.Farbe AS Farbe,
+                COALESCE(MAX(bm.Datum), '1900-01-01') AS LetzteBemerkungDatum,
+                COALESCE(MAX(bm.MitarbeiterID), 0) AS LetzteMitarbeiterID,
+                COALESCE(MAX(m.Vorname), '') AS LetzteMitarbeiterVorname,
+                COALESCE(MAX(m.Nachname), '') AS LetzteMitarbeiterNachname,
+                COALESCE(MAX(ta.Bezeichnung), '') AS LetzteTatigkeit
+            FROM SchichtbuchThema t
+            JOIN Gewerke g ON t.GewerkID = g.ID
+            JOIN Bereich b ON g.BereichID = b.ID
+            JOIN Status s ON t.StatusID = s.ID
+            LEFT JOIN SchichtbuchBemerkungen bm ON bm.ThemaID = t.ID AND bm.Gelöscht = 0
+            LEFT JOIN Mitarbeiter m ON bm.MitarbeiterID = m.ID
+            LEFT JOIN Taetigkeit ta ON bm.TaetigkeitID = ta.ID
+            WHERE t.Gelöscht = 0
+            GROUP BY t.ID
+        '''
+        params = []
+
+        # 🔹 Filterbedingungen hinzufügen
+        if status_filter:
+            query += ' HAVING s.Bezeichnung = ?'
+            params.append(status_filter)
+
+        if bereich_filter:
+            if status_filter:
+                query += ' AND b.Bezeichnung = ?'
+            else:
+                query += ' HAVING b.Bezeichnung = ?'
+            params.append(bereich_filter)
+
+        query += ''' ORDER BY 
+                        LetzteBemerkungDatum DESC,
+                        LetzteMitarbeiterNachname ASC,
+                        LetzteMitarbeiterVorname ASC,
+                        Bereich ASC,
+                        Gewerk ASC,
+                        LetzteTatigkeit ASC,
+                        Status ASC
+                    LIMIT ?'''
+        params.append(items_per_page)
+
+        themen = conn.execute(query, params).fetchall()
+
+        # 🔹 Nur Bemerkungen für die aktuell angezeigten Themen laden
+        if themen:
+            thema_ids = [t['ID'] for t in themen]
+            placeholders = ','.join(['?'] * len(thema_ids))
+            bemerkungen = conn.execute(f'''
+                SELECT 
+                    b.ThemaID,
+                    b.Datum,
+                    b.Bemerkung,
+                    m.Vorname,
+                    m.Nachname,
+                    t.Bezeichnung AS Taetigkeit
+                FROM SchichtbuchBemerkungen b
+                JOIN Mitarbeiter m ON b.MitarbeiterID = m.ID
+                LEFT JOIN Taetigkeit t ON b.TaetigkeitID = t.ID
+                WHERE b.Gelöscht = 0 AND b.ThemaID IN ({placeholders})
+                ORDER BY b.ThemaID DESC, b.Datum DESC
+            ''', thema_ids).fetchall()
+        else:
+            bemerkungen = []
+
+        # 🔹 Werte für Dropdowns holen
+        status_liste = conn.execute('SELECT ID, Bezeichnung FROM Status ORDER BY Sortierung ASC').fetchall()
+        bereich_liste = conn.execute('SELECT Bezeichnung FROM Bereich ORDER BY Bezeichnung').fetchall()
+        taetigkeiten_liste = conn.execute('SELECT ID, Bezeichnung FROM Taetigkeit ORDER BY Sortierung ASC').fetchall()
+
+    # 🔹 Nach Thema gruppieren
+    bemerk_dict = {}
+    for b in bemerkungen:
+        bemerk_dict.setdefault(b['ThemaID'], []).append(b)
+
+    return render_template(
+        'schichtbuch/sbListeDetails.html',
+        themen=themen,
+        bemerk_dict=bemerk_dict,
+        status_liste=status_liste,
+        bereich_liste=bereich_liste,
+        taetigkeiten_liste=taetigkeiten_liste,
+        status_filter=status_filter,
+        bereich_filter=bereich_filter
+    )
+
+# 🔹 AJAX-Route zum Nachladen weiterer Themen
+@app.route('/sblistedetails/load_more')
+@login_required
+def sblistedetails_load_more():
+    offset = request.args.get('offset', 0, type=int)
+    limit = request.args.get('limit', 50, type=int)
+    status_filter = request.args.get('status')
+    bereich_filter = request.args.get('bereich')
 
     with get_db_connection() as conn:
         # 🔹 Basis-SQL
@@ -166,46 +271,42 @@ def sblistedetails():
             query += ' AND b.Bezeichnung = ?'
             params.append(bereich_filter)
 
-        query += ' ORDER BY t.ID DESC'
+        query += ' ORDER BY t.ID DESC LIMIT ? OFFSET ?'
+        params.extend([limit, offset])
 
         themen = conn.execute(query, params).fetchall()
 
-        # 🔹 Alle Bemerkungen
-        bemerkungen = conn.execute('''
-            SELECT 
-                b.ThemaID,
-                b.Datum,
-                b.Bemerkung,
-                m.Vorname,
-                m.Nachname,
-                t.Bezeichnung AS Taetigkeit
-            FROM SchichtbuchBemerkungen b
-            JOIN Mitarbeiter m ON b.MitarbeiterID = m.ID
-            LEFT JOIN Taetigkeit t ON b.TaetigkeitID = t.ID
-            WHERE b.Gelöscht = 0
-            ORDER BY b.ThemaID DESC, b.Datum DESC
-        ''').fetchall()
-
-        # 🔹 Werte für Dropdowns holen
-        status_liste = conn.execute('SELECT ID, Bezeichnung FROM Status ORDER BY Sortierung ASC').fetchall()
-        bereich_liste = conn.execute('SELECT Bezeichnung FROM Bereich ORDER BY Bezeichnung').fetchall()
-        taetigkeiten_liste = conn.execute('SELECT ID, Bezeichnung FROM Taetigkeit ORDER BY Sortierung ASC').fetchall()
+        # 🔹 Nur Bemerkungen für diese Themen laden
+        if themen:
+            thema_ids = [t['ID'] for t in themen]
+            placeholders = ','.join(['?'] * len(thema_ids))
+            bemerkungen = conn.execute(f'''
+                SELECT 
+                    b.ThemaID,
+                    b.Datum,
+                    b.Bemerkung,
+                    m.Vorname,
+                    m.Nachname,
+                    t.Bezeichnung AS Taetigkeit
+                FROM SchichtbuchBemerkungen b
+                JOIN Mitarbeiter m ON b.MitarbeiterID = m.ID
+                LEFT JOIN Taetigkeit t ON b.TaetigkeitID = t.ID
+                WHERE b.Gelöscht = 0 AND b.ThemaID IN ({placeholders})
+                ORDER BY b.ThemaID DESC, b.Datum DESC
+            ''', thema_ids).fetchall()
+        else:
+            bemerkungen = []
 
     # 🔹 Nach Thema gruppieren
     bemerk_dict = {}
     for b in bemerkungen:
         bemerk_dict.setdefault(b['ThemaID'], []).append(b)
 
-    return render_template(
-        'schichtbuch/sbListeDetails.html',
-        themen=themen,
-        bemerk_dict=bemerk_dict,
-        status_liste=status_liste,
-        bereich_liste=bereich_liste,
-        taetigkeiten_liste=taetigkeiten_liste,
-        status_filter=status_filter,
-        bereich_filter=bereich_filter
-    )
+    # 🔹 Als JSON zurückgeben
+    return jsonify({
+        'themen': [dict(t) for t in themen],
+        'bemerk_dict': {k: [dict(b) for b in v] for k, v in bemerk_dict.items()}
+    })
 
 @app.route('/sblistedetails/add', methods=['POST'])
 @login_required
