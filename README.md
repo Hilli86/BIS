@@ -107,7 +107,16 @@ BIS/
 - **Benutzerauthentifizierung** mit Personalnummer
 - **Schichtbuch-Verwaltung** mit Themen und Bemerkungen
 - **Status-Tracking** (Offen, In Arbeit, Abgeschlossen)
-- **Filterung** nach Bereich und Status
+- **Liste Details (sbListeDetails)**
+  - Infinite Scroll: Laden in Seiten à 50 Einträgen
+  - Filter (einklappbar):
+    - Bereich und Gewerk (Gewerk dynamisch nach Bereich)
+    - Status-Mehrfachauswahl
+    - Textsuche in Bemerkungen
+  - Bemerkungen werden nur für die angezeigten Themen geladen
+- **Thema-Details**
+  - Tätigkeit wird pro Bemerkung angezeigt
+  - Eigene Bemerkungen können inline bearbeitet werden (Text und Tätigkeit)
 - **AJAX-Unterstützung** für dynamische Updates
 
 ## 🛠️ Entwicklung
@@ -126,7 +135,11 @@ python app.py
 
 ## 📝 Changelog
 
-### Version 1.1 (Aktuell)
+### Version 1.2 (Aktuell)
+- ✅ sbListeDetails: Infinite Scroll, neue Filter (Bereich, Gewerk, Status-Multi, Textsuche)
+- ✅ sbThemaDetail: Tätigkeit pro Bemerkung, Inline-Bearbeitung eigener Bemerkungen
+
+### Version 1.1
 - ✅ Sicherheitsverbesserungen (Secret Key, Passwort-Hashing)
 - ✅ Error Handling hinzugefügt
 - ✅ Konfigurationsmanagement
