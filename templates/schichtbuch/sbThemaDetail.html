@@ -6,7 +6,6 @@
     <div class="card mb-4 shadow-sm">
         <div class="card-body">
             <h5 class="card-title">Gewerk: {{ thema.Gewerk }}</h5>
-            <p class="card-text mb-1"><strong>Tätigkeit:</strong> {{ thema.Taetigkeit }}</p>
             <p class="card-text"><strong>Status:</strong> {{ thema.Status }}</p>
         </div>
     </div>
@@ -17,7 +16,9 @@
             <tr>
                 <th>Datum</th>
                 <th>Mitarbeiter</th>
+                <th>Tätigkeit</th>
                 <th>Bemerkung</th>
+                <th>Aktionen</th>
             </tr>
         </thead>
         <tbody>
@@ -25,11 +26,40 @@
             <tr>
                 <td>{{ b.Datum }}</td>
                 <td>{{ b.Vorname }} {{ b.Nachname }}</td>
-                <td>{{ b.Bemerkung }}</td>
+                <td class="align-middle">{{ b.Taetigkeit }}</td>
+                <td>
+                    <div class="bemerkung-view" data-bemerkung-id="{{ b.BemerkungID }}">{{ b.Bemerkung }}</div>
+                    {% if session.get('user_id') == b.MitarbeiterID %}
+                    <form class="bemerkung-edit d-none" data-bemerkung-id="{{ b.BemerkungID }}">
+                        <div class="mb-2">
+                            <textarea class="form-control" name="bemerkung" rows="3">{{ b.Bemerkung }}</textarea>
+                        </div>
+                        <div class="mb-2">
+                            <select name="taetigkeit_id" class="form-select">
+                                <option value="">-- Tätigkeit wählen --</option>
+                                {% for t in taetigkeiten %}
+                                    <option value="{{ t.ID }}" {% if b.TaetigkeitID == t.ID %}selected{% endif %}>{{ t.Bezeichnung }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <button type="submit" class="btn btn-sm btn-success me-2">Speichern</button>
+                            <button type="button" class="btn btn-sm btn-secondary btn-cancel-edit">Abbrechen</button>
+                        </div>
+                    </form>
+                    {% endif %}
+                </td>
+                <td class="text-nowrap align-middle">
+                    {% if session.get('user_id') == b.MitarbeiterID %}
+                    <button type="button" class="btn btn-sm btn-outline-primary btn-edit" data-bemerkung-id="{{ b.BemerkungID }}">Bearbeiten</button>
+                    {% else %}
+                    <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
             </tr>
             {% else %}
             <tr>
-                <td colspan="3" class="text-center text-muted">Keine Bemerkungen vorhanden.</td>
+                <td colspan="5" class="text-center text-muted">Keine Bemerkungen vorhanden.</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -70,4 +100,63 @@
         <a href="{{ previous_page }}" class="btn btn-secondary">⬅️ Zurück</a>
     </form>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('click', (e) => {
+    const editBtn = e.target.closest('.btn-edit');
+    if (!editBtn) return;
+    const id = editBtn.getAttribute('data-bemerkung-id');
+    const view = document.querySelector(`.bemerkung-view[data-bemerkung-id="${id}"]`);
+    const form = document.querySelector(`.bemerkung-edit[data-bemerkung-id="${id}"]`);
+    if (view && form) {
+        view.classList.add('d-none');
+        form.classList.remove('d-none');
+    }
+});
+
+document.addEventListener('click', (e) => {
+    const cancelBtn = e.target.closest('.btn-cancel-edit');
+    if (!cancelBtn) return;
+    const form = cancelBtn.closest('.bemerkung-edit');
+    const id = form.getAttribute('data-bemerkung-id');
+    const view = document.querySelector(`.bemerkung-view[data-bemerkung-id="${id}"]`);
+    if (view && form) {
+        form.classList.add('d-none');
+        view.classList.remove('d-none');
+    }
+});
+
+document.addEventListener('submit', async (e) => {
+    const form = e.target.closest('.bemerkung-edit');
+    if (!form) return;
+    e.preventDefault();
+    const id = form.getAttribute('data-bemerkung-id');
+    const formData = new FormData(form);
+    try {
+        const res = await fetch(`/sbEditBemerkung/${id}`, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const data = await res.json();
+        if (!data.success) {
+            alert(data.error || 'Speichern fehlgeschlagen');
+            return;
+        }
+        const view = document.querySelector(`.bemerkung-view[data-bemerkung-id="${id}"]`);
+        if (view) view.textContent = data.bemerkung;
+        // Tätigkeitstext in derselben Zeile aktualisieren
+        const row = form.closest('tr');
+        const taetigkeitCell = row.querySelector('td:nth-child(3)');
+        if (taetigkeitCell) taetigkeitCell.textContent = data.taetigkeit || '';
+        form.classList.add('d-none');
+        if (view) view.classList.remove('d-none');
+    } catch (err) {
+        console.error(err);
+        alert('Fehler beim Speichern.');
+    }
+});
+</script>
 {% endblock %}

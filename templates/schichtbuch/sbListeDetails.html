@@ -53,35 +53,69 @@
 {% block content %}
 <h1>Details aller Einträge</h1>
 
-<!-- 🔹 Filterleiste -->
-<form method="get" class="row g-2 mb-4">
-  <div class="col-md-3">
-    <select name="status" class="form-select">
-      <option value="">-- Status wählen --</option>
-      {% for s in status_liste %}
-        <option value="{{ s.Bezeichnung }}" {% if s.Bezeichnung == status_filter %}selected{% endif %}>
-          {{ s.Bezeichnung }}
-        </option>
-      {% endfor %}
-    </select>
+<!-- 🔹 Filter (einklappbar) -->
+<div class="card mb-3">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <strong>Filter</strong>
+    <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#filterCollapse" aria-expanded="false">Anzeigen / Ausblenden</button>
   </div>
+  <div class="collapse" id="filterCollapse">
+    <div class="card-body">
+      <form method="get" id="filterForm">
+        <!-- Zeile 1: Bereich + Gewerk -->
+        <div class="row g-3 align-items-end">
+          <div class="col-md-6">
+            <label class="form-label">Bereich</label>
+            <select name="bereich" id="filterBereich" class="form-select">
+              <option value="">-- Bereich wählen --</option>
+              {% for b in bereich_liste %}
+                <option value="{{ b.Bezeichnung }}" {% if b.Bezeichnung == bereich_filter %}selected{% endif %}>{{ b.Bezeichnung }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Gewerk</label>
+            <select name="gewerk" id="filterGewerk" class="form-select">
+              <option value="">-- alle Gewerke --</option>
+              {% for g in gewerke_liste %}
+                <option value="{{ g.Bezeichnung }}" {% if gewerk_filter == g.Bezeichnung %}selected{% endif %}>{{ g.Bezeichnung }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
 
-  <div class="col-md-3">
-    <select name="bereich" class="form-select">
-      <option value="">-- Bereich wählen --</option>
-      {% for b in bereich_liste %}
-        <option value="{{ b.Bezeichnung }}" {% if b.Bezeichnung == bereich_filter %}selected{% endif %}>
-          {{ b.Bezeichnung }}
-        </option>
-      {% endfor %}
-    </select>
-  </div>
+        <!-- Zeile 2: Status (Mehrfach) -->
+        <div class="row g-3 mt-1">
+          <div class="col-12">
+            <label class="form-label">Status (Mehrfachauswahl)</label>
+            <select name="status" id="filterStatus" class="form-select" multiple>
+              {% for s in status_liste %}
+                <option value="{{ s.Bezeichnung }}" {% if status_filter_list and (s.Bezeichnung in status_filter_list) %}selected{% endif %}>{{ s.Bezeichnung }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">STRG/CMD halten für Mehrfachauswahl</div>
+          </div>
+        </div>
 
-  <div class="col-md-3 d-flex">
-    <button type="submit" class="btn btn-primary me-2">Filtern</button>
-    <a href="{{ url_for('sblistedetails') }}" class="btn btn-secondary">Alle anzeigen</a>
+        <!-- Zeile 3: Suchtext -->
+        <div class="row g-3 mt-1">
+          <div class="col-12">
+            <label class="form-label">Text in Bemerkungen</label>
+            <input type="text" name="q" id="filterQ" value="{{ q_filter or '' }}" class="form-control" placeholder="z. B. Pumpe, Fehlercode ..." />
+          </div>
+        </div>
+
+        <!-- Zeile 4: Buttons -->
+        <div class="row g-3 mt-2">
+          <div class="col-12 d-flex">
+            <button type="submit" class="btn btn-primary me-2">Filtern</button>
+            <a href="{{ url_for('sblistedetails') }}" class="btn btn-secondary">Alle anzeigen</a>
+          </div>
+        </div>
+      </form>
+    </div>
   </div>
-</form>
+</div>
 
 <table class="table align-middle">
   <thead class="table-dark">
@@ -298,8 +332,10 @@ document.addEventListener("submit", async (e) => {
 // Infinite Scroll
 let isLoading = false;
 let currentOffset = {{ themen|length }};
-let statusFilter = '{{ status_filter or '' }}';
+const statusFilters = {{ (status_filter_list or []) | tojson }};
 let bereichFilter = '{{ bereich_filter or '' }}';
+let gewerkFilter = '{{ gewerk_filter or '' }}';
+let qFilter = '{{ q_filter or '' }}';
 
 async function loadMoreThemen() {
   if (isLoading) return;
@@ -314,8 +350,12 @@ async function loadMoreThemen() {
     const url = new URL('/sblistedetails/load_more', window.location.origin);
     url.searchParams.append('offset', currentOffset);
     url.searchParams.append('limit', 50);
-    if (statusFilter) url.searchParams.append('status', statusFilter);
+    if (statusFilters && statusFilters.length) {
+      statusFilters.forEach(s => url.searchParams.append('status', s));
+    }
     if (bereichFilter) url.searchParams.append('bereich', bereichFilter);
+    if (gewerkFilter) url.searchParams.append('gewerk', gewerkFilter);
+    if (qFilter) url.searchParams.append('q', qFilter);
 
     const response = await fetch(url);
     const data = await response.json();
@@ -453,6 +493,28 @@ window.addEventListener('scroll', () => {
 // Initial prüfen, ob bereits mehr geladen werden soll
 if (currentOffset < 50) {
   document.getElementById('loadingIndicator').innerHTML = '<p class="text-muted">Alle Einträge geladen.</p>';
+}
+
+// Dynamische Gewerke nach Bereich
+const bereichSelect = document.getElementById('filterBereich');
+const gewerkSelect = document.getElementById('filterGewerk');
+if (bereichSelect && gewerkSelect) {
+  bereichSelect.addEventListener('change', async () => {
+    const val = bereichSelect.value;
+    const url = new URL('/api/gewerke', window.location.origin);
+    if (val) url.searchParams.append('bereich', val);
+    const res = await fetch(url);
+    const data = await res.json();
+    const current = gewerkSelect.value;
+    gewerkSelect.innerHTML = '<option value="">-- alle Gewerke --</option>';
+    (data.gewerke || []).forEach(g => {
+      const opt = document.createElement('option');
+      opt.value = g.Bezeichnung;
+      opt.textContent = g.Bezeichnung;
+      if (current && current === g.Bezeichnung) opt.selected = true;
+      gewerkSelect.appendChild(opt);
+    });
+  });
 }
 </script>
 {% endblock %}

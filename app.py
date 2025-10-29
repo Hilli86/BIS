@@ -137,14 +137,16 @@ def sblistekompakt():
 @login_required
 def sblistedetails():
     # 🔹 Filterparameter aus der URL lesen
-    status_filter = request.args.get('status')
+    status_filter_list = request.args.getlist('status')  # Mehrfachauswahl
     bereich_filter = request.args.get('bereich')
+    gewerk_filter = request.args.get('gewerk')
+    q_filter = request.args.get('q')  # Textsuche in Bemerkungen
     
     # 🔹 Initial limit: nur 50 Themen auf einmal laden
     items_per_page = 50
 
     with get_db_connection() as conn:
-        # 🔹 Basis-SQL mit neuer Sortierung
+        # 🔹 Basis-SQL (Filter in WHERE, dann GROUP BY für Sortierung)
         query = '''
             SELECT 
                 t.ID,
@@ -165,21 +167,27 @@ def sblistedetails():
             LEFT JOIN Mitarbeiter m ON bm.MitarbeiterID = m.ID
             LEFT JOIN Taetigkeit ta ON bm.TaetigkeitID = ta.ID
             WHERE t.Gelöscht = 0
-            GROUP BY t.ID
         '''
         params = []
 
-        # 🔹 Filterbedingungen hinzufügen
-        if status_filter:
-            query += ' HAVING s.Bezeichnung = ?'
-            params.append(status_filter)
-
         if bereich_filter:
-            if status_filter:
-                query += ' AND b.Bezeichnung = ?'
-            else:
-                query += ' HAVING b.Bezeichnung = ?'
+            query += ' AND b.Bezeichnung = ?'
             params.append(bereich_filter)
+
+        if gewerk_filter:
+            query += ' AND g.Bezeichnung = ?'
+            params.append(gewerk_filter)
+
+        if status_filter_list:
+            placeholders = ','.join(['?'] * len(status_filter_list))
+            query += f' AND s.Bezeichnung IN ({placeholders})'
+            params.extend(status_filter_list)
+
+        if q_filter:
+            query += ' AND EXISTS (SELECT 1 FROM SchichtbuchBemerkungen b2 WHERE b2.ThemaID = t.ID AND b2.Gelöscht = 0 AND b2.Bemerkung LIKE ? )'
+            params.append(f'%{q_filter}%')
+
+        query += ' GROUP BY t.ID'
 
         query += ''' ORDER BY 
                         LetzteBemerkungDatum DESC,
@@ -218,6 +226,16 @@ def sblistedetails():
         # 🔹 Werte für Dropdowns holen
         status_liste = conn.execute('SELECT ID, Bezeichnung FROM Status ORDER BY Sortierung ASC').fetchall()
         bereich_liste = conn.execute('SELECT Bezeichnung FROM Bereich ORDER BY Bezeichnung').fetchall()
+        if bereich_filter:
+            gewerke_liste = conn.execute('''
+                SELECT G.ID, G.Bezeichnung
+                FROM Gewerke G
+                JOIN Bereich B ON G.BereichID = B.ID
+                WHERE B.Bezeichnung = ?
+                ORDER BY G.Bezeichnung
+            ''', (bereich_filter,)).fetchall()
+        else:
+            gewerke_liste = conn.execute('SELECT ID, Bezeichnung FROM Gewerke ORDER BY Bezeichnung').fetchall()
         taetigkeiten_liste = conn.execute('SELECT ID, Bezeichnung FROM Taetigkeit ORDER BY Sortierung ASC').fetchall()
 
     # 🔹 Nach Thema gruppieren
@@ -232,8 +250,11 @@ def sblistedetails():
         status_liste=status_liste,
         bereich_liste=bereich_liste,
         taetigkeiten_liste=taetigkeiten_liste,
-        status_filter=status_filter,
-        bereich_filter=bereich_filter
+        status_filter_list=status_filter_list,
+        bereich_filter=bereich_filter,
+        gewerk_filter=gewerk_filter,
+        q_filter=q_filter,
+        gewerke_liste=gewerke_liste
     )
 
 # 🔹 AJAX-Route zum Nachladen weiterer Themen
@@ -242,36 +263,54 @@ def sblistedetails():
 def sblistedetails_load_more():
     offset = request.args.get('offset', 0, type=int)
     limit = request.args.get('limit', 50, type=int)
-    status_filter = request.args.get('status')
+    status_filter_list = request.args.getlist('status')
     bereich_filter = request.args.get('bereich')
+    gewerk_filter = request.args.get('gewerk')
+    q_filter = request.args.get('q')
 
     with get_db_connection() as conn:
-        # 🔹 Basis-SQL
+        # 🔹 Basis-SQL analog zur Hauptliste
         query = '''
             SELECT 
                 t.ID,
                 b.Bezeichnung AS Bereich,
                 g.Bezeichnung AS Gewerk,
                 s.Bezeichnung AS Status,
-                s.Farbe AS Farbe
+                s.Farbe AS Farbe,
+                COALESCE(MAX(bm.Datum), '1900-01-01') AS LetzteBemerkungDatum,
+                COALESCE(MAX(bm.MitarbeiterID), 0) AS LetzteMitarbeiterID,
+                COALESCE(MAX(m.Vorname), '') AS LetzteMitarbeiterVorname,
+                COALESCE(MAX(m.Nachname), '') AS LetzteMitarbeiterNachname,
+                COALESCE(MAX(ta.Bezeichnung), '') AS LetzteTatigkeit
             FROM SchichtbuchThema t
             JOIN Gewerke g ON t.GewerkID = g.ID
             JOIN Bereich b ON g.BereichID = b.ID
             JOIN Status s ON t.StatusID = s.ID
-            WHERE Gelöscht = 0
+            LEFT JOIN SchichtbuchBemerkungen bm ON bm.ThemaID = t.ID AND bm.Gelöscht = 0
+            LEFT JOIN Mitarbeiter m ON bm.MitarbeiterID = m.ID
+            LEFT JOIN Taetigkeit ta ON bm.TaetigkeitID = ta.ID
+            WHERE t.Gelöscht = 0
         '''
         params = []
-
-        # 🔹 Filterbedingungen hinzufügen
-        if status_filter:
-            query += ' AND s.Bezeichnung = ?'
-            params.append(status_filter)
 
         if bereich_filter:
             query += ' AND b.Bezeichnung = ?'
             params.append(bereich_filter)
 
-        query += ' ORDER BY t.ID DESC LIMIT ? OFFSET ?'
+        if gewerk_filter:
+            query += ' AND g.Bezeichnung = ?'
+            params.append(gewerk_filter)
+
+        if status_filter_list:
+            placeholders = ','.join(['?'] * len(status_filter_list))
+            query += f' AND s.Bezeichnung IN ({placeholders})'
+            params.extend(status_filter_list)
+
+        if q_filter:
+            query += ' AND EXISTS (SELECT 1 FROM SchichtbuchBemerkungen b2 WHERE b2.ThemaID = t.ID AND b2.Gelöscht = 0 AND b2.Bemerkung LIKE ? )'
+            params.append(f'%{q_filter}%')
+
+        query += ' GROUP BY t.ID ORDER BY LetzteBemerkungDatum DESC, LetzteMitarbeiterNachname ASC, LetzteMitarbeiterVorname ASC, Bereich ASC, Gewerk ASC, LetzteTatigkeit ASC, Status ASC LIMIT ? OFFSET ?'
         params.extend([limit, offset])
 
         themen = conn.execute(query, params).fetchall()
@@ -307,6 +346,24 @@ def sblistedetails_load_more():
         'themen': [dict(t) for t in themen],
         'bemerk_dict': {k: [dict(b) for b in v] for k, v in bemerk_dict.items()}
     })
+
+# 🔹 API: Gewerke nach Bereich
+@app.route('/api/gewerke')
+@login_required
+def api_gewerke():
+    bereich = request.args.get('bereich')
+    with get_db_connection() as conn:
+        if bereich:
+            rows = conn.execute('''
+                SELECT G.ID, G.Bezeichnung
+                FROM Gewerke G
+                JOIN Bereich B ON G.BereichID = B.ID
+                WHERE B.Bezeichnung = ?
+                ORDER BY G.Bezeichnung
+            ''', (bereich,)).fetchall()
+        else:
+            rows = conn.execute('SELECT ID, Bezeichnung FROM Gewerke ORDER BY Bezeichnung').fetchall()
+    return jsonify({'gewerke': [dict(r) for r in rows]})
 
 @app.route('/sblistedetails/add', methods=['POST'])
 @login_required
@@ -537,13 +594,16 @@ def thema_detail(thema_id):
         status_liste = conn.execute('SELECT * FROM Status ORDER BY Sortierung ASC').fetchall()
         taetigkeiten = conn.execute('SELECT * FROM Taetigkeit ORDER BY Sortierung ASC').fetchall()
 
-        # Bemerkungen zu diesem Thema
+        # Bemerkungen zu diesem Thema (inkl. IDs für Bearbeitung)
         bemerkungen = conn.execute('''
             SELECT 
+                b.ID AS BemerkungID,
                 b.Datum,
+                b.MitarbeiterID,
                 m.Vorname,
                 m.Nachname,
                 b.Bemerkung,
+                b.TaetigkeitID,
                 t.Bezeichnung AS Taetigkeit
             FROM SchichtbuchBemerkungen b
             JOIN Mitarbeiter m ON b.MitarbeiterID = m.ID
@@ -565,6 +625,43 @@ def thema_detail(thema_id):
         taetigkeiten=taetigkeiten,
         previous_page=previous_page
     )
+
+# 🔹 Bemerkung bearbeiten (nur eigener Nutzer)
+@app.route('/sbEditBemerkung/<int:bemerkung_id>', methods=['POST'])
+@login_required
+def sbEditBemerkung(bemerkung_id):
+    user_id = session.get('user_id')
+    neuer_text = request.form.get('bemerkung')
+    neue_taetigkeit_id = request.form.get('taetigkeit_id')
+
+    if not neuer_text:
+        return jsonify({"success": False, "error": "Bemerkung fehlt."}), 400
+
+    with get_db_connection() as conn:
+        row = conn.execute('SELECT MitarbeiterID FROM SchichtbuchBemerkungen WHERE ID = ? AND Gelöscht = 0', (bemerkung_id,)).fetchone()
+        if not row:
+            return jsonify({"success": False, "error": "Bemerkung nicht gefunden."}), 404
+        if row['MitarbeiterID'] != user_id:
+            return jsonify({"success": False, "error": "Keine Berechtigung."}), 403
+
+        # Update durchführen
+        if neue_taetigkeit_id and neue_taetigkeit_id != "":
+            conn.execute('UPDATE SchichtbuchBemerkungen SET Bemerkung = ?, TaetigkeitID = ? WHERE ID = ?', (neuer_text, neue_taetigkeit_id, bemerkung_id))
+        else:
+            conn.execute('UPDATE SchichtbuchBemerkungen SET Bemerkung = ?, TaetigkeitID = NULL WHERE ID = ?', (neuer_text, bemerkung_id))
+        conn.commit()
+
+        ta_row = None
+        if neue_taetigkeit_id and neue_taetigkeit_id != "":
+            ta_row = conn.execute('SELECT Bezeichnung FROM Taetigkeit WHERE ID = ?', (neue_taetigkeit_id,)).fetchone()
+
+    return jsonify({
+        "success": True,
+        "bemerkung_id": bemerkung_id,
+        "bemerkung": neuer_text,
+        "taetigkeit_id": int(neue_taetigkeit_id) if (neue_taetigkeit_id and neue_taetigkeit_id != "") else None,
+        "taetigkeit": (ta_row['Bezeichnung'] if ta_row else None)
+    })
 
 # 🔹 Thema löschen (Soft-Delete)
 @app.route('/sbDeleteThema/<int:thema_id>', methods=['POST'])
