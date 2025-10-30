@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
 import sqlite3
 from datetime import datetime, timedelta
@@ -224,19 +224,19 @@ def sblistedetails():
             bemerkungen = []
 
         # 🔹 Werte für Dropdowns holen
-        status_liste = conn.execute('SELECT ID, Bezeichnung FROM Status ORDER BY Sortierung ASC').fetchall()
-        bereich_liste = conn.execute('SELECT Bezeichnung FROM Bereich ORDER BY Bezeichnung').fetchall()
+        status_liste = conn.execute('SELECT ID, Bezeichnung FROM Status WHERE Aktiv = 1 ORDER BY Sortierung ASC').fetchall()
+        bereich_liste = conn.execute('SELECT Bezeichnung FROM Bereich WHERE Aktiv = 1 ORDER BY Bezeichnung').fetchall()
         if bereich_filter:
             gewerke_liste = conn.execute('''
                 SELECT G.ID, G.Bezeichnung
                 FROM Gewerke G
                 JOIN Bereich B ON G.BereichID = B.ID
-                WHERE B.Bezeichnung = ?
+                WHERE B.Bezeichnung = ? AND G.Aktiv = 1
                 ORDER BY G.Bezeichnung
             ''', (bereich_filter,)).fetchall()
         else:
-            gewerke_liste = conn.execute('SELECT ID, Bezeichnung FROM Gewerke ORDER BY Bezeichnung').fetchall()
-        taetigkeiten_liste = conn.execute('SELECT ID, Bezeichnung FROM Taetigkeit ORDER BY Sortierung ASC').fetchall()
+            gewerke_liste = conn.execute('SELECT ID, Bezeichnung FROM Gewerke WHERE Aktiv = 1 ORDER BY Bezeichnung').fetchall()
+        taetigkeiten_liste = conn.execute('SELECT ID, Bezeichnung FROM Taetigkeit WHERE Aktiv = 1 ORDER BY Sortierung ASC').fetchall()
 
     # 🔹 Nach Thema gruppieren
     bemerk_dict = {}
@@ -358,11 +358,11 @@ def api_gewerke():
                 SELECT G.ID, G.Bezeichnung
                 FROM Gewerke G
                 JOIN Bereich B ON G.BereichID = B.ID
-                WHERE B.Bezeichnung = ?
+                WHERE B.Bezeichnung = ? AND G.Aktiv = 1
                 ORDER BY G.Bezeichnung
             ''', (bereich,)).fetchall()
         else:
-            rows = conn.execute('SELECT ID, Bezeichnung FROM Gewerke ORDER BY Bezeichnung').fetchall()
+            rows = conn.execute('SELECT ID, Bezeichnung FROM Gewerke WHERE Aktiv = 1 ORDER BY Bezeichnung').fetchall()
     return jsonify({'gewerke': [dict(r) for r in rows]})
 
 @app.route('/sblistedetails/add', methods=['POST'])
@@ -501,12 +501,13 @@ def sbthemaneu():
             SELECT G.ID, G.Bezeichnung, B.ID AS BereichID, B.Bezeichnung AS Bereich
             FROM Gewerke G
             JOIN Bereich B ON G.BereichID = B.ID
+            WHERE G.Aktiv = 1 AND B.Aktiv = 1
             ORDER BY B.Bezeichnung, G.Bezeichnung
         ''').fetchall()
 
-        taetigkeiten = conn.execute('SELECT * FROM Taetigkeit ORDER BY Sortierung ASC').fetchall()
-        status = conn.execute('SELECT * FROM Status ORDER BY Sortierung ASC').fetchall()
-        bereiche = conn.execute('SELECT * FROM Bereich ORDER BY Bezeichnung').fetchall()
+        taetigkeiten = conn.execute('SELECT * FROM Taetigkeit WHERE Aktiv = 1 ORDER BY Sortierung ASC').fetchall()
+        status = conn.execute('SELECT * FROM Status WHERE Aktiv = 1 ORDER BY Sortierung ASC').fetchall()
+        bereiche = conn.execute('SELECT * FROM Bereich WHERE Aktiv = 1 ORDER BY Bezeichnung').fetchall()
 
     return render_template(
         'schichtbuch/sbThemaNeu.html',
@@ -689,6 +690,215 @@ def sbDeleteBemerkung(bemerkung_id):
     # Zurück auf die aktuelle Seite
     next_url = request.referrer or url_for('sblistedetails')
     return redirect(next_url)
+
+@app.route('/admin')
+@login_required
+def admin_dashboard():
+    with get_db_connection() as conn:
+        mitarbeiter = conn.execute('SELECT ID, Personalnummer, Vorname, Nachname, Aktiv FROM Mitarbeiter ORDER BY Nachname, Vorname').fetchall()
+        bereiche = conn.execute('SELECT ID, Bezeichnung FROM Bereich ORDER BY Bezeichnung').fetchall()
+        gewerke = conn.execute('''
+            SELECT G.ID, G.Bezeichnung, B.Bezeichnung AS Bereich, G.BereichID
+            FROM Gewerke G
+            JOIN Bereich B ON G.BereichID = B.ID
+            ORDER BY B.Bezeichnung, G.Bezeichnung
+        ''').fetchall()
+        taetigkeiten = conn.execute('SELECT ID, Bezeichnung, Sortierung FROM Taetigkeit ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
+        status = conn.execute('SELECT ID, Bezeichnung, Farbe, Sortierung FROM Status ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
+
+    return render_template('admin/admin.html',
+                           mitarbeiter=mitarbeiter,
+                           bereiche=bereiche,
+                           gewerke=gewerke,
+                           taetigkeiten=taetigkeiten,
+                           status=status)
+
+@app.route('/admin/mitarbeiter/add', methods=['POST'])
+@login_required
+def admin_mitarbeiter_add():
+    personalnummer = request.form.get('personalnummer')
+    vorname = request.form.get('vorname')
+    nachname = request.form.get('nachname')
+    aktiv = 1 if request.form.get('aktiv') == 'on' else 0
+    passwort = request.form.get('passwort')
+    if not personalnummer or not vorname or not nachname:
+        flash('Bitte Personalnummer, Vorname und Nachname ausfüllen.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+    with get_db_connection() as conn:
+        if passwort:
+            conn.execute('INSERT INTO Mitarbeiter (Personalnummer, Vorname, Nachname, Aktiv, Passwort) VALUES (?, ?, ?, ?, ?)',
+                         (personalnummer, vorname, nachname, aktiv, generate_password_hash(passwort)))
+        else:
+            conn.execute('INSERT INTO Mitarbeiter (Personalnummer, Vorname, Nachname, Aktiv) VALUES (?, ?, ?, ?)',
+                         (personalnummer, vorname, nachname, aktiv))
+        conn.commit()
+    flash('Mitarbeiter angelegt.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/mitarbeiter/update/<int:mid>', methods=['POST'])
+@login_required
+def admin_mitarbeiter_update(mid):
+    vorname = request.form.get('vorname')
+    nachname = request.form.get('nachname')
+    aktiv = 1 if request.form.get('aktiv') == 'on' else 0
+    passwort = request.form.get('passwort')
+    with get_db_connection() as conn:
+        conn.execute('UPDATE Mitarbeiter SET Vorname = ?, Nachname = ?, Aktiv = ? WHERE ID = ?', (vorname, nachname, aktiv, mid))
+        if passwort:
+            conn.execute('UPDATE Mitarbeiter SET Passwort = ? WHERE ID = ?', (generate_password_hash(passwort), mid))
+        conn.commit()
+    flash('Mitarbeiter aktualisiert.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/mitarbeiter/deactivate/<int:mid>', methods=['POST'])
+@login_required
+def admin_mitarbeiter_deactivate(mid):
+    with get_db_connection() as conn:
+        conn.execute('UPDATE Mitarbeiter SET Aktiv = 0 WHERE ID = ?', (mid,))
+        conn.commit()
+    flash('Mitarbeiter deaktiviert.', 'info')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/bereich/add', methods=['POST'])
+@login_required
+def admin_bereich_add():
+    bezeichnung = request.form.get('bezeichnung')
+    if not bezeichnung:
+        flash('Bezeichnung erforderlich.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+    with get_db_connection() as conn:
+        conn.execute('INSERT INTO Bereich (Bezeichnung, Aktiv) VALUES (?, 1)', (bezeichnung,))
+        conn.commit()
+    flash('Bereich angelegt.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/bereich/update/<int:bid>', methods=['POST'])
+@login_required
+def admin_bereich_update(bid):
+    bezeichnung = request.form.get('bezeichnung')
+    aktiv = 1 if request.form.get('aktiv') == 'on' else 0
+    with get_db_connection() as conn:
+        conn.execute('UPDATE Bereich SET Bezeichnung = ?, Aktiv = ? WHERE ID = ?', (bezeichnung, aktiv, bid))
+        conn.commit()
+    flash('Bereich aktualisiert.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/bereich/delete/<int:bid>', methods=['POST'])
+@login_required
+def admin_bereich_delete(bid):
+    # Soft-Delete: auf inaktiv setzen
+    with get_db_connection() as conn:
+        conn.execute('UPDATE Bereich SET Aktiv = 0 WHERE ID = ?', (bid,))
+        conn.commit()
+    flash('Bereich deaktiviert.', 'info')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/gewerk/add', methods=['POST'])
+@login_required
+def admin_gewerk_add():
+    bezeichnung = request.form.get('bezeichnung')
+    bereich_id = request.form.get('bereich_id')
+    if not bezeichnung or not bereich_id:
+        flash('Bezeichnung und Bereich erforderlich.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+    with get_db_connection() as conn:
+        conn.execute('INSERT INTO Gewerke (Bezeichnung, BereichID, Aktiv) VALUES (?, ?, 1)', (bezeichnung, bereich_id))
+        conn.commit()
+    flash('Gewerk angelegt.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/gewerk/update/<int:gid>', methods=['POST'])
+@login_required
+def admin_gewerk_update(gid):
+    bezeichnung = request.form.get('bezeichnung')
+    bereich_id = request.form.get('bereich_id')
+    aktiv = 1 if request.form.get('aktiv') == 'on' else 0
+    with get_db_connection() as conn:
+        conn.execute('UPDATE Gewerke SET Bezeichnung = ?, BereichID = ?, Aktiv = ? WHERE ID = ?', (bezeichnung, bereich_id, aktiv, gid))
+        conn.commit()
+    flash('Gewerk aktualisiert.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/gewerk/delete/<int:gid>', methods=['POST'])
+@login_required
+def admin_gewerk_delete(gid):
+    with get_db_connection() as conn:
+        conn.execute('UPDATE Gewerke SET Aktiv = 0 WHERE ID = ?', (gid,))
+        conn.commit()
+    flash('Gewerk deaktiviert.', 'info')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/taetigkeit/add', methods=['POST'])
+@login_required
+def admin_taetigkeit_add():
+    bezeichnung = request.form.get('bezeichnung')
+    sortierung = request.form.get('sortierung', type=int)
+    if not bezeichnung:
+        flash('Bezeichnung erforderlich.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+    with get_db_connection() as conn:
+        conn.execute('INSERT INTO Taetigkeit (Bezeichnung, Sortierung, Aktiv) VALUES (?, ?, 1)', (bezeichnung, sortierung))
+        conn.commit()
+    flash('Tätigkeit angelegt.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/taetigkeit/update/<int:tid>', methods=['POST'])
+@login_required
+def admin_taetigkeit_update(tid):
+    bezeichnung = request.form.get('bezeichnung')
+    sortierung = request.form.get('sortierung', type=int)
+    aktiv = 1 if request.form.get('aktiv') == 'on' else 0
+    with get_db_connection() as conn:
+        conn.execute('UPDATE Taetigkeit SET Bezeichnung = ?, Sortierung = ?, Aktiv = ? WHERE ID = ?', (bezeichnung, sortierung, aktiv, tid))
+        conn.commit()
+    flash('Tätigkeit aktualisiert.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/taetigkeit/delete/<int:tid>', methods=['POST'])
+@login_required
+def admin_taetigkeit_delete(tid):
+    with get_db_connection() as conn:
+        conn.execute('UPDATE Taetigkeit SET Aktiv = 0 WHERE ID = ?', (tid,))
+        conn.commit()
+    flash('Tätigkeit deaktiviert.', 'info')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/status/add', methods=['POST'])
+@login_required
+def admin_status_add():
+    bezeichnung = request.form.get('bezeichnung')
+    farbe = request.form.get('farbe')
+    sortierung = request.form.get('sortierung', type=int)
+    if not bezeichnung:
+        flash('Bezeichnung erforderlich.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+    with get_db_connection() as conn:
+        conn.execute('INSERT INTO Status (Bezeichnung, Farbe, Sortierung, Aktiv) VALUES (?, ?, ?, 1)', (bezeichnung, farbe, sortierung))
+        conn.commit()
+    flash('Status angelegt.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/status/update/<int:sid>', methods=['POST'])
+@login_required
+def admin_status_update(sid):
+    bezeichnung = request.form.get('bezeichnung')
+    farbe = request.form.get('farbe')
+    sortierung = request.form.get('sortierung', type=int)
+    aktiv = 1 if request.form.get('aktiv') == 'on' else 0
+    with get_db_connection() as conn:
+        conn.execute('UPDATE Status SET Bezeichnung = ?, Farbe = ?, Sortierung = ?, Aktiv = ? WHERE ID = ?', (bezeichnung, farbe, sortierung, aktiv, sid))
+        conn.commit()
+    flash('Status aktualisiert.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/status/delete/<int:sid>', methods=['POST'])
+@login_required
+def admin_status_delete(sid):
+    with get_db_connection() as conn:
+        conn.execute('UPDATE Status SET Aktiv = 0 WHERE ID = ?', (sid,))
+        conn.commit()
+    flash('Status deaktiviert.', 'info')
+    return redirect(url_for('admin_dashboard'))
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')

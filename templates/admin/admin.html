@@ -1,0 +1,235 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<h1>Admin – Stammdaten</h1>
+
+<ul class="nav nav-tabs mb-3" role="tablist">
+  <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-mitarbeiter">Mitarbeiter</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-bereich">Bereiche</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-gewerk">Gewerke</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-taetigkeit">Tätigkeiten</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-status">Status</a></li>
+  <li class="nav-item ms-auto"><a class="nav-link" href="{{ url_for('dashboard') }}">Zurück zum Dashboard</a></li>
+  </ul>
+
+<div class="tab-content">
+  <!-- Mitarbeiter -->
+  <div class="tab-pane fade show active" id="tab-mitarbeiter">
+    <div class="card mb-3">
+      <div class="card-header">Neuen Mitarbeiter anlegen</div>
+      <div class="card-body">
+        <form action="{{ url_for('admin_mitarbeiter_add') }}" method="post" class="row g-2">
+          <div class="col-md-2"><input name="personalnummer" class="form-control" placeholder="Personalnr." required></div>
+          <div class="col-md-3"><input name="vorname" class="form-control" placeholder="Vorname" required></div>
+          <div class="col-md-3"><input name="nachname" class="form-control" placeholder="Nachname" required></div>
+          <div class="col-md-3"><input type="password" name="passwort" class="form-control" placeholder="Passwort (optional)"></div>
+          <div class="col-md-1 form-check d-flex align-items-center">
+            <input class="form-check-input" type="checkbox" name="aktiv" id="maAktiv" checked>
+            <label class="form-check-label ms-1" for="maAktiv">Aktiv</label>
+          </div>
+          <div class="col-12"><button class="btn btn-success">Anlegen</button></div>
+        </form>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-striped align-middle">
+        <thead class="table-dark">
+          <tr><th>Personalnr.</th><th>Name</th><th>Aktiv</th><th>Aktionen</th></tr>
+        </thead>
+        <tbody>
+          {% for m in mitarbeiter %}
+          <tr>
+            <td>{{ m.Personalnummer }}</td>
+            <td>{{ m.Nachname }}, {{ m.Vorname }}</td>
+            <td>{% if m.Aktiv %}<span class="badge bg-success">aktiv</span>{% else %}<span class="badge bg-secondary">inaktiv</span>{% endif %}</td>
+            <td>
+              <form action="{{ url_for('admin_mitarbeiter_update', mid=m.ID) }}" method="post" class="row g-1">
+                <div class="col-md-3"><input name="vorname" class="form-control form-control-sm" value="{{ m.Vorname }}"></div>
+                <div class="col-md-3"><input name="nachname" class="form-control form-control-sm" value="{{ m.Nachname }}"></div>
+                <div class="col-md-3"><input type="password" name="passwort" class="form-control form-control-sm" placeholder="Neues Passwort"></div>
+                <div class="col-md-2 form-check d-flex align-items-center">
+                  <input class="form-check-input" type="checkbox" name="aktiv" id="aktiv{{ m.ID }}" {% if m.Aktiv %}checked{% endif %}>
+                  <label class="form-check-label ms-1" for="aktiv{{ m.ID }}">Aktiv</label>
+                </div>
+                <div class="col-md-1"><button class="btn btn-sm btn-primary w-100">Speichern</button></div>
+              </form>
+              {% if m.Aktiv %}
+              <form action="{{ url_for('admin_mitarbeiter_deactivate', mid=m.ID) }}" method="post" class="d-inline">
+                <button class="btn btn-sm btn-outline-warning mt-1">Deaktivieren</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Bereiche -->
+  <div class="tab-pane fade" id="tab-bereich">
+    <div class="card mb-3">
+      <div class="card-header">Neuen Bereich anlegen</div>
+      <div class="card-body">
+        <form action="{{ url_for('admin_bereich_add') }}" method="post" class="row g-2">
+          <div class="col-md-6"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung" required></div>
+          <div class="col-md-12"><button class="btn btn-success">Anlegen</button></div>
+        </form>
+      </div>
+    </div>
+
+    <table class="table table-striped align-middle">
+      <thead class="table-dark"><tr><th>Bezeichnung</th><th>Aktiv</th><th>Aktionen</th></tr></thead>
+      <tbody>
+        {% for b in bereiche %}
+        <tr>
+          <td>
+            <form action="{{ url_for('admin_bereich_update', bid=b.ID) }}" method="post" class="row g-1 align-items-center">
+              <div class="col-md-8"><input name="bezeichnung" class="form-control form-control-sm" value="{{ b.Bezeichnung }}"></div>
+              <div class="col-md-2 form-check d-flex align-items-center">
+                <input class="form-check-input" type="checkbox" name="aktiv" id="bereichAktiv{{ b.ID }}" {% if b.Aktiv %}checked{% endif %}>
+                <label class="form-check-label ms-1" for="bereichAktiv{{ b.ID }}">Aktiv</label>
+              </div>
+              <div class="col-md-2"><button class="btn btn-sm btn-primary w-100">Speichern</button></div>
+            </form>
+          </td>
+          <td></td>
+          <td></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Gewerke -->
+  <div class="tab-pane fade" id="tab-gewerk">
+    <div class="card mb-3">
+      <div class="card-header">Neues Gewerk anlegen</div>
+      <div class="card-body">
+        <form action="{{ url_for('admin_gewerk_add') }}" method="post" class="row g-2">
+          <div class="col-md-5"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung" required></div>
+          <div class="col-md-5">
+            <select name="bereich_id" class="form-select" required>
+              <option value="">-- Bereich wählen --</option>
+              {% for b in bereiche %}
+                <option value="{{ b.ID }}">{{ b.Bezeichnung }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-2"><button class="btn btn-success w-100">Anlegen</button></div>
+        </form>
+      </div>
+    </div>
+
+    <table class="table table-striped align-middle">
+      <thead class="table-dark"><tr><th>Bereich</th><th>Gewerk</th><th>Aktiv</th><th>Aktionen</th></tr></thead>
+      <tbody>
+        {% for g in gewerke %}
+        <tr>
+          <td>{{ g.Bereich }}</td>
+          <td>
+            <form action="{{ url_for('admin_gewerk_update', gid=g.ID) }}" method="post" class="row g-1 align-items-center">
+              <div class="col-md-5"><input name="bezeichnung" class="form-control form-control-sm" value="{{ g.Bezeichnung }}"></div>
+              <div class="col-md-5">
+                <select name="bereich_id" class="form-select form-select-sm">
+                  {% for b in bereiche %}
+                    <option value="{{ b.ID }}" {% if b.ID == g.BereichID %}selected{% endif %}>{{ b.Bezeichnung }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-1 form-check d-flex align-items-center">
+                <input class="form-check-input" type="checkbox" name="aktiv" id="gewerkAktiv{{ g.ID }}" {% if g.Aktiv %}checked{% endif %}>
+                <label class="form-check-label ms-1" for="gewerkAktiv{{ g.ID }}">Aktiv</label>
+              </div>
+              <div class="col-md-1"><button class="btn btn-sm btn-primary w-100">Speichern</button></div>
+            </form>
+          </td>
+          <td></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Tätigkeiten -->
+  <div class="tab-pane fade" id="tab-taetigkeit">
+    <div class="card mb-3">
+      <div class="card-header">Neue Tätigkeit anlegen</div>
+      <div class="card-body">
+        <form action="{{ url_for('admin_taetigkeit_add') }}" method="post" class="row g-2">
+          <div class="col-md-6"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung" required></div>
+          <div class="col-md-3"><input type="number" name="sortierung" class="form-control" placeholder="Sortierung" value="0"></div>
+          <div class="col-md-3"><button class="btn btn-success w-100">Anlegen</button></div>
+        </form>
+      </div>
+    </div>
+
+    <table class="table table-striped align-middle">
+      <thead class="table-dark"><tr><th>Bezeichnung</th><th>Sortierung</th><th>Aktiv</th><th>Aktionen</th></tr></thead>
+      <tbody>
+        {% for t in taetigkeiten %}
+        <tr>
+          <td>
+            <form action="{{ url_for('admin_taetigkeit_update', tid=t.ID) }}" method="post" class="row g-1 align-items-center">
+              <div class="col-md-6"><input name="bezeichnung" class="form-control form-control-sm" value="{{ t.Bezeichnung }}"></div>
+              <div class="col-md-3"><input type="number" name="sortierung" class="form-control form-control-sm" value="{{ t.Sortierung }}"></div>
+              <div class="col-md-2 form-check d-flex align-items-center">
+                <input class="form-check-input" type="checkbox" name="aktiv" id="taetAktiv{{ t.ID }}" {% if t.Aktiv %}checked{% endif %}>
+                <label class="form-check-label ms-1" for="taetAktiv{{ t.ID }}">Aktiv</label>
+              </div>
+              <div class="col-md-1"><button class="btn btn-sm btn-primary w-100">Speichern</button></div>
+            </form>
+          </td>
+          <td></td>
+          <td></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Status -->
+  <div class="tab-pane fade" id="tab-status">
+    <div class="card mb-3">
+      <div class="card-header">Neuen Status anlegen</div>
+      <div class="card-body">
+        <form action="{{ url_for('admin_status_add') }}" method="post" class="row g-2">
+          <div class="col-md-4"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung" required></div>
+          <div class="col-md-4"><input name="farbe" class="form-control" placeholder="#RRGGBB" value="#6c757d"></div>
+          <div class="col-md-3"><input type="number" name="sortierung" class="form-control" placeholder="Sortierung" value="0"></div>
+          <div class="col-md-1"><button class="btn btn-success w-100">Anlegen</button></div>
+        </form>
+      </div>
+    </div>
+
+    <table class="table table-striped align-middle">
+      <thead class="table-dark"><tr><th>Bezeichnung</th><th>Farbe</th><th>Sortierung</th><th>Aktiv</th><th>Aktionen</th></tr></thead>
+      <tbody>
+        {% for s in status %}
+        <tr>
+          <td>
+            <form action="{{ url_for('admin_status_update', sid=s.ID) }}" method="post" class="row g-1 align-items-center">
+              <div class="col-md-4"><input name="bezeichnung" class="form-control form-control-sm" value="{{ s.Bezeichnung }}"></div>
+              <div class="col-md-3"><input name="farbe" class="form-control form-control-sm" value="{{ s.Farbe }}"></div>
+              <div class="col-md-2"><input type="number" name="sortierung" class="form-control form-control-sm" value="{{ s.Sortierung }}"></div>
+              <div class="col-md-2 form-check d-flex align-items-center">
+                <input class="form-check-input" type="checkbox" name="aktiv" id="statusAktiv{{ s.ID }}" {% if s.Aktiv %}checked{% endif %}>
+                <label class="form-check-label ms-1" for="statusAktiv{{ s.ID }}">Aktiv</label>
+              </div>
+              <div class="col-md-1"><button class="btn btn-sm btn-primary w-100">Speichern</button></div>
+            </form>
+          </td>
+          <td></td>
+          <td></td>
+          <td></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
+
+
