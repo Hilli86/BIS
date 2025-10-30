@@ -1,0 +1,23 @@
+BEGIN;
+
+-- Bereich
+ALTER TABLE Bereich ADD COLUMN Aktiv INTEGER NOT NULL DEFAULT 1;
+UPDATE Bereich SET Aktiv = 1 WHERE Aktiv IS NULL;
+CREATE INDEX IF NOT EXISTS idx_bereich_aktiv ON Bereich(Aktiv);
+
+-- Gewerke
+ALTER TABLE Gewerke ADD COLUMN Aktiv INTEGER NOT NULL DEFAULT 1;
+UPDATE Gewerke SET Aktiv = 1 WHERE Aktiv IS NULL;
+CREATE INDEX IF NOT EXISTS idx_gewerke_aktiv ON Gewerke(Aktiv);
+
+-- Taetigkeit
+ALTER TABLE Taetigkeit ADD COLUMN Aktiv INTEGER NOT NULL DEFAULT 1;
+UPDATE Taetigkeit SET Aktiv = 1 WHERE Aktiv IS NULL;
+CREATE INDEX IF NOT EXISTS idx_taetigkeit_aktiv ON Taetigkeit(Aktiv);
+
+-- Status
+ALTER TABLE Status ADD COLUMN Aktiv INTEGER NOT NULL DEFAULT 1;
+UPDATE Status SET Aktiv = 1 WHERE Aktiv IS NULL;
+CREATE INDEX IF NOT EXISTS idx_status_aktiv ON Status(Aktiv);
+
+COMMIT;
