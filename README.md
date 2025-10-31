@@ -22,29 +22,42 @@ python -m venv venv
 ```
 
 3. **Virtuelle Umgebung aktivieren:**
-```bash
-# Windows
+- Windows (PowerShell):
+```powershell
+./venv/Scripts/Activate.ps1
+```
+- Windows (CMD):
+```cmd
 venv\Scripts\activate
-
-# Linux/Mac
+```
+- Linux/Mac:
+```bash
 source venv/bin/activate
 ```
 
 4. **Abhängigkeiten installieren:**
 ```bash
-pip install flask werkzeug
+pip install -r requirements.txt
 ```
 
 5. **Umgebungsvariablen konfigurieren:**
-```bash
-# Kopieren Sie env_example.txt zu .env und passen Sie die Werte an
+Erstellen Sie eine `.env` basierend auf `env_example.txt`:
+- Windows (PowerShell):
+```powershell
+Copy-Item env_example.txt .env
+```
+- Windows (CMD):
+```cmd
 copy env_example.txt .env
 ```
-
-6. **Datenbank initialisieren:**
+- Linux/Mac:
 ```bash
-python a/init_db.py
+cp env_example.txt .env
 ```
+
+6. **Datenbank:**
+- Standard-Datei ist `database_main.db` (bereits im Repo enthalten).
+- Pfad kann über `DATABASE_URL` in `.env` geändert werden.
 
 7. **Anwendung starten:**
 ```bash
@@ -72,7 +85,7 @@ Erstellen Sie eine `.env` Datei basierend auf `env_example.txt`:
 ```env
 FLASK_ENV=development
 SECRET_KEY=ihr-super-geheimer-schluessel
-DATABASE_URL=database.db
+DATABASE_URL=database_main.db
 SQL_TRACING=True
 ```
 
@@ -91,15 +104,15 @@ SQL_TRACING=False
 BIS/
 ├── app.py                 # Hauptanwendung
 ├── config.py              # Konfiguration
-├── a/
-│   └── init_db.py         # Datenbankinitialisierung
 ├── templates/             # HTML-Templates
 │   ├── layout/
 │   ├── mitarbeiter/
 │   ├── schichtbuch/
 │   └── errors/
 ├── static/                # CSS/JS Dateien
-└── database.db           # SQLite Datenbank
+├── env_example.txt        # Beispiel-Env
+├── requirements.txt       # Python-Abhängigkeiten
+└── database_main.db       # SQLite-Datenbank (Standard)
 ```
 
 ## 🔧 Funktionen
@@ -122,14 +135,36 @@ BIS/
 ## 🛠️ Entwicklung
 
 ### Debug-Modus aktivieren
-```bash
+- Windows (PowerShell):
+```powershell
+$env:FLASK_DEBUG="True"
+python app.py
+```
+- Windows (CMD):
+```cmd
 set FLASK_DEBUG=True
+python app.py
+```
+- Linux/Mac:
+```bash
+export FLASK_DEBUG=True
 python app.py
 ```
 
 ### SQL-Tracing aktivieren
-```bash
+- Windows (PowerShell):
+```powershell
+$env:SQL_TRACING="True"
+python app.py
+```
+- Windows (CMD):
+```cmd
 set SQL_TRACING=True
+python app.py
+```
+- Linux/Mac:
+```bash
+export SQL_TRACING=True
 python app.py
 ```
 
@@ -153,7 +188,7 @@ python app.py
 
 ## 🐛 Bekannte Probleme
 
-- Datenbank-Schema muss bei Updates manuell migriert werden
+- Datenbank-Schema muss bei Updates manuell migriert werden (siehe SQL-Datei `sql_befehle`)
 - Keine automatischen Tests implementiert
 
 ## 📞 Support
