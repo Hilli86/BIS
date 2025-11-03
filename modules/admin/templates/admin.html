@@ -19,7 +19,7 @@
     <div class="card mb-3">
       <div class="card-header">Neuen Mitarbeiter anlegen</div>
       <div class="card-body">
-        <form action="{{ url_for('admin_mitarbeiter_add') }}" method="post" class="row g-2">
+        <form action="{{ url_for('admin.mitarbeiter_add') }}" method="post" class="row g-2">
           <div class="col-md-2"><input name="personalnummer" class="form-control" placeholder="Personalnr." required></div>
           <div class="col-md-3"><input name="vorname" class="form-control" placeholder="Vorname" required></div>
           <div class="col-md-3"><input name="nachname" class="form-control" placeholder="Nachname" required></div>
@@ -52,7 +52,7 @@
             </td>
             <td>{% if m.Aktiv %}<span class="badge bg-success">aktiv</span>{% else %}<span class="badge bg-secondary">inaktiv</span>{% endif %}</td>
             <td>
-              <form action="{{ url_for('admin_mitarbeiter_update', mid=m.ID) }}" method="post" class="row g-1 mb-2">
+              <form action="{{ url_for('admin.mitarbeiter_update', mid=m.ID) }}" method="post" class="row g-1 mb-2">
                 <div class="col-md-3"><input name="vorname" class="form-control form-control-sm" value="{{ m.Vorname }}"></div>
                 <div class="col-md-3"><input name="nachname" class="form-control form-control-sm" value="{{ m.Nachname }}"></div>
                 <div class="col-md-3"><input type="password" name="passwort" class="form-control form-control-sm" placeholder="Neues Passwort"></div>
@@ -68,7 +68,7 @@
                 Abteilungen
               </button>
               <div class="collapse mt-2" id="abt{{ m.ID }}">
-                <form action="{{ url_for('admin_mitarbeiter_abteilungen', mid=m.ID) }}" method="post" class="border p-2 rounded bg-light">
+                <form action="{{ url_for('admin.mitarbeiter_abteilungen', mid=m.ID) }}" method="post" class="border p-2 rounded bg-light">
                   <div class="mb-2">
                     <label class="form-label fw-bold">Primärabteilung:</label>
                     <select name="primaer_abteilung_id" class="form-select form-select-sm">
@@ -96,7 +96,7 @@
               </div>
               
               {% if m.Aktiv %}
-              <form action="{{ url_for('admin_mitarbeiter_deactivate', mid=m.ID) }}" method="post" class="d-inline">
+              <form action="{{ url_for('admin.mitarbeiter_deactivate', mid=m.ID) }}" method="post" class="d-inline">
                 <button class="btn btn-sm btn-outline-warning mt-1">Deaktivieren</button>
               </form>
               {% endif %}
@@ -113,7 +113,7 @@
     <div class="card mb-3">
       <div class="card-header">Neue Abteilung anlegen</div>
       <div class="card-body">
-        <form action="{{ url_for('admin_abteilung_add') }}" method="post" class="row g-2">
+        <form action="{{ url_for('admin.abteilung_add') }}" method="post" class="row g-2">
           <div class="col-md-5"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung" required></div>
           <div class="col-md-4">
             <select name="parent_abteilung_id" class="form-select">
@@ -149,7 +149,7 @@
           <td>{{ a.Sortierung }}</td>
           <td>{% if a.Aktiv %}<span class="badge bg-success">aktiv</span>{% else %}<span class="badge bg-secondary">inaktiv</span>{% endif %}</td>
           <td>
-            <form action="{{ url_for('admin_abteilung_update', aid=a.ID) }}" method="post" class="row g-1 align-items-center">
+            <form action="{{ url_for('admin.abteilung_update', aid=a.ID) }}" method="post" class="row g-1 align-items-center">
               <div class="col-md-4"><input name="bezeichnung" class="form-control form-control-sm" value="{{ a.Bezeichnung }}"></div>
               <div class="col-md-4">
                 <select name="parent_abteilung_id" class="form-select form-select-sm">
@@ -182,7 +182,7 @@
     <div class="card mb-3">
       <div class="card-header">Neuen Bereich anlegen</div>
       <div class="card-body">
-        <form action="{{ url_for('admin_bereich_add') }}" method="post" class="row g-2">
+        <form action="{{ url_for('admin.bereich_add') }}" method="post" class="row g-2">
           <div class="col-md-6"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung" required></div>
           <div class="col-md-12"><button class="btn btn-success">Anlegen</button></div>
         </form>
@@ -195,7 +195,7 @@
         {% for b in bereiche %}
         <tr>
           <td>
-            <form action="{{ url_for('admin_bereich_update', bid=b.ID) }}" method="post" class="row g-1 align-items-center">
+            <form action="{{ url_for('admin.bereich_update', bid=b.ID) }}" method="post" class="row g-1 align-items-center">
               <div class="col-md-8"><input name="bezeichnung" class="form-control form-control-sm" value="{{ b.Bezeichnung }}"></div>
               <div class="col-md-2 form-check d-flex align-items-center">
                 <input class="form-check-input" type="checkbox" name="aktiv" id="bereichAktiv{{ b.ID }}" {% if b.Aktiv %}checked{% endif %}>
@@ -217,7 +217,7 @@
     <div class="card mb-3">
       <div class="card-header">Neues Gewerk anlegen</div>
       <div class="card-body">
-        <form action="{{ url_for('admin_gewerk_add') }}" method="post" class="row g-2">
+        <form action="{{ url_for('admin.gewerk_add') }}" method="post" class="row g-2">
           <div class="col-md-5"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung" required></div>
           <div class="col-md-5">
             <select name="bereich_id" class="form-select" required>
@@ -239,7 +239,7 @@
         <tr>
           <td>{{ g.Bereich }}</td>
           <td>
-            <form action="{{ url_for('admin_gewerk_update', gid=g.ID) }}" method="post" class="row g-1 align-items-center">
+            <form action="{{ url_for('admin.gewerk_update', gid=g.ID) }}" method="post" class="row g-1 align-items-center">
               <div class="col-md-5"><input name="bezeichnung" class="form-control form-control-sm" value="{{ g.Bezeichnung }}"></div>
               <div class="col-md-5">
                 <select name="bereich_id" class="form-select form-select-sm">
@@ -267,7 +267,7 @@
     <div class="card mb-3">
       <div class="card-header">Neue Tätigkeit anlegen</div>
       <div class="card-body">
-        <form action="{{ url_for('admin_taetigkeit_add') }}" method="post" class="row g-2">
+        <form action="{{ url_for('admin.taetigkeit_add') }}" method="post" class="row g-2">
           <div class="col-md-6"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung" required></div>
           <div class="col-md-3"><input type="number" name="sortierung" class="form-control" placeholder="Sortierung" value="0"></div>
           <div class="col-md-3"><button class="btn btn-success w-100">Anlegen</button></div>
@@ -281,7 +281,7 @@
         {% for t in taetigkeiten %}
         <tr>
           <td>
-            <form action="{{ url_for('admin_taetigkeit_update', tid=t.ID) }}" method="post" class="row g-1 align-items-center">
+            <form action="{{ url_for('admin.taetigkeit_update', tid=t.ID) }}" method="post" class="row g-1 align-items-center">
               <div class="col-md-6"><input name="bezeichnung" class="form-control form-control-sm" value="{{ t.Bezeichnung }}"></div>
               <div class="col-md-3"><input type="number" name="sortierung" class="form-control form-control-sm" value="{{ t.Sortierung }}"></div>
               <div class="col-md-2 form-check d-flex align-items-center">
@@ -304,7 +304,7 @@
     <div class="card mb-3">
       <div class="card-header">Neuen Status anlegen</div>
       <div class="card-body">
-        <form action="{{ url_for('admin_status_add') }}" method="post" class="row g-2">
+        <form action="{{ url_for('admin.status_add') }}" method="post" class="row g-2">
           <div class="col-md-4"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung" required></div>
           <div class="col-md-4"><input name="farbe" class="form-control" placeholder="#RRGGBB" value="#6c757d"></div>
           <div class="col-md-3"><input type="number" name="sortierung" class="form-control" placeholder="Sortierung" value="0"></div>
@@ -319,7 +319,7 @@
         {% for s in status %}
         <tr>
           <td>
-            <form action="{{ url_for('admin_status_update', sid=s.ID) }}" method="post" class="row g-1 align-items-center">
+            <form action="{{ url_for('admin.status_update', sid=s.ID) }}" method="post" class="row g-1 align-items-center">
               <div class="col-md-4"><input name="bezeichnung" class="form-control form-control-sm" value="{{ s.Bezeichnung }}"></div>
               <div class="col-md-3"><input name="farbe" class="form-control form-control-sm" value="{{ s.Farbe }}"></div>
               <div class="col-md-2"><input type="number" name="sortierung" class="form-control form-control-sm" value="{{ s.Sortierung }}"></div>

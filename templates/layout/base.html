@@ -102,10 +102,10 @@
     </a>
 
     <h6>Schichtbuch</h6>
-    <a href="{{ url_for('sbthemaliste') }}" class="{% if request.endpoint == 'sbthemaliste' %}active{% endif %}">
+    <a href="{{ url_for('schichtbuch.themaliste') }}" class="{% if request.endpoint == 'sbthemaliste' %}active{% endif %}">
       🧾 Themenliste
     </a>
-    <a href="{{ url_for('sbthemaneu') }}" class="{% if request.endpoint == 'sbthemaneu' %}active{% endif %}">
+    <a href="{{ url_for('schichtbuch.themaneu') }}" class="{% if request.endpoint == 'sbthemaneu' %}active{% endif %}">
       ➕ Neues Thema
     </a>
 
@@ -113,10 +113,17 @@
 
     <div class="sidebar-footer">
       {% if session.user_id %}
-        👤 {{ session.user_name }}<br>
-        <a href="{{ url_for('logout') }}" class="text-decoration-none text-danger">Abmelden</a>
+        <div class="mb-2">
+          <strong>👤 {{ session.user_name }}</strong><br>
+          {% if session.user_abteilung %}
+            <small class="text-muted">🏢 {{ session.user_abteilung }}</small>
+          {% else %}
+            <small class="text-muted">🏢 Keine Abteilung</small>
+          {% endif %}
+        </div>
+        <a href="{{ url_for('auth.logout') }}" class="text-decoration-none text-danger">Abmelden</a>
       {% else %}
-        <a href="{{ url_for('login') }}">Anmelden</a>
+        <a href="{{ url_for('auth.login') }}">Anmelden</a>
       {% endif %}
     </div>
   </div>
