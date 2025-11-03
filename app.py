@@ -49,6 +49,65 @@ def login_required(view_func):
         return view_func(*args, **kwargs)
     return wrapper
 
+# ========== Abteilungs-Hilfsfunktionen ==========
+
+def get_untergeordnete_abteilungen(abteilung_id, conn):
+    """
+    Ermittelt alle untergeordneten Abteilungen (rekursiv) für eine gegebene Abteilung.
+    Gibt eine Liste mit IDs zurück (inkl. der übergebenen Abteilung selbst).
+    """
+    abteilungen = [abteilung_id]
+    
+    # Alle direkten Unterabteilungen finden
+    unterabteilungen = conn.execute(
+        'SELECT ID FROM Abteilung WHERE ParentAbteilungID = ? AND Aktiv = 1',
+        (abteilung_id,)
+    ).fetchall()
+    
+    # Rekursiv alle Unterabteilungen dieser Unterabteilungen finden
+    for unter in unterabteilungen:
+        abteilungen.extend(get_untergeordnete_abteilungen(unter['ID'], conn))
+    
+    return abteilungen
+
+def get_mitarbeiter_abteilungen(mitarbeiter_id, conn):
+    """
+    Gibt alle Abteilungen eines Mitarbeiters zurück (primär + zusätzliche).
+    """
+    # Primärabteilung
+    primaer = conn.execute(
+        'SELECT PrimaerAbteilungID FROM Mitarbeiter WHERE ID = ?',
+        (mitarbeiter_id,)
+    ).fetchone()
+    
+    abteilungen = []
+    if primaer and primaer['PrimaerAbteilungID']:
+        abteilungen.append(primaer['PrimaerAbteilungID'])
+    
+    # Zusätzliche Abteilungen
+    zusaetzliche = conn.execute(
+        'SELECT AbteilungID FROM MitarbeiterAbteilung WHERE MitarbeiterID = ?',
+        (mitarbeiter_id,)
+    ).fetchall()
+    
+    abteilungen.extend([z['AbteilungID'] for z in zusaetzliche])
+    
+    return list(set(abteilungen))  # Duplikate entfernen
+
+def get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn):
+    """
+    Ermittelt alle Abteilungen, die ein Mitarbeiter sehen darf:
+    - Seine eigenen Abteilungen
+    - Alle untergeordneten Abteilungen davon
+    """
+    mitarbeiter_abteilungen = get_mitarbeiter_abteilungen(mitarbeiter_id, conn)
+    
+    alle_sichtbaren = []
+    for abt_id in mitarbeiter_abteilungen:
+        alle_sichtbaren.extend(get_untergeordnete_abteilungen(abt_id, conn))
+    
+    return list(set(alle_sichtbaren))  # Duplikate entfernen
+
 @app.route('/')
 def index():
     # Wenn eingeloggt → Dashboard
@@ -123,6 +182,10 @@ def sbthemaliste():
     items_per_page = 50
 
     with get_db_connection() as conn:
+        # 🔹 Abteilungsfilter: Nur Themen aus sichtbaren Abteilungen
+        mitarbeiter_id = session.get('user_id')
+        sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+        
         # 🔹 Basis-SQL (Filter in WHERE, dann GROUP BY für Sortierung)
         query = '''
             SELECT 
@@ -131,6 +194,7 @@ def sbthemaliste():
                 g.Bezeichnung AS Gewerk,
                 s.Bezeichnung AS Status,
                 s.Farbe AS Farbe,
+                abt.Bezeichnung AS Abteilung,
                 COALESCE(MAX(bm.Datum), '1900-01-01') AS LetzteBemerkungDatum,
                 COALESCE(MAX(bm.MitarbeiterID), 0) AS LetzteMitarbeiterID,
                 COALESCE(MAX(m.Vorname), '') AS LetzteMitarbeiterVorname,
@@ -140,12 +204,19 @@ def sbthemaliste():
             JOIN Gewerke g ON t.GewerkID = g.ID
             JOIN Bereich b ON g.BereichID = b.ID
             JOIN Status s ON t.StatusID = s.ID
+            LEFT JOIN Abteilung abt ON t.ErstellerAbteilungID = abt.ID
             LEFT JOIN SchichtbuchBemerkungen bm ON bm.ThemaID = t.ID AND bm.Gelöscht = 0
             LEFT JOIN Mitarbeiter m ON bm.MitarbeiterID = m.ID
             LEFT JOIN Taetigkeit ta ON bm.TaetigkeitID = ta.ID
             WHERE t.Gelöscht = 0
         '''
         params = []
+        
+        # 🔹 Abteilungsfilter hinzufügen (nur wenn Mitarbeiter Abteilungen zugewiesen hat)
+        if sichtbare_abteilungen:
+            placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+            query += f' AND (t.ErstellerAbteilungID IN ({placeholders}) OR t.ErstellerAbteilungID IS NULL)'
+            params.extend(sichtbare_abteilungen)
 
         if bereich_filter:
             query += ' AND b.Bezeichnung = ?'
@@ -246,6 +317,10 @@ def sbthemaliste_load_more():
     q_filter = request.args.get('q')
 
     with get_db_connection() as conn:
+        # 🔹 Abteilungsfilter auch hier anwenden
+        mitarbeiter_id = session.get('user_id')
+        sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+        
         # 🔹 Basis-SQL analog zur Hauptliste
         query = '''
             SELECT 
@@ -254,6 +329,7 @@ def sbthemaliste_load_more():
                 g.Bezeichnung AS Gewerk,
                 s.Bezeichnung AS Status,
                 s.Farbe AS Farbe,
+                abt.Bezeichnung AS Abteilung,
                 COALESCE(MAX(bm.Datum), '1900-01-01') AS LetzteBemerkungDatum,
                 COALESCE(MAX(bm.MitarbeiterID), 0) AS LetzteMitarbeiterID,
                 COALESCE(MAX(m.Vorname), '') AS LetzteMitarbeiterVorname,
@@ -263,12 +339,19 @@ def sbthemaliste_load_more():
             JOIN Gewerke g ON t.GewerkID = g.ID
             JOIN Bereich b ON g.BereichID = b.ID
             JOIN Status s ON t.StatusID = s.ID
+            LEFT JOIN Abteilung abt ON t.ErstellerAbteilungID = abt.ID
             LEFT JOIN SchichtbuchBemerkungen bm ON bm.ThemaID = t.ID AND bm.Gelöscht = 0
             LEFT JOIN Mitarbeiter m ON bm.MitarbeiterID = m.ID
             LEFT JOIN Taetigkeit ta ON bm.TaetigkeitID = ta.ID
             WHERE t.Gelöscht = 0
         '''
         params = []
+        
+        # 🔹 Abteilungsfilter hinzufügen
+        if sichtbare_abteilungen:
+            placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+            query += f' AND (t.ErstellerAbteilungID IN ({placeholders}) OR t.ErstellerAbteilungID IS NULL)'
+            params.extend(sichtbare_abteilungen)
 
         if bereich_filter:
             query += ' AND b.Bezeichnung = ?'
@@ -422,11 +505,19 @@ def sbthemaneu():
 
         with get_db_connection() as conn:
             cur = conn.cursor()
+            
+            # Primärabteilung des Erstellers ermitteln
+            mitarbeiter = conn.execute(
+                'SELECT PrimaerAbteilungID FROM Mitarbeiter WHERE ID = ?',
+                (mitarbeiter_id,)
+            ).fetchone()
+            
+            ersteller_abteilung_id = mitarbeiter['PrimaerAbteilungID'] if mitarbeiter else None
 
-            # Thema anlegen
+            # Thema mit Abteilung anlegen
             cur.execute(
-                'INSERT INTO SchichtbuchThema (GewerkID, StatusID) VALUES (?, ?)',
-                (gewerk_id, status_id)
+                'INSERT INTO SchichtbuchThema (GewerkID, StatusID, ErstellerAbteilungID) VALUES (?, ?, ?)',
+                (gewerk_id, status_id, ersteller_abteilung_id)
             )
             thema_id = cur.lastrowid
 
@@ -672,7 +763,23 @@ def sbDeleteBemerkung(bemerkung_id):
 @login_required
 def admin_dashboard():
     with get_db_connection() as conn:
-        mitarbeiter = conn.execute('SELECT ID, Personalnummer, Vorname, Nachname, Aktiv FROM Mitarbeiter ORDER BY Nachname, Vorname').fetchall()
+        mitarbeiter = conn.execute('''
+            SELECT m.ID, m.Personalnummer, m.Vorname, m.Nachname, m.Aktiv,
+                   a.Bezeichnung AS PrimaerAbteilung, m.PrimaerAbteilungID
+            FROM Mitarbeiter m
+            LEFT JOIN Abteilung a ON m.PrimaerAbteilungID = a.ID
+            ORDER BY m.Nachname, m.Vorname
+        ''').fetchall()
+        
+        # Abteilungen hierarchisch laden
+        abteilungen = conn.execute('''
+            SELECT a.ID, a.Bezeichnung, a.ParentAbteilungID, a.Aktiv, a.Sortierung,
+                   p.Bezeichnung AS ParentBezeichnung
+            FROM Abteilung a
+            LEFT JOIN Abteilung p ON a.ParentAbteilungID = p.ID
+            ORDER BY COALESCE(p.Bezeichnung, a.Bezeichnung), a.Bezeichnung
+        ''').fetchall()
+        
         bereiche = conn.execute('SELECT ID, Bezeichnung FROM Bereich ORDER BY Bezeichnung').fetchall()
         gewerke = conn.execute('''
             SELECT G.ID, G.Bezeichnung, B.Bezeichnung AS Bereich, G.BereichID
@@ -685,6 +792,7 @@ def admin_dashboard():
 
     return render_template('admin/admin.html',
                            mitarbeiter=mitarbeiter,
+                           abteilungen=abteilungen,
                            bereiche=bereiche,
                            gewerke=gewerke,
                            taetigkeiten=taetigkeiten,
@@ -875,6 +983,95 @@ def admin_status_delete(sid):
         conn.execute('UPDATE Status SET Aktiv = 0 WHERE ID = ?', (sid,))
         conn.commit()
     flash('Status deaktiviert.', 'info')
+    return redirect(url_for('admin_dashboard'))
+
+# ========== Abteilungs-Verwaltung ==========
+
+@app.route('/admin/abteilung/add', methods=['POST'])
+@login_required
+def admin_abteilung_add():
+    bezeichnung = request.form.get('bezeichnung')
+    parent_id = request.form.get('parent_abteilung_id')
+    sortierung = request.form.get('sortierung', type=int) or 0
+    
+    if parent_id == '' or parent_id is None:
+        parent_id = None
+    
+    if not bezeichnung:
+        flash('Bezeichnung erforderlich.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+    
+    with get_db_connection() as conn:
+        conn.execute('INSERT INTO Abteilung (Bezeichnung, ParentAbteilungID, Aktiv, Sortierung) VALUES (?, ?, 1, ?)', 
+                     (bezeichnung, parent_id, sortierung))
+        conn.commit()
+    flash('Abteilung angelegt.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/abteilung/update/<int:aid>', methods=['POST'])
+@login_required
+def admin_abteilung_update(aid):
+    bezeichnung = request.form.get('bezeichnung')
+    parent_id = request.form.get('parent_abteilung_id')
+    sortierung = request.form.get('sortierung', type=int) or 0
+    aktiv = 1 if request.form.get('aktiv') == 'on' else 0
+    
+    if parent_id == '' or parent_id is None:
+        parent_id = None
+    
+    # Verhindern, dass eine Abteilung ihr eigener Parent wird
+    if parent_id and int(parent_id) == aid:
+        flash('Eine Abteilung kann nicht ihre eigene Überabteilung sein.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+    
+    with get_db_connection() as conn:
+        conn.execute('UPDATE Abteilung SET Bezeichnung = ?, ParentAbteilungID = ?, Sortierung = ?, Aktiv = ? WHERE ID = ?', 
+                     (bezeichnung, parent_id, sortierung, aktiv, aid))
+        conn.commit()
+    flash('Abteilung aktualisiert.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/abteilung/delete/<int:aid>', methods=['POST'])
+@login_required
+def admin_abteilung_delete(aid):
+    with get_db_connection() as conn:
+        conn.execute('UPDATE Abteilung SET Aktiv = 0 WHERE ID = ?', (aid,))
+        conn.commit()
+    flash('Abteilung deaktiviert.', 'info')
+    return redirect(url_for('admin_dashboard'))
+
+# ========== Mitarbeiter-Abteilungen Verwaltung ==========
+
+@app.route('/admin/mitarbeiter/<int:mid>/abteilungen', methods=['POST'])
+@login_required
+def admin_mitarbeiter_abteilungen(mid):
+    primaer_abteilung_id = request.form.get('primaer_abteilung_id')
+    zusaetzliche_ids = request.form.getlist('zusaetzliche_abteilungen')
+    
+    # Leere Strings in None konvertieren
+    if primaer_abteilung_id == '' or primaer_abteilung_id is None:
+        primaer_abteilung_id = None
+    
+    with get_db_connection() as conn:
+        # Primärabteilung setzen
+        conn.execute('UPDATE Mitarbeiter SET PrimaerAbteilungID = ? WHERE ID = ?', 
+                     (primaer_abteilung_id, mid))
+        
+        # Alte zusätzliche Abteilungen löschen
+        conn.execute('DELETE FROM MitarbeiterAbteilung WHERE MitarbeiterID = ?', (mid,))
+        
+        # Neue zusätzliche Abteilungen hinzufügen
+        for abt_id in zusaetzliche_ids:
+            if abt_id and abt_id != '' and abt_id != str(primaer_abteilung_id):
+                try:
+                    conn.execute('INSERT INTO MitarbeiterAbteilung (MitarbeiterID, AbteilungID) VALUES (?, ?)', 
+                                 (mid, abt_id))
+                except sqlite3.IntegrityError:
+                    # Duplikat - ignorieren
+                    pass
+        
+        conn.commit()
+    flash('Mitarbeiter-Abteilungen aktualisiert.', 'success')
     return redirect(url_for('admin_dashboard'))
 
 if __name__ == '__main__':
