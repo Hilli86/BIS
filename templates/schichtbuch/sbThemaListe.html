@@ -51,7 +51,7 @@
 {% endblock %}
 
 {% block content %}
-<h1>Details aller Einträge</h1>
+<h1>Themenliste mit allen Bemerkungen</h1>
 
 <!-- 🔹 Filter (einklappbar) -->
 <div class="card mb-3">
@@ -109,7 +109,7 @@
         <div class="row g-3 mt-2">
           <div class="col-12 d-flex">
             <button type="submit" class="btn btn-primary me-2">Filtern</button>
-            <a href="{{ url_for('sblistedetails') }}" class="btn btn-secondary">Alle anzeigen</a>
+            <a href="{{ url_for('sbthemaliste') }}" class="btn btn-secondary">Alle anzeigen</a>
           </div>
         </div>
       </form>
@@ -252,7 +252,7 @@
 {% block scripts %}
 <script>
 document.addEventListener("submit", async (e) => {
-  const form = e.target.closest("form[action='/sblistedetails/add']");
+  const form = e.target.closest("form[action='/sbthemaliste/add']");
   if (!form) return;
   e.preventDefault();
   console.log("Formular abgefangen");
@@ -347,7 +347,7 @@ async function loadMoreThemen() {
   loadingIndicator.style.display = 'block';
 
   try {
-    const url = new URL('/sblistedetails/load_more', window.location.origin);
+    const url = new URL('/sbthemaliste/load_more', window.location.origin);
     url.searchParams.append('offset', currentOffset);
     url.searchParams.append('limit', 50);
     if (statusFilters && statusFilters.length) {
@@ -422,7 +422,7 @@ async function loadMoreThemen() {
         collapseRow.id = `newBemerkung${thema.ID}`;
         collapseRow.innerHTML = `
           <td colspan="5">
-            <form action="/sblistedetails/add" method="post" class="mt-2">
+            <form action="/sbthemaliste/add" method="post" class="mt-2">
               <input type="hidden" name="thema_id" value="${thema.ID}">
               <input type="hidden" name="next" value="${window.location.pathname}${window.location.search}">
               

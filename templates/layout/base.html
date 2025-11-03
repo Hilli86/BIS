@@ -102,11 +102,8 @@
     </a>
 
     <h6>Schichtbuch</h6>
-    <a href="{{ url_for('sblistekompakt') }}" class="{% if request.endpoint == 'sblistekompakt' %}active{% endif %}">
-      📋 Übersicht Einträge
-    </a>
-    <a href="{{ url_for('sblistedetails') }}" class="{% if request.endpoint == 'sblistedetails' %}active{% endif %}">
-      🧾 Details Einträge
+    <a href="{{ url_for('sbthemaliste') }}" class="{% if request.endpoint == 'sbthemaliste' %}active{% endif %}">
+      🧾 Themenliste
     </a>
     <a href="{{ url_for('sbthemaneu') }}" class="{% if request.endpoint == 'sbthemaneu' %}active{% endif %}">
       ➕ Neues Thema

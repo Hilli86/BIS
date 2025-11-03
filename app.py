@@ -109,33 +109,10 @@ def dashboard():
 
     return render_template('dashboard/dashboard.html', daten=daten)
 
-@app.route('/sblistekompakt')
-@login_required
-def sblistekompakt():
-    with get_db_connection() as conn:
-        themen = conn.execute('''
-            SELECT 
-                t.ID,
-                b.Bezeichnung AS Bereich,
-                g.Bezeichnung AS Gewerk,
-                s.Bezeichnung AS Status,
-                s.Farbe AS Farbe,
-                COUNT(bm.ID) AS Bemerkungen
-            FROM SchichtbuchThema t
-            JOIN Gewerke g ON t.GewerkID = g.ID
-            JOIN Bereich b ON g.BereichID = b.ID
-            JOIN Status s ON t.StatusID = s.ID
-            LEFT JOIN SchichtbuchBemerkungen bm ON bm.ThemaID = t.ID
-            WHERE t.Gelöscht = 0
-            GROUP BY t.ID
-            ORDER BY t.ID DESC
-        ''').fetchall()
-    
-    return render_template('schichtbuch/sbListeKompakt.html', themen=themen)
 
-@app.route('/sblistedetails')
+@app.route('/sbthemaliste')
 @login_required
-def sblistedetails():
+def sbthemaliste():
     # 🔹 Filterparameter aus der URL lesen
     status_filter_list = request.args.getlist('status')  # Mehrfachauswahl
     bereich_filter = request.args.get('bereich')
@@ -244,7 +221,7 @@ def sblistedetails():
         bemerk_dict.setdefault(b['ThemaID'], []).append(b)
 
     return render_template(
-        'schichtbuch/sbListeDetails.html',
+        'schichtbuch/sbThemaListe.html',
         themen=themen,
         bemerk_dict=bemerk_dict,
         status_liste=status_liste,
@@ -258,9 +235,9 @@ def sblistedetails():
     )
 
 # 🔹 AJAX-Route zum Nachladen weiterer Themen
-@app.route('/sblistedetails/load_more')
+@app.route('/sbthemaliste/load_more')
 @login_required
-def sblistedetails_load_more():
+def sbthemaliste_load_more():
     offset = request.args.get('offset', 0, type=int)
     limit = request.args.get('limit', 50, type=int)
     status_filter_list = request.args.getlist('status')
@@ -365,14 +342,14 @@ def api_gewerke():
             rows = conn.execute('SELECT ID, Bezeichnung FROM Gewerke WHERE Aktiv = 1 ORDER BY Bezeichnung').fetchall()
     return jsonify({'gewerke': [dict(r) for r in rows]})
 
-@app.route('/sblistedetails/add', methods=['POST'])
+@app.route('/sbthemaliste/add', methods=['POST'])
 @login_required
 def sbAddBemerkung():
     thema_id = request.form.get('thema_id')
     bemerkung_text = request.form.get('bemerkung')
     status_id = request.form.get('status_id')
     taetigkeit_id = request.form.get('taetigkeit_id')
-    next_url = request.form.get('next') or url_for('sblistedetails')
+    next_url = request.form.get('next') or url_for('sbthemaliste')
     
 
     if not thema_id or not bemerkung_text:
@@ -674,7 +651,7 @@ def sbDeleteThema(thema_id):
         conn.commit()
     flash(f'Thema #{thema_id} wurde gelöscht.', 'info')
     # Zurück auf die aktuelle Seite oder Übersicht
-    next_url = request.referrer or url_for('sblistedetails')
+    next_url = request.referrer or url_for('sbthemaliste')
     return redirect(next_url)
 
 
@@ -688,7 +665,7 @@ def sbDeleteBemerkung(bemerkung_id):
         conn.commit()
     flash(f'Bemerkung #{bemerkung_id} wurde gelöscht.', 'info')
     # Zurück auf die aktuelle Seite
-    next_url = request.referrer or url_for('sblistedetails')
+    next_url = request.referrer or url_for('sbthemaliste')
     return redirect(next_url)
 
 @app.route('/admin')
