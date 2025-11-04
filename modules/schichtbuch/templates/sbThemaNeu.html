@@ -94,7 +94,7 @@
 
     // 🔸 Tabelle initial laden
     function ladeThemen() {
-        fetch('/sbthemaneu/aktuelle_themen')
+        fetch('/schichtbuch/themaneu/aktuelle_themen')
             .then(res => res.json())
             .then(data => {
                 const tbody = document.querySelector('#themenTabelle tbody');
@@ -121,12 +121,22 @@
         e.preventDefault();
 
         const formData = new FormData(this);
+        const submitButton = this.querySelector('button[type="submit"]');
+        
+        // Button deaktivieren während der Anfrage
+        submitButton.disabled = true;
+        submitButton.textContent = 'Speichert...';
 
-        fetch('/sbthemaneu', {
+        fetch('/schichtbuch/themaneu', {
             method: 'POST',
             body: formData
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Server-Fehler: ' + response.status);
+            }
+            return response.json();
+        })
         .then(neuesThema => {
             // Formular leeren
             this.reset();
@@ -137,7 +147,14 @@
             const neueZeile = baueZeile(neuesThema);
             tbody.prepend(neueZeile);
         })
-        .catch(err => console.error(err));
+        .catch(err => {
+            console.error('Fehler beim Speichern:', err);
+        })
+        .finally(() => {
+            // Button wieder aktivieren
+            submitButton.disabled = false;
+            submitButton.innerHTML = '<i class="bi bi-save"></i> Speichern';
+        });
     });
 
     // 🔸 Beim Laden Tabelle einmal füllen

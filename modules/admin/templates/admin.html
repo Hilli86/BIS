@@ -84,7 +84,8 @@
                     <label class="form-label fw-bold">Zusätzliche Abteilungen:</label>
                     {% for a in abteilungen %}
                     <div class="form-check">
-                      <input class="form-check-input" type="checkbox" name="zusaetzliche_abteilungen" value="{{ a.ID }}" id="zusatz{{ m.ID }}_{{ a.ID }}">
+                      <input class="form-check-input" type="checkbox" name="zusaetzliche_abteilungen" value="{{ a.ID }}" id="zusatz{{ m.ID }}_{{ a.ID }}" 
+                        {% if mitarbeiter_abteilungen[m.ID] and a.ID in mitarbeiter_abteilungen[m.ID] %}checked{% endif %}>
                       <label class="form-check-label" for="zusatz{{ m.ID }}_{{ a.ID }}">
                         {{ a.Bezeichnung }}{% if a.ParentBezeichnung %} ({{ a.ParentBezeichnung }}){% endif %}
                       </label>
@@ -190,22 +191,24 @@
     </div>
 
     <table class="table table-striped align-middle">
-      <thead class="table-dark"><tr><th>Bezeichnung</th><th>Aktiv</th><th>Aktionen</th></tr></thead>
+      <thead class="table-dark"><tr><th>Bezeichnung</th><th style="width: 120px;">Aktiv</th><th style="width: 120px;">Aktionen</th></tr></thead>
       <tbody>
         {% for b in bereiche %}
         <tr>
           <td>
-            <form action="{{ url_for('admin.bereich_update', bid=b.ID) }}" method="post" class="row g-1 align-items-center">
-              <div class="col-md-8"><input name="bezeichnung" class="form-control form-control-sm" value="{{ b.Bezeichnung }}"></div>
-              <div class="col-md-2 form-check d-flex align-items-center">
+            <form action="{{ url_for('admin.bereich_update', bid=b.ID) }}" method="post" class="d-flex align-items-center gap-2">
+              <input name="bezeichnung" class="form-control form-control-sm" value="{{ b.Bezeichnung }}">
+          </td>
+          <td>
+              <div class="form-check">
                 <input class="form-check-input" type="checkbox" name="aktiv" id="bereichAktiv{{ b.ID }}" {% if b.Aktiv %}checked{% endif %}>
-                <label class="form-check-label ms-1" for="bereichAktiv{{ b.ID }}">Aktiv</label>
+                <label class="form-check-label" for="bereichAktiv{{ b.ID }}">Aktiv</label>
               </div>
-              <div class="col-md-2"><button class="btn btn-sm btn-primary w-100">Speichern</button></div>
+          </td>
+          <td>
+              <button class="btn btn-sm btn-primary">Speichern</button>
             </form>
           </td>
-          <td></td>
-          <td></td>
         </tr>
         {% endfor %}
       </tbody>
@@ -233,29 +236,31 @@
     </div>
 
     <table class="table table-striped align-middle">
-      <thead class="table-dark"><tr><th>Bereich</th><th>Gewerk</th><th>Aktiv</th><th>Aktionen</th></tr></thead>
+      <thead class="table-dark"><tr><th>Gewerk-Bezeichnung</th><th style="width: 200px;">Bereich</th><th style="width: 120px;">Aktiv</th><th style="width: 120px;">Aktionen</th></tr></thead>
       <tbody>
         {% for g in gewerke %}
         <tr>
-          <td>{{ g.Bereich }}</td>
           <td>
-            <form action="{{ url_for('admin.gewerk_update', gid=g.ID) }}" method="post" class="row g-1 align-items-center">
-              <div class="col-md-5"><input name="bezeichnung" class="form-control form-control-sm" value="{{ g.Bezeichnung }}"></div>
-              <div class="col-md-5">
-                <select name="bereich_id" class="form-select form-select-sm">
-                  {% for b in bereiche %}
-                    <option value="{{ b.ID }}" {% if b.ID == g.BereichID %}selected{% endif %}>{{ b.Bezeichnung }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-              <div class="col-md-1 form-check d-flex align-items-center">
+            <form action="{{ url_for('admin.gewerk_update', gid=g.ID) }}" method="post" class="d-flex align-items-center gap-2">
+              <input name="bezeichnung" class="form-control form-control-sm" value="{{ g.Bezeichnung }}">
+          </td>
+          <td>
+              <select name="bereich_id" class="form-select form-select-sm">
+                {% for b in bereiche %}
+                  <option value="{{ b.ID }}" {% if b.ID == g.BereichID %}selected{% endif %}>{{ b.Bezeichnung }}</option>
+                {% endfor %}
+              </select>
+          </td>
+          <td>
+              <div class="form-check">
                 <input class="form-check-input" type="checkbox" name="aktiv" id="gewerkAktiv{{ g.ID }}" {% if g.Aktiv %}checked{% endif %}>
-                <label class="form-check-label ms-1" for="gewerkAktiv{{ g.ID }}">Aktiv</label>
+                <label class="form-check-label" for="gewerkAktiv{{ g.ID }}">Aktiv</label>
               </div>
-              <div class="col-md-1"><button class="btn btn-sm btn-primary w-100">Speichern</button></div>
+          </td>
+          <td>
+              <button class="btn btn-sm btn-primary">Speichern</button>
             </form>
           </td>
-          <td></td>
         </tr>
         {% endfor %}
       </tbody>
@@ -276,23 +281,27 @@
     </div>
 
     <table class="table table-striped align-middle">
-      <thead class="table-dark"><tr><th>Bezeichnung</th><th>Sortierung</th><th>Aktiv</th><th>Aktionen</th></tr></thead>
+      <thead class="table-dark"><tr><th>Bezeichnung</th><th style="width: 150px;">Sortierung</th><th style="width: 120px;">Aktiv</th><th style="width: 120px;">Aktionen</th></tr></thead>
       <tbody>
         {% for t in taetigkeiten %}
         <tr>
           <td>
-            <form action="{{ url_for('admin.taetigkeit_update', tid=t.ID) }}" method="post" class="row g-1 align-items-center">
-              <div class="col-md-6"><input name="bezeichnung" class="form-control form-control-sm" value="{{ t.Bezeichnung }}"></div>
-              <div class="col-md-3"><input type="number" name="sortierung" class="form-control form-control-sm" value="{{ t.Sortierung }}"></div>
-              <div class="col-md-2 form-check d-flex align-items-center">
+            <form action="{{ url_for('admin.taetigkeit_update', tid=t.ID) }}" method="post" class="d-flex align-items-center gap-2">
+              <input name="bezeichnung" class="form-control form-control-sm" value="{{ t.Bezeichnung }}">
+          </td>
+          <td>
+              <input type="number" name="sortierung" class="form-control form-control-sm" value="{{ t.Sortierung }}">
+          </td>
+          <td>
+              <div class="form-check">
                 <input class="form-check-input" type="checkbox" name="aktiv" id="taetAktiv{{ t.ID }}" {% if t.Aktiv %}checked{% endif %}>
-                <label class="form-check-label ms-1" for="taetAktiv{{ t.ID }}">Aktiv</label>
+                <label class="form-check-label" for="taetAktiv{{ t.ID }}">Aktiv</label>
               </div>
-              <div class="col-md-1"><button class="btn btn-sm btn-primary w-100">Speichern</button></div>
+          </td>
+          <td>
+              <button class="btn btn-sm btn-primary">Speichern</button>
             </form>
           </td>
-          <td></td>
-          <td></td>
         </tr>
         {% endfor %}
       </tbody>
@@ -306,7 +315,12 @@
       <div class="card-body">
         <form action="{{ url_for('admin.status_add') }}" method="post" class="row g-2">
           <div class="col-md-4"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung" required></div>
-          <div class="col-md-4"><input name="farbe" class="form-control" placeholder="#RRGGBB" value="#6c757d"></div>
+          <div class="col-md-4">
+            <div class="input-group">
+              <input type="color" class="form-control form-control-color" value="#6c757d" title="Farbe wählen" data-color-picker>
+              <input type="text" name="farbe" class="form-control" placeholder="#RRGGBB" value="#6c757d" pattern="^#[0-9A-Fa-f]{6}$" data-color-text>
+            </div>
+          </div>
           <div class="col-md-3"><input type="number" name="sortierung" class="form-control" placeholder="Sortierung" value="0"></div>
           <div class="col-md-1"><button class="btn btn-success w-100">Anlegen</button></div>
         </form>
@@ -314,25 +328,33 @@
     </div>
 
     <table class="table table-striped align-middle">
-      <thead class="table-dark"><tr><th>Bezeichnung</th><th>Farbe</th><th>Sortierung</th><th>Aktiv</th><th>Aktionen</th></tr></thead>
+      <thead class="table-dark"><tr><th>Bezeichnung</th><th style="width: 200px;">Farbe</th><th style="width: 150px;">Sortierung</th><th style="width: 120px;">Aktiv</th><th style="width: 120px;">Aktionen</th></tr></thead>
       <tbody>
         {% for s in status %}
         <tr>
           <td>
-            <form action="{{ url_for('admin.status_update', sid=s.ID) }}" method="post" class="row g-1 align-items-center">
-              <div class="col-md-4"><input name="bezeichnung" class="form-control form-control-sm" value="{{ s.Bezeichnung }}"></div>
-              <div class="col-md-3"><input name="farbe" class="form-control form-control-sm" value="{{ s.Farbe }}"></div>
-              <div class="col-md-2"><input type="number" name="sortierung" class="form-control form-control-sm" value="{{ s.Sortierung }}"></div>
-              <div class="col-md-2 form-check d-flex align-items-center">
-                <input class="form-check-input" type="checkbox" name="aktiv" id="statusAktiv{{ s.ID }}" {% if s.Aktiv %}checked{% endif %}>
-                <label class="form-check-label ms-1" for="statusAktiv{{ s.ID }}">Aktiv</label>
+            <form action="{{ url_for('admin.status_update', sid=s.ID) }}" method="post" class="d-flex align-items-center gap-2" data-status-form>
+              <input name="bezeichnung" class="form-control form-control-sm" value="{{ s.Bezeichnung }}">
+          </td>
+          <td>
+              <div class="input-group input-group-sm">
+                <input type="color" class="form-control form-control-color form-control-sm" value="{{ s.Farbe }}" title="Farbe wählen" data-color-picker>
+                <input type="text" name="farbe" class="form-control form-control-sm" value="{{ s.Farbe }}" pattern="^#[0-9A-Fa-f]{6}$" data-color-text>
               </div>
-              <div class="col-md-1"><button class="btn btn-sm btn-primary w-100">Speichern</button></div>
+          </td>
+          <td>
+              <input type="number" name="sortierung" class="form-control form-control-sm" value="{{ s.Sortierung }}">
+          </td>
+          <td>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="aktiv" id="statusAktiv{{ s.ID }}" {% if s.Aktiv %}checked{% endif %}>
+                <label class="form-check-label" for="statusAktiv{{ s.ID }}">Aktiv</label>
+              </div>
+          </td>
+          <td>
+              <button class="btn btn-sm btn-primary">Speichern</button>
             </form>
           </td>
-          <td></td>
-          <td></td>
-          <td></td>
         </tr>
         {% endfor %}
       </tbody>
@@ -342,4 +364,146 @@
 
 {% endblock %}
 
+{% block scripts %}
+<script>
+// Toast-Benachrichtigung anzeigen
+function showToast(message, type = 'success') {
+  // Toast-Container erstellen falls nicht vorhanden
+  let toastContainer = document.getElementById('toastContainer');
+  if (!toastContainer) {
+    toastContainer = document.createElement('div');
+    toastContainer.id = 'toastContainer';
+    toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+    toastContainer.style.zIndex = '9999';
+    document.body.appendChild(toastContainer);
+  }
+
+  // Toast erstellen
+  const toastId = 'toast-' + Date.now();
+  const bgClass = type === 'success' ? 'bg-success' : 'bg-danger';
+  const toastHtml = `
+    <div id="${toastId}" class="toast align-items-center text-white ${bgClass} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="d-flex">
+        <div class="toast-body">${message}</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+    </div>
+  `;
+  
+  toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+  const toastElement = document.getElementById(toastId);
+  const toast = new bootstrap.Toast(toastElement, { delay: 4000 });
+  toast.show();
+  
+  // Toast nach dem Ausblenden entfernen
+  toastElement.addEventListener('hidden.bs.toast', () => {
+    toastElement.remove();
+  });
+}
+
+// AJAX-Formular-Handling
+function handleFormSubmit(event) {
+  event.preventDefault();
+  
+  const form = event.target;
+  const formData = new FormData(form);
+  const submitButton = form.querySelector('button[type="submit"]');
+  
+  // Button deaktivieren während der Anfrage
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.dataset.originalText = submitButton.textContent;
+    submitButton.textContent = 'Lädt...';
+  }
+  
+  fetch(form.action, {
+    method: 'POST',
+    body: formData,
+    headers: {
+      'X-Requested-With': 'XMLHttpRequest'
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showToast(data.message, 'success');
+      
+      // Bei Anlegen-Formularen: Seite neu laden
+      if (form.closest('.card-body')) {
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      }
+      // Bei Update-Formularen in der Tabelle: nichts tun (Daten bleiben erhalten)
+    } else {
+      showToast(data.message, 'error');
+    }
+  })
+  .catch(error => {
+    showToast('Ein Fehler ist aufgetreten: ' + error.message, 'error');
+  })
+  .finally(() => {
+    // Button wieder aktivieren
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = submitButton.dataset.originalText;
+    }
+  });
+}
+
+// Color Picker Synchronisation
+function setupColorPickers() {
+  // Alle Color Picker mit Textfeldern synchronisieren
+  document.querySelectorAll('[data-color-picker]').forEach(colorPicker => {
+    const textInput = colorPicker.parentElement.querySelector('[data-color-text]');
+    
+    if (textInput) {
+      // Color Picker -> Textfeld (Farbe wird ins Textfeld übertragen)
+      colorPicker.addEventListener('input', function() {
+        textInput.value = this.value.toUpperCase();
+      });
+      
+      // Textfeld -> Color Picker (bei gültiger Eingabe)
+      textInput.addEventListener('input', function() {
+        const value = this.value.trim();
+        if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+          colorPicker.value = value;
+        }
+      });
+    }
+  });
+}
+
+// Event Listener für alle Formulare hinzufügen
+document.addEventListener('DOMContentLoaded', function() {
+  // Alle Formulare im Admin-Bereich
+  document.querySelectorAll('form[action*="/admin/"]').forEach(form => {
+    form.addEventListener('submit', handleFormSubmit);
+  });
+  
+  // Color Picker Setup
+  setupColorPickers();
+  
+  // Aktiven Tab speichern und wiederherstellen
+  const tabs = document.querySelectorAll('a[data-bs-toggle="tab"]');
+  
+  // Gespeicherten Tab wiederherstellen
+  const savedTab = localStorage.getItem('adminActiveTab');
+  if (savedTab) {
+    const tabToActivate = document.querySelector(`a[data-bs-toggle="tab"][href="${savedTab}"]`);
+    if (tabToActivate) {
+      const tab = new bootstrap.Tab(tabToActivate);
+      tab.show();
+    }
+  }
+  
+  // Tab-Wechsel speichern
+  tabs.forEach(tab => {
+    tab.addEventListener('shown.bs.tab', function(event) {
+      localStorage.setItem('adminActiveTab', event.target.getAttribute('href'));
+    });
+  });
+});
+</script>
+{% endblock %}
 

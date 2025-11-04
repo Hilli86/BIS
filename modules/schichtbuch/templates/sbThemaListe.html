@@ -252,7 +252,7 @@
 {% block scripts %}
 <script>
 document.addEventListener("submit", async (e) => {
-  const form = e.target.closest("form[action='/sbthemaliste/add']");
+  const form = e.target.closest("form[action='/schichtbuch/themaliste/add']");
   if (!form) return;
   e.preventDefault();
   console.log("Formular abgefangen");
@@ -347,7 +347,7 @@ async function loadMoreThemen() {
   loadingIndicator.style.display = 'block';
 
   try {
-    const url = new URL('/sbthemaliste/load_more', window.location.origin);
+    const url = new URL('/schichtbuch/themaliste/load_more', window.location.origin);
     url.searchParams.append('offset', currentOffset);
     url.searchParams.append('limit', 50);
     if (statusFilters && statusFilters.length) {
@@ -383,7 +383,7 @@ async function loadMoreThemen() {
                     data-bs-toggle="collapse" data-bs-target="#newBemerkung${thema.ID}" aria-expanded="false">
               <i class="bi bi-plus-lg"></i>
             </button>
-            <form action="/sbDeleteThema/${thema.ID}" method="post" class="m-0 p-0 d-inline">
+            <form action="/schichtbuch/delete_thema/${thema.ID}" method="post" class="m-0 p-0 d-inline">
               <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Thema wirklich löschen?');">
                 <i class="bi bi-trash"></i>
               </button>
@@ -422,7 +422,7 @@ async function loadMoreThemen() {
         collapseRow.id = `newBemerkung${thema.ID}`;
         collapseRow.innerHTML = `
           <td colspan="5">
-            <form action="/sbthemaliste/add" method="post" class="mt-2">
+            <form action="/schichtbuch/themaliste/add" method="post" class="mt-2">
               <input type="hidden" name="thema_id" value="${thema.ID}">
               <input type="hidden" name="next" value="${window.location.pathname}${window.location.search}">
               

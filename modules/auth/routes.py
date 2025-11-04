@@ -31,6 +31,28 @@ def login():
                 session['user_name'] = f"{user['Vorname']} {user['Nachname']}"
                 session['user_abteilung'] = user['AbteilungName'] if user['AbteilungName'] else None
                 
+                # Alle Abteilungen des Mitarbeiters laden (primär + zusätzliche)
+                with get_db_connection() as conn:
+                    alle_abteilungen = []
+                    
+                    # Primärabteilung hinzufügen
+                    if user['AbteilungName']:
+                        alle_abteilungen.append(user['AbteilungName'])
+                    
+                    # Zusätzliche Abteilungen hinzufügen
+                    zusaetzliche = conn.execute('''
+                        SELECT a.Bezeichnung
+                        FROM MitarbeiterAbteilung ma
+                        JOIN Abteilung a ON ma.AbteilungID = a.ID
+                        WHERE ma.MitarbeiterID = ? AND a.Aktiv = 1
+                    ''', (user['ID'],)).fetchall()
+                    
+                    for abt in zusaetzliche:
+                        if abt['Bezeichnung'] not in alle_abteilungen:
+                            alle_abteilungen.append(abt['Bezeichnung'])
+                    
+                    session['user_abteilungen'] = alle_abteilungen
+                
                 flash('Erfolgreich angemeldet.', 'success')
                 return redirect(url_for('dashboard'))
             else:
