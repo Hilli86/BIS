@@ -4,47 +4,81 @@
     <h1 class="mb-4">Thema #{{ thema.ID }}</h1>
 
     <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">📋 Thema-Details</h5>
+        </div>
         <div class="card-body">
             <div class="row">
-                <div class="col-md-6">
-                    <h5 class="card-title mb-3">📋 Thema-Details</h5>
-                    <p class="mb-2"><strong>Bereich:</strong> {{ thema.Bereich }}</p>
-                    <p class="mb-2"><strong>Gewerk:</strong> {{ thema.Gewerk }}</p>
-                    <p class="mb-0"><strong>Status:</strong> <span class="badge" style="background-color: {{ thema.StatusFarbe }}">{{ thema.Status }}</span></p>
-                </div>
-                <div class="col-md-6">
-                    <h5 class="card-title mb-3">🏢 Abteilung</h5>
-                    {% if thema.Abteilung %}
-                        <p class="mb-0"><span class="badge bg-info">{{ thema.Abteilung }}</span></p>
-                    {% else %}
-                        <p class="mb-0"><span class="text-muted">Keine Abteilung zugewiesen</span></p>
-                    {% endif %}
+                <div class="col-md-8">
+                    <table class="table table-sm table-borderless mb-0">
+                        <tbody>
+                            <tr>
+                                <td class="text-muted" style="width: 150px;"><strong>Bereich:</strong></td>
+                                <td>{{ thema.Bereich }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted"><strong>Gewerk:</strong></td>
+                                <td>{{ thema.Gewerk }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted"><strong>Abteilung:</strong></td>
+                                <td>
+                                    {% if thema.Abteilung %}
+                                        {{ thema.Abteilung }}
+                                    {% else %}
+                                        <span class="text-muted fst-italic">Keine Abteilung zugewiesen</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted"><strong>Status:</strong></td>
+                                <td>
+                                    <span class="badge fs-6" style="background-color: {{ thema.StatusFarbe }}">{{ thema.Status }}</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
     </div>
 
-    <h4>Bemerkungen</h4>
-    <table class="table table-bordered bg-white shadow-sm">
-        <thead class="table-dark">
-            <tr>
-                <th>Datum</th>
-                <th>Mitarbeiter</th>
-                <th>Tätigkeit</th>
-                <th>Bemerkung</th>
-                <th>Aktionen</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for b in bemerkungen %}
-            <tr>
-                <td>{{ b.Datum }}</td>
-                <td>{{ b.Vorname }} {{ b.Nachname }}</td>
-                <td class="align-middle">{{ b.Taetigkeit }}</td>
-                <td>
-                    <div class="bemerkung-view" data-bemerkung-id="{{ b.BemerkungID }}">{{ b.Bemerkung }}</div>
+    <h4 class="mb-3">Bemerkungen</h4>
+    
+    <!-- Card-Ansicht für alle Bildschirmgrößen -->
+    <div>
+        {% for b in bemerkungen %}
+        <div class="card mb-3 shadow-sm">
+            <div class="card-header bg-light">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div class="text-muted">
+                        <i class="bi bi-calendar3"></i> {{ b.Datum }}
+                    </div>
                     {% if session.get('user_id') == b.MitarbeiterID %}
-                    <form class="bemerkung-edit d-none" data-bemerkung-id="{{ b.BemerkungID }}">
+                    <button type="button" class="btn btn-sm btn-outline-primary btn-edit" data-bemerkung-id="{{ b.BemerkungID }}">
+                        <i class="bi bi-pencil"></i> Bearbeiten
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body">
+                <div>
+                    <div class="mb-2">
+                        <strong class="text-muted">Mitarbeiter:</strong> {{ b.Vorname }} {{ b.Nachname }}
+                    </div>
+                    
+                    {% if b.Taetigkeit %}
+                    <div class="mb-2">
+                        <strong class="text-muted">Tätigkeit:</strong> {{ b.Taetigkeit }}
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="mt-2">
+                    <strong class="text-muted">Bemerkung:</strong>
+                    <div class="bemerkung-view mt-1 p-2" data-bemerkung-id="{{ b.BemerkungID }}">{{ b.Bemerkung }}</div>
+                    {% if session.get('user_id') == b.MitarbeiterID %}
+                    <form class="bemerkung-edit d-none mt-2" data-bemerkung-id="{{ b.BemerkungID }}">
                         <div class="mb-2">
                             <textarea class="form-control" name="bemerkung" rows="3">{{ b.Bemerkung }}</textarea>
                         </div>
@@ -57,62 +91,74 @@
                             </select>
                         </div>
                         <div>
-                            <button type="submit" class="btn btn-sm btn-success me-2">Speichern</button>
-                            <button type="button" class="btn btn-sm btn-secondary btn-cancel-edit">Abbrechen</button>
+                            <button type="submit" class="btn btn-sm btn-success me-2">
+                                <i class="bi bi-check-lg"></i> Speichern
+                            </button>
+                            <button type="button" class="btn btn-sm btn-secondary btn-cancel-edit">
+                                <i class="bi bi-x-lg"></i> Abbrechen
+                            </button>
                         </div>
                     </form>
                     {% endif %}
-                </td>
-                <td class="text-nowrap align-middle">
-                    {% if session.get('user_id') == b.MitarbeiterID %}
-                    <button type="button" class="btn btn-sm btn-outline-primary btn-edit" data-bemerkung-id="{{ b.BemerkungID }}">Bearbeiten</button>
-                    {% else %}
-                    <span class="text-muted">—</span>
-                    {% endif %}
-                </td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="5" class="text-center text-muted">Keine Bemerkungen vorhanden.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <h4 class="mt-4">Neue Bemerkung hinzufügen / Status ändern</h4>
-    <form method="POST" class="bg-white p-4 rounded shadow-sm">
-
-        <div class="mb-3">
-            <label for="bemerkung" class="form-label">Bemerkung</label>
-            <textarea class="form-control" id="bemerkung" name="bemerkung" rows="3" required></textarea>
-            <div class="form-text text-muted">
-                Eine Bemerkung ist immer erforderlich – auch bei Statusänderung.
+                </div>
             </div>
         </div>
-
-        
-        <div class="mb-3">
-            <label for="status" class="form-label">Status ändern (optional)</label>
-            <select class="form-select" id="status" name="status">
-                <option value="">-- keine Änderung --</option>
-                {% for s in status_liste %}
-                <option value="{{ s.ID }}" {% if s.ID == thema.StatusID %}selected{% endif %}>
-                    {{ s.Bezeichnung }}
-                </option>
-                {% endfor %}
-            </select>
-
-            <select name="taetigkeit_id" class="form-select" required>
-                <option value="">-- Tätigkeit wählen --</option>
-                {% for t in taetigkeiten %}
-                    <option value="{{ t.ID }}">{{ t.Bezeichnung }}</option>
-                {% endfor %}
-            </select>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Keine Bemerkungen vorhanden.
         </div>
+        {% endfor %}
+    </div>
 
-        <button type="submit" class="btn btn-success">Speichern</button>
-        <a href="{{ previous_page }}" class="btn btn-secondary">⬅️ Zurück</a>
-    </form>
+    <div class="card mt-4 shadow-sm">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">💬 Neue Bemerkung hinzufügen / Status ändern</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST">
+                <div class="mb-3">
+                    <label for="bemerkung" class="form-label fw-bold">Bemerkung</label>
+                    <textarea class="form-control" id="bemerkung" name="bemerkung" rows="4" required></textarea>
+                    <div class="form-text text-muted">
+                        Eine Bemerkung ist immer erforderlich – auch bei Statusänderung.
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="taetigkeit_id" class="form-label fw-bold">Tätigkeit</label>
+                        <select name="taetigkeit_id" id="taetigkeit_id" class="form-select" required>
+                            <option value="">-- Tätigkeit wählen --</option>
+                            {% for t in taetigkeiten %}
+                                <option value="{{ t.ID }}">{{ t.Bezeichnung }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label for="status" class="form-label fw-bold">Status ändern (optional)</label>
+                        <select class="form-select" id="status" name="status">
+                            <option value="">-- keine Änderung --</option>
+                            {% for s in status_liste %}
+                            <option value="{{ s.ID }}" {% if s.ID == thema.StatusID %}selected{% endif %}>
+                                {{ s.Bezeichnung }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2 d-md-flex">
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-save"></i> Speichern
+                    </button>
+                    <a href="{{ previous_page }}" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> Zurück
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
 
 {% endblock %}
 
@@ -149,7 +195,7 @@ document.addEventListener('submit', async (e) => {
     const id = form.getAttribute('data-bemerkung-id');
     const formData = new FormData(form);
     try {
-        const res = await fetch(`/sbEditBemerkung/${id}`, {
+        const res = await fetch(`/schichtbuch/edit_bemerkung/${id}`, {
             method: 'POST',
             body: formData,
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -161,10 +207,15 @@ document.addEventListener('submit', async (e) => {
         }
         const view = document.querySelector(`.bemerkung-view[data-bemerkung-id="${id}"]`);
         if (view) view.textContent = data.bemerkung;
-        // Tätigkeitstext in derselben Zeile aktualisieren
-        const row = form.closest('tr');
-        const taetigkeitCell = row.querySelector('td:nth-child(3)');
-        if (taetigkeitCell) taetigkeitCell.textContent = data.taetigkeit || '';
+        
+        // Tätigkeitstext in der Card aktualisieren
+        const card = form.closest('.card');
+        const taetigkeitContainer = card.querySelector('.card-body > div > div:nth-child(2)');
+        if (taetigkeitContainer && data.taetigkeit) {
+            const taetigkeitDiv = taetigkeitContainer.querySelector('div:last-child');
+            if (taetigkeitDiv) taetigkeitDiv.textContent = data.taetigkeit;
+        }
+        
         form.classList.add('d-none');
         if (view) view.classList.remove('d-none');
     } catch (err) {
