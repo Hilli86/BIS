@@ -4,8 +4,13 @@
     <h1 class="mb-4">Thema #{{ thema.ID }}</h1>
 
     <div class="card mb-4 shadow-sm">
-        <div class="card-header bg-primary text-white">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0">📋 Thema-Details</h5>
+            <button class="btn btn-sm btn-light" type="button"
+                    onclick="openQRCodeModal({{ thema.ID }})"
+                    title="QR-Code anzeigen">
+                <i class="bi bi-qr-code"></i> <span class="d-none d-sm-inline">QR-Code</span>
+            </button>
         </div>
         <div class="card-body">
             <div class="row">
@@ -216,6 +221,37 @@
                     </button>
                     <button type="button" class="btn btn-primary" onclick="saveSichtbarkeit()">
                         <i class="bi bi-check-lg"></i> <span class="d-none d-sm-inline">Speichern</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: QR-Code anzeigen -->
+    <div class="modal fade" id="qrCodeModal" tabindex="-1" aria-labelledby="qrCodeModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="qrCodeModalLabel">
+                        <i class="bi bi-qr-code"></i> QR-Code für Thema #<span id="qrThemaId"></span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Schließen"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <p class="text-muted mb-3">
+                        Scannen Sie diesen QR-Code mit Ihrem Handy, um direkt zu diesem Thema zu gelangen.
+                    </p>
+                    <div id="qrcode" class="d-flex justify-content-center mb-3"></div>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="qrCodeUrl" readonly>
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyQRCodeUrl()" title="Link kopieren">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-lg"></i> Schließen
                     </button>
                 </div>
             </div>
@@ -458,6 +494,108 @@ async function saveSichtbarkeit() {
         // Button wieder aktivieren
         saveButton.disabled = false;
         saveButton.innerHTML = '<i class="bi bi-check-lg"></i> <span class="d-none d-sm-inline">Speichern</span>';
+    }
+}
+</script>
+
+<!-- QR-Code Modal JavaScript -->
+<script>
+// Funktion im globalen Scope verfügbar machen
+window.openQRCodeModal = function(themaId) {
+    try {
+        // Thema-ID im Modal anzeigen
+        const qrThemaIdEl = document.getElementById('qrThemaId');
+        if (!qrThemaIdEl) {
+            console.error('qrThemaId element not found');
+            return;
+        }
+        qrThemaIdEl.textContent = themaId;
+        
+        // URL zum Thema generieren (aktuelle URL ohne Query-Parameter)
+        const currentUrl = window.location.href.split('?')[0];
+        const themaUrl = currentUrl;
+        
+        // URL im Input-Feld anzeigen
+        const urlInput = document.getElementById('qrCodeUrl');
+        if (urlInput) {
+            urlInput.value = themaUrl;
+        }
+        
+        // QR-Code Container leeren
+        const qrContainer = document.getElementById('qrcode');
+        if (!qrContainer) {
+            console.error('qrcode container not found');
+            return;
+        }
+        
+        // QR-Code über API generieren (qr-server.com)
+        const encodedUrl = encodeURIComponent(themaUrl);
+        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodedUrl}`;
+        
+        // Loading-Spinner anzeigen
+        qrContainer.innerHTML = `
+            <div class="text-center">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <span class="visually-hidden">Lädt...</span>
+                </div>
+            </div>
+        `;
+        
+        // QR-Code-Bild erstellen
+        const img = document.createElement('img');
+        img.src = qrCodeUrl;
+        img.alt = 'QR-Code';
+        img.className = 'img-fluid';
+        img.style.maxWidth = '256px';
+        img.style.height = 'auto';
+        
+        img.onload = function() {
+            qrContainer.innerHTML = '';
+            qrContainer.appendChild(img);
+        };
+        
+        img.onerror = function() {
+            qrContainer.innerHTML = '<div class="alert alert-danger">Fehler beim Laden des QR-Codes. Bitte versuchen Sie es erneut.</div>';
+        };
+        
+        // Modal öffnen
+        const modalElement = document.getElementById('qrCodeModal');
+        if (!modalElement) {
+            console.error('qrCodeModal element not found');
+            return;
+        }
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    } catch (error) {
+        console.error('Fehler beim Öffnen des QR-Code-Modals:', error);
+        alert('Fehler beim Öffnen des QR-Code-Modals: ' + error.message);
+    }
+};
+
+function copyQRCodeUrl() {
+    const urlInput = document.getElementById('qrCodeUrl');
+    urlInput.select();
+    urlInput.setSelectionRange(0, 99999); // Für mobile Geräte
+    
+    try {
+        navigator.clipboard.writeText(urlInput.value).then(() => {
+            // Erfolgs-Feedback
+            const button = document.querySelector('#qrCodeModal .btn-outline-secondary');
+            const originalHTML = button.innerHTML;
+            button.innerHTML = '<i class="bi bi-check-lg"></i>';
+            button.classList.remove('btn-outline-secondary');
+            button.classList.add('btn-success');
+            
+            setTimeout(() => {
+                button.innerHTML = originalHTML;
+                button.classList.remove('btn-success');
+                button.classList.add('btn-outline-secondary');
+            }, 2000);
+        });
+    } catch (err) {
+        // Fallback für ältere Browser
+        document.execCommand('copy');
+        alert('Link wurde in die Zwischenablage kopiert!');
     }
 }
 </script>
