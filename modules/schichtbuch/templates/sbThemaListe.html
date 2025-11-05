@@ -142,17 +142,29 @@
         </span>
       </td>
       <td class="text-center">
-        <!-- 🔸 Neue Bemerkung Button -->
-        <button class="btn btn-sm btn-outline-success me-1" type="button"
-                data-bs-toggle="collapse" data-bs-target="#newBemerkung{{ thema.ID }}" aria-expanded="false">
-          <i class="bi bi-plus-lg"></i>
-        </button>
-        
-        <form action="{{ url_for('schichtbuch.delete_thema', thema_id=thema.ID) }}" method="post" class="m-0 p-0 d-inline">
-          <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Thema wirklich löschen?');">
-              <i class="bi bi-trash"></i>
+        <div class="d-flex flex-column flex-sm-row justify-content-center gap-1">
+          <!-- 🔸 Neue Bemerkung Button -->
+          <button class="btn btn-sm btn-outline-success" type="button"
+                  data-bs-toggle="collapse" data-bs-target="#newBemerkung{{ thema.ID }}" aria-expanded="false"
+                  title="Neue Bemerkung">
+            <i class="bi bi-plus-lg"></i>
           </button>
-        </form>
+          
+          <!-- 🔸 Sichtbarkeit bearbeiten Button -->
+          <button class="btn btn-sm btn-outline-info" type="button"
+                  onclick="openSichtbarkeitModal({{ thema.ID }})"
+                  title="Sichtbarkeit bearbeiten">
+            <i class="bi bi-eye"></i>
+          </button>
+          
+          <!-- 🔸 Löschen Button -->
+          <form action="{{ url_for('schichtbuch.delete_thema', thema_id=thema.ID) }}" method="post" class="m-0 p-0">
+            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Thema wirklich löschen?');"
+                    title="Thema löschen">
+                <i class="bi bi-trash"></i>
+            </button>
+          </form>
+        </div>
       </td>
     </tr>
 
@@ -379,15 +391,24 @@ async function loadMoreThemen() {
             </span>
           </td>
           <td class="text-center">
-            <button class="btn btn-sm btn-outline-success me-1" type="button"
-                    data-bs-toggle="collapse" data-bs-target="#newBemerkung${thema.ID}" aria-expanded="false">
-              <i class="bi bi-plus-lg"></i>
-            </button>
-            <form action="/schichtbuch/delete_thema/${thema.ID}" method="post" class="m-0 p-0 d-inline">
-              <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Thema wirklich löschen?');">
-                <i class="bi bi-trash"></i>
+            <div class="d-flex flex-column flex-sm-row justify-content-center gap-1">
+              <button class="btn btn-sm btn-outline-success" type="button"
+                      data-bs-toggle="collapse" data-bs-target="#newBemerkung${thema.ID}" aria-expanded="false"
+                      title="Neue Bemerkung">
+                <i class="bi bi-plus-lg"></i>
               </button>
-            </form>
+              <button class="btn btn-sm btn-outline-info" type="button"
+                      onclick="openSichtbarkeitModal(${thema.ID})"
+                      title="Sichtbarkeit bearbeiten">
+                <i class="bi bi-eye"></i>
+              </button>
+              <form action="/schichtbuch/delete_thema/${thema.ID}" method="post" class="m-0 p-0">
+                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Thema wirklich löschen?');"
+                        title="Thema löschen">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            </div>
           </td>
         `;
 
@@ -501,7 +522,7 @@ const gewerkSelect = document.getElementById('filterGewerk');
 if (bereichSelect && gewerkSelect) {
   bereichSelect.addEventListener('change', async () => {
     const val = bereichSelect.value;
-    const url = new URL('/api/gewerke', window.location.origin);
+    const url = new URL('/schichtbuch/api/gewerke', window.location.origin);
     if (val) url.searchParams.append('bereich', val);
     const res = await fetch(url);
     const data = await res.json();
@@ -516,5 +537,219 @@ if (bereichSelect && gewerkSelect) {
     });
   });
 }
+
+// ========== Sichtbarkeits-Modal ==========
+
+let currentSichtbarkeitThemaId = null;
+
+async function openSichtbarkeitModal(themaId) {
+  currentSichtbarkeitThemaId = themaId;
+  const modal = new bootstrap.Modal(document.getElementById('sichtbarkeitModal'));
+  const container = document.getElementById('sichtbarkeitCheckboxen');
+  
+  // Loading-Spinner anzeigen
+  container.innerHTML = `
+    <div class="text-center">
+      <div class="spinner-border spinner-border-sm text-primary" role="status">
+        <span class="visually-hidden">Lädt...</span>
+      </div>
+    </div>
+  `;
+  
+  modal.show();
+  
+  try {
+    const response = await fetch(`/schichtbuch/thema/${themaId}/sichtbarkeit`);
+    const data = await response.json();
+    
+    if (!data.success) {
+      container.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Daten.</div>';
+      return;
+    }
+    
+    // Checkboxen generieren
+    let html = '';
+    
+    // Auswählbare Abteilungen (eigene + untergeordnete)
+    data.auswaehlbare.forEach(gruppe => {
+      html += '<div class="mb-3">';
+      
+      // Parent-Abteilung
+      const isChecked = gruppe.parent.is_current ? 'checked' : '';
+      const label = gruppe.parent.is_primaer ? '(Primärabteilung)' : '(zusätzliche Abteilung)';
+      
+      html += `
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" 
+                 name="sichtbare_abteilungen" 
+                 value="${gruppe.parent.id}" 
+                 id="modal_abt_${gruppe.parent.id}" 
+                 ${isChecked}>
+          <label class="form-check-label fw-bold" for="modal_abt_${gruppe.parent.id}">
+            ${gruppe.parent.name}
+          </label>
+          <small class="text-muted">${label}</small>
+        </div>
+      `;
+      
+      // Untergeordnete Abteilungen
+      if (gruppe.children && gruppe.children.length > 0) {
+        html += '<div class="ms-4 mt-2">';
+        gruppe.children.forEach(child => {
+          const childChecked = child.is_current ? 'checked' : '';
+          html += `
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" 
+                     name="sichtbare_abteilungen" 
+                     value="${child.id}" 
+                     id="modal_abt_${child.id}" 
+                     ${childChecked}>
+              <label class="form-check-label" for="modal_abt_${child.id}">
+                ↳ ${child.name}
+              </label>
+            </div>
+          `;
+        });
+        html += '</div>';
+      }
+      
+      html += '</div>';
+    });
+    
+    // Zusätzliche aktuell zugewiesene Abteilungen (nicht in eigenen)
+    if (data.zusaetzliche && data.zusaetzliche.length > 0) {
+      html += '<hr class="my-3">';
+      html += '<div class="alert alert-info small mb-3">';
+      html += '<strong>Weitere zugewiesene Abteilungen:</strong><br>';
+      html += 'Diese Abteilungen sind aktuell zugewiesen, können aber nicht bearbeitet werden.';
+      html += '</div>';
+      
+      data.zusaetzliche.forEach(abt => {
+        const parentLabel = abt.parent ? ` (${abt.parent.name})` : '';
+        html += `
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" 
+                   name="sichtbare_abteilungen" 
+                   value="${abt.id}" 
+                   id="modal_abt_${abt.id}" 
+                   checked disabled>
+            <label class="form-check-label text-muted" for="modal_abt_${abt.id}">
+              ${abt.name}${parentLabel}
+            </label>
+            <small class="text-muted">(geschützt)</small>
+          </div>
+        `;
+      });
+    }
+    
+    container.innerHTML = html;
+    
+  } catch (error) {
+    console.error('Fehler beim Laden der Sichtbarkeiten:', error);
+    container.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Daten.</div>';
+  }
+}
+
+async function saveSichtbarkeit() {
+  const form = document.getElementById('sichtbarkeitForm');
+  const themaId = currentSichtbarkeitThemaId;
+  const saveButton = document.querySelector('#sichtbarkeitModal .btn-primary');
+  
+  // Alle Checkboxen sammeln (auch disabled!)
+  const allCheckboxes = form.querySelectorAll('input[name="sichtbare_abteilungen"]');
+  const selectedIds = [];
+  
+  allCheckboxes.forEach(checkbox => {
+    if (checkbox.checked) {
+      selectedIds.push(checkbox.value);
+    }
+  });
+  
+  // Validierung: Mindestens eine Abteilung muss ausgewählt sein
+  if (selectedIds.length === 0) {
+    alert('Bitte wählen Sie mindestens eine Abteilung aus.');
+    return;
+  }
+  
+  // FormData manuell erstellen, da disabled Felder nicht automatisch mitgesendet werden
+  const formData = new FormData();
+  selectedIds.forEach(id => {
+    formData.append('sichtbare_abteilungen', id);
+  });
+  
+  // Button deaktivieren
+  saveButton.disabled = true;
+  saveButton.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Speichert...';
+  
+  try {
+    const response = await fetch(`/schichtbuch/thema/${themaId}/sichtbarkeit`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      // Modal schließen
+      const modal = bootstrap.Modal.getInstance(document.getElementById('sichtbarkeitModal'));
+      modal.hide();
+      
+      // Erfolgsbenachrichtigung
+      alert('Sichtbarkeit erfolgreich aktualisiert!');
+    } else {
+      alert('Fehler: ' + data.message);
+    }
+  } catch (error) {
+    console.error('Fehler beim Speichern:', error);
+    alert('Fehler beim Speichern der Sichtbarkeit.');
+  } finally {
+    // Button wieder aktivieren
+    saveButton.disabled = false;
+    saveButton.innerHTML = '<i class="bi bi-check-lg"></i> Speichern';
+  }
+}
 </script>
+
+<!-- Modal: Sichtbarkeit bearbeiten -->
+<div class="modal fade" id="sichtbarkeitModal" tabindex="-1" aria-labelledby="sichtbarkeitModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header bg-info text-white">
+        <h5 class="modal-title" id="sichtbarkeitModalLabel">
+          <i class="bi bi-eye"></i> Sichtbarkeit bearbeiten
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Schließen"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small">
+          Wählen Sie aus, welche Abteilungen dieses Thema sehen dürfen.
+        </p>
+        
+        <form id="sichtbarkeitForm">
+          <input type="hidden" id="sichtbarkeit_thema_id" name="thema_id">
+          <div id="sichtbarkeitCheckboxen">
+            <!-- Wird dynamisch mit JavaScript gefüllt -->
+            <div class="text-center">
+              <div class="spinner-border spinner-border-sm text-primary" role="status">
+                <span class="visually-hidden">Lädt...</span>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          <i class="bi bi-x-lg"></i> <span class="d-none d-sm-inline">Abbrechen</span>
+        </button>
+        <button type="button" class="btn btn-primary" onclick="saveSichtbarkeit()">
+          <i class="bi bi-check-lg"></i> <span class="d-none d-sm-inline">Speichern</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}

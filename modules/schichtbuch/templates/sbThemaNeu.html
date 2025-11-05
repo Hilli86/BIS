@@ -54,6 +54,61 @@
         <textarea class="form-control" id="bemerkung" name="bemerkung" rows="4" required></textarea>
     </div>
 
+    {% if auswaehlbare_abteilungen %}
+    <div class="mb-3">
+        <label class="form-label fw-bold">
+            <i class="bi bi-eye"></i> Sichtbarkeit - Welche Abteilungen sollen dieses Thema sehen?
+        </label>
+        <div class="form-text text-muted mb-2">
+            Wählen Sie aus, welche Abteilungen Zugriff auf dieses Thema haben sollen.
+        </div>
+        
+        <div class="card">
+            <div class="card-body">
+                {% for gruppe in auswaehlbare_abteilungen %}
+                    <div class="mb-3">
+                        <!-- Eigene Abteilung (Parent) -->
+                        <div class="form-check">
+                            <input class="form-check-input" 
+                                   type="checkbox" 
+                                   name="sichtbare_abteilungen" 
+                                   value="{{ gruppe.parent.ID }}" 
+                                   id="abt_{{ gruppe.parent.ID }}" 
+                                   {% if gruppe.parent.ID == primaer_abteilung_id %}checked{% endif %}>
+                            <label class="form-check-label fw-bold" for="abt_{{ gruppe.parent.ID }}">
+                                {{ gruppe.parent.Bezeichnung }}
+                            </label>
+                            {% if gruppe.parent.ID == primaer_abteilung_id %}
+                            <small class="text-muted">(Primärabteilung)</small>
+                            {% else %}
+                            <small class="text-muted">(zusätzliche Abteilung)</small>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Direkt untergeordnete Abteilungen -->
+                        {% if gruppe.children %}
+                        <div class="ms-4 mt-2">
+                            {% for child in gruppe.children %}
+                            <div class="form-check">
+                                <input class="form-check-input" 
+                                       type="checkbox" 
+                                       name="sichtbare_abteilungen" 
+                                       value="{{ child.ID }}" 
+                                       id="abt_{{ child.ID }}">
+                                <label class="form-check-label" for="abt_{{ child.ID }}">
+                                    ↳ {{ child.Bezeichnung }}
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <button type="submit" class="btn btn-success">
             <i class="bi bi-save"></i> Speichern
     </button>

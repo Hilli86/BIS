@@ -63,3 +63,52 @@ def get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn):
     
     return list(set(alle_sichtbaren))  # Duplikate entfernen
 
+
+def get_direkte_unterabteilungen(abteilung_id, conn):
+    """
+    Gibt nur die DIREKT untergeordneten Abteilungen zurück (nicht rekursiv).
+    """
+    unterabteilungen = conn.execute(
+        '''SELECT ID, Bezeichnung, ParentAbteilungID 
+           FROM Abteilung 
+           WHERE ParentAbteilungID = ? AND Aktiv = 1
+           ORDER BY Sortierung, Bezeichnung''',
+        (abteilung_id,)
+    ).fetchall()
+    
+    return unterabteilungen
+
+
+def get_auswaehlbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn):
+    """
+    Ermittelt alle Abteilungen, die ein Mitarbeiter für Sichtbarkeitsauswahl sehen kann:
+    - Seine eigenen Abteilungen (primär + zusätzlich)
+    - Jeweils die direkt untergeordneten Abteilungen
+    
+    Rückgabe: Dictionary mit Gruppierung nach Parent-Abteilung
+    """
+    mitarbeiter_abteilungen_ids = get_mitarbeiter_abteilungen(mitarbeiter_id, conn)
+    
+    # Abteilungs-Details laden
+    if not mitarbeiter_abteilungen_ids:
+        return []
+    
+    placeholders = ','.join(['?'] * len(mitarbeiter_abteilungen_ids))
+    eigene_abteilungen = conn.execute(f'''
+        SELECT ID, Bezeichnung, ParentAbteilungID
+        FROM Abteilung
+        WHERE ID IN ({placeholders}) AND Aktiv = 1
+        ORDER BY Sortierung, Bezeichnung
+    ''', mitarbeiter_abteilungen_ids).fetchall()
+    
+    # Gruppierte Struktur erstellen
+    result = []
+    
+    for abt in eigene_abteilungen:
+        gruppe = {
+            'parent': abt,
+            'children': get_direkte_unterabteilungen(abt['ID'], conn)
+        }
+        result.append(gruppe)
+    
+    return result
