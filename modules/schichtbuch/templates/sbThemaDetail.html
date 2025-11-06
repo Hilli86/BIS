@@ -6,11 +6,29 @@
     <div class="card mb-4 shadow-sm">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0">📋 Thema-Details</h5>
-            <button class="btn btn-sm btn-light" type="button"
-                    onclick="openQRCodeModal({{ thema.ID }})"
-                    title="QR-Code anzeigen">
-                <i class="bi bi-qr-code"></i> <span class="d-none d-sm-inline">QR-Code</span>
-            </button>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-light position-relative" type="button"
+                        onclick="openDateienModal({{ thema.ID }})"
+                        title="Dateien & Bilder anzeigen">
+                    <i class="bi bi-paperclip"></i> <span class="d-none d-sm-inline">Dateien</span>
+                    {% if datei_anzahl > 0 %}
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                        {{ datei_anzahl }}
+                        <span class="visually-hidden">Dateien</span>
+                    </span>
+                    {% endif %}
+                </button>
+                <button class="btn btn-sm btn-light" type="button"
+                        onclick="openSichtbarkeitModal({{ thema.ID }})"
+                        title="Sichtbarkeit bearbeiten">
+                    <i class="bi bi-eye"></i> <span class="d-none d-sm-inline">Sichtbarkeit</span>
+                </button>
+                <button class="btn btn-sm btn-light" type="button"
+                        onclick="openQRCodeModal({{ thema.ID }})"
+                        title="QR-Code anzeigen">
+                    <i class="bi bi-qr-code"></i> <span class="d-none d-sm-inline">QR-Code</span>
+                </button>
+            </div>
         </div>
         <div class="card-body">
             <div class="row">
@@ -38,24 +56,15 @@
                             <tr>
                                 <td class="text-muted"><strong>Sichtbar für:</strong></td>
                                 <td>
-                                    <div class="d-flex align-items-center gap-2 flex-wrap">
-                                        <div>
-                                            {% if sichtbarkeiten %}
-                                                {% for sicht in sichtbarkeiten %}
-                                                    <span class="badge bg-secondary me-1 mb-1">
-                                                        {% if sicht.ParentAbteilungID %}↳{% endif %} {{ sicht.Bezeichnung }}
-                                                    </span>
-                                                {% endfor %}
-                                            {% else %}
-                                                <span class="text-muted fst-italic">Keine Sichtbarkeit definiert</span>
-                                            {% endif %}
-                                        </div>
-                                        <button class="btn btn-sm btn-outline-info" type="button"
-                                                onclick="openSichtbarkeitModal({{ thema.ID }})"
-                                                title="Sichtbarkeit bearbeiten">
-                                            <i class="bi bi-eye"></i> <span class="d-none d-sm-inline">Bearbeiten</span>
-                                        </button>
-                                    </div>
+                                    {% if sichtbarkeiten %}
+                                        {% for sicht in sichtbarkeiten %}
+                                            <span class="badge bg-secondary me-1 mb-1">
+                                                {% if sicht.ParentAbteilungID %}↳{% endif %} {{ sicht.Bezeichnung }}
+                                            </span>
+                                        {% endfor %}
+                                    {% else %}
+                                        <span class="text-muted fst-italic">Keine Sichtbarkeit definiert</span>
+                                    {% endif %}
                                 </td>
                             </tr>
                             <tr>
@@ -221,6 +230,62 @@
                     </button>
                     <button type="button" class="btn btn-primary" onclick="saveSichtbarkeit()">
                         <i class="bi bi-check-lg"></i> <span class="d-none d-sm-inline">Speichern</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Dateien & Bilder anzeigen -->
+    <div class="modal fade" id="dateienModal" tabindex="-1" aria-labelledby="dateienModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title" id="dateienModalLabel">
+                        <i class="bi bi-paperclip"></i> Dateien & Bilder - Thema #<span id="dateienThemaId"></span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Schließen"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Upload-Bereich -->
+                    <div class="card mb-3 bg-light">
+                        <div class="card-body">
+                            <h6 class="card-title"><i class="bi bi-cloud-upload"></i> Datei hochladen</h6>
+                            <form id="uploadForm" enctype="multipart/form-data">
+                                <div class="mb-2">
+                                    <input type="file" class="form-control" id="fileInput" name="file" 
+                                           accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" 
+                                           capture="environment">
+                                    <div class="form-text">
+                                        Max. 16 MB - Erlaubt: Bilder, PDF, Word, Excel, Text
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-sm" id="uploadButton">
+                                    <i class="bi bi-upload"></i> Hochladen
+                                </button>
+                            </form>
+                            <div id="uploadProgress" class="mt-2 d-none">
+                                <div class="progress">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                                </div>
+                            </div>
+                            <div id="uploadMessage" class="mt-2"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Dateiliste -->
+                    <h6><i class="bi bi-folder"></i> Gespeicherte Dateien</h6>
+                    <div id="dateienListe">
+                        <div class="text-center">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">Lädt...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-lg"></i> Schließen
                     </button>
                 </div>
             </div>
@@ -598,5 +663,181 @@ function copyQRCodeUrl() {
         alert('Link wurde in die Zwischenablage kopiert!');
     }
 }
+</script>
+
+<!-- Dateien Modal JavaScript -->
+<script>
+let currentThemaId = null;
+
+async function loadDateienListe(themaId) {
+    const dateienListe = document.getElementById('dateienListe');
+    dateienListe.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                <span class="visually-hidden">Lädt...</span>
+            </div>
+        </div>
+    `;
+    
+    try {
+        const response = await fetch(`/schichtbuch/thema/${themaId}/dateien`);
+        const data = await response.json();
+    
+    if (!data.success) {
+        dateienListe.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Dateien.</div>';
+        return;
+    }
+    
+    if (data.dateien.length === 0) {
+        dateienListe.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> Keine Dateien vorhanden.</div>';
+        return;
+    }
+    
+    // Dateien anzeigen
+    let html = '<div class="row g-3">';
+    
+    data.dateien.forEach(datei => {
+        if (datei.type === 'image') {
+            // Bilder als Vorschau anzeigen
+            html += `
+                <div class="col-md-6 col-lg-4">
+                    <div class="card h-100">
+                        <img src="${datei.url}" class="card-img-top" alt="${datei.name}" style="object-fit: cover; height: 200px; cursor: pointer;" onclick="window.open('${datei.url}', '_blank')">
+                        <div class="card-body p-2">
+                            <p class="card-text small mb-1">
+                                <strong>${datei.name}</strong>
+                            </p>
+                            <p class="card-text small text-muted mb-0">${datei.size}</p>
+                        </div>
+                        <div class="card-footer p-2">
+                            <a href="${datei.url}" target="_blank" class="btn btn-sm btn-primary w-100">
+                                <i class="bi bi-download"></i> Herunterladen
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else if (datei.type === 'pdf') {
+            // PDF-Dateien
+            html += `
+                <div class="col-md-6 col-lg-4">
+                    <div class="card h-100">
+                        <div class="card-body text-center d-flex flex-column justify-content-center" style="height: 200px; background-color: #f8f9fa;">
+                            <i class="bi bi-file-pdf" style="font-size: 4rem; color: #dc3545;"></i>
+                            <p class="mt-2 mb-0"><strong>${datei.name}</strong></p>
+                            <p class="text-muted small">${datei.size}</p>
+                        </div>
+                        <div class="card-footer p-2">
+                            <a href="${datei.url}" target="_blank" class="btn btn-sm btn-primary w-100">
+                                <i class="bi bi-eye"></i> Öffnen
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Andere Dokumente
+            html += `
+                <div class="col-md-6 col-lg-4">
+                    <div class="card h-100">
+                        <div class="card-body text-center d-flex flex-column justify-content-center" style="height: 200px; background-color: #f8f9fa;">
+                            <i class="bi bi-file-earmark-text" style="font-size: 4rem; color: #0d6efd;"></i>
+                            <p class="mt-2 mb-0"><strong>${datei.name}</strong></p>
+                            <p class="text-muted small">${datei.size}</p>
+                        </div>
+                        <div class="card-footer p-2">
+                            <a href="${datei.url}" target="_blank" class="btn btn-sm btn-primary w-100">
+                                <i class="bi bi-download"></i> Herunterladen
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    });
+    
+    html += '</div>';
+    dateienListe.innerHTML = html;
+    
+    } catch (error) {
+        console.error('Fehler beim Laden der Dateien:', error);
+        dateienListe.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Dateien.</div>';
+    }
+}
+
+window.openDateienModal = function(themaId) {
+    currentThemaId = themaId;
+    
+    // Thema-ID im Modal anzeigen
+    document.getElementById('dateienThemaId').textContent = themaId;
+    
+    // Modal öffnen
+    const modalElement = document.getElementById('dateienModal');
+    const modal = new bootstrap.Modal(modalElement);
+    modal.show();
+    
+    // Upload-Form zurücksetzen
+    document.getElementById('uploadForm').reset();
+    document.getElementById('uploadMessage').innerHTML = '';
+    document.getElementById('uploadProgress').classList.add('d-none');
+    
+    // Dateien laden
+    loadDateienListe(themaId);
+};
+
+// Upload-Formular Handler
+document.addEventListener('DOMContentLoaded', function() {
+    const uploadForm = document.getElementById('uploadForm');
+    if (uploadForm) {
+        uploadForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('fileInput');
+            const uploadButton = document.getElementById('uploadButton');
+            const uploadProgress = document.getElementById('uploadProgress');
+            const uploadMessage = document.getElementById('uploadMessage');
+            
+            if (!fileInput.files || fileInput.files.length === 0) {
+                uploadMessage.innerHTML = '<div class="alert alert-warning alert-dismissible fade show" role="alert">Bitte wählen Sie eine Datei aus.<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            
+            // Button deaktivieren und Progress anzeigen
+            uploadButton.disabled = true;
+            uploadProgress.classList.remove('d-none');
+            uploadMessage.innerHTML = '';
+            
+            try {
+                const response = await fetch(`/schichtbuch/thema/${currentThemaId}/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    uploadMessage.innerHTML = `<div class="alert alert-success alert-dismissible fade show" role="alert">${data.message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+                    uploadForm.reset();
+                    
+                    // Dateiliste neu laden
+                    setTimeout(() => {
+                        loadDateienListe(currentThemaId);
+                    }, 500);
+                } else {
+                    uploadMessage.innerHTML = `<div class="alert alert-danger alert-dismissible fade show" role="alert">${data.message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+                }
+            } catch (error) {
+                console.error('Upload-Fehler:', error);
+                uploadMessage.innerHTML = '<div class="alert alert-danger alert-dismissible fade show" role="alert">Fehler beim Hochladen der Datei.<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
+            } finally {
+                uploadButton.disabled = false;
+                uploadProgress.classList.add('d-none');
+            }
+        });
+    }
+});
 </script>
 {% endblock %}

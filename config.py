@@ -10,6 +10,12 @@ class Config:
     # Datenbank
     DATABASE_URL = os.environ.get('DATABASE_URL') or 'database_main.db'
     
+    # Upload-Konfiguration
+    UPLOAD_BASE_FOLDER = os.environ.get('UPLOAD_BASE_FOLDER') or os.path.join(os.getcwd(), 'Daten')
+    SCHICHTBUCH_UPLOAD_FOLDER = os.path.join(UPLOAD_BASE_FOLDER, 'Schichtbuch', 'Themen')
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'}
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB max file size
+    
     # Session-Konfiguration
     PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
     

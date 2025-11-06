@@ -11,5 +11,10 @@ SECRET_KEY=ihr-super-geheimer-schluessel-hier-12345
 # Datenbank
 DATABASE_URL=database.db
 
+# Upload-Ordner für Dateien (optional)
+# Wenn nicht gesetzt, wird der Ordner "Daten" im Projektverzeichnis verwendet
+UPLOAD_BASE_FOLDER=C:\Users\hilli\Pictures\BIS
+# UPLOAD_BASE_FOLDER=/var/www/daten
+
 # SQL-Tracing (nur für Entwicklung)
 SQL_TRACING=True

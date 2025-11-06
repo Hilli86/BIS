@@ -16,6 +16,9 @@ app = Flask(__name__)
 config_name = os.environ.get('FLASK_ENV', 'default')
 app.config.from_object(config[config_name])
 
+# Upload-Ordner erstellen falls nicht vorhanden
+os.makedirs(app.config['SCHICHTBUCH_UPLOAD_FOLDER'], exist_ok=True)
+
 # Blueprints registrieren
 from modules import auth_bp, schichtbuch_bp, admin_bp
 

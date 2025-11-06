@@ -9,7 +9,8 @@ from .abteilungen import (
     get_mitarbeiter_abteilungen,
     get_sichtbare_abteilungen_fuer_mitarbeiter,
     get_direkte_unterabteilungen,
-    get_auswaehlbare_abteilungen_fuer_mitarbeiter
+    get_auswaehlbare_abteilungen_fuer_mitarbeiter,
+    get_auswaehlbare_abteilungen_fuer_neues_thema
 )
 
 __all__ = [
@@ -20,6 +21,7 @@ __all__ = [
     'get_mitarbeiter_abteilungen',
     'get_sichtbare_abteilungen_fuer_mitarbeiter',
     'get_direkte_unterabteilungen',
-    'get_auswaehlbare_abteilungen_fuer_mitarbeiter'
+    'get_auswaehlbare_abteilungen_fuer_mitarbeiter',
+    'get_auswaehlbare_abteilungen_fuer_neues_thema'
 ]
 

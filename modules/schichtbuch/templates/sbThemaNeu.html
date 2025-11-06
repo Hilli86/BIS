@@ -69,11 +69,13 @@
                     <div class="mb-3">
                         <!-- Eigene Abteilung (Parent) -->
                         <div class="form-check">
-                            <input class="form-check-input" 
+                            <input class="form-check-input abteilung-checkbox" 
                                    type="checkbox" 
                                    name="sichtbare_abteilungen" 
                                    value="{{ gruppe.parent.ID }}" 
                                    id="abt_{{ gruppe.parent.ID }}" 
+                                   data-abt-id="{{ gruppe.parent.ID }}"
+                                   data-parent-id="root"
                                    {% if gruppe.parent.ID == primaer_abteilung_id %}checked{% endif %}>
                             <label class="form-check-label fw-bold" for="abt_{{ gruppe.parent.ID }}">
                                 {{ gruppe.parent.Bezeichnung }}
@@ -85,18 +87,20 @@
                             {% endif %}
                         </div>
                         
-                        <!-- Direkt untergeordnete Abteilungen -->
+                        <!-- ALLE untergeordneten Abteilungen (rekursiv) -->
                         {% if gruppe.children %}
-                        <div class="ms-4 mt-2">
+                        <div class="mt-2">
                             {% for child in gruppe.children %}
-                            <div class="form-check">
-                                <input class="form-check-input" 
+                            <div class="form-check" style="margin-left: {{ (child.level + 1) * 1.5 }}rem;">
+                                <input class="form-check-input abteilung-checkbox" 
                                        type="checkbox" 
                                        name="sichtbare_abteilungen" 
                                        value="{{ child.ID }}" 
-                                       id="abt_{{ child.ID }}">
+                                       id="abt_{{ child.ID }}"
+                                       data-abt-id="{{ child.ID }}"
+                                       data-parent-id="{{ child.ParentAbteilungID }}">
                                 <label class="form-check-label" for="abt_{{ child.ID }}">
-                                    ↳ {{ child.Bezeichnung }}
+                                    {% for i in range(child.level + 1) %}↳{% endfor %} {{ child.Bezeichnung }}
                                 </label>
                             </div>
                             {% endfor %}
@@ -209,6 +213,40 @@
             // Button wieder aktivieren
             submitButton.disabled = false;
             submitButton.innerHTML = '<i class="bi bi-save"></i> Speichern';
+        });
+    });
+
+    // 🔸 Hierarchische Checkboxen - Kinder mitändern
+    function getAllChildCheckboxes(parentId) {
+        // Findet alle Checkboxen, die direkt oder indirekt von parentId abhängen
+        const children = [];
+        const directChildren = document.querySelectorAll(`.abteilung-checkbox[data-parent-id="${parentId}"]`);
+        
+        directChildren.forEach(child => {
+            children.push(child);
+            // Rekursiv alle weiteren Kinder hinzufügen
+            const childId = child.dataset.abtId;
+            children.push(...getAllChildCheckboxes(childId));
+        });
+        
+        return children;
+    }
+    
+    // Event Listener für alle Abteilungs-Checkboxen
+    document.addEventListener('DOMContentLoaded', function() {
+        const abteilungCheckboxes = document.querySelectorAll('.abteilung-checkbox');
+        
+        abteilungCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const abtId = this.dataset.abtId;
+                const isChecked = this.checked;
+                
+                // Alle Kinder auf denselben Zustand setzen
+                const children = getAllChildCheckboxes(abtId);
+                children.forEach(child => {
+                    child.checked = isChecked;
+                });
+            });
         });
     });
 

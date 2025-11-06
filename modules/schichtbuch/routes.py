@@ -2,10 +2,24 @@
 Schichtbuch Routes - Themenliste, Details, Bemerkungen
 """
 
-from flask import render_template, request, redirect, url_for, session, jsonify, flash
+from flask import render_template, request, redirect, url_for, session, jsonify, flash, send_from_directory, current_app
 from datetime import datetime
+import os
+from werkzeug.utils import secure_filename
 from . import schichtbuch_bp
 from utils import get_db_connection, login_required, get_sichtbare_abteilungen_fuer_mitarbeiter
+
+
+def get_datei_anzahl(thema_id):
+    """Ermittelt die Anzahl der Dateien für ein Thema"""
+    thema_folder = os.path.join(current_app.config['SCHICHTBUCH_UPLOAD_FOLDER'], str(thema_id))
+    if not os.path.exists(thema_folder):
+        return 0
+    try:
+        files = os.listdir(thema_folder)
+        return len([f for f in files if os.path.isfile(os.path.join(thema_folder, f))])
+    except:
+        return 0
 
 
 @schichtbuch_bp.route('/themaliste')
@@ -455,9 +469,9 @@ def themaneu():
         ).fetchone()
         primaer_abteilung_id = mitarbeiter['PrimaerAbteilungID'] if mitarbeiter else None
         
-        # Auswählbare Abteilungen für Sichtbarkeitssteuerung
-        from utils import get_auswaehlbare_abteilungen_fuer_mitarbeiter
-        auswaehlbare_abteilungen = get_auswaehlbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+        # Auswählbare Abteilungen für Sichtbarkeitssteuerung (mit ALLEN Unterabteilungen für neues Thema)
+        from utils import get_auswaehlbare_abteilungen_fuer_neues_thema
+        auswaehlbare_abteilungen = get_auswaehlbare_abteilungen_fuer_neues_thema(mitarbeiter_id, conn)
 
     return render_template(
         'sbThemaNeu.html',
@@ -598,6 +612,9 @@ def thema_detail(thema_id):
         mitarbeiter = conn.execute('SELECT * FROM Mitarbeiter').fetchall()
 
     previous_page = request.args.get('next') or url_for('index')
+    
+    # Dateianzahl ermitteln
+    datei_anzahl = get_datei_anzahl(thema_id)
 
     return render_template(
         'sbThemaDetail.html',
@@ -607,7 +624,8 @@ def thema_detail(thema_id):
         status_liste=status_liste,
         taetigkeiten=taetigkeiten,
         sichtbarkeiten=sichtbarkeiten,
-        previous_page=previous_page
+        previous_page=previous_page,
+        datei_anzahl=datei_anzahl
     )
 
 
@@ -790,4 +808,186 @@ def update_thema_sichtbarkeit(thema_id):
         return jsonify({'success': True, 'message': 'Sichtbarkeit erfolgreich aktualisiert.'})
     except Exception as e:
         return jsonify({'success': False, 'message': f'Fehler: {str(e)}'}), 500
+
+
+# ========== Dateien/Anhänge ==========
+
+@schichtbuch_bp.route('/thema/<int:thema_id>/dateien')
+@login_required
+def thema_dateien(thema_id):
+    """Liste alle Dateien für ein Thema"""
+    # Prüfen ob Benutzer Zugriff auf das Thema hat
+    user_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(user_id, conn)
+        
+        thema = conn.execute('''
+            SELECT t.ID, t.ErstellerAbteilungID
+            FROM SchichtbuchThema t
+            WHERE t.ID = ? AND t.Gelöscht = 0
+        ''', (thema_id,)).fetchone()
+        
+        if not thema:
+            return jsonify({'success': False, 'message': 'Thema nicht gefunden'}), 404
+        
+        # Prüfen ob Thema für Benutzer sichtbar ist
+        thema_sichtbarkeiten = conn.execute('''
+            SELECT AbteilungID FROM SchichtbuchThemaSichtbarkeit WHERE ThemaID = ?
+        ''', (thema_id,)).fetchall()
+        
+        thema_abteilungen = [s['AbteilungID'] for s in thema_sichtbarkeiten]
+        
+        if not any(abt in sichtbare_abteilungen for abt in thema_abteilungen):
+            return jsonify({'success': False, 'message': 'Kein Zugriff auf dieses Thema'}), 403
+    
+    # Dateipfad ermitteln
+    thema_folder = os.path.join(current_app.config['SCHICHTBUCH_UPLOAD_FOLDER'], str(thema_id))
+    
+    dateien = []
+    if os.path.exists(thema_folder):
+        for filename in os.listdir(thema_folder):
+            filepath = os.path.join(thema_folder, filename)
+            if os.path.isfile(filepath):
+                # Dateigröße ermitteln
+                file_size = os.path.getsize(filepath)
+                file_size_str = f"{file_size / 1024:.1f} KB" if file_size < 1024*1024 else f"{file_size / (1024*1024):.1f} MB"
+                
+                # Dateiendung ermitteln
+                file_ext = os.path.splitext(filename)[1].lower()
+                
+                # Dateityp kategorisieren
+                if file_ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']:
+                    file_type = 'image'
+                elif file_ext == '.pdf':
+                    file_type = 'pdf'
+                else:
+                    file_type = 'document'
+                
+                dateien.append({
+                    'name': filename,
+                    'size': file_size_str,
+                    'type': file_type,
+                    'ext': file_ext,
+                    'url': url_for('schichtbuch.thema_datei_download', thema_id=thema_id, filename=filename)
+                })
+    
+    return jsonify({'success': True, 'dateien': dateien})
+
+
+@schichtbuch_bp.route('/thema/<int:thema_id>/datei/<path:filename>')
+@login_required
+def thema_datei_download(thema_id, filename):
+    """Stelle eine Datei zum Download/Anzeigen bereit"""
+    # Prüfen ob Benutzer Zugriff auf das Thema hat
+    user_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(user_id, conn)
+        
+        thema = conn.execute('''
+            SELECT t.ID, t.ErstellerAbteilungID
+            FROM SchichtbuchThema t
+            WHERE t.ID = ? AND t.Gelöscht = 0
+        ''', (thema_id,)).fetchone()
+        
+        if not thema:
+            return "Thema nicht gefunden", 404
+        
+        # Prüfen ob Thema für Benutzer sichtbar ist
+        thema_sichtbarkeiten = conn.execute('''
+            SELECT AbteilungID FROM SchichtbuchThemaSichtbarkeit WHERE ThemaID = ?
+        ''', (thema_id,)).fetchall()
+        
+        thema_abteilungen = [s['AbteilungID'] for s in thema_sichtbarkeiten]
+        
+        if not any(abt in sichtbare_abteilungen for abt in thema_abteilungen):
+            return "Kein Zugriff auf dieses Thema", 403
+    
+    # Dateipfad ermitteln
+    thema_folder = os.path.join(current_app.config['SCHICHTBUCH_UPLOAD_FOLDER'], str(thema_id))
+    
+    # Sicherheitsprüfung: Datei muss im Thema-Ordner sein
+    safe_path = os.path.abspath(os.path.join(thema_folder, filename))
+    if not safe_path.startswith(os.path.abspath(thema_folder)):
+        return "Ungültiger Dateipfad", 403
+    
+    return send_from_directory(thema_folder, filename)
+
+
+@schichtbuch_bp.route('/thema/<int:thema_id>/upload', methods=['POST'])
+@login_required
+def thema_datei_upload(thema_id):
+    """Lade eine Datei für ein Thema hoch"""
+    # Prüfen ob Benutzer Zugriff auf das Thema hat
+    user_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(user_id, conn)
+        
+        thema = conn.execute('''
+            SELECT t.ID, t.ErstellerAbteilungID
+            FROM SchichtbuchThema t
+            WHERE t.ID = ? AND t.Gelöscht = 0
+        ''', (thema_id,)).fetchone()
+        
+        if not thema:
+            return jsonify({'success': False, 'message': 'Thema nicht gefunden'}), 404
+        
+        # Prüfen ob Thema für Benutzer sichtbar ist
+        thema_sichtbarkeiten = conn.execute('''
+            SELECT AbteilungID FROM SchichtbuchThemaSichtbarkeit WHERE ThemaID = ?
+        ''', (thema_id,)).fetchall()
+        
+        thema_abteilungen = [s['AbteilungID'] for s in thema_sichtbarkeiten]
+        
+        if not any(abt in sichtbare_abteilungen for abt in thema_abteilungen):
+            return jsonify({'success': False, 'message': 'Kein Zugriff auf dieses Thema'}), 403
+    
+    # Prüfen ob Datei hochgeladen wurde
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'message': 'Keine Datei ausgewählt'}), 400
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({'success': False, 'message': 'Keine Datei ausgewählt'}), 400
+    
+    # Dateiendung prüfen
+    def allowed_file(filename):
+        return '.' in filename and \
+               filename.rsplit('.', 1)[1].lower() in current_app.config['ALLOWED_EXTENSIONS']
+    
+    if not allowed_file(file.filename):
+        allowed = ', '.join(current_app.config['ALLOWED_EXTENSIONS'])
+        return jsonify({'success': False, 'message': f'Dateityp nicht erlaubt. Erlaubt sind: {allowed}'}), 400
+    
+    # Sicheren Dateinamen erstellen
+    filename = secure_filename(file.filename)
+    
+    # Zielordner erstellen falls nicht vorhanden
+    thema_folder = os.path.join(current_app.config['SCHICHTBUCH_UPLOAD_FOLDER'], str(thema_id))
+    os.makedirs(thema_folder, exist_ok=True)
+    
+    # Prüfen ob Datei bereits existiert
+    filepath = os.path.join(thema_folder, filename)
+    if os.path.exists(filepath):
+        # Dateiname mit Nummer versehen
+        name, ext = os.path.splitext(filename)
+        counter = 1
+        while os.path.exists(filepath):
+            filename = f"{name}_{counter}{ext}"
+            filepath = os.path.join(thema_folder, filename)
+            counter += 1
+    
+    try:
+        # Datei speichern
+        file.save(filepath)
+        return jsonify({
+            'success': True, 
+            'message': f'Datei "{filename}" erfolgreich hochgeladen',
+            'filename': filename
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Fehler beim Speichern: {str(e)}'}), 500
 
