@@ -21,3 +21,21 @@ UPDATE Status SET Aktiv = 1 WHERE Aktiv IS NULL;
 CREATE INDEX IF NOT EXISTS idx_status_aktiv ON Status(Aktiv);
 
 COMMIT;
+
+
+
+
+-- Abteilung BIS-Admin erstellen
+INSERT INTO Abteilung (Bezeichnung, ParentAbteilungID, Aktiv, Sortierung) 
+VALUES ('BIS-Admin', NULL, 1, 1);
+
+-- Benutzer BIS-Admin erstellen
+INSERT INTO Mitarbeiter (Personalnummer, Vorname, Nachname, Aktiv, Passwort, PrimaerAbteilungID)
+VALUES (
+    '99999',
+    '',
+    'BIS-Admin',
+    1,
+    'scrypt:32768:8:1$8IyLNxEqRJ6JqJ8W$3f4c8a7e1d5b9f2a6e8c4d7f1b3a5c9e2d4f6b8a1c3e5d7f9b2a4c6e8d1f3a5b7c9e2d4f6a8b1c3d5e7f9a2b4c6d8e1',
+    (SELECT ID FROM Abteilung WHERE Bezeichnung = 'BIS-Admin')
+);
