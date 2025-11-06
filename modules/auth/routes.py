@@ -6,6 +6,7 @@ from flask import render_template, request, redirect, url_for, session, flash
 from werkzeug.security import check_password_hash
 from . import auth_bp
 from utils import get_db_connection
+from utils.decorators import is_safe_url
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -54,6 +55,11 @@ def login():
                     session['user_abteilungen'] = alle_abteilungen
                 
                 flash('Erfolgreich angemeldet.', 'success')
+                
+                # Weiterleitung zur ursprünglichen URL (next-Parameter) oder zum Dashboard
+                next_page = request.args.get('next')
+                if next_page and is_safe_url(next_page):
+                    return redirect(next_page)
                 return redirect(url_for('dashboard'))
             else:
                 flash('Ungültige Personalnummer oder Passwort.', 'danger')
