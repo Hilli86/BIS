@@ -47,6 +47,17 @@
     border-left: 3px solid #dee2e6;
     margin-bottom: 4px;
   }
+
+  /* Action-Buttons in kleiner Ansicht - alle gleich breit */
+  @media (max-width: 575.98px) {
+    .d-flex.flex-column > button,
+    .d-flex.flex-column > form {
+      width: 100%;
+    }
+    .d-flex.flex-column > form > button {
+      width: 100%;
+    }
+  }
 </style>
 {% endblock %}
 
@@ -166,7 +177,7 @@
           
           <!-- 🔸 Löschen Button -->
           <form action="{{ url_for('schichtbuch.delete_thema', thema_id=thema.ID) }}" method="post" class="m-0 p-0">
-            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Thema wirklich löschen?');"
+            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Thema wirklich löschen?');"
                     title="Thema löschen">
                 <i class="bi bi-trash"></i>
             </button>
@@ -415,7 +426,7 @@ async function loadMoreThemen() {
                 <i class="bi bi-eye"></i>
               </button>
               <form action="/schichtbuch/delete_thema/${thema.ID}" method="post" class="m-0 p-0">
-                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Thema wirklich löschen?');"
+                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Thema wirklich löschen?');"
                         title="Thema löschen">
                   <i class="bi bi-trash"></i>
                 </button>
