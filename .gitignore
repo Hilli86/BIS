@@ -50,4 +50,11 @@ htmlcov/
 # Upload-Dateien
 Daten/
 
+# Deployment
+*.tar.gz
+/opt/backups/
+
+# Gunicorn
+gunicorn_config.py
+
 start.bat

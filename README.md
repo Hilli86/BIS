@@ -98,6 +98,16 @@ SECRET_KEY=<starker-zufaelliger-schluessel>
 SQL_TRACING=False
 ```
 
+**📦 Produktionsserver-Deployment:**
+
+Für die Einrichtung eines produktiven Servers (z.B. in Proxmox LXC):
+
+- **⭐ Schnellstart:** [SCHNELLSTART_DEPLOYMENT.md](SCHNELLSTART_DEPLOYMENT.md) - Setup in 30 Min
+- **📖 Vollständiger Guide:** [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) - Alle Details
+- **📋 Übersicht:** [DEPLOYMENT_ÜBERSICHT.md](DEPLOYMENT_ÜBERSICHT.md) - Alle Optionen
+
+Automatische Deployment-Scripts finden Sie im Ordner `deployment/`.
+
 ## 📁 Projektstruktur
 
 ```

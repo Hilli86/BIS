@@ -1,0 +1,24 @@
+[Unit]
+Description=BIS Flask Application
+After=network.target
+
+[Service]
+Type=notify
+User=bis
+Group=bis
+WorkingDirectory=/opt/bis
+Environment="PATH=/opt/bis/venv/bin"
+EnvironmentFile=/opt/bis/.env
+ExecStart=/opt/bis/venv/bin/gunicorn -c gunicorn_config.py app:app
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=5
+PrivateTmp=true
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+
+
+
