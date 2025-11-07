@@ -253,10 +253,10 @@
                             <h6 class="card-title"><i class="bi bi-cloud-upload"></i> Datei hochladen</h6>
                             <form id="uploadForm" enctype="multipart/form-data">
                                 <div class="mb-2">
-                                    <input type="file" class="form-control" id="fileInput" name="file" 
-                                           accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt">
+                                    <input type="file" class="form-control" id="fileInput" name="files" 
+                                           accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" multiple>
                                     <div class="form-text">
-                                        Max. 16 MB - Erlaubt: Bilder, PDF, Word, Excel, Text
+                                        Max. 16 MB pro Datei - Mehrfachauswahl möglich - Erlaubt: Bilder, PDF, Word, Excel, Text
                                     </div>
                                 </div>
                                 <button type="submit" class="btn btn-primary btn-sm" id="uploadButton">
@@ -797,43 +797,71 @@ document.addEventListener('DOMContentLoaded', function() {
             const uploadMessage = document.getElementById('uploadMessage');
             
             if (!fileInput.files || fileInput.files.length === 0) {
-                uploadMessage.innerHTML = '<div class="alert alert-warning alert-dismissible fade show" role="alert">Bitte wählen Sie eine Datei aus.<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
+                uploadMessage.innerHTML = '<div class="alert alert-warning alert-dismissible fade show" role="alert">Bitte wählen Sie mindestens eine Datei aus.<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
                 return;
             }
             
-            const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
+            const files = fileInput.files;
+            const totalFiles = files.length;
+            let successCount = 0;
+            let errorCount = 0;
+            let errorMessages = [];
             
             // Button deaktivieren und Progress anzeigen
             uploadButton.disabled = true;
             uploadProgress.classList.remove('d-none');
-            uploadMessage.innerHTML = '';
+            uploadMessage.innerHTML = `<div class="alert alert-info">📤 Lade ${totalFiles} Datei(en) hoch...</div>`;
             
-            try {
-                const response = await fetch(`/schichtbuch/thema/${currentThemaId}/upload`, {
-                    method: 'POST',
-                    body: formData
-                });
+            // Dateien nacheinander hochladen
+            for (let i = 0; i < totalFiles; i++) {
+                const formData = new FormData();
+                formData.append('file', files[i]);
                 
-                const data = await response.json();
-                
-                if (data.success) {
-                    uploadMessage.innerHTML = `<div class="alert alert-success alert-dismissible fade show" role="alert">${data.message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
-                    uploadForm.reset();
+                try {
+                    const response = await fetch(`/schichtbuch/thema/${currentThemaId}/upload`, {
+                        method: 'POST',
+                        body: formData
+                    });
                     
-                    // Dateiliste neu laden
-                    setTimeout(() => {
-                        loadDateienListe(currentThemaId);
-                    }, 500);
-                } else {
-                    uploadMessage.innerHTML = `<div class="alert alert-danger alert-dismissible fade show" role="alert">${data.message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        successCount++;
+                    } else {
+                        errorCount++;
+                        errorMessages.push(`${files[i].name}: ${data.message}`);
+                    }
+                } catch (error) {
+                    console.error('Upload-Fehler:', error);
+                    errorCount++;
+                    errorMessages.push(`${files[i].name}: Netzwerkfehler`);
                 }
-            } catch (error) {
-                console.error('Upload-Fehler:', error);
-                uploadMessage.innerHTML = '<div class="alert alert-danger alert-dismissible fade show" role="alert">Fehler beim Hochladen der Datei.<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
-            } finally {
-                uploadButton.disabled = false;
-                uploadProgress.classList.add('d-none');
+            }
+            
+            // Ergebnis anzeigen
+            uploadProgress.classList.add('d-none');
+            uploadButton.disabled = false;
+            
+            if (errorCount === 0) {
+                uploadMessage.innerHTML = `<div class="alert alert-success alert-dismissible fade show" role="alert">✅ ${successCount} Datei(en) erfolgreich hochgeladen<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+                uploadForm.reset();
+                
+                // Dateiliste neu laden
+                setTimeout(() => {
+                    loadDateienListe(currentThemaId);
+                }, 500);
+            } else if (successCount > 0) {
+                let errorList = errorMessages.map(msg => `<li>${msg}</li>`).join('');
+                uploadMessage.innerHTML = `<div class="alert alert-warning alert-dismissible fade show" role="alert">⚠️ ${successCount} erfolgreich, ${errorCount} fehlgeschlagen<ul class="mb-0 mt-2">${errorList}</ul><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+                uploadForm.reset();
+                
+                // Dateiliste neu laden
+                setTimeout(() => {
+                    loadDateienListe(currentThemaId);
+                }, 500);
+            } else {
+                let errorList = errorMessages.map(msg => `<li>${msg}</li>`).join('');
+                uploadMessage.innerHTML = `<div class="alert alert-danger alert-dismissible fade show" role="alert">❌ Alle Uploads fehlgeschlagen<ul class="mb-0 mt-2">${errorList}</ul><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
             }
         });
     }

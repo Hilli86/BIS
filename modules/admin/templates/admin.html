@@ -10,6 +10,7 @@
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-gewerk">Gewerke</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-taetigkeit">Tätigkeiten</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-status">Status</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-datenbank">Datenbank</a></li>
   <li class="nav-item ms-auto"><a class="nav-link" href="{{ url_for('dashboard') }}">Zurück zum Dashboard</a></li>
   </ul>
 
@@ -360,6 +361,51 @@
       </tbody>
     </table>
   </div>
+
+  <!-- Datenbank -->
+  <div class="tab-pane fade" id="tab-datenbank">
+    <div class="alert alert-info">
+      <h5><i class="bi bi-info-circle"></i> Datenbank-Verwaltung</h5>
+      <p class="mb-0">Hier können Sie die Datenbankstruktur überprüfen und fehlende Tabellen oder Spalten automatisch hinzufügen lassen.</p>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header">Datenbankstruktur überprüfen</div>
+      <div class="card-body">
+        <p>Überprüfen Sie, ob alle erforderlichen Tabellen und Spalten in der Datenbank vorhanden sind.</p>
+        <button id="btnCheckDatabase" class="btn btn-primary" onclick="checkDatabase()">
+          <i class="bi bi-search"></i> Struktur überprüfen
+        </button>
+      </div>
+    </div>
+
+    <div id="dbCheckResult" class="card mb-3" style="display: none;">
+      <div class="card-header">Prüfergebnis</div>
+      <div class="card-body" id="dbCheckResultBody">
+        <!-- Ergebnis wird hier eingefügt -->
+      </div>
+    </div>
+
+    <div id="dbRepairSection" class="card mb-3" style="display: none;">
+      <div class="card-header bg-warning">Fehlende Strukturen reparieren</div>
+      <div class="card-body">
+        <div class="alert alert-warning mb-3">
+          <strong><i class="bi bi-exclamation-triangle"></i> Warnung:</strong> Diese Aktion fügt fehlende Tabellen und Spalten zur Datenbank hinzu. 
+          Bestehende Daten werden nicht verändert. Es wird empfohlen, vorher ein Backup der Datenbank anzulegen.
+        </div>
+        <button id="btnRepairDatabase" class="btn btn-warning" onclick="repairDatabase()">
+          <i class="bi bi-wrench"></i> Fehlende Strukturen hinzufügen
+        </button>
+      </div>
+    </div>
+
+    <div id="dbRepairResult" class="card mb-3" style="display: none;">
+      <div class="card-header bg-success text-white">Reparaturergebnis</div>
+      <div class="card-body" id="dbRepairResultBody">
+        <!-- Ergebnis wird hier eingefügt -->
+      </div>
+    </div>
+  </div>
 </div>
 
 {% endblock %}
@@ -472,6 +518,187 @@ function setupColorPickers() {
       });
     }
   });
+}
+
+// Datenbank-Prüfung
+function checkDatabase() {
+  const btn = document.getElementById('btnCheckDatabase');
+  const resultCard = document.getElementById('dbCheckResult');
+  const resultBody = document.getElementById('dbCheckResultBody');
+  const repairSection = document.getElementById('dbRepairSection');
+  
+  // Button deaktivieren
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Prüfe...';
+  
+  // Vorherige Ergebnisse ausblenden
+  repairSection.style.display = 'none';
+  document.getElementById('dbRepairResult').style.display = 'none';
+  
+  fetch('{{ url_for("admin.database_check") }}', {
+    method: 'GET',
+    headers: {
+      'X-Requested-With': 'XMLHttpRequest'
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    resultBody.innerHTML = formatCheckResult(data);
+    resultCard.style.display = 'block';
+    
+    // Zeige Reparatur-Sektion nur, wenn Probleme gefunden wurden
+    if (data.has_issues) {
+      repairSection.style.display = 'block';
+    }
+    
+    // Button wieder aktivieren
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-search"></i> Struktur überprüfen';
+  })
+  .catch(error => {
+    showToast('Fehler bei der Datenbankprüfung: ' + error.message, 'error');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-search"></i> Struktur überprüfen';
+  });
+}
+
+// Datenbank-Reparatur
+function repairDatabase() {
+  const btn = document.getElementById('btnRepairDatabase');
+  const resultCard = document.getElementById('dbRepairResult');
+  const resultBody = document.getElementById('dbRepairResultBody');
+  
+  if (!confirm('Möchten Sie die fehlenden Strukturen wirklich zur Datenbank hinzufügen?')) {
+    return;
+  }
+  
+  // Button deaktivieren
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Repariere...';
+  
+  fetch('{{ url_for("admin.database_repair") }}', {
+    method: 'POST',
+    headers: {
+      'X-Requested-With': 'XMLHttpRequest'
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    resultBody.innerHTML = formatRepairResult(data);
+    resultCard.style.display = 'block';
+    
+    if (data.success) {
+      showToast('Datenbank erfolgreich repariert!', 'success');
+      // Nach erfolgreicher Reparatur erneut prüfen
+      setTimeout(() => checkDatabase(), 2000);
+    } else {
+      showToast('Fehler bei der Reparatur: ' + data.message, 'error');
+    }
+    
+    // Button wieder aktivieren
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-wrench"></i> Fehlende Strukturen hinzufügen';
+  })
+  .catch(error => {
+    showToast('Fehler bei der Datenbankreparatur: ' + error.message, 'error');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-wrench"></i> Fehlende Strukturen hinzufügen';
+  });
+}
+
+// Formatiert das Prüfergebnis
+function formatCheckResult(data) {
+  let html = '';
+  
+  if (!data.has_issues) {
+    html = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> <strong>Perfekt!</strong> Alle erforderlichen Tabellen und Spalten sind vorhanden.</div>';
+    return html;
+  }
+  
+  // Fehlende Tabellen
+  if (data.missing_tables && data.missing_tables.length > 0) {
+    html += '<div class="alert alert-danger"><strong><i class="bi bi-exclamation-triangle"></i> Fehlende Tabellen:</strong><ul class="mb-0 mt-2">';
+    data.missing_tables.forEach(table => {
+      html += `<li><code>${table}</code></li>`;
+    });
+    html += '</ul></div>';
+  }
+  
+  // Fehlende Spalten
+  if (data.missing_columns && Object.keys(data.missing_columns).length > 0) {
+    html += '<div class="alert alert-warning"><strong><i class="bi bi-exclamation-triangle"></i> Fehlende Spalten:</strong>';
+    for (const [table, columns] of Object.entries(data.missing_columns)) {
+      html += `<div class="mt-2"><strong>Tabelle <code>${table}</code>:</strong><ul class="mb-0">`;
+      columns.forEach(column => {
+        html += `<li><code>${column}</code></li>`;
+      });
+      html += '</ul></div>';
+    }
+    html += '</div>';
+  }
+  
+  // Fehlende Indizes
+  if (data.missing_indexes && data.missing_indexes.length > 0) {
+    html += '<div class="alert alert-info"><strong><i class="bi bi-info-circle"></i> Fehlende Indizes:</strong><ul class="mb-0 mt-2">';
+    data.missing_indexes.forEach(index => {
+      html += `<li><code>${index}</code></li>`;
+    });
+    html += '</ul></div>';
+  }
+  
+  return html;
+}
+
+// Formatiert das Reparaturergebnis
+function formatRepairResult(data) {
+  let html = '';
+  
+  if (!data.success) {
+    html = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> <strong>Fehler:</strong> ${data.message}</div>`;
+    if (data.errors && data.errors.length > 0) {
+      html += '<div class="alert alert-danger"><strong>Details:</strong><ul class="mb-0">';
+      data.errors.forEach(error => {
+        html += `<li>${error}</li>`;
+      });
+      html += '</ul></div>';
+    }
+    return html;
+  }
+  
+  html += '<div class="alert alert-success"><i class="bi bi-check-circle"></i> <strong>Erfolg!</strong> Die Datenbank wurde erfolgreich repariert.</div>';
+  
+  // Hinzugefügte Tabellen
+  if (data.added_tables && data.added_tables.length > 0) {
+    html += '<div class="alert alert-success"><strong>Hinzugefügte Tabellen:</strong><ul class="mb-0">';
+    data.added_tables.forEach(table => {
+      html += `<li><code>${table}</code></li>`;
+    });
+    html += '</ul></div>';
+  }
+  
+  // Hinzugefügte Spalten
+  if (data.added_columns && Object.keys(data.added_columns).length > 0) {
+    html += '<div class="alert alert-success"><strong>Hinzugefügte Spalten:</strong>';
+    for (const [table, columns] of Object.entries(data.added_columns)) {
+      html += `<div class="mt-2"><strong>Tabelle <code>${table}</code>:</strong><ul class="mb-0">`;
+      columns.forEach(column => {
+        html += `<li><code>${column}</code></li>`;
+      });
+      html += '</ul></div>';
+    }
+    html += '</div>';
+  }
+  
+  // Hinzugefügte Indizes
+  if (data.added_indexes && data.added_indexes.length > 0) {
+    html += '<div class="alert alert-info"><strong>Hinzugefügte Indizes:</strong><ul class="mb-0">';
+    data.added_indexes.forEach(index => {
+      html += `<li><code>${index}</code></li>`;
+    });
+    html += '</ul></div>';
+  }
+  
+  return html;
 }
 
 // Event Listener für alle Formulare hinzufügen

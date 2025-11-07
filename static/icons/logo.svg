@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Blauer Hintergrund -->
+  <rect width="512" height="512" fill="#0066cc" rx="64"/>
+  
+  <!-- Weißer Fisch -->
+  <g fill="#ffffff">
+    <!-- Fisch-Körper -->
+    <ellipse cx="280" cy="256" rx="140" ry="85"/>
+    
+    <!-- Fisch-Kopf (runder) -->
+    <circle cx="140" cy="256" r="70"/>
+    
+    <!-- Auge -->
+    <circle cx="120" cy="240" r="12" fill="#0066cc"/>
+    
+    <!-- Schwanzflosse -->
+    <path d="M 420 256 L 490 200 L 490 220 L 450 256 L 490 292 L 490 312 Z"/>
+    
+    <!-- Obere Rückenflosse -->
+    <path d="M 260 171 L 280 120 L 300 171 Z"/>
+    
+    <!-- Untere Bauchflosse -->
+    <path d="M 260 341 L 280 392 L 300 341 Z"/>
+    
+    <!-- Seitliche Brustflosse -->
+    <ellipse cx="180" cy="295" rx="35" ry="20" transform="rotate(-25 180 295)"/>
+  </g>
+</svg>
+

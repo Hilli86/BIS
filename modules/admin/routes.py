@@ -53,15 +53,15 @@ def dashboard():
             ORDER BY COALESCE(p.Bezeichnung, a.Bezeichnung), a.Bezeichnung
         ''').fetchall()
         
-        bereiche = conn.execute('SELECT ID, Bezeichnung FROM Bereich ORDER BY Bezeichnung').fetchall()
+        bereiche = conn.execute('SELECT ID, Bezeichnung, Aktiv FROM Bereich ORDER BY Bezeichnung').fetchall()
         gewerke = conn.execute('''
-            SELECT G.ID, G.Bezeichnung, B.Bezeichnung AS Bereich, G.BereichID
+            SELECT G.ID, G.Bezeichnung, B.Bezeichnung AS Bereich, G.BereichID, G.Aktiv
             FROM Gewerke G
             JOIN Bereich B ON G.BereichID = B.ID
             ORDER BY B.Bezeichnung, G.Bezeichnung
         ''').fetchall()
-        taetigkeiten = conn.execute('SELECT ID, Bezeichnung, Sortierung FROM Taetigkeit ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
-        status = conn.execute('SELECT ID, Bezeichnung, Farbe, Sortierung FROM Status ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
+        taetigkeiten = conn.execute('SELECT ID, Bezeichnung, Sortierung, Aktiv FROM Taetigkeit ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
+        status = conn.execute('SELECT ID, Bezeichnung, Farbe, Sortierung, Aktiv FROM Status ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
 
     return render_template('admin.html',
                            mitarbeiter=mitarbeiter,
@@ -428,3 +428,335 @@ def status_delete(sid):
     except Exception as e:
         return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
 
+
+# ========== Datenbank-Verwaltung ==========
+
+# Datenbankschema-Definition (basierend auf init_database.py)
+DATABASE_SCHEMA = {
+    'Mitarbeiter': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'Personalnummer': 'TEXT NOT NULL UNIQUE',
+            'Vorname': 'TEXT',
+            'Nachname': 'TEXT NOT NULL',
+            'Aktiv': 'INTEGER NOT NULL DEFAULT 1',
+            'Passwort': 'TEXT NOT NULL',
+            'PrimaerAbteilungID': 'INTEGER'
+        },
+        'indexes': [
+            'idx_mitarbeiter_aktiv',
+            'idx_mitarbeiter_personalnummer'
+        ]
+    },
+    'Abteilung': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'Bezeichnung': 'TEXT NOT NULL',
+            'ParentAbteilungID': 'INTEGER NULL',
+            'Aktiv': 'INTEGER NOT NULL DEFAULT 1',
+            'Sortierung': 'INTEGER DEFAULT 0'
+        },
+        'indexes': [
+            'idx_abteilung_parent',
+            'idx_abteilung_aktiv'
+        ]
+    },
+    'MitarbeiterAbteilung': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'MitarbeiterID': 'INTEGER NOT NULL',
+            'AbteilungID': 'INTEGER NOT NULL'
+        },
+        'indexes': [
+            'idx_mitarbeiter_abteilung_ma',
+            'idx_mitarbeiter_abteilung_abt'
+        ]
+    },
+    'Bereich': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'Bezeichnung': 'TEXT NOT NULL',
+            'Aktiv': 'INTEGER NOT NULL DEFAULT 1'
+        },
+        'indexes': [
+            'idx_bereich_aktiv'
+        ]
+    },
+    'Gewerke': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'Bezeichnung': 'TEXT NOT NULL',
+            'BereichID': 'INTEGER NOT NULL',
+            'Aktiv': 'INTEGER NOT NULL DEFAULT 1'
+        },
+        'indexes': [
+            'idx_gewerke_bereich',
+            'idx_gewerke_aktiv'
+        ]
+    },
+    'Status': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'Bezeichnung': 'TEXT NOT NULL',
+            'Farbe': 'TEXT',
+            'Sortierung': 'INTEGER DEFAULT 0',
+            'Aktiv': 'INTEGER NOT NULL DEFAULT 1'
+        },
+        'indexes': [
+            'idx_status_aktiv'
+        ]
+    },
+    'Taetigkeit': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'Bezeichnung': 'TEXT NOT NULL',
+            'Sortierung': 'INTEGER DEFAULT 0',
+            'Aktiv': 'INTEGER NOT NULL DEFAULT 1'
+        },
+        'indexes': [
+            'idx_taetigkeit_aktiv'
+        ]
+    },
+    'SchichtbuchThema': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'GewerkID': 'INTEGER NOT NULL',
+            'StatusID': 'INTEGER NOT NULL',
+            'ErstellerAbteilungID': 'INTEGER',
+            'Gelöscht': 'INTEGER NOT NULL DEFAULT 0',
+            'ErstelltAm': 'DATETIME DEFAULT CURRENT_TIMESTAMP'
+        },
+        'indexes': [
+            'idx_thema_gewerk',
+            'idx_thema_status',
+            'idx_thema_abteilung',
+            'idx_thema_geloescht'
+        ]
+    },
+    'SchichtbuchBemerkungen': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'ThemaID': 'INTEGER NOT NULL',
+            'MitarbeiterID': 'INTEGER NOT NULL',
+            'Datum': 'DATETIME DEFAULT CURRENT_TIMESTAMP',
+            'TaetigkeitID': 'INTEGER',
+            'Bemerkung': 'TEXT',
+            'Gelöscht': 'INTEGER NOT NULL DEFAULT 0'
+        },
+        'indexes': [
+            'idx_bemerkung_thema',
+            'idx_bemerkung_mitarbeiter',
+            'idx_bemerkung_geloescht'
+        ]
+    },
+    'SchichtbuchThemaSichtbarkeit': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'ThemaID': 'INTEGER NOT NULL',
+            'AbteilungID': 'INTEGER NOT NULL',
+            'ErstelltAm': 'DATETIME DEFAULT CURRENT_TIMESTAMP'
+        },
+        'indexes': [
+            'idx_sichtbarkeit_thema',
+            'idx_sichtbarkeit_abteilung'
+        ]
+    }
+}
+
+
+@admin_bp.route('/database/check', methods=['GET'])
+@admin_required
+def database_check():
+    """Überprüft die Datenbankstruktur"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            missing_tables = []
+            missing_columns = {}
+            missing_indexes = []
+            
+            # Prüfe jede Tabelle im Schema
+            for table_name, table_schema in DATABASE_SCHEMA.items():
+                # Prüfe ob Tabelle existiert
+                cursor.execute('''
+                    SELECT name FROM sqlite_master 
+                    WHERE type='table' AND name=?
+                ''', (table_name,))
+                
+                if not cursor.fetchone():
+                    missing_tables.append(table_name)
+                    continue
+                
+                # Tabelle existiert, prüfe Spalten
+                cursor.execute(f'PRAGMA table_info({table_name})')
+                existing_columns = {row[1] for row in cursor.fetchall()}
+                
+                required_columns = set(table_schema['columns'].keys())
+                table_missing_columns = required_columns - existing_columns
+                
+                if table_missing_columns:
+                    missing_columns[table_name] = list(table_missing_columns)
+                
+                # Prüfe Indizes
+                cursor.execute(f'PRAGMA index_list({table_name})')
+                existing_indexes = {row[1] for row in cursor.fetchall()}
+                
+                for index_name in table_schema.get('indexes', []):
+                    if index_name not in existing_indexes:
+                        missing_indexes.append(index_name)
+            
+            has_issues = bool(missing_tables or missing_columns or missing_indexes)
+            
+            return jsonify({
+                'success': True,
+                'has_issues': has_issues,
+                'missing_tables': missing_tables,
+                'missing_columns': missing_columns,
+                'missing_indexes': missing_indexes
+            })
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Fehler bei der Datenbankprüfung: {str(e)}'
+        }), 500
+
+
+@admin_bp.route('/database/repair', methods=['POST'])
+@admin_required
+def database_repair():
+    """Fügt fehlende Tabellen, Spalten und Indizes zur Datenbank hinzu"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            added_tables = []
+            added_columns = {}
+            added_indexes = []
+            errors = []
+            
+            # Prüfe jede Tabelle im Schema
+            for table_name, table_schema in DATABASE_SCHEMA.items():
+                # Prüfe ob Tabelle existiert
+                cursor.execute('''
+                    SELECT name FROM sqlite_master 
+                    WHERE type='table' AND name=?
+                ''', (table_name,))
+                
+                if not cursor.fetchone():
+                    # Tabelle fehlt - erstelle sie
+                    try:
+                        columns_def = ', '.join([
+                            f'{col_name} {col_type}' 
+                            for col_name, col_type in table_schema['columns'].items()
+                        ])
+                        create_sql = f'CREATE TABLE {table_name} ({columns_def})'
+                        cursor.execute(create_sql)
+                        added_tables.append(table_name)
+                        
+                        # Erstelle Indizes für neue Tabelle
+                        for index_name in table_schema.get('indexes', []):
+                            try:
+                                # Versuche Index-Name auf Spalte abzubilden
+                                # idx_tablename_column -> column
+                                column_name = index_name.replace(f'idx_{table_name.lower()}_', '')
+                                # Für zusammengesetzte Namen
+                                if column_name in table_schema['columns']:
+                                    cursor.execute(f'CREATE INDEX {index_name} ON {table_name}({column_name})')
+                                else:
+                                    # Versuche gängige Spaltennamen
+                                    possible_columns = {
+                                        'aktiv': 'Aktiv',
+                                        'geloescht': 'Gelöscht',
+                                        'parent': 'ParentAbteilungID',
+                                        'bereich': 'BereichID',
+                                        'gewerk': 'GewerkID',
+                                        'status': 'StatusID',
+                                        'thema': 'ThemaID',
+                                        'mitarbeiter': 'MitarbeiterID',
+                                        'abteilung': 'AbteilungID',
+                                        'personalnummer': 'Personalnummer',
+                                        'ma': 'MitarbeiterID',
+                                        'abt': 'AbteilungID'
+                                    }
+                                    if column_name in possible_columns:
+                                        cursor.execute(f'CREATE INDEX {index_name} ON {table_name}({possible_columns[column_name]})')
+                                added_indexes.append(index_name)
+                            except Exception as e:
+                                errors.append(f'Index {index_name}: {str(e)}')
+                    except Exception as e:
+                        errors.append(f'Tabelle {table_name}: {str(e)}')
+                    continue
+                
+                # Tabelle existiert, prüfe fehlende Spalten
+                cursor.execute(f'PRAGMA table_info({table_name})')
+                existing_columns = {row[1] for row in cursor.fetchall()}
+                
+                table_added_columns = []
+                for col_name, col_type in table_schema['columns'].items():
+                    if col_name not in existing_columns and col_name != 'ID':
+                        # Spalte fehlt - füge sie hinzu
+                        try:
+                            # Bei SQLite kann man nur Spalten mit DEFAULT oder NULL hinzufügen
+                            # Entferne NOT NULL ohne DEFAULT für ALTER TABLE
+                            col_def = col_type.replace('NOT NULL', '').strip()
+                            if 'DEFAULT' not in col_def.upper() and 'NULL' not in col_def.upper():
+                                col_def += ' NULL'
+                            
+                            cursor.execute(f'ALTER TABLE {table_name} ADD COLUMN {col_name} {col_def}')
+                            table_added_columns.append(col_name)
+                        except Exception as e:
+                            errors.append(f'Spalte {table_name}.{col_name}: {str(e)}')
+                
+                if table_added_columns:
+                    added_columns[table_name] = table_added_columns
+                
+                # Prüfe fehlende Indizes
+                cursor.execute(f'PRAGMA index_list({table_name})')
+                existing_indexes = {row[1] for row in cursor.fetchall()}
+                
+                for index_name in table_schema.get('indexes', []):
+                    if index_name not in existing_indexes:
+                        try:
+                            # Versuche Index-Name auf Spalte abzubilden
+                            column_name = index_name.replace(f'idx_{table_name.lower()}_', '')
+                            if column_name in table_schema['columns']:
+                                cursor.execute(f'CREATE INDEX {index_name} ON {table_name}({column_name})')
+                            else:
+                                # Versuche gängige Spaltennamen
+                                possible_columns = {
+                                    'aktiv': 'Aktiv',
+                                    'geloescht': 'Gelöscht',
+                                    'parent': 'ParentAbteilungID',
+                                    'bereich': 'BereichID',
+                                    'gewerk': 'GewerkID',
+                                    'status': 'StatusID',
+                                    'thema': 'ThemaID',
+                                    'mitarbeiter': 'MitarbeiterID',
+                                    'abteilung': 'AbteilungID',
+                                    'personalnummer': 'Personalnummer',
+                                    'ma': 'MitarbeiterID',
+                                    'abt': 'AbteilungID'
+                                }
+                                if column_name in possible_columns:
+                                    cursor.execute(f'CREATE INDEX {index_name} ON {table_name}({possible_columns[column_name]})')
+                            added_indexes.append(index_name)
+                        except Exception as e:
+                            errors.append(f'Index {index_name}: {str(e)}')
+            
+            conn.commit()
+            
+            return jsonify({
+                'success': True,
+                'added_tables': added_tables,
+                'added_columns': added_columns,
+                'added_indexes': added_indexes,
+                'errors': errors if errors else None
+            })
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Fehler bei der Datenbankreparatur: {str(e)}'
+        }), 500
