@@ -165,7 +165,7 @@ def init_database_schema(db_path, verbose=False):
     
     try:
         # ========== 1. Mitarbeiter ==========
-        create_table_if_not_exists(conn, 'Mitarbeiter', '''
+        created = create_table_if_not_exists(conn, 'Mitarbeiter', '''
             CREATE TABLE Mitarbeiter (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
                 Personalnummer TEXT NOT NULL UNIQUE,
@@ -180,6 +180,9 @@ def init_database_schema(db_path, verbose=False):
             'CREATE INDEX idx_mitarbeiter_aktiv ON Mitarbeiter(Aktiv)',
             'CREATE INDEX idx_mitarbeiter_personalnummer ON Mitarbeiter(Personalnummer)'
         ])
+        if not created:
+            # Prüfe auf fehlende Spalten
+            create_column_if_not_exists(conn, 'Mitarbeiter', 'PrimaerAbteilungID', 'ALTER TABLE Mitarbeiter ADD COLUMN PrimaerAbteilungID INTEGER')
         
         # ========== 2. Abteilung ==========
         create_table_if_not_exists(conn, 'Abteilung', '''
@@ -262,7 +265,7 @@ def init_database_schema(db_path, verbose=False):
         ])
         
         # ========== 8. SchichtbuchThema ==========
-        create_table_if_not_exists(conn, 'SchichtbuchThema', '''
+        created = create_table_if_not_exists(conn, 'SchichtbuchThema', '''
             CREATE TABLE SchichtbuchThema (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
                 GewerkID INTEGER NOT NULL,
@@ -280,6 +283,9 @@ def init_database_schema(db_path, verbose=False):
             'CREATE INDEX idx_thema_abteilung ON SchichtbuchThema(ErstellerAbteilungID)',
             'CREATE INDEX idx_thema_geloescht ON SchichtbuchThema(Gelöscht)'
         ])
+        if not created:
+            # Prüfe auf fehlende Spalten
+            create_column_if_not_exists(conn, 'SchichtbuchThema', 'ErstelltAm', 'ALTER TABLE SchichtbuchThema ADD COLUMN ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP')
         
         # ========== 9. SchichtbuchBemerkungen ==========
         create_table_if_not_exists(conn, 'SchichtbuchBemerkungen', '''
@@ -302,7 +308,7 @@ def init_database_schema(db_path, verbose=False):
         ])
         
         # ========== 10. SchichtbuchThemaSichtbarkeit ==========
-        create_table_if_not_exists(conn, 'SchichtbuchThemaSichtbarkeit', '''
+        created = create_table_if_not_exists(conn, 'SchichtbuchThemaSichtbarkeit', '''
             CREATE TABLE SchichtbuchThemaSichtbarkeit (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
                 ThemaID INTEGER NOT NULL,
@@ -316,9 +322,12 @@ def init_database_schema(db_path, verbose=False):
             'CREATE INDEX idx_sichtbarkeit_thema ON SchichtbuchThemaSichtbarkeit(ThemaID)',
             'CREATE INDEX idx_sichtbarkeit_abteilung ON SchichtbuchThemaSichtbarkeit(AbteilungID)'
         ])
+        if not created:
+            # Prüfe auf fehlende Spalten
+            create_column_if_not_exists(conn, 'SchichtbuchThemaSichtbarkeit', 'ErstelltAm', 'ALTER TABLE SchichtbuchThemaSichtbarkeit ADD COLUMN ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP')
         
         # ========== 11. Benachrichtigung ==========
-        create_table_if_not_exists(conn, 'Benachrichtigung', '''
+        created = create_table_if_not_exists(conn, 'Benachrichtigung', '''
             CREATE TABLE Benachrichtigung (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
                 MitarbeiterID INTEGER NOT NULL,
@@ -339,6 +348,9 @@ def init_database_schema(db_path, verbose=False):
             'CREATE INDEX idx_benachrichtigung_gelesen ON Benachrichtigung(Gelesen)',
             'CREATE INDEX idx_benachrichtigung_erstellt ON Benachrichtigung(ErstelltAm)'
         ])
+        if not created:
+            # Prüfe auf fehlende Spalten
+            create_column_if_not_exists(conn, 'Benachrichtigung', 'ErstelltAm', 'ALTER TABLE Benachrichtigung ADD COLUMN ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP')
         
         # ========== 12. ErsatzteilKategorie ==========
         create_table_if_not_exists(conn, 'ErsatzteilKategorie', '''
