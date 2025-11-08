@@ -66,7 +66,7 @@
                   <input class="form-check-input" type="checkbox" name="aktiv" id="aktiv{{ m.ID }}" {% if m.Aktiv %}checked{% endif %}>
                   <label class="form-check-label ms-1" for="aktiv{{ m.ID }}">Aktiv</label>
                 </div>
-                <div class="col-md-1"><button class="btn btn-sm btn-primary w-100">Speichern</button></div>
+                <div class="col-md-1"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-save"></i> Speichern</button></div>
               </form>
               
               <!-- Abteilungszuweisung -->
@@ -98,7 +98,7 @@
                     </div>
                     {% endfor %}
                   </div>
-                  <button class="btn btn-sm btn-success">Abteilungen speichern</button>
+                  <button class="btn btn-sm btn-success"><i class="bi bi-save"></i> Abteilungen speichern</button>
                 </form>
               </div>
               
@@ -179,7 +179,7 @@
                 <input class="form-check-input" type="checkbox" name="aktiv" id="abtAktiv{{ a.ID }}" {% if a.Aktiv %}checked{% endif %}>
                 <label class="form-check-label ms-1" for="abtAktiv{{ a.ID }}">Aktiv</label>
               </div>
-              <div class="col-md-1"><button class="btn btn-sm btn-primary w-100">Speichern</button></div>
+              <div class="col-md-1"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-save"></i> Speichern</button></div>
             </form>
           </td>
         </tr>
@@ -216,7 +216,7 @@
               </div>
           </td>
           <td>
-              <button class="btn btn-sm btn-primary">Speichern</button>
+              <button class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Speichern</button>
             </form>
           </td>
         </tr>
@@ -268,7 +268,7 @@
               </div>
           </td>
           <td>
-              <button class="btn btn-sm btn-primary">Speichern</button>
+              <button class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Speichern</button>
             </form>
           </td>
         </tr>
@@ -309,7 +309,7 @@
               </div>
           </td>
           <td>
-              <button class="btn btn-sm btn-primary">Speichern</button>
+              <button class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Speichern</button>
             </form>
           </td>
         </tr>
@@ -362,7 +362,7 @@
               </div>
           </td>
           <td>
-              <button class="btn btn-sm btn-primary">Speichern</button>
+              <button class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Speichern</button>
             </form>
           </td>
         </tr>
@@ -407,10 +407,10 @@
               </div>
           </td>
           <td>
-              <button class="btn btn-sm btn-primary">Speichern</button>
+              <button class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Speichern</button>
             </form>
             <form action="{{ url_for('admin.ersatzteil_kategorie_delete', kid=k.ID) }}" method="post" class="d-inline mt-1">
-              <button class="btn btn-sm btn-danger" onclick="return confirm('Kategorie wirklich deaktivieren?')">Löschen</button>
+              <button class="btn btn-sm btn-danger" onclick="return confirm('Kategorie wirklich deaktivieren?')"><i class="bi bi-trash"></i> Löschen</button>
             </form>
           </td>
         </tr>
@@ -455,10 +455,10 @@
               </div>
           </td>
           <td>
-              <button class="btn btn-sm btn-primary">Speichern</button>
+              <button class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Speichern</button>
             </form>
             <form action="{{ url_for('admin.kostenstelle_delete', kid=k.ID) }}" method="post" class="d-inline mt-1">
-              <button class="btn btn-sm btn-danger" onclick="return confirm('Kostenstelle wirklich deaktivieren?')">Löschen</button>
+              <button class="btn btn-sm btn-danger" onclick="return confirm('Kostenstelle wirklich deaktivieren?')"><i class="bi bi-trash"></i> Löschen</button>
             </form>
           </td>
         </tr>
@@ -503,10 +503,10 @@
               </div>
           </td>
           <td>
-              <button class="btn btn-sm btn-primary">Speichern</button>
+              <button class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Speichern</button>
             </form>
             <form action="{{ url_for('admin.lagerort_delete', lid=l.ID) }}" method="post" class="d-inline mt-1">
-              <button class="btn btn-sm btn-danger" onclick="return confirm('Lagerort wirklich deaktivieren?')">Löschen</button>
+              <button class="btn btn-sm btn-danger" onclick="return confirm('Lagerort wirklich deaktivieren?')"><i class="bi bi-trash"></i> Löschen</button>
             </form>
           </td>
         </tr>
@@ -551,10 +551,10 @@
               </div>
           </td>
           <td>
-              <button class="btn btn-sm btn-primary">Speichern</button>
+              <button class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Speichern</button>
             </form>
             <form action="{{ url_for('admin.lagerplatz_delete', lid=l.ID) }}" method="post" class="d-inline mt-1">
-              <button class="btn btn-sm btn-danger" onclick="return confirm('Lagerplatz wirklich deaktivieren?')">Löschen</button>
+              <button class="btn btn-sm btn-danger" onclick="return confirm('Lagerplatz wirklich deaktivieren?')"><i class="bi bi-trash"></i> Löschen</button>
             </form>
           </td>
         </tr>
@@ -627,10 +627,10 @@
               </div>
           </td>
           <td>
-              <button class="btn btn-sm btn-primary">Speichern</button>
+              <button class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Speichern</button>
             </form>
             <form action="{{ url_for('admin.lieferant_delete', lid=l.ID) }}" method="post" class="d-inline mt-1">
-              <button class="btn btn-sm btn-danger" onclick="return confirm('Lieferant wirklich löschen?')">Löschen</button>
+              <button class="btn btn-sm btn-danger" onclick="return confirm('Lieferant wirklich löschen?')"><i class="bi bi-trash"></i> Löschen</button>
             </form>
           </td>
         </tr>

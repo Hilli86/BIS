@@ -216,6 +216,7 @@ python app.py
 - ✅ **Dashboard** - Übersicht mit Statistiken und Aktivitäten
 - ✅ **Mobile Navigation** - Responsive Design mit Hamburger-Menü
 - ✅ **Admin: Passwort zurücksetzen** - Passwort auf Vorname zurücksetzen
+- ✅ **UI-Verbesserungen** - Bootstrap Icons für Speichern- und Löschen-Buttons im Admin-Bereich
 
 ### Version 1.2
 - ✅ sbListeDetails: Infinite Scroll, neue Filter (Bereich, Gewerk, Status-Multi, Textsuche)
