@@ -51,21 +51,18 @@ echo -e "\n${YELLOW}3. Dependencies aktualisieren...${NC}"
 su - bis -c "cd $BIS_HOME && source venv/bin/activate && pip install -r requirements.txt --upgrade"
 echo -e "${GREEN}✓ Dependencies aktualisiert${NC}"
 
-echo -e "\n${YELLOW}4. Datenbank-Migrationen (falls vorhanden)...${NC}"
-if [ -f "$BIS_HOME/migrations/run_migration.py" ]; then
-    # Backup der Datenbank vor Migration
-    cp "$BIS_DATA/database_main.db" "$BIS_DATA/database_main.db.pre_migration_${TIMESTAMP}"
-    
-    su - bis -c "cd $BIS_HOME && source venv/bin/activate && python migrations/run_migration.py" || {
-        echo -e "${RED}✗ Migration fehlgeschlagen - stelle Backup wieder her${NC}"
-        cp "$BIS_DATA/database_main.db.pre_migration_${TIMESTAMP}" "$BIS_DATA/database_main.db"
-        systemctl start bis.service
-        exit 1
-    }
-    echo -e "${GREEN}✓ Migrationen durchgeführt${NC}"
-else
-    echo -e "${YELLOW}⚠ Keine Migrationen gefunden - überspringe${NC}"
-fi
+echo -e "\n${YELLOW}4. Datenbank-Migrationen (automatisch)...${NC}"
+# Backup der Datenbank vor Migration
+cp "$BIS_DATA/database_main.db" "$BIS_DATA/database_main.db.pre_migration_${TIMESTAMP}"
+
+# Nutze die neue automatische Migrations-Funktion
+su - bis -c "cd $BIS_HOME && source venv/bin/activate && bash deployment/run_migrations_after_pull.sh" || {
+    echo -e "${RED}✗ Migration fehlgeschlagen - stelle Backup wieder her${NC}"
+    cp "$BIS_DATA/database_main.db.pre_migration_${TIMESTAMP}" "$BIS_DATA/database_main.db"
+    systemctl start bis.service
+    exit 1
+}
+echo -e "${GREEN}✓ Migrationen durchgeführt${NC}"
 
 echo -e "\n${YELLOW}5. Berechtigungen prüfen...${NC}"
 chown -R bis:bis "$BIS_HOME"

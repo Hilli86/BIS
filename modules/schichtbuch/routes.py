@@ -657,22 +657,28 @@ def thema_detail(thema_id):
 
         mitarbeiter = conn.execute('SELECT * FROM Mitarbeiter').fetchall()
 
-        # Ersatzteil-Verknüpfungen laden
-        ersatzteil_verknuepfungen = conn.execute('''
+        # Alle Lagerbuchungen für dieses Thema laden (Eingang, Ausgang, Inventur)
+        thema_lagerbuchungen = conn.execute('''
             SELECT 
-                v.ID,
-                v.ErsatzteilID,
-                v.Menge,
-                v.VerwendetAm,
-                v.Bemerkung,
+                l.ID AS BuchungsID,
+                l.ErsatzteilID,
+                l.Typ,
+                l.Menge,
+                l.Grund,
+                l.Buchungsdatum,
+                l.Bemerkung,
+                l.Preis,
+                l.Waehrung,
                 e.Artikelnummer,
                 e.Bezeichnung AS ErsatzteilBezeichnung,
-                m.Vorname || ' ' || m.Nachname AS VerwendetVon
-            FROM ErsatzteilThemaVerknuepfung v
-            JOIN Ersatzteil e ON v.ErsatzteilID = e.ID
-            JOIN Mitarbeiter m ON v.VerwendetVonID = m.ID
-            WHERE v.ThemaID = ?
-            ORDER BY v.VerwendetAm DESC
+                m.Vorname || ' ' || m.Nachname AS VerwendetVon,
+                k.Bezeichnung AS Kostenstelle
+            FROM Lagerbuchung l
+            JOIN Ersatzteil e ON l.ErsatzteilID = e.ID
+            LEFT JOIN Mitarbeiter m ON l.VerwendetVonID = m.ID
+            LEFT JOIN Kostenstelle k ON l.KostenstelleID = k.ID
+            WHERE l.ThemaID = ?
+            ORDER BY l.Buchungsdatum DESC
         ''', (thema_id,)).fetchall()
 
         # Verfügbare Ersatzteile für den aktuellen Benutzer laden
@@ -720,7 +726,7 @@ def thema_detail(thema_id):
         sichtbarkeiten=sichtbarkeiten,
         previous_page=previous_page,
         datei_anzahl=datei_anzahl,
-        ersatzteil_verknuepfungen=ersatzteil_verknuepfungen,
+        ersatzteil_verknuepfungen=thema_lagerbuchungen,
         verfuegbare_ersatzteile=verfuegbare_ersatzteile,
         kostenstellen=kostenstellen
     )

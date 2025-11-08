@@ -16,6 +16,11 @@ app = Flask(__name__)
 config_name = os.environ.get('FLASK_ENV', 'default')
 app.config.from_object(config[config_name])
 
+# Datenbank-Prüfung beim Start
+with app.app_context():
+    from utils.database_check import initialize_database_on_startup
+    initialize_database_on_startup(app)
+
 # Upload-Ordner erstellen falls nicht vorhanden
 os.makedirs(app.config['SCHICHTBUCH_UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['ERSATZTEIL_UPLOAD_FOLDER'], exist_ok=True)

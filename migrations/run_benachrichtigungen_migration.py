@@ -6,6 +6,10 @@ Führt die Migration 003_add_benachrichtigungen.sql aus
 import sqlite3
 import os
 
+def run_migration():
+    """Führt die Benachrichtigungs-Migration aus (Standard-Funktionsname für automatische Ausführung)"""
+    return run_benachrichtigungen_migration()
+
 def run_benachrichtigungen_migration():
     """Führt die Benachrichtigungs-Migration aus"""
     db_path = os.environ.get('DATABASE_URL', 'database_main.db')

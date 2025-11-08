@@ -83,6 +83,32 @@
                     <label class="form-label"><strong>Einheit:</strong></label>
                     <input type="text" name="einheit" class="form-control" value="{{ ersatzteil.Einheit or 'Stück' }}">
                 </div>
+                <div class="col-md-3">
+                    <label class="form-label"><strong>Artikelnummer Hersteller:</strong></label>
+                    <input type="text" name="artikelnummer_hersteller" class="form-control" value="{{ ersatzteil.ArtikelnummerHersteller or '' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><strong>Kennzeichen:</strong></label>
+                    <input type="text" name="kennzeichen" class="form-control" maxlength="1" pattern="[A-Za-z]" placeholder="A-Z" value="{{ ersatzteil.Kennzeichen or '' }}">
+                    <small class="text-muted">Ein Buchstabe für Zuordnung</small>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><strong>Nachfolgeartikel:</strong></label>
+                    <select name="nachfolgeartikel_id" class="form-select">
+                        <option value="">-- Keine --</option>
+                        {% for e in ersatzteile %}
+                        <option value="{{ e.ID }}" {% if ersatzteil.NachfolgeartikelID == e.ID %}selected{% endif %}>{{ e.Artikelnummer }} - {{ e.Bezeichnung }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-12">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="end_of_life" id="end_of_life" {% if ersatzteil.EndOfLife %}checked{% endif %}>
+                        <label class="form-check-label" for="end_of_life">
+                            <strong>End of Life</strong>
+                        </label>
+                    </div>
+                </div>
                 <div class="col-md-12">
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" name="aktiv" id="aktiv" {% if ersatzteil.Aktiv %}checked{% endif %}>

@@ -164,24 +164,46 @@
                 <table class="table table-sm">
                     <thead>
                         <tr>
-                            <th>Ersatzteil</th>
-                            <th>Menge</th>
-                            <th>Verwendet von</th>
                             <th>Datum</th>
+                            <th>Ersatzteil</th>
+                            <th>Typ</th>
+                            <th>Menge</th>
+                            <th>Preis</th>
+                            <th>Kostenstelle</th>
+                            <th>Grund</th>
+                            <th>Von</th>
                             <th>Bemerkung</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for v in ersatzteil_verknuepfungen %}
                         <tr>
+                            <td>{{ v.Buchungsdatum[:16] if v.Buchungsdatum else '-' }}</td>
                             <td>
                                 <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=v.ErsatzteilID) }}" class="text-decoration-none">
                                     {{ v.Artikelnummer }} - {{ v.ErsatzteilBezeichnung }}
                                 </a>
                             </td>
-                            <td>{{ v.Menge }}</td>
-                            <td>{{ v.VerwendetVon }}</td>
-                            <td>{{ v.VerwendetAm[:16] if v.VerwendetAm else '-' }}</td>
+                            <td>
+                                {% if v.Typ == 'Eingang' %}
+                                <span class="badge bg-success">Eingang</span>
+                                {% elif v.Typ == 'Inventur' %}
+                                <span class="badge bg-info">Inventur</span>
+                                {% else %}
+                                <span class="badge bg-danger">Ausgang</span>
+                                {% endif %}
+                            </td>
+                            <td><strong>{{ v.Menge }}</strong></td>
+                            <td>
+                                {% if v.Preis %}
+                                {{ "%.2f"|format(v.Preis) }} {{ v.Waehrung or 'EUR' }}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>{{ v.Kostenstelle or '-' }}</td>
+                            <td>{{ v.Grund or '-' }}</td>
+                            <td>{{ v.VerwendetVon or '-' }}</td>
                             <td>{{ v.Bemerkung or '-' }}</td>
                         </tr>
                         {% endfor %}

@@ -1043,21 +1043,6 @@ DATABASE_SCHEMA = {
             'idx_lagerbuchung_buchungsdatum'
         ]
     },
-    'ErsatzteilThemaVerknuepfung': {
-        'columns': {
-            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
-            'ErsatzteilID': 'INTEGER NOT NULL',
-            'ThemaID': 'INTEGER NOT NULL',
-            'Menge': 'INTEGER NOT NULL',
-            'VerwendetVonID': 'INTEGER NOT NULL',
-            'VerwendetAm': 'DATETIME DEFAULT CURRENT_TIMESTAMP',
-            'Bemerkung': 'TEXT'
-        },
-        'indexes': [
-            'idx_ersatzteil_thema_ersatzteil',
-            'idx_ersatzteil_thema_thema'
-        ]
-    },
     'ErsatzteilAbteilungZugriff': {
         'columns': {
             'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',

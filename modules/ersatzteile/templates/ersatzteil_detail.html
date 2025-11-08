@@ -55,6 +55,42 @@
                             <td>{{ ersatzteil.Hersteller or '-' }}</td>
                         </tr>
                         <tr>
+                            <td class="text-muted"><strong>Artikelnummer Hersteller:</strong></td>
+                            <td>{{ ersatzteil.ArtikelnummerHersteller or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Kennzeichen:</strong></td>
+                            <td>
+                                {% if ersatzteil.Kennzeichen %}
+                                <span class="badge bg-info">{{ ersatzteil.Kennzeichen }}</span>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>End of Life:</strong></td>
+                            <td>
+                                {% if ersatzteil.EndOfLife %}
+                                <span class="badge bg-danger">Ja</span>
+                                {% else %}
+                                <span class="badge bg-success">Nein</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Nachfolgeartikel:</strong></td>
+                            <td>
+                                {% if ersatzteil.NachfolgeartikelID %}
+                                <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil.NachfolgeartikelID) }}" class="text-decoration-none">
+                                    {{ ersatzteil.NachfolgeartikelNummer }} - {{ ersatzteil.NachfolgeartikelBezeichnung }}
+                                </a>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
                             <td class="text-muted"><strong>Lieferant:</strong></td>
                             <td>
                                 {% if ersatzteil.Lieferant %}
@@ -100,7 +136,7 @@
                         <tr>
                             <td class="text-muted"><strong>Bestand:</strong></td>
                             <td>
-                                <span class="badge {% if ersatzteil.Mindestbestand > 0 and ersatzteil.AktuellerBestand <= ersatzteil.Mindestbestand %}bg-warning{% elif ersatzteil.AktuellerBestand > 0 %}bg-success{% else %}bg-secondary{% endif %} fs-6">
+                                <span class="badge {% if not ersatzteil.EndOfLife and ersatzteil.Mindestbestand > 0 and ersatzteil.AktuellerBestand <= ersatzteil.Mindestbestand %}bg-warning{% elif ersatzteil.AktuellerBestand > 0 %}bg-success{% else %}bg-secondary{% endif %} fs-6">
                                     {{ ersatzteil.AktuellerBestand }} {{ ersatzteil.Einheit }}
                                 </span>
                                 {% if ersatzteil.Mindestbestand > 0 %}
@@ -210,6 +246,7 @@
                         <th>Datum</th>
                         <th>Typ</th>
                         <th>Menge</th>
+                        <th>Preis</th>
                         <th>Grund</th>
                         <th>Kostenstelle</th>
                         <th>Thema</th>
@@ -227,6 +264,13 @@
                             </span>
                         </td>
                         <td>{{ lb.Menge }}</td>
+                        <td>
+                            {% if lb.Preis %}
+                            {{ "%.2f"|format(lb.Preis) }} {{ lb.Waehrung or 'EUR' }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
                         <td>{{ lb.Grund or '-' }}</td>
                         <td>{{ lb.Kostenstelle or '-' }}</td>
                         <td>
@@ -264,24 +308,34 @@
             <table class="table table-sm">
                 <thead>
                     <tr>
+                        <th>Datum</th>
                         <th>Thema</th>
+                        <th>Typ</th>
                         <th>Menge</th>
                         <th>Verwendet von</th>
-                        <th>Datum</th>
                         <th>Bemerkung</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for v in verknuepfungen %}
                     <tr>
+                        <td>{{ v.VerwendetAm[:16] if v.VerwendetAm else '-' }}</td>
                         <td>
                             <a href="{{ url_for('schichtbuch.thema_detail', thema_id=v.ThemaID) }}" class="text-decoration-none">
                                 Thema #{{ v.ThemaID }}
                             </a>
                         </td>
-                        <td>{{ v.Menge }}</td>
-                        <td>{{ v.VerwendetVon }}</td>
-                        <td>{{ v.VerwendetAm[:16] if v.VerwendetAm else '-' }}</td>
+                        <td>
+                            {% if v.Typ == 'Eingang' %}
+                            <span class="badge bg-success">Eingang</span>
+                            {% elif v.Typ == 'Inventur' %}
+                            <span class="badge bg-info">Inventur</span>
+                            {% else %}
+                            <span class="badge bg-danger">Ausgang</span>
+                            {% endif %}
+                        </td>
+                        <td><strong>{{ v.Menge }}</strong></td>
+                        <td>{{ v.VerwendetVon or '-' }}</td>
                         <td>{{ v.Bemerkung or '-' }}</td>
                     </tr>
                     {% endfor %}

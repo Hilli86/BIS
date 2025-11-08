@@ -3,6 +3,69 @@
 {% block content %}
 <h1 class="mb-4">📋 Lagerbuchungen</h1>
 
+<!-- Schnelle Buchung -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">⚡ Schnelle Buchung</h5>
+        <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#buchungCollapse">
+            Anzeigen / Ausblenden
+        </button>
+    </div>
+    <div class="collapse show" id="buchungCollapse">
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('ersatzteile.schnellbuchung') }}">
+                <div class="row g-3">
+                    <div class="col-md-2">
+                        <label class="form-label"><strong>Ersatzteil-ID:</strong> <span class="text-danger">*</span></label>
+                        <input type="number" name="ersatzteil_id" class="form-control" placeholder="z.B. 123" min="1" required>
+                        <small class="text-muted">ID des Ersatzteils</small>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label"><strong>Typ:</strong> <span class="text-danger">*</span></label>
+                        <select name="typ" class="form-select" required id="buchungstyp">
+                            <option value="Eingang">Eingang</option>
+                            <option value="Ausgang">Ausgang</option>
+                            <option value="Inventur">Inventur</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label"><strong id="menge-label">Menge:</strong> <span class="text-danger">*</span></label>
+                        <input type="number" name="menge" class="form-control" min="1" required id="menge-input">
+                        <small class="text-muted" id="menge-hinweis"></small>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label"><strong>Kostenstelle:</strong></label>
+                        <select name="kostenstelle_id" class="form-select">
+                            <option value="">-- Keine --</option>
+                            {% for k in kostenstellen %}
+                            <option value="{{ k.ID }}">{{ k.Bezeichnung }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label"><strong>Thema ID:</strong></label>
+                        <input type="number" name="thema_id" class="form-control" placeholder="z.B. 123" min="1">
+                        <small class="text-muted">Optional</small>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label"><strong>Grund:</strong></label>
+                        <input type="text" name="grund" class="form-control" placeholder="z.B. Manuell">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label"><strong>Bemerkung:</strong></label>
+                        <textarea name="bemerkung" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg"></i> Buchung durchführen
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- Filter -->
 <div class="card mb-4 shadow-sm">
     <div class="card-header d-flex justify-content-between align-items-center">
@@ -51,6 +114,16 @@
                         <label class="form-label">Datum bis</label>
                         <input type="date" name="datum_bis" class="form-control" value="{{ datum_bis or '' }}">
                     </div>
+                    <div class="col-md-3">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" name="limit_aktiv" id="limitAktiv" value="1" {% if limit_aktiv %}checked{% endif %}>
+                            <label class="form-check-label" for="limitAktiv">
+                                Limit aktivieren
+                            </label>
+                        </div>
+                        <input type="number" name="limit_wert" id="limitWert" class="form-control" value="{{ limit_wert or 200 }}" min="1" max="10000" {% if not limit_aktiv %}disabled{% endif %}>
+                        <small class="text-muted">Anzahl der Einträge</small>
+                    </div>
                     <div class="col-md-12">
                         <button type="submit" class="btn btn-primary">Filter anwenden</button>
                         <a href="{{ url_for('ersatzteile.lagerbuchungen_liste') }}" class="btn btn-secondary">Zurücksetzen</a>
@@ -70,10 +143,11 @@
                 <thead>
                     <tr>
                         <th>Datum</th>
-                        <th>ID</th>
+                        <th>Artikel-ID</th>
                         <th>Ersatzteil</th>
                         <th>Typ</th>
                         <th>Menge</th>
+                        <th>Preis</th>
                         <th>Kostenstelle</th>
                         <th>Thema</th>
                         <th>Grund</th>
@@ -87,7 +161,7 @@
                         <td>{{ lb.Buchungsdatum[:16] if lb.Buchungsdatum else '-' }}</td>
                         <td>
                             <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=lb.ErsatzteilID) }}" class="text-decoration-none fw-bold">
-                                {{ lb.ID }}
+                                {{ lb.ErsatzteilID }}
                             </a>
                         </td>
                         <td>
@@ -97,11 +171,20 @@
                         <td>
                             {% if lb.Typ == 'Eingang' %}
                             <span class="badge bg-success">Eingang</span>
+                            {% elif lb.Typ == 'Inventur' %}
+                            <span class="badge bg-info">Inventur</span>
                             {% else %}
                             <span class="badge bg-danger">Ausgang</span>
                             {% endif %}
                         </td>
                         <td><strong>{{ lb.Menge }}</strong></td>
+                        <td>
+                            {% if lb.Preis %}
+                            {{ "%.2f"|format(lb.Preis) }} {{ lb.Waehrung or 'EUR' }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
                         <td>{{ lb.Kostenstelle or '-' }}</td>
                         <td>
                             {% if lb.ThemaID %}
@@ -128,4 +211,48 @@
     </div>
 </div>
 {% endblock %}
+
+<script>
+// Dynamische Anpassung des Mengenfelds je nach Buchungstyp
+document.addEventListener('DOMContentLoaded', function() {
+    const buchungstypSelect = document.getElementById('buchungstyp');
+    const mengeInput = document.getElementById('menge-input');
+    const mengeLabel = document.getElementById('menge-label');
+    const mengeHinweis = document.getElementById('menge-hinweis');
+    
+    if (buchungstypSelect && mengeInput) {
+        function updateMengeField() {
+            const typ = buchungstypSelect.value;
+            
+            if (typ === 'Inventur') {
+                mengeLabel.textContent = 'Lagerstand:';
+                mengeInput.min = '0';
+                mengeInput.placeholder = 'Aktueller Lagerstand';
+                mengeHinweis.textContent = 'Geben Sie den genauen Lagerstand ein';
+            } else {
+                mengeLabel.textContent = 'Menge:';
+                mengeInput.min = '1';
+                mengeInput.placeholder = '';
+                mengeHinweis.textContent = '';
+            }
+        }
+        
+        buchungstypSelect.addEventListener('change', updateMengeField);
+        updateMengeField(); // Initial aufrufen
+    }
+    
+    // Limit-Checkbox aktivieren/deaktivieren
+    const limitAktiv = document.getElementById('limitAktiv');
+    const limitWert = document.getElementById('limitWert');
+    
+    if (limitAktiv && limitWert) {
+        limitAktiv.addEventListener('change', function() {
+            limitWert.disabled = !this.checked;
+            if (!this.checked) {
+                limitWert.value = 200; // Standardwert zurücksetzen
+            }
+        });
+    }
+});
+</script>
 

@@ -164,8 +164,11 @@
                 </thead>
                 <tbody>
                     {% for e in ersatzteile %}
-                    <tr {% if e.Mindestbestand > 0 and e.AktuellerBestand <= e.Mindestbestand %}class="table-warning"{% endif %}>
+                    <tr {% if not e.EndOfLife and e.Mindestbestand > 0 and e.AktuellerBestand <= e.Mindestbestand %}class="table-warning"{% endif %}>
                         <td>
+                            {% if e.Kennzeichen %}
+                            <span class="badge bg-info me-1" style="min-width: 24px; display: inline-block; text-align: center;">{{ e.Kennzeichen }}</span>
+                            {% endif %}
                             <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none fw-bold">
                                 {{ e.ID }}
                             </a>
@@ -175,7 +178,7 @@
                         <td>{{ e.Bezeichnung }}</td>
                         <td>{{ e.Lieferant or '-' }}</td>
                         <td>
-                            <span class="badge {% if e.Mindestbestand > 0 and e.AktuellerBestand <= e.Mindestbestand %}bg-warning{% elif e.AktuellerBestand > 0 %}bg-success{% else %}bg-secondary{% endif %}">
+                            <span class="badge {% if not e.EndOfLife and e.Mindestbestand > 0 and e.AktuellerBestand <= e.Mindestbestand %}bg-warning{% elif e.AktuellerBestand > 0 %}bg-success{% else %}bg-secondary{% endif %}">
                                 {{ e.AktuellerBestand }} {{ e.Einheit }}
                             </span>
                             {% if e.Mindestbestand > 0 %}

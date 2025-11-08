@@ -74,6 +74,8 @@ def ersatzteil_liste():
                 e.AktuellerBestand,
                 e.Mindestbestand,
                 e.Einheit,
+                e.EndOfLife,
+                e.Kennzeichen,
                 k.Bezeichnung AS Kategorie,
                 l.Name AS Lieferant,
                 lo.Bezeichnung AS LagerortName,
@@ -113,7 +115,7 @@ def ersatzteil_liste():
             params.append(lieferant_filter)
         
         if bestandswarnung:
-            query += ' AND e.AktuellerBestand <= e.Mindestbestand AND e.Mindestbestand > 0'
+            query += ' AND e.AktuellerBestand <= e.Mindestbestand AND e.Mindestbestand > 0 AND e.EndOfLife = 0'
         
         if q_filter:
             query += ' AND (e.Artikelnummer LIKE ? OR e.Bezeichnung LIKE ? OR e.Beschreibung LIKE ?)'
@@ -173,6 +175,18 @@ def lagerbuchungen_liste():
     kostenstelle_filter = request.args.get('kostenstelle')
     datum_von = request.args.get('datum_von')
     datum_bis = request.args.get('datum_bis')
+    # Limit: Standardmäßig aktiviert mit 200 Einträgen
+    # Wenn limit_aktiv nicht im Request ist, prüfe ob andere Filter gesetzt sind
+    # Wenn keine Filter gesetzt sind = erster Aufruf, dann aktiviert
+    # Wenn Filter gesetzt sind aber limit_aktiv fehlt = deaktiviert
+    has_any_filter = any([ersatzteil_filter, typ_filter, kostenstelle_filter, datum_von, datum_bis])
+    limit_aktiv_param = request.args.get('limit_aktiv')
+    if limit_aktiv_param is not None:
+        limit_aktiv = limit_aktiv_param == '1'
+    else:
+        # Standardmäßig aktiviert beim ersten Aufruf (keine Filter)
+        limit_aktiv = not has_any_filter
+    limit_wert = request.args.get('limit_wert', type=int) or 200
     
     with get_db_connection() as conn:
         # Berechtigte Abteilungen ermitteln
@@ -189,6 +203,8 @@ def lagerbuchungen_liste():
                 l.Buchungsdatum,
                 l.Bemerkung,
                 l.ErsatzteilID,
+                l.Preis,
+                l.Waehrung,
                 e.Artikelnummer,
                 e.Bezeichnung AS ErsatzteilBezeichnung,
                 m.Vorname || ' ' || m.Nachname AS VerwendetVon,
@@ -238,7 +254,15 @@ def lagerbuchungen_liste():
             query += ' AND DATE(l.Buchungsdatum) <= ?'
             params.append(datum_bis)
         
-        query += ' ORDER BY l.Buchungsdatum DESC LIMIT 500'
+        query += ' ORDER BY l.Buchungsdatum DESC'
+        
+        # Limit anwenden wenn aktiviert
+        if limit_aktiv:
+            query += ' LIMIT ?'
+            params.append(limit_wert)
+        else:
+            # Standard-Limit von 500 wenn kein Limit aktiviert ist
+            query += ' LIMIT 500'
         
         lagerbuchungen = conn.execute(query, params).fetchall()
         
@@ -278,7 +302,9 @@ def lagerbuchungen_liste():
         typ_filter=typ_filter,
         kostenstelle_filter=kostenstelle_filter,
         datum_von=datum_von,
-        datum_bis=datum_bis
+        datum_bis=datum_bis,
+        limit_aktiv=limit_aktiv,
+        limit_wert=limit_wert
     )
 
 
@@ -305,13 +331,16 @@ def ersatzteil_detail(ersatzteil_id):
                 l.Email AS LieferantEmail,
                 lo.Bezeichnung AS LagerortName,
                 lp.Bezeichnung AS LagerplatzName,
-                m.Vorname || ' ' || m.Nachname AS ErstelltVon
+                m.Vorname || ' ' || m.Nachname AS ErstelltVon,
+                n.Artikelnummer AS NachfolgeartikelNummer,
+                n.Bezeichnung AS NachfolgeartikelBezeichnung
             FROM Ersatzteil e
             LEFT JOIN ErsatzteilKategorie k ON e.KategorieID = k.ID
             LEFT JOIN Lieferant l ON e.LieferantID = l.ID
             LEFT JOIN Lagerort lo ON e.LagerortID = lo.ID
             LEFT JOIN Lagerplatz lp ON e.LagerplatzID = lp.ID
             LEFT JOIN Mitarbeiter m ON e.ErstelltVonID = m.ID
+            LEFT JOIN Ersatzteil n ON e.NachfolgeartikelID = n.ID
             WHERE e.ID = ? AND e.Gelöscht = 0
         ''', (ersatzteil_id,)).fetchone()
         
@@ -342,6 +371,8 @@ def ersatzteil_detail(ersatzteil_id):
                 l.Grund,
                 l.Buchungsdatum,
                 l.Bemerkung,
+                l.Preis,
+                l.Waehrung,
                 m.Vorname || ' ' || m.Nachname AS VerwendetVon,
                 k.Bezeichnung AS Kostenstelle,
                 t.ID AS ThemaID
@@ -354,20 +385,21 @@ def ersatzteil_detail(ersatzteil_id):
             LIMIT 50
         ''', (ersatzteil_id,)).fetchall()
         
-        # Thema-Verknüpfungen laden
+        # Thema-Verknüpfungen laden (aus Lagerbuchungen)
         verknuepfungen = conn.execute('''
             SELECT 
-                v.ID,
-                v.Menge,
-                v.VerwendetAm,
-                v.Bemerkung,
-                t.ID AS ThemaID,
+                l.ID,
+                l.Menge,
+                l.Buchungsdatum AS VerwendetAm,
+                l.Bemerkung,
+                l.ThemaID,
+                l.Typ,
                 m.Vorname || ' ' || m.Nachname AS VerwendetVon
-            FROM ErsatzteilThemaVerknuepfung v
-            JOIN SchichtbuchThema t ON v.ThemaID = t.ID
-            JOIN Mitarbeiter m ON v.VerwendetVonID = m.ID
-            WHERE v.ErsatzteilID = ?
-            ORDER BY v.VerwendetAm DESC
+            FROM Lagerbuchung l
+            JOIN SchichtbuchThema t ON l.ThemaID = t.ID
+            LEFT JOIN Mitarbeiter m ON l.VerwendetVonID = m.ID
+            WHERE l.ErsatzteilID = ? AND l.ThemaID IS NOT NULL
+            ORDER BY l.Buchungsdatum DESC
         ''', (ersatzteil_id,)).fetchall()
         
         # Abteilungszugriffe laden
@@ -425,9 +457,20 @@ def ersatzteil_neu():
         einheit = request.form.get('einheit', 'Stück')
         abteilungen = request.form.getlist('abteilungen')
         
+        # Neue Felder
+        end_of_life = 1 if request.form.get('end_of_life') == 'on' else 0
+        nachfolgeartikel_id = request.form.get('nachfolgeartikel_id') or None
+        kennzeichen = request.form.get('kennzeichen', '').strip().upper()[:1] if request.form.get('kennzeichen') else None  # Nur ein Zeichen A-Z
+        artikelnummer_hersteller = request.form.get('artikelnummer_hersteller', '').strip() or None
+        
         # Validierung
         if not artikelnummer or not bezeichnung:
             flash('Artikelnummer und Bezeichnung sind erforderlich.', 'danger')
+            return redirect(url_for('ersatzteile.ersatzteil_neu'))
+        
+        # Kennzeichen validieren (nur A-Z)
+        if kennzeichen and not kennzeichen.isalpha():
+            flash('Kennzeichen darf nur ein Buchstabe (A-Z) sein.', 'danger')
             return redirect(url_for('ersatzteile.ersatzteil_neu'))
         
         try:
@@ -440,15 +483,24 @@ def ersatzteil_neu():
                     flash('Artikelnummer existiert bereits.', 'danger')
                     return redirect(url_for('ersatzteile.ersatzteil_neu'))
                 
+                # Prüfe ob Nachfolgeartikel existiert (falls angegeben)
+                if nachfolgeartikel_id:
+                    nachfolge = cursor.execute('SELECT ID FROM Ersatzteil WHERE ID = ? AND Gelöscht = 0', (nachfolgeartikel_id,)).fetchone()
+                    if not nachfolge:
+                        flash('Nachfolgeartikel nicht gefunden.', 'danger')
+                        return redirect(url_for('ersatzteile.ersatzteil_neu'))
+                
                 # Ersatzteil anlegen
                 cursor.execute('''
                     INSERT INTO Ersatzteil (
                         Artikelnummer, Bezeichnung, Beschreibung, KategorieID, Hersteller,
                         LieferantID, Preis, Waehrung, LagerortID, LagerplatzID, Mindestbestand,
-                        AktuellerBestand, Einheit, ErstelltVonID
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+                        AktuellerBestand, Einheit, ErstelltVonID, EndOfLife, NachfolgeartikelID,
+                        Kennzeichen, ArtikelnummerHersteller
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
                 ''', (artikelnummer, bezeichnung, beschreibung, kategorie_id, hersteller,
-                      lieferant_id, preis, waehrung, lagerort_id, lagerplatz_id, mindestbestand, einheit, mitarbeiter_id))
+                      lieferant_id, preis, waehrung, lagerort_id, lagerplatz_id, mindestbestand, 
+                      einheit, mitarbeiter_id, end_of_life, nachfolgeartikel_id, kennzeichen, artikelnummer_hersteller))
                 
                 ersatzteil_id = cursor.lastrowid
                 
@@ -478,6 +530,8 @@ def ersatzteil_neu():
         abteilungen = conn.execute('SELECT ID, Bezeichnung FROM Abteilung WHERE Aktiv = 1 ORDER BY Bezeichnung').fetchall()
         lagerorte = conn.execute('SELECT ID, Bezeichnung FROM Lagerort WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung').fetchall()
         lagerplaetze = conn.execute('SELECT ID, Bezeichnung FROM Lagerplatz WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung').fetchall()
+        # Alle Ersatzteile für Nachfolgeartikel-Dropdown
+        ersatzteile = conn.execute('SELECT ID, Artikelnummer, Bezeichnung FROM Ersatzteil WHERE Gelöscht = 0 ORDER BY Artikelnummer').fetchall()
     
     return render_template(
         'ersatzteil_neu.html',
@@ -485,7 +539,8 @@ def ersatzteil_neu():
         lieferanten=lieferanten,
         abteilungen=abteilungen,
         lagerorte=lagerorte,
-        lagerplaetze=lagerplaetze
+        lagerplaetze=lagerplaetze,
+        ersatzteile=ersatzteile
     )
 
 
@@ -517,9 +572,27 @@ def ersatzteil_bearbeiten(ersatzteil_id):
             aktiv = 1 if request.form.get('aktiv') == 'on' else 0
             abteilungen = request.form.getlist('abteilungen')
             
+            # Neue Felder
+            end_of_life = 1 if request.form.get('end_of_life') == 'on' else 0
+            nachfolgeartikel_id = request.form.get('nachfolgeartikel_id') or None
+            kennzeichen = request.form.get('kennzeichen', '').strip().upper()[:1] if request.form.get('kennzeichen') else None  # Nur ein Zeichen A-Z
+            artikelnummer_hersteller = request.form.get('artikelnummer_hersteller', '').strip() or None
+            
             if not bezeichnung:
                 flash('Bezeichnung ist erforderlich.', 'danger')
                 return redirect(url_for('ersatzteile.ersatzteil_bearbeiten', ersatzteil_id=ersatzteil_id))
+            
+            # Kennzeichen validieren (nur A-Z)
+            if kennzeichen and not kennzeichen.isalpha():
+                flash('Kennzeichen darf nur ein Buchstabe (A-Z) sein.', 'danger')
+                return redirect(url_for('ersatzteile.ersatzteil_bearbeiten', ersatzteil_id=ersatzteil_id))
+            
+            # Prüfe ob Nachfolgeartikel existiert (falls angegeben)
+            if nachfolgeartikel_id:
+                nachfolge = conn.execute('SELECT ID FROM Ersatzteil WHERE ID = ? AND Gelöscht = 0 AND ID != ?', (nachfolgeartikel_id, ersatzteil_id)).fetchone()
+                if not nachfolge:
+                    flash('Nachfolgeartikel nicht gefunden oder ungültig.', 'danger')
+                    return redirect(url_for('ersatzteile.ersatzteil_bearbeiten', ersatzteil_id=ersatzteil_id))
             
             try:
                 # Ersatzteil aktualisieren
@@ -527,10 +600,12 @@ def ersatzteil_bearbeiten(ersatzteil_id):
                     UPDATE Ersatzteil SET
                         Bezeichnung = ?, Beschreibung = ?, KategorieID = ?, Hersteller = ?,
                         LieferantID = ?, Preis = ?, Waehrung = ?, LagerortID = ?, LagerplatzID = ?,
-                        Mindestbestand = ?, Einheit = ?, Aktiv = ?
+                        Mindestbestand = ?, Einheit = ?, Aktiv = ?, EndOfLife = ?,
+                        NachfolgeartikelID = ?, Kennzeichen = ?, ArtikelnummerHersteller = ?
                     WHERE ID = ?
                 ''', (bezeichnung, beschreibung, kategorie_id, hersteller,
-                      lieferant_id, preis, waehrung, lagerort_id, lagerplatz_id, mindestbestand, einheit, aktiv, ersatzteil_id))
+                      lieferant_id, preis, waehrung, lagerort_id, lagerplatz_id, mindestbestand, 
+                      einheit, aktiv, end_of_life, nachfolgeartikel_id, kennzeichen, artikelnummer_hersteller, ersatzteil_id))
                 
                 # Abteilungszugriffe aktualisieren (nur Admin)
                 if is_admin:
@@ -566,6 +641,8 @@ def ersatzteil_bearbeiten(ersatzteil_id):
         lagerplaetze = conn.execute('SELECT ID, Bezeichnung FROM Lagerplatz WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung').fetchall()
         zugriffe = conn.execute('SELECT AbteilungID FROM ErsatzteilAbteilungZugriff WHERE ErsatzteilID = ?', (ersatzteil_id,)).fetchall()
         zugriff_ids = [z['AbteilungID'] for z in zugriffe]
+        # Alle Ersatzteile für Nachfolgeartikel-Dropdown (außer dem aktuellen)
+        ersatzteile = conn.execute('SELECT ID, Artikelnummer, Bezeichnung FROM Ersatzteil WHERE Gelöscht = 0 AND ID != ? ORDER BY Artikelnummer', (ersatzteil_id,)).fetchall()
     
     return render_template(
         'ersatzteil_bearbeiten.html',
@@ -575,7 +652,8 @@ def ersatzteil_bearbeiten(ersatzteil_id):
         abteilungen=abteilungen,
         lagerorte=lagerorte,
         lagerplaetze=lagerplaetze,
-        zugriff_ids=zugriff_ids
+        zugriff_ids=zugriff_ids,
+        ersatzteile=ersatzteile
     )
 
 
@@ -599,6 +677,112 @@ def ersatzteil_loeschen(ersatzteil_id):
         flash(f'Fehler beim Löschen: {str(e)}', 'danger')
     
     return redirect(url_for('ersatzteile.ersatzteil_liste'))
+
+
+@ersatzteile_bp.route('/lagerbuchungen/schnellbuchung', methods=['POST'])
+@login_required
+def schnellbuchung():
+    """Schnelle Lagerbuchung durch Eingabe der Ersatzteil-ID"""
+    mitarbeiter_id = session.get('user_id')
+    
+    ersatzteil_id_raw = request.form.get('ersatzteil_id', '').strip()
+    typ = request.form.get('typ')  # 'Eingang' oder 'Ausgang'
+    menge = request.form.get('menge', type=int)
+    grund = request.form.get('grund', '').strip()
+    kostenstelle_id = request.form.get('kostenstelle_id') or None
+    thema_id_raw = request.form.get('thema_id', '').strip()
+    bemerkung = request.form.get('bemerkung', '').strip()
+    
+    # Validierung
+    if not ersatzteil_id_raw:
+        flash('Ersatzteil-ID ist erforderlich.', 'danger')
+        return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+    
+    try:
+        ersatzteil_id = int(ersatzteil_id_raw)
+    except ValueError:
+        flash('Ungültige Ersatzteil-ID. Bitte geben Sie eine Zahl ein.', 'danger')
+        return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+    
+    if not typ:
+        flash('Typ ist erforderlich.', 'danger')
+        return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+    
+    # Bei Inventur ist auch 0 erlaubt, sonst muss Menge > 0 sein
+    if typ == 'Inventur':
+        if menge is None or menge < 0:
+            flash('Lagerstand kann nicht negativ sein.', 'danger')
+            return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+    else:
+        if menge is None or menge <= 0:
+            flash('Menge muss größer als 0 sein.', 'danger')
+            return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+    
+    thema_id = None
+    if thema_id_raw:
+        try:
+            thema_id = int(thema_id_raw)
+        except ValueError:
+            flash('Ungültige Thema-ID. Bitte geben Sie eine Zahl ein.', 'danger')
+            return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+    
+    try:
+        with get_db_connection() as conn:
+            # Berechtigung prüfen
+            if not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
+                flash('Sie haben keine Berechtigung für dieses Ersatzteil.', 'danger')
+                return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+            
+            # Prüfe ob Ersatzteil existiert
+            ersatzteil = conn.execute('SELECT AktuellerBestand, Preis, Waehrung FROM Ersatzteil WHERE ID = ? AND Gelöscht = 0', (ersatzteil_id,)).fetchone()
+            if not ersatzteil:
+                flash('Ersatzteil nicht gefunden.', 'danger')
+                return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+            
+            # Prüfe ob Thema existiert (wenn ThemaID angegeben)
+            if thema_id:
+                thema = conn.execute('SELECT ID FROM SchichtbuchThema WHERE ID = ? AND Gelöscht = 0', (thema_id,)).fetchone()
+                if not thema:
+                    flash('Thema nicht gefunden.', 'danger')
+                    return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+            
+            aktueller_bestand = ersatzteil['AktuellerBestand']
+            artikel_preis = ersatzteil['Preis']
+            artikel_waehrung = ersatzteil['Waehrung'] or 'EUR'
+            
+            # Bestand aktualisieren
+            if typ == 'Eingang':
+                neuer_bestand = aktueller_bestand + menge
+            elif typ == 'Inventur':
+                neuer_bestand = menge
+                if neuer_bestand < 0:
+                    flash('Bestand kann nicht negativ werden.', 'danger')
+                    return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+            else:  # Ausgang
+                neuer_bestand = aktueller_bestand - menge
+                if neuer_bestand < 0:
+                    flash('Bestand kann nicht negativ werden.', 'danger')
+                    return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+            
+            # Lagerbuchung erstellen
+            conn.execute('''
+                INSERT INTO Lagerbuchung (
+                    ErsatzteilID, Typ, Menge, Grund, ThemaID, KostenstelleID,
+                    VerwendetVonID, Bemerkung, Preis, Waehrung
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (ersatzteil_id, typ, menge, grund, thema_id, kostenstelle_id, mitarbeiter_id, bemerkung, artikel_preis, artikel_waehrung))
+            
+            # Bestand aktualisieren
+            conn.execute('UPDATE Ersatzteil SET AktuellerBestand = ? WHERE ID = ?', (neuer_bestand, ersatzteil_id))
+            
+            conn.commit()
+            flash(f'Lagerbuchung erfolgreich durchgeführt. Neuer Bestand: {neuer_bestand}', 'success')
+            
+    except Exception as e:
+        flash(f'Fehler bei der Lagerbuchung: {str(e)}', 'danger')
+        print(f"Schnellbuchung Fehler: {e}")
+    
+    return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
 
 
 @ersatzteile_bp.route('/<int:ersatzteil_id>/lagerbuchung', methods=['POST'])
@@ -654,12 +838,14 @@ def lagerbuchung(ersatzteil_id):
                     return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
             
             # Aktuellen Bestand ermitteln
-            ersatzteil = conn.execute('SELECT AktuellerBestand FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
+            ersatzteil = conn.execute('SELECT AktuellerBestand, Preis, Waehrung FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
             if not ersatzteil:
                 flash('Ersatzteil nicht gefunden.', 'danger')
                 return redirect(url_for('ersatzteile.ersatzteil_liste'))
             
             aktueller_bestand = ersatzteil['AktuellerBestand']
+            artikel_preis = ersatzteil['Preis']
+            artikel_waehrung = ersatzteil['Waehrung'] or 'EUR'
             
             # Bestand aktualisieren
             if typ == 'Eingang':
@@ -680,25 +866,9 @@ def lagerbuchung(ersatzteil_id):
             conn.execute('''
                 INSERT INTO Lagerbuchung (
                     ErsatzteilID, Typ, Menge, Grund, ThemaID, KostenstelleID,
-                    VerwendetVonID, Bemerkung
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (ersatzteil_id, typ, menge, grund, thema_id, kostenstelle_id, mitarbeiter_id, bemerkung))
-            
-            # Wenn ThemaID angegeben UND Ausgang: Verknüpfung erstellen (nur eine pro Ersatzteil/Thema-Kombination)
-            if thema_id and typ == 'Ausgang':
-                # Prüfe ob Verknüpfung bereits existiert
-                existing = conn.execute('''
-                    SELECT ID FROM ErsatzteilThemaVerknuepfung 
-                    WHERE ErsatzteilID = ? AND ThemaID = ?
-                ''', (ersatzteil_id, thema_id)).fetchone()
-                
-                if not existing:
-                    # Verknüpfung erstellen
-                    conn.execute('''
-                        INSERT INTO ErsatzteilThemaVerknuepfung (
-                            ErsatzteilID, ThemaID, Menge, VerwendetVonID, Bemerkung
-                        ) VALUES (?, ?, ?, ?, ?)
-                    ''', (ersatzteil_id, thema_id, menge, mitarbeiter_id, bemerkung))
+                    VerwendetVonID, Bemerkung, Preis, Waehrung
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (ersatzteil_id, typ, menge, grund, thema_id, kostenstelle_id, mitarbeiter_id, bemerkung, artikel_preis, artikel_waehrung))
             
             # Bestand aktualisieren
             conn.execute('UPDATE Ersatzteil SET AktuellerBestand = ? WHERE ID = ?', (neuer_bestand, ersatzteil_id))
@@ -742,31 +912,27 @@ def thema_verknuepfen(thema_id):
                 return redirect(url_for('schichtbuch.themaliste'))
             
             # Aktuellen Bestand prüfen
-            ersatzteil = conn.execute('SELECT AktuellerBestand FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
+            ersatzteil = conn.execute('SELECT AktuellerBestand, Preis, Waehrung FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
             if not ersatzteil:
                 flash('Ersatzteil nicht gefunden.', 'danger')
                 return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
             
             aktueller_bestand = ersatzteil['AktuellerBestand']
+            artikel_preis = ersatzteil['Preis']
+            artikel_waehrung = ersatzteil['Waehrung'] or 'EUR'
+            
             if aktueller_bestand < menge:
                 flash(f'Nicht genug Bestand verfügbar. Verfügbar: {aktueller_bestand}', 'danger')
                 return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
             
-            # Verknüpfung erstellen
-            conn.execute('''
-                INSERT INTO ErsatzteilThemaVerknuepfung (
-                    ErsatzteilID, ThemaID, Menge, VerwendetVonID, Bemerkung
-                ) VALUES (?, ?, ?, ?, ?)
-            ''', (ersatzteil_id, thema_id, menge, mitarbeiter_id, bemerkung))
-            
-            # Automatische Lagerbuchung (Ausgang)
+            # Automatische Lagerbuchung (Ausgang) mit Thema-Verknüpfung
             neuer_bestand = aktueller_bestand - menge
             conn.execute('''
                 INSERT INTO Lagerbuchung (
                     ErsatzteilID, Typ, Menge, Grund, ThemaID, KostenstelleID,
-                    VerwendetVonID, Bemerkung
-                ) VALUES (?, 'Ausgang', ?, 'Thema', ?, ?, ?, ?)
-            ''', (ersatzteil_id, menge, thema_id, kostenstelle_id, mitarbeiter_id, bemerkung))
+                    VerwendetVonID, Bemerkung, Preis, Waehrung
+                ) VALUES (?, 'Ausgang', ?, 'Thema', ?, ?, ?, ?, ?, ?)
+            ''', (ersatzteil_id, menge, thema_id, kostenstelle_id, mitarbeiter_id, bemerkung, artikel_preis, artikel_waehrung))
             
             # Bestand aktualisieren
             conn.execute('UPDATE Ersatzteil SET AktuellerBestand = ? WHERE ID = ?', (neuer_bestand, ersatzteil_id))
