@@ -1,0 +1,131 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<h1 class="mb-4">📋 Lagerbuchungen</h1>
+
+<!-- Filter -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Filter</strong>
+        <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#filterCollapse">
+            Anzeigen / Ausblenden
+        </button>
+    </div>
+    <div class="collapse" id="filterCollapse">
+        <div class="card-body">
+            <form method="get" id="filterForm">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Ersatzteil</label>
+                        <select name="ersatzteil" class="form-select">
+                            <option value="">-- Alle Ersatzteile --</option>
+                            {% for e in ersatzteile %}
+                            <option value="{{ e.ID }}" {% if e.ID|string == ersatzteil_filter %}selected{% endif %}>
+                                {{ e.Artikelnummer }} - {{ e.Bezeichnung }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Typ</label>
+                        <select name="typ" class="form-select">
+                            <option value="">-- Alle Typen --</option>
+                            <option value="Eingang" {% if typ_filter == 'Eingang' %}selected{% endif %}>Eingang</option>
+                            <option value="Ausgang" {% if typ_filter == 'Ausgang' %}selected{% endif %}>Ausgang</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Kostenstelle</label>
+                        <select name="kostenstelle" class="form-select">
+                            <option value="">-- Alle Kostenstellen --</option>
+                            {% for k in kostenstellen %}
+                            <option value="{{ k.ID }}" {% if k.ID|string == kostenstelle_filter %}selected{% endif %}>{{ k.Bezeichnung }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Datum von</label>
+                        <input type="date" name="datum_von" class="form-control" value="{{ datum_von or '' }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Datum bis</label>
+                        <input type="date" name="datum_bis" class="form-control" value="{{ datum_bis or '' }}">
+                    </div>
+                    <div class="col-md-12">
+                        <button type="submit" class="btn btn-primary">Filter anwenden</button>
+                        <a href="{{ url_for('ersatzteile.lagerbuchungen_liste') }}" class="btn btn-secondary">Zurücksetzen</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Lagerbuchungen-Liste -->
+<div class="card shadow-sm">
+    <div class="card-body">
+        {% if lagerbuchungen %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Datum</th>
+                        <th>ID</th>
+                        <th>Ersatzteil</th>
+                        <th>Typ</th>
+                        <th>Menge</th>
+                        <th>Kostenstelle</th>
+                        <th>Thema</th>
+                        <th>Grund</th>
+                        <th>Von</th>
+                        <th>Bemerkung</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for lb in lagerbuchungen %}
+                    <tr>
+                        <td>{{ lb.Buchungsdatum[:16] if lb.Buchungsdatum else '-' }}</td>
+                        <td>
+                            <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=lb.ErsatzteilID) }}" class="text-decoration-none fw-bold">
+                                {{ lb.ID }}
+                            </a>
+                        </td>
+                        <td>
+                            <strong>{{ lb.Artikelnummer }}</strong><br>
+                            <small class="text-muted">{{ lb.ErsatzteilBezeichnung }}</small>
+                        </td>
+                        <td>
+                            {% if lb.Typ == 'Eingang' %}
+                            <span class="badge bg-success">Eingang</span>
+                            {% else %}
+                            <span class="badge bg-danger">Ausgang</span>
+                            {% endif %}
+                        </td>
+                        <td><strong>{{ lb.Menge }}</strong></td>
+                        <td>{{ lb.Kostenstelle or '-' }}</td>
+                        <td>
+                            {% if lb.ThemaID %}
+                            <a href="{{ url_for('schichtbuch.thema_detail', thema_id=lb.ThemaID) }}" class="text-decoration-none">
+                                Thema #{{ lb.ThemaID }}
+                            </a>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>{{ lb.Grund or '-' }}</td>
+                        <td>{{ lb.VerwendetVon or '-' }}</td>
+                        <td>{{ lb.Bemerkung or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Keine Lagerbuchungen gefunden.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

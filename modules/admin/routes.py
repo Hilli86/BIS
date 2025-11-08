@@ -62,6 +62,13 @@ def dashboard():
         ''').fetchall()
         taetigkeiten = conn.execute('SELECT ID, Bezeichnung, Sortierung, Aktiv FROM Taetigkeit ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
         status = conn.execute('SELECT ID, Bezeichnung, Farbe, Sortierung, Aktiv FROM Status ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
+        
+        # Ersatzteil-Verwaltung
+        ersatzteil_kategorien = conn.execute('SELECT ID, Bezeichnung, Beschreibung, Aktiv, Sortierung FROM ErsatzteilKategorie ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
+        lieferanten = conn.execute('SELECT ID, Name, Kontaktperson, Telefon, Email, Strasse, PLZ, Ort, Aktiv FROM Lieferant WHERE Gelöscht = 0 ORDER BY Name').fetchall()
+        kostenstellen = conn.execute('SELECT ID, Bezeichnung, Beschreibung, Aktiv, Sortierung FROM Kostenstelle ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
+        lagerorte = conn.execute('SELECT ID, Bezeichnung, Beschreibung, Aktiv, Sortierung FROM Lagerort ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
+        lagerplaetze = conn.execute('SELECT ID, Bezeichnung, Beschreibung, Aktiv, Sortierung FROM Lagerplatz ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
 
     return render_template('admin.html',
                            mitarbeiter=mitarbeiter,
@@ -70,7 +77,12 @@ def dashboard():
                            bereiche=bereiche,
                            gewerke=gewerke,
                            taetigkeiten=taetigkeiten,
-                           status=status)
+                           status=status,
+                           ersatzteil_kategorien=ersatzteil_kategorien,
+                           lieferanten=lieferanten,
+                           kostenstellen=kostenstellen,
+                           lagerorte=lagerorte,
+                           lagerplaetze=lagerplaetze)
 
 
 # ========== Mitarbeiter-Verwaltung ==========
@@ -463,6 +475,304 @@ def status_delete(sid):
         return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
 
 
+# ========== ErsatzteilKategorie-Verwaltung ==========
+
+@admin_bp.route('/ersatzteil-kategorie/add', methods=['POST'])
+@admin_required
+def ersatzteil_kategorie_add():
+    """ErsatzteilKategorie anlegen"""
+    bezeichnung = request.form.get('bezeichnung')
+    beschreibung = request.form.get('beschreibung', '')
+    sortierung = request.form.get('sortierung', type=int) or 0
+    
+    if not bezeichnung:
+        return ajax_response('Bezeichnung erforderlich.', success=False)
+    
+    try:
+        with get_db_connection() as conn:
+            conn.execute('INSERT INTO ErsatzteilKategorie (Bezeichnung, Beschreibung, Aktiv, Sortierung) VALUES (?, ?, 1, ?)', 
+                         (bezeichnung, beschreibung, sortierung))
+            conn.commit()
+        return ajax_response('Kategorie erfolgreich angelegt.')
+    except Exception as e:
+        return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
+
+
+@admin_bp.route('/ersatzteil-kategorie/update/<int:kid>', methods=['POST'])
+@admin_required
+def ersatzteil_kategorie_update(kid):
+    """ErsatzteilKategorie aktualisieren"""
+    bezeichnung = request.form.get('bezeichnung')
+    beschreibung = request.form.get('beschreibung', '')
+    sortierung = request.form.get('sortierung', type=int) or 0
+    aktiv = 1 if request.form.get('aktiv') == 'on' else 0
+    
+    if not bezeichnung:
+        return ajax_response('Bezeichnung erforderlich.', success=False)
+    
+    try:
+        with get_db_connection() as conn:
+            conn.execute('UPDATE ErsatzteilKategorie SET Bezeichnung = ?, Beschreibung = ?, Sortierung = ?, Aktiv = ? WHERE ID = ?', 
+                         (bezeichnung, beschreibung, sortierung, aktiv, kid))
+            conn.commit()
+        return ajax_response('Kategorie aktualisiert.')
+    except Exception as e:
+        return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
+
+
+@admin_bp.route('/ersatzteil-kategorie/delete/<int:kid>', methods=['POST'])
+@admin_required
+def ersatzteil_kategorie_delete(kid):
+    """ErsatzteilKategorie deaktivieren"""
+    try:
+        with get_db_connection() as conn:
+            conn.execute('UPDATE ErsatzteilKategorie SET Aktiv = 0 WHERE ID = ?', (kid,))
+            conn.commit()
+        return ajax_response('Kategorie deaktiviert.')
+    except Exception as e:
+        return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
+
+
+# ========== Kostenstelle-Verwaltung ==========
+
+@admin_bp.route('/kostenstelle/add', methods=['POST'])
+@admin_required
+def kostenstelle_add():
+    """Kostenstelle anlegen"""
+    bezeichnung = request.form.get('bezeichnung')
+    beschreibung = request.form.get('beschreibung', '')
+    sortierung = request.form.get('sortierung', type=int) or 0
+    
+    if not bezeichnung:
+        return ajax_response('Bezeichnung erforderlich.', success=False)
+    
+    try:
+        with get_db_connection() as conn:
+            conn.execute('INSERT INTO Kostenstelle (Bezeichnung, Beschreibung, Aktiv, Sortierung) VALUES (?, ?, 1, ?)', 
+                         (bezeichnung, beschreibung, sortierung))
+            conn.commit()
+        return ajax_response('Kostenstelle erfolgreich angelegt.')
+    except Exception as e:
+        return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
+
+
+@admin_bp.route('/kostenstelle/update/<int:kid>', methods=['POST'])
+@admin_required
+def kostenstelle_update(kid):
+    """Kostenstelle aktualisieren"""
+    bezeichnung = request.form.get('bezeichnung')
+    beschreibung = request.form.get('beschreibung', '')
+    sortierung = request.form.get('sortierung', type=int) or 0
+    aktiv = 1 if request.form.get('aktiv') == 'on' else 0
+    
+    if not bezeichnung:
+        return ajax_response('Bezeichnung erforderlich.', success=False)
+    
+    try:
+        with get_db_connection() as conn:
+            conn.execute('UPDATE Kostenstelle SET Bezeichnung = ?, Beschreibung = ?, Sortierung = ?, Aktiv = ? WHERE ID = ?', 
+                         (bezeichnung, beschreibung, sortierung, aktiv, kid))
+            conn.commit()
+        return ajax_response('Kostenstelle aktualisiert.')
+    except Exception as e:
+        return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
+
+
+@admin_bp.route('/kostenstelle/delete/<int:kid>', methods=['POST'])
+@admin_required
+def kostenstelle_delete(kid):
+    """Kostenstelle deaktivieren"""
+    try:
+        with get_db_connection() as conn:
+            conn.execute('UPDATE Kostenstelle SET Aktiv = 0 WHERE ID = ?', (kid,))
+            conn.commit()
+        return ajax_response('Kostenstelle deaktiviert.')
+    except Exception as e:
+        return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
+
+
+# ========== Lagerort-Verwaltung ==========
+
+@admin_bp.route('/lagerort/add', methods=['POST'])
+@admin_required
+def lagerort_add():
+    """Lagerort anlegen"""
+    bezeichnung = request.form.get('bezeichnung')
+    beschreibung = request.form.get('beschreibung', '')
+    sortierung = request.form.get('sortierung', type=int) or 0
+    
+    if not bezeichnung:
+        return ajax_response('Bezeichnung erforderlich.', success=False)
+    
+    try:
+        with get_db_connection() as conn:
+            conn.execute('INSERT INTO Lagerort (Bezeichnung, Beschreibung, Aktiv, Sortierung) VALUES (?, ?, 1, ?)', 
+                         (bezeichnung, beschreibung, sortierung))
+            conn.commit()
+        return ajax_response('Lagerort erfolgreich angelegt.')
+    except Exception as e:
+        return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
+
+
+@admin_bp.route('/lagerort/update/<int:lid>', methods=['POST'])
+@admin_required
+def lagerort_update(lid):
+    """Lagerort aktualisieren"""
+    bezeichnung = request.form.get('bezeichnung')
+    beschreibung = request.form.get('beschreibung', '')
+    sortierung = request.form.get('sortierung', type=int) or 0
+    aktiv = 1 if request.form.get('aktiv') == 'on' else 0
+    
+    if not bezeichnung:
+        return ajax_response('Bezeichnung erforderlich.', success=False)
+    
+    try:
+        with get_db_connection() as conn:
+            conn.execute('UPDATE Lagerort SET Bezeichnung = ?, Beschreibung = ?, Sortierung = ?, Aktiv = ? WHERE ID = ?', 
+                         (bezeichnung, beschreibung, sortierung, aktiv, lid))
+            conn.commit()
+        return ajax_response('Lagerort aktualisiert.')
+    except Exception as e:
+        return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
+
+
+@admin_bp.route('/lagerort/delete/<int:lid>', methods=['POST'])
+@admin_required
+def lagerort_delete(lid):
+    """Lagerort deaktivieren"""
+    try:
+        with get_db_connection() as conn:
+            conn.execute('UPDATE Lagerort SET Aktiv = 0 WHERE ID = ?', (lid,))
+            conn.commit()
+        return ajax_response('Lagerort deaktiviert.')
+    except Exception as e:
+        return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
+
+
+# ========== Lagerplatz-Verwaltung ==========
+
+@admin_bp.route('/lagerplatz/add', methods=['POST'])
+@admin_required
+def lagerplatz_add():
+    """Lagerplatz anlegen"""
+    bezeichnung = request.form.get('bezeichnung')
+    beschreibung = request.form.get('beschreibung', '')
+    sortierung = request.form.get('sortierung', type=int) or 0
+    
+    if not bezeichnung:
+        return ajax_response('Bezeichnung erforderlich.', success=False)
+    
+    try:
+        with get_db_connection() as conn:
+            conn.execute('INSERT INTO Lagerplatz (Bezeichnung, Beschreibung, Aktiv, Sortierung) VALUES (?, ?, 1, ?)', 
+                         (bezeichnung, beschreibung, sortierung))
+            conn.commit()
+        return ajax_response('Lagerplatz erfolgreich angelegt.')
+    except Exception as e:
+        return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
+
+
+@admin_bp.route('/lagerplatz/update/<int:lid>', methods=['POST'])
+@admin_required
+def lagerplatz_update(lid):
+    """Lagerplatz aktualisieren"""
+    bezeichnung = request.form.get('bezeichnung')
+    beschreibung = request.form.get('beschreibung', '')
+    sortierung = request.form.get('sortierung', type=int) or 0
+    aktiv = 1 if request.form.get('aktiv') == 'on' else 0
+    
+    if not bezeichnung:
+        return ajax_response('Bezeichnung erforderlich.', success=False)
+    
+    try:
+        with get_db_connection() as conn:
+            conn.execute('UPDATE Lagerplatz SET Bezeichnung = ?, Beschreibung = ?, Sortierung = ?, Aktiv = ? WHERE ID = ?', 
+                         (bezeichnung, beschreibung, sortierung, aktiv, lid))
+            conn.commit()
+        return ajax_response('Lagerplatz aktualisiert.')
+    except Exception as e:
+        return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
+
+
+@admin_bp.route('/lagerplatz/delete/<int:lid>', methods=['POST'])
+@admin_required
+def lagerplatz_delete(lid):
+    """Lagerplatz deaktivieren"""
+    try:
+        with get_db_connection() as conn:
+            conn.execute('UPDATE Lagerplatz SET Aktiv = 0 WHERE ID = ?', (lid,))
+            conn.commit()
+        return ajax_response('Lagerplatz deaktiviert.')
+    except Exception as e:
+        return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
+
+
+# ========== Lieferant-Verwaltung ==========
+
+@admin_bp.route('/lieferant/add', methods=['POST'])
+@admin_required
+def lieferant_add():
+    """Lieferant anlegen"""
+    name = request.form.get('name')
+    kontaktperson = request.form.get('kontaktperson', '')
+    telefon = request.form.get('telefon', '')
+    email = request.form.get('email', '')
+    strasse = request.form.get('strasse', '')
+    plz = request.form.get('plz', '')
+    ort = request.form.get('ort', '')
+    
+    if not name:
+        return ajax_response('Name erforderlich.', success=False)
+    
+    try:
+        with get_db_connection() as conn:
+            conn.execute('INSERT INTO Lieferant (Name, Kontaktperson, Telefon, Email, Strasse, PLZ, Ort, Aktiv) VALUES (?, ?, ?, ?, ?, ?, ?, 1)', 
+                         (name, kontaktperson, telefon, email, strasse, plz, ort))
+            conn.commit()
+        return ajax_response('Lieferant erfolgreich angelegt.')
+    except Exception as e:
+        return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
+
+
+@admin_bp.route('/lieferant/update/<int:lid>', methods=['POST'])
+@admin_required
+def lieferant_update(lid):
+    """Lieferant aktualisieren"""
+    name = request.form.get('name')
+    kontaktperson = request.form.get('kontaktperson', '')
+    telefon = request.form.get('telefon', '')
+    email = request.form.get('email', '')
+    strasse = request.form.get('strasse', '')
+    plz = request.form.get('plz', '')
+    ort = request.form.get('ort', '')
+    aktiv = 1 if request.form.get('aktiv') == 'on' else 0
+    
+    if not name:
+        return ajax_response('Name erforderlich.', success=False)
+    
+    try:
+        with get_db_connection() as conn:
+            conn.execute('UPDATE Lieferant SET Name = ?, Kontaktperson = ?, Telefon = ?, Email = ?, Strasse = ?, PLZ = ?, Ort = ?, Aktiv = ? WHERE ID = ?', 
+                         (name, kontaktperson, telefon, email, strasse, plz, ort, aktiv, lid))
+            conn.commit()
+        return ajax_response('Lieferant aktualisiert.')
+    except Exception as e:
+        return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
+
+
+@admin_bp.route('/lieferant/delete/<int:lid>', methods=['POST'])
+@admin_required
+def lieferant_delete(lid):
+    """Lieferant soft-delete"""
+    try:
+        with get_db_connection() as conn:
+            conn.execute('UPDATE Lieferant SET Gelöscht = 1 WHERE ID = ?', (lid,))
+            conn.commit()
+        return ajax_response('Lieferant gelöscht.')
+    except Exception as e:
+        return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
+
+
 # ========== Datenbank-Verwaltung ==========
 
 # Datenbankschema-Definition (basierend auf init_database.py)
@@ -612,6 +922,152 @@ DATABASE_SCHEMA = {
             'idx_benachrichtigung_thema',
             'idx_benachrichtigung_gelesen'
         ]
+    },
+    'ErsatzteilKategorie': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'Bezeichnung': 'TEXT NOT NULL',
+            'Beschreibung': 'TEXT',
+            'Aktiv': 'INTEGER NOT NULL DEFAULT 1',
+            'Sortierung': 'INTEGER DEFAULT 0'
+        },
+        'indexes': [
+            'idx_ersatzteil_kategorie_aktiv',
+            'idx_ersatzteil_kategorie_sortierung'
+        ]
+    },
+    'Kostenstelle': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'Bezeichnung': 'TEXT NOT NULL',
+            'Beschreibung': 'TEXT',
+            'Aktiv': 'INTEGER NOT NULL DEFAULT 1',
+            'Sortierung': 'INTEGER DEFAULT 0'
+        },
+        'indexes': [
+            'idx_kostenstelle_aktiv',
+            'idx_kostenstelle_sortierung'
+        ]
+    },
+    'Lieferant': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'Name': 'TEXT NOT NULL',
+            'Kontaktperson': 'TEXT',
+            'Telefon': 'TEXT',
+            'Email': 'TEXT',
+            'Strasse': 'TEXT',
+            'PLZ': 'TEXT',
+            'Ort': 'TEXT',
+            'Aktiv': 'INTEGER NOT NULL DEFAULT 1',
+            'Gelöscht': 'INTEGER NOT NULL DEFAULT 0'
+        },
+        'indexes': [
+            'idx_lieferant_aktiv',
+            'idx_lieferant_geloescht'
+        ]
+    },
+    'Ersatzteil': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'Artikelnummer': 'TEXT NOT NULL UNIQUE',
+            'Bezeichnung': 'TEXT NOT NULL',
+            'Beschreibung': 'TEXT',
+            'KategorieID': 'INTEGER',
+            'Hersteller': 'TEXT',
+            'LieferantID': 'INTEGER',
+            'Preis': 'REAL',
+            'Waehrung': 'TEXT DEFAULT \'EUR\'',
+            'Lagerort': 'TEXT',
+            'Mindestbestand': 'INTEGER DEFAULT 0',
+            'AktuellerBestand': 'INTEGER DEFAULT 0',
+            'Einheit': 'TEXT DEFAULT \'Stück\'',
+            'Aktiv': 'INTEGER NOT NULL DEFAULT 1',
+            'Gelöscht': 'INTEGER NOT NULL DEFAULT 0',
+            'ErstelltAm': 'DATETIME DEFAULT CURRENT_TIMESTAMP',
+            'ErstelltVonID': 'INTEGER'
+        },
+        'indexes': [
+            'idx_ersatzteil_artikelnummer',
+            'idx_ersatzteil_kategorie',
+            'idx_ersatzteil_lieferant',
+            'idx_ersatzteil_aktiv',
+            'idx_ersatzteil_geloescht',
+            'idx_ersatzteil_bestand'
+        ]
+    },
+    'ErsatzteilBild': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'ErsatzteilID': 'INTEGER NOT NULL',
+            'Dateiname': 'TEXT NOT NULL',
+            'Dateipfad': 'TEXT NOT NULL',
+            'ErstelltAm': 'DATETIME DEFAULT CURRENT_TIMESTAMP'
+        },
+        'indexes': [
+            'idx_ersatzteil_bild_ersatzteil'
+        ]
+    },
+    'ErsatzteilDokument': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'ErsatzteilID': 'INTEGER NOT NULL',
+            'Dateiname': 'TEXT NOT NULL',
+            'Dateipfad': 'TEXT NOT NULL',
+            'Typ': 'TEXT',
+            'ErstelltAm': 'DATETIME DEFAULT CURRENT_TIMESTAMP'
+        },
+        'indexes': [
+            'idx_ersatzteil_dokument_ersatzteil'
+        ]
+    },
+    'Lagerbuchung': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'ErsatzteilID': 'INTEGER NOT NULL',
+            'Typ': 'TEXT NOT NULL',
+            'Menge': 'INTEGER NOT NULL',
+            'Grund': 'TEXT',
+            'ThemaID': 'INTEGER NULL',
+            'KostenstelleID': 'INTEGER',
+            'VerwendetVonID': 'INTEGER NOT NULL',
+            'Buchungsdatum': 'DATETIME DEFAULT CURRENT_TIMESTAMP',
+            'Bemerkung': 'TEXT',
+            'ErstelltAm': 'DATETIME DEFAULT CURRENT_TIMESTAMP'
+        },
+        'indexes': [
+            'idx_lagerbuchung_ersatzteil',
+            'idx_lagerbuchung_thema',
+            'idx_lagerbuchung_kostenstelle',
+            'idx_lagerbuchung_verwendet_von',
+            'idx_lagerbuchung_buchungsdatum'
+        ]
+    },
+    'ErsatzteilThemaVerknuepfung': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'ErsatzteilID': 'INTEGER NOT NULL',
+            'ThemaID': 'INTEGER NOT NULL',
+            'Menge': 'INTEGER NOT NULL',
+            'VerwendetVonID': 'INTEGER NOT NULL',
+            'VerwendetAm': 'DATETIME DEFAULT CURRENT_TIMESTAMP',
+            'Bemerkung': 'TEXT'
+        },
+        'indexes': [
+            'idx_ersatzteil_thema_ersatzteil',
+            'idx_ersatzteil_thema_thema'
+        ]
+    },
+    'ErsatzteilAbteilungZugriff': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'ErsatzteilID': 'INTEGER NOT NULL',
+            'AbteilungID': 'INTEGER NOT NULL'
+        },
+        'indexes': [
+            'idx_ersatzteil_abteilung_ersatzteil',
+            'idx_ersatzteil_abteilung_abteilung'
+        ]
     }
 }
 
@@ -711,13 +1167,20 @@ def database_repair():
                         for index_name in table_schema.get('indexes', []):
                             try:
                                 # Versuche Index-Name auf Spalte abzubilden
-                                # idx_tablename_column -> column
-                                column_name = index_name.replace(f'idx_{table_name.lower()}_', '')
-                                # Für zusammengesetzte Namen
+                                table_prefix = f'idx_{table_name.lower()}_'
+                                if index_name.startswith(table_prefix):
+                                    column_name = index_name[len(table_prefix):]
+                                elif index_name.startswith(f'idx_{table_name.lower()}'):
+                                    column_name = index_name[len(f'idx_{table_name.lower()}'):].lstrip('_')
+                                else:
+                                    column_name = index_name.replace('idx_', '').replace('_', '')
+                                
+                                # Prüfe ob Spalte direkt existiert
                                 if column_name in table_schema['columns']:
                                     cursor.execute(f'CREATE INDEX {index_name} ON {table_name}({column_name})')
+                                    added_indexes.append(index_name)
                                 else:
-                                    # Versuche gängige Spaltennamen
+                                    # Versuche gängige Spaltennamen-Mappings
                                     possible_columns = {
                                         'aktiv': 'Aktiv',
                                         'geloescht': 'Gelöscht',
@@ -730,11 +1193,44 @@ def database_repair():
                                         'abteilung': 'AbteilungID',
                                         'personalnummer': 'Personalnummer',
                                         'ma': 'MitarbeiterID',
-                                        'abt': 'AbteilungID'
+                                        'abt': 'AbteilungID',
+                                        'kategorie': 'KategorieID',
+                                        'lieferant': 'LieferantID',
+                                        'artikelnummer': 'Artikelnummer',
+                                        'bestand': 'AktuellerBestand',
+                                        'ersatzteil': 'ErsatzteilID',
+                                        'kostenstelle': 'KostenstelleID',
+                                        'verwendetvon': 'VerwendetVonID',
+                                        'verwendet_von': 'VerwendetVonID',
+                                        'buchungsdatum': 'Buchungsdatum',
+                                        'sortierung': 'Sortierung',
+                                        'kategorieaktiv': 'Aktiv',
+                                        'kategoriesortierung': 'Sortierung',
+                                        'kostenstelleaktiv': 'Aktiv',
+                                        'kostenstellesortierung': 'Sortierung'
                                     }
-                                    if column_name in possible_columns:
-                                        cursor.execute(f'CREATE INDEX {index_name} ON {table_name}({possible_columns[column_name]})')
-                                added_indexes.append(index_name)
+                                    
+                                    # Prüfe verschiedene Varianten
+                                    column_found = False
+                                    for key, col in possible_columns.items():
+                                        if key in column_name.lower() or column_name.lower() in key:
+                                            if col in table_schema['columns']:
+                                                cursor.execute(f'CREATE INDEX {index_name} ON {table_name}({col})')
+                                                added_indexes.append(index_name)
+                                                column_found = True
+                                                break
+                                    
+                                    if not column_found:
+                                        # Versuche alle Spalten durchzugehen und nach Übereinstimmungen suchen
+                                        for col in table_schema['columns'].keys():
+                                            if col.lower() in column_name.lower() or column_name.lower() in col.lower():
+                                                cursor.execute(f'CREATE INDEX {index_name} ON {table_name}({col})')
+                                                added_indexes.append(index_name)
+                                                column_found = True
+                                                break
+                                    
+                                    if not column_found:
+                                        errors.append(f'Index {index_name}: Spalte für "{column_name}" nicht gefunden')
                             except Exception as e:
                                 errors.append(f'Index {index_name}: {str(e)}')
                     except Exception as e:
@@ -772,11 +1268,21 @@ def database_repair():
                     if index_name not in existing_indexes:
                         try:
                             # Versuche Index-Name auf Spalte abzubilden
-                            column_name = index_name.replace(f'idx_{table_name.lower()}_', '')
+                            # Entferne Präfix "idx_tablename_" oder "idx_tablename"
+                            table_prefix = f'idx_{table_name.lower()}_'
+                            if index_name.startswith(table_prefix):
+                                column_name = index_name[len(table_prefix):]
+                            elif index_name.startswith(f'idx_{table_name.lower()}'):
+                                column_name = index_name[len(f'idx_{table_name.lower()}'):].lstrip('_')
+                            else:
+                                column_name = index_name.replace('idx_', '').replace('_', '')
+                            
+                            # Prüfe ob Spalte direkt existiert
                             if column_name in table_schema['columns']:
                                 cursor.execute(f'CREATE INDEX {index_name} ON {table_name}({column_name})')
+                                added_indexes.append(index_name)
                             else:
-                                # Versuche gängige Spaltennamen
+                                # Versuche gängige Spaltennamen-Mappings
                                 possible_columns = {
                                     'aktiv': 'Aktiv',
                                     'geloescht': 'Gelöscht',
@@ -789,11 +1295,44 @@ def database_repair():
                                     'abteilung': 'AbteilungID',
                                     'personalnummer': 'Personalnummer',
                                     'ma': 'MitarbeiterID',
-                                    'abt': 'AbteilungID'
+                                    'abt': 'AbteilungID',
+                                    'kategorie': 'KategorieID',
+                                    'lieferant': 'LieferantID',
+                                    'artikelnummer': 'Artikelnummer',
+                                    'bestand': 'AktuellerBestand',
+                                    'ersatzteil': 'ErsatzteilID',
+                                    'kostenstelle': 'KostenstelleID',
+                                    'verwendetvon': 'VerwendetVonID',
+                                    'verwendet_von': 'VerwendetVonID',
+                                    'buchungsdatum': 'Buchungsdatum',
+                                    'sortierung': 'Sortierung',
+                                    'kategorieaktiv': 'Aktiv',
+                                    'kategoriesortierung': 'Sortierung',
+                                    'kostenstelleaktiv': 'Aktiv',
+                                    'kostenstellesortierung': 'Sortierung'
                                 }
-                                if column_name in possible_columns:
-                                    cursor.execute(f'CREATE INDEX {index_name} ON {table_name}({possible_columns[column_name]})')
-                            added_indexes.append(index_name)
+                                
+                                # Prüfe verschiedene Varianten
+                                column_found = False
+                                for key, col in possible_columns.items():
+                                    if key in column_name.lower() or column_name.lower() in key:
+                                        if col in table_schema['columns']:
+                                            cursor.execute(f'CREATE INDEX {index_name} ON {table_name}({col})')
+                                            added_indexes.append(index_name)
+                                            column_found = True
+                                            break
+                                
+                                if not column_found:
+                                    # Versuche alle Spalten durchzugehen und nach Übereinstimmungen suchen
+                                    for col in table_schema['columns'].keys():
+                                        if col.lower() in column_name.lower() or column_name.lower() in col.lower():
+                                            cursor.execute(f'CREATE INDEX {index_name} ON {table_name}({col})')
+                                            added_indexes.append(index_name)
+                                            column_found = True
+                                            break
+                                
+                                if not column_found:
+                                    errors.append(f'Index {index_name}: Spalte für "{column_name}" nicht gefunden')
                         except Exception as e:
                             errors.append(f'Index {index_name}: {str(e)}')
             

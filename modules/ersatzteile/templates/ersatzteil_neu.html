@@ -1,0 +1,113 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<h1 class="mb-4">🔧 Neues Ersatzteil</h1>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Ersatzteil anlegen</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label"><strong>Artikelnummer:</strong> <span class="text-danger">*</span></label>
+                    <input type="text" name="artikelnummer" class="form-control" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label"><strong>Bezeichnung:</strong> <span class="text-danger">*</span></label>
+                    <input type="text" name="bezeichnung" class="form-control" required>
+                </div>
+                <div class="col-12">
+                    <label class="form-label"><strong>Beschreibung:</strong></label>
+                    <textarea name="beschreibung" class="form-control" rows="3"></textarea>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label"><strong>Kategorie:</strong></label>
+                    <select name="kategorie_id" class="form-select">
+                        <option value="">-- Keine --</option>
+                        {% for k in kategorien %}
+                        <option value="{{ k.ID }}">{{ k.Bezeichnung }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label"><strong>Hersteller:</strong></label>
+                    <input type="text" name="hersteller" class="form-control">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label"><strong>Lieferant:</strong></label>
+                    <select name="lieferant_id" class="form-select">
+                        <option value="">-- Keine --</option>
+                        {% for l in lieferanten %}
+                        <option value="{{ l.ID }}">{{ l.Name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><strong>Preis:</strong></label>
+                    <input type="number" name="preis" class="form-control" step="0.01" min="0">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><strong>Währung:</strong></label>
+                    <select name="waehrung" class="form-select">
+                        <option value="EUR" selected>EUR</option>
+                        <option value="USD">USD</option>
+                        <option value="CHF">CHF</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label"><strong>Lagerort:</strong></label>
+                    <select name="lagerort_id" class="form-select">
+                        <option value="">-- Keine --</option>
+                        {% for lo in lagerorte %}
+                        <option value="{{ lo.ID }}">{{ lo.Bezeichnung }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label"><strong>Lagerplatz:</strong></label>
+                    <select name="lagerplatz_id" class="form-select">
+                        <option value="">-- Keine --</option>
+                        {% for lp in lagerplaetze %}
+                        <option value="{{ lp.ID }}">{{ lp.Bezeichnung }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><strong>Mindestbestand:</strong></label>
+                    <input type="number" name="mindestbestand" class="form-control" value="0" min="0">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><strong>Einheit:</strong></label>
+                    <input type="text" name="einheit" class="form-control" value="Stück">
+                </div>
+                <div class="col-12">
+                    <label class="form-label"><strong>Sichtbar für Abteilungen:</strong></label>
+                    <div class="row">
+                        {% for abt in abteilungen %}
+                        <div class="col-md-3 mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="abteilungen" value="{{ abt.ID }}" id="abt_{{ abt.ID }}">
+                                <label class="form-check-label" for="abt_{{ abt.ID }}">
+                                    {{ abt.Bezeichnung }}
+                                </label>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Speichern
+                    </button>
+                    <a href="{{ url_for('ersatzteile.ersatzteil_liste') }}" class="btn btn-secondary">
+                        <i class="bi bi-x-lg"></i> Abbrechen
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+

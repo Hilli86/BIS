@@ -1,0 +1,387 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<h1 class="mb-4">🔧 Ersatzteil: {{ ersatzteil.Bezeichnung }}</h1>
+
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">📋 Ersatzteil-Details</h5>
+        <div class="d-flex gap-2">
+            {% if session.user_abteilungen and 'BIS-Admin' in session.user_abteilungen %}
+            <a href="{{ url_for('ersatzteile.ersatzteil_bearbeiten', ersatzteil_id=ersatzteil.ID) }}" class="btn btn-sm btn-light">
+                <i class="bi bi-pencil"></i> <span class="d-none d-sm-inline">Bearbeiten</span>
+            </a>
+            <form method="POST" action="{{ url_for('ersatzteile.ersatzteil_loeschen', ersatzteil_id=ersatzteil.ID) }}" 
+                  onsubmit="return confirm('Ersatzteil wirklich löschen?');" class="d-inline">
+                <button type="submit" class="btn btn-sm btn-light">
+                    <i class="bi bi-trash"></i> <span class="d-none d-sm-inline">Löschen</span>
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <table class="table table-sm table-borderless mb-0">
+                    <tbody>
+                        <tr>
+                            <td class="text-muted" style="width: 150px;"><strong>Artikelnummer:</strong></td>
+                            <td><strong>{{ ersatzteil.Artikelnummer }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Interne Artikelnummer (ID):</strong></td>
+                            <td><strong class="text-primary">{{ ersatzteil.ID }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Bezeichnung:</strong></td>
+                            <td>{{ ersatzteil.Bezeichnung }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Beschreibung:</strong></td>
+                            <td>{{ ersatzteil.Beschreibung or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Kategorie:</strong></td>
+                            <td>{{ ersatzteil.Kategorie or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Hersteller:</strong></td>
+                            <td>{{ ersatzteil.Hersteller or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Lieferant:</strong></td>
+                            <td>
+                                {% if ersatzteil.Lieferant %}
+                                {{ ersatzteil.Lieferant }}
+                                {% if ersatzteil.LieferantKontakt %}
+                                <br><small class="text-muted">Kontakt: {{ ersatzteil.LieferantKontakt }}</small>
+                                {% endif %}
+                                {% if ersatzteil.LieferantTelefon %}
+                                <br><small class="text-muted">Tel: {{ ersatzteil.LieferantTelefon }}</small>
+                                {% endif %}
+                                {% if ersatzteil.LieferantEmail %}
+                                <br><small class="text-muted">Email: {{ ersatzteil.LieferantEmail }}</small>
+                                {% endif %}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <table class="table table-sm table-borderless mb-0">
+                    <tbody>
+                        <tr>
+                            <td class="text-muted" style="width: 150px;"><strong>Preis:</strong></td>
+                            <td>
+                                {% if ersatzteil.Preis %}
+                                {{ "%.2f"|format(ersatzteil.Preis) }} {{ ersatzteil.Waehrung }}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Lagerort:</strong></td>
+                            <td>{{ ersatzteil.LagerortName or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Lagerplatz:</strong></td>
+                            <td>{{ ersatzteil.LagerplatzName or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Bestand:</strong></td>
+                            <td>
+                                <span class="badge {% if ersatzteil.Mindestbestand > 0 and ersatzteil.AktuellerBestand <= ersatzteil.Mindestbestand %}bg-warning{% elif ersatzteil.AktuellerBestand > 0 %}bg-success{% else %}bg-secondary{% endif %} fs-6">
+                                    {{ ersatzteil.AktuellerBestand }} {{ ersatzteil.Einheit }}
+                                </span>
+                                {% if ersatzteil.Mindestbestand > 0 %}
+                                <br><small class="text-muted">Mindestbestand: {{ ersatzteil.Mindestbestand }} {{ ersatzteil.Einheit }}</small>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Status:</strong></td>
+                            <td>
+                                {% if ersatzteil.Aktiv %}
+                                <span class="badge bg-success">Aktiv</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Inaktiv</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Erstellt von:</strong></td>
+                            <td>{{ ersatzteil.ErstelltVon or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Erstellt am:</strong></td>
+                            <td>{{ ersatzteil.ErstelltAm[:16] if ersatzteil.ErstelltAm else '-' }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        {% if zugriffe %}
+        <hr>
+        <div>
+            <strong class="text-muted">Sichtbar für Abteilungen:</strong>
+            {% for z in zugriffe %}
+            <span class="badge bg-secondary me-1">{{ z.Bezeichnung }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Lagerbuchung -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0">📦 Lagerbuchung</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('ersatzteile.lagerbuchung', ersatzteil_id=ersatzteil.ID) }}">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label"><strong>Typ:</strong></label>
+                    <select name="typ" class="form-select" required>
+                        <option value="Eingang">Eingang</option>
+                        <option value="Ausgang">Ausgang</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><strong>Menge:</strong></label>
+                    <input type="number" name="menge" class="form-control" min="1" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><strong>Kostenstelle:</strong></label>
+                    <select name="kostenstelle_id" class="form-select">
+                        <option value="">-- Keine --</option>
+                        {% for k in kostenstellen %}
+                        <option value="{{ k.ID }}">{{ k.Bezeichnung }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><strong>Grund:</strong></label>
+                    <input type="text" name="grund" class="form-control" placeholder="z.B. Manuell, Lieferung">
+                </div>
+                <div class="col-12">
+                    <label class="form-label"><strong>Bemerkung:</strong></label>
+                    <textarea name="bemerkung" class="form-control" rows="2"></textarea>
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> Buchung durchführen
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Lagerbuchungen Historie -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-secondary text-white">
+        <h5 class="mb-0">📊 Lagerbuchungen</h5>
+    </div>
+    <div class="card-body">
+        {% if lagerbuchungen %}
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Datum</th>
+                        <th>Typ</th>
+                        <th>Menge</th>
+                        <th>Grund</th>
+                        <th>Kostenstelle</th>
+                        <th>Von</th>
+                        <th>Bemerkung</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for lb in lagerbuchungen %}
+                    <tr>
+                        <td>{{ lb.Buchungsdatum[:16] if lb.Buchungsdatum else '-' }}</td>
+                        <td>
+                            <span class="badge {% if lb.Typ == 'Eingang' %}bg-success{% else %}bg-danger{% endif %}">
+                                {{ lb.Typ }}
+                            </span>
+                        </td>
+                        <td>{{ lb.Menge }}</td>
+                        <td>{{ lb.Grund or '-' }}</td>
+                        <td>{{ lb.Kostenstelle or '-' }}</td>
+                        <td>{{ lb.VerwendetVon }}</td>
+                        <td>{{ lb.Bemerkung or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Keine Lagerbuchungen vorhanden.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Verknüpfungen mit Themen -->
+{% if verknuepfungen %}
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-warning text-dark">
+        <h5 class="mb-0">🔗 Verknüpfungen mit Themen</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Thema</th>
+                        <th>Menge</th>
+                        <th>Verwendet von</th>
+                        <th>Datum</th>
+                        <th>Bemerkung</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in verknuepfungen %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('schichtbuch.thema_detail', thema_id=v.ThemaID) }}" class="text-decoration-none">
+                                Thema #{{ v.ThemaID }}
+                            </a>
+                        </td>
+                        <td>{{ v.Menge }}</td>
+                        <td>{{ v.VerwendetVon }}</td>
+                        <td>{{ v.VerwendetAm[:16] if v.VerwendetAm else '-' }}</td>
+                        <td>{{ v.Bemerkung or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Bilder -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">🖼️ Bilder</h5>
+        <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#bildUploadCollapse">
+            <i class="bi bi-plus-circle"></i> Bild hochladen
+        </button>
+    </div>
+    <div class="collapse" id="bildUploadCollapse">
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('ersatzteile.bild_upload', ersatzteil_id=ersatzteil.ID) }}" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <input type="file" name="file" class="form-control" accept="image/*" required>
+                </div>
+                <button type="submit" class="btn btn-success">Hochladen</button>
+            </form>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if bilder %}
+        <div class="row">
+            {% for bild in bilder %}
+            <div class="col-md-3 mb-3">
+                <div class="card">
+                    <a href="{{ url_for('ersatzteile.datei_anzeigen', filepath=bild.Dateipfad) }}" target="_blank">
+                        <img src="{{ url_for('ersatzteile.datei_anzeigen', filepath=bild.Dateipfad) }}" 
+                             class="card-img-top" 
+                             style="height: 150px; object-fit: cover;"
+                             alt="{{ bild.Dateiname }}">
+                    </a>
+                    <div class="card-body p-2">
+                        <small class="text-muted">{{ bild.Dateiname }}</small>
+                        {% if session.user_abteilungen and 'BIS-Admin' in session.user_abteilungen %}
+                        <form method="POST" action="{{ url_for('ersatzteile.bild_loeschen', ersatzteil_id=ersatzteil.ID, bild_id=bild.ID) }}" 
+                              onsubmit="return confirm('Bild wirklich löschen?');" class="mt-2">
+                            <button type="submit" class="btn btn-sm btn-danger w-100">
+                                <i class="bi bi-trash"></i> Löschen
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Keine Bilder vorhanden.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Dokumente -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">📄 Dokumente</h5>
+        <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#dokumentUploadCollapse">
+            <i class="bi bi-plus-circle"></i> Dokument hochladen
+        </button>
+    </div>
+    <div class="collapse" id="dokumentUploadCollapse">
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('ersatzteile.dokument_upload', ersatzteil_id=ersatzteil.ID) }}" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label class="form-label">Datei:</label>
+                    <input type="file" name="file" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Typ (optional):</label>
+                    <input type="text" name="typ" class="form-control" placeholder="z.B. Datenblatt, Anleitung">
+                </div>
+                <button type="submit" class="btn btn-success">Hochladen</button>
+            </form>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if dokumente %}
+        <div class="list-group">
+            {% for dok in dokumente %}
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <a href="{{ url_for('ersatzteile.datei_anzeigen', filepath=dok.Dateipfad) }}" target="_blank" class="text-decoration-none">
+                        <i class="bi bi-file-earmark"></i> {{ dok.Dateiname }}
+                    </a>
+                    {% if dok.Typ %}
+                    <br><small class="text-muted">Typ: {{ dok.Typ }}</small>
+                    {% endif %}
+                </div>
+                {% if session.user_abteilungen and 'BIS-Admin' in session.user_abteilungen %}
+                <form method="POST" action="{{ url_for('ersatzteile.dokument_loeschen', ersatzteil_id=ersatzteil.ID, dokument_id=dok.ID) }}" 
+                      onsubmit="return confirm('Dokument wirklich löschen?');" class="d-inline">
+                    <button type="submit" class="btn btn-sm btn-danger">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Keine Dokumente vorhanden.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="mb-3">
+    <a href="{{ url_for('ersatzteile.ersatzteil_liste') }}" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Zurück zur Liste
+    </a>
+</div>
+{% endblock %}
+

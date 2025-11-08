@@ -153,6 +153,93 @@
         {% endfor %}
     </div>
 
+    <!-- Verknüpfungen mit Ersatzteilen -->
+    {% if ersatzteil_verknuepfungen %}
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0">🔗 Verwendete Ersatzteile</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Ersatzteil</th>
+                            <th>Menge</th>
+                            <th>Verwendet von</th>
+                            <th>Datum</th>
+                            <th>Bemerkung</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for v in ersatzteil_verknuepfungen %}
+                        <tr>
+                            <td>
+                                <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=v.ErsatzteilID) }}" class="text-decoration-none">
+                                    {{ v.Artikelnummer }} - {{ v.ErsatzteilBezeichnung }}
+                                </a>
+                            </td>
+                            <td>{{ v.Menge }}</td>
+                            <td>{{ v.VerwendetVon }}</td>
+                            <td>{{ v.VerwendetAm[:16] if v.VerwendetAm else '-' }}</td>
+                            <td>{{ v.Bemerkung or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Ersatzteil zuordnen -->
+    {% if verfuegbare_ersatzteile %}
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0">🔧 Ersatzteil zuordnen</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('ersatzteile.thema_verknuepfen', thema_id=thema.ID) }}">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label"><strong>Ersatzteil:</strong></label>
+                        <select name="ersatzteil_id" class="form-select" required>
+                            <option value="">-- Ersatzteil wählen --</option>
+                            {% for e in verfuegbare_ersatzteile %}
+                            <option value="{{ e.ID }}" data-bestand="{{ e.AktuellerBestand }}">
+                                {{ e.Artikelnummer }} - {{ e.Bezeichnung }} (Bestand: {{ e.AktuellerBestand }} {{ e.Einheit }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label"><strong>Menge:</strong></label>
+                        <input type="number" name="menge" class="form-control" min="1" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label"><strong>Kostenstelle:</strong></label>
+                        <select name="kostenstelle_id" class="form-select">
+                            <option value="">-- Keine --</option>
+                            {% for k in kostenstellen %}
+                            <option value="{{ k.ID }}">{{ k.Bezeichnung }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label"><strong>Bemerkung:</strong></label>
+                        <input type="text" name="bemerkung" class="form-control">
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg"></i> Zuordnen
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="card mt-4 shadow-sm">
         <div class="card-header bg-success text-white">
             <h5 class="mb-0">💬 Neue Bemerkung hinzufügen / Status ändern</h5>

@@ -206,7 +206,7 @@ def init_database():
         cursor.execute('CREATE INDEX idx_sichtbarkeit_abteilung ON SchichtbuchThemaSichtbarkeit(AbteilungID)')
         print("  [OK] Tabelle SchichtbuchThemaSichtbarkeit erstellt")
         
-        print("[11/11] Erstelle Tabelle: Benachrichtigung...")
+        print("[11/12] Erstelle Tabelle: Benachrichtigung...")
         cursor.execute('''
             CREATE TABLE Benachrichtigung (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -227,6 +227,171 @@ def init_database():
         cursor.execute('CREATE INDEX idx_benachrichtigung_thema ON Benachrichtigung(ThemaID)')
         cursor.execute('CREATE INDEX idx_benachrichtigung_gelesen ON Benachrichtigung(Gelesen)')
         print("  [OK] Tabelle Benachrichtigung erstellt")
+        
+        print("[12/12] Erstelle Tabellen: Ersatzteilverwaltung...")
+        # ErsatzteilKategorie
+        cursor.execute('''
+            CREATE TABLE ErsatzteilKategorie (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                Bezeichnung TEXT NOT NULL,
+                Beschreibung TEXT,
+                Aktiv INTEGER NOT NULL DEFAULT 1,
+                Sortierung INTEGER DEFAULT 0
+            )
+        ''')
+        cursor.execute('CREATE INDEX idx_ersatzteil_kategorie_aktiv ON ErsatzteilKategorie(Aktiv)')
+        print("  [OK] Tabelle ErsatzteilKategorie erstellt")
+        
+        # Kostenstelle
+        cursor.execute('''
+            CREATE TABLE Kostenstelle (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                Bezeichnung TEXT NOT NULL,
+                Beschreibung TEXT,
+                Aktiv INTEGER NOT NULL DEFAULT 1,
+                Sortierung INTEGER DEFAULT 0
+            )
+        ''')
+        cursor.execute('CREATE INDEX idx_kostenstelle_aktiv ON Kostenstelle(Aktiv)')
+        print("  [OK] Tabelle Kostenstelle erstellt")
+        
+        # Lieferant
+        cursor.execute('''
+            CREATE TABLE Lieferant (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                Name TEXT NOT NULL,
+                Kontaktperson TEXT,
+                Telefon TEXT,
+                Email TEXT,
+                Strasse TEXT,
+                PLZ TEXT,
+                Ort TEXT,
+                Aktiv INTEGER NOT NULL DEFAULT 1,
+                Gelöscht INTEGER NOT NULL DEFAULT 0
+            )
+        ''')
+        cursor.execute('CREATE INDEX idx_lieferant_aktiv ON Lieferant(Aktiv)')
+        print("  [OK] Tabelle Lieferant erstellt")
+        
+        # Ersatzteil
+        cursor.execute('''
+            CREATE TABLE Ersatzteil (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                Artikelnummer TEXT NOT NULL UNIQUE,
+                Bezeichnung TEXT NOT NULL,
+                Beschreibung TEXT,
+                KategorieID INTEGER,
+                Hersteller TEXT,
+                LieferantID INTEGER,
+                Preis REAL,
+                Waehrung TEXT DEFAULT 'EUR',
+                Lagerort TEXT,
+                Mindestbestand INTEGER DEFAULT 0,
+                AktuellerBestand INTEGER DEFAULT 0,
+                Einheit TEXT DEFAULT 'Stück',
+                Aktiv INTEGER NOT NULL DEFAULT 1,
+                Gelöscht INTEGER NOT NULL DEFAULT 0,
+                ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
+                ErstelltVonID INTEGER,
+                FOREIGN KEY (KategorieID) REFERENCES ErsatzteilKategorie(ID),
+                FOREIGN KEY (LieferantID) REFERENCES Lieferant(ID),
+                FOREIGN KEY (ErstelltVonID) REFERENCES Mitarbeiter(ID)
+            )
+        ''')
+        cursor.execute('CREATE INDEX idx_ersatzteil_artikelnummer ON Ersatzteil(Artikelnummer)')
+        cursor.execute('CREATE INDEX idx_ersatzteil_kategorie ON Ersatzteil(KategorieID)')
+        cursor.execute('CREATE INDEX idx_ersatzteil_lieferant ON Ersatzteil(LieferantID)')
+        cursor.execute('CREATE INDEX idx_ersatzteil_aktiv ON Ersatzteil(Aktiv)')
+        cursor.execute('CREATE INDEX idx_ersatzteil_geloescht ON Ersatzteil(Gelöscht)')
+        print("  [OK] Tabelle Ersatzteil erstellt")
+        
+        # ErsatzteilBild
+        cursor.execute('''
+            CREATE TABLE ErsatzteilBild (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                ErsatzteilID INTEGER NOT NULL,
+                Dateiname TEXT NOT NULL,
+                Dateipfad TEXT NOT NULL,
+                ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (ErsatzteilID) REFERENCES Ersatzteil(ID) ON DELETE CASCADE
+            )
+        ''')
+        cursor.execute('CREATE INDEX idx_ersatzteil_bild_ersatzteil ON ErsatzteilBild(ErsatzteilID)')
+        print("  [OK] Tabelle ErsatzteilBild erstellt")
+        
+        # ErsatzteilDokument
+        cursor.execute('''
+            CREATE TABLE ErsatzteilDokument (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                ErsatzteilID INTEGER NOT NULL,
+                Dateiname TEXT NOT NULL,
+                Dateipfad TEXT NOT NULL,
+                Typ TEXT,
+                ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (ErsatzteilID) REFERENCES Ersatzteil(ID) ON DELETE CASCADE
+            )
+        ''')
+        cursor.execute('CREATE INDEX idx_ersatzteil_dokument_ersatzteil ON ErsatzteilDokument(ErsatzteilID)')
+        print("  [OK] Tabelle ErsatzteilDokument erstellt")
+        
+        # Lagerbuchung (kein Gelöscht-Flag!)
+        cursor.execute('''
+            CREATE TABLE Lagerbuchung (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                ErsatzteilID INTEGER NOT NULL,
+                Typ TEXT NOT NULL,
+                Menge INTEGER NOT NULL,
+                Grund TEXT,
+                ThemaID INTEGER NULL,
+                KostenstelleID INTEGER,
+                VerwendetVonID INTEGER NOT NULL,
+                Buchungsdatum DATETIME DEFAULT CURRENT_TIMESTAMP,
+                Bemerkung TEXT,
+                ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (ErsatzteilID) REFERENCES Ersatzteil(ID),
+                FOREIGN KEY (ThemaID) REFERENCES SchichtbuchThema(ID),
+                FOREIGN KEY (KostenstelleID) REFERENCES Kostenstelle(ID),
+                FOREIGN KEY (VerwendetVonID) REFERENCES Mitarbeiter(ID)
+            )
+        ''')
+        cursor.execute('CREATE INDEX idx_lagerbuchung_ersatzteil ON Lagerbuchung(ErsatzteilID)')
+        cursor.execute('CREATE INDEX idx_lagerbuchung_thema ON Lagerbuchung(ThemaID)')
+        cursor.execute('CREATE INDEX idx_lagerbuchung_kostenstelle ON Lagerbuchung(KostenstelleID)')
+        print("  [OK] Tabelle Lagerbuchung erstellt")
+        
+        # ErsatzteilThemaVerknuepfung
+        cursor.execute('''
+            CREATE TABLE ErsatzteilThemaVerknuepfung (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                ErsatzteilID INTEGER NOT NULL,
+                ThemaID INTEGER NOT NULL,
+                Menge INTEGER NOT NULL,
+                VerwendetVonID INTEGER NOT NULL,
+                VerwendetAm DATETIME DEFAULT CURRENT_TIMESTAMP,
+                Bemerkung TEXT,
+                FOREIGN KEY (ErsatzteilID) REFERENCES Ersatzteil(ID),
+                FOREIGN KEY (ThemaID) REFERENCES SchichtbuchThema(ID) ON DELETE CASCADE,
+                FOREIGN KEY (VerwendetVonID) REFERENCES Mitarbeiter(ID)
+            )
+        ''')
+        cursor.execute('CREATE INDEX idx_ersatzteil_thema_ersatzteil ON ErsatzteilThemaVerknuepfung(ErsatzteilID)')
+        cursor.execute('CREATE INDEX idx_ersatzteil_thema_thema ON ErsatzteilThemaVerknuepfung(ThemaID)')
+        print("  [OK] Tabelle ErsatzteilThemaVerknuepfung erstellt")
+        
+        # ErsatzteilAbteilungZugriff
+        cursor.execute('''
+            CREATE TABLE ErsatzteilAbteilungZugriff (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                ErsatzteilID INTEGER NOT NULL,
+                AbteilungID INTEGER NOT NULL,
+                FOREIGN KEY (ErsatzteilID) REFERENCES Ersatzteil(ID) ON DELETE CASCADE,
+                FOREIGN KEY (AbteilungID) REFERENCES Abteilung(ID) ON DELETE CASCADE,
+                UNIQUE(ErsatzteilID, AbteilungID)
+            )
+        ''')
+        cursor.execute('CREATE INDEX idx_ersatzteil_abteilung_ersatzteil ON ErsatzteilAbteilungZugriff(ErsatzteilID)')
+        cursor.execute('CREATE INDEX idx_ersatzteil_abteilung_abteilung ON ErsatzteilAbteilungZugriff(AbteilungID)')
+        print("  [OK] Tabelle ErsatzteilAbteilungZugriff erstellt")
         
         print()
         print("=" * 70)

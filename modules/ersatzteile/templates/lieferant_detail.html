@@ -1,0 +1,138 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<h1 class="mb-4">📦 Lieferant: {{ lieferant.Name }}</h1>
+
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Lieferant-Details</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <table class="table table-sm table-borderless mb-0">
+                    <tbody>
+                        <tr>
+                            <td class="text-muted" style="width: 150px;"><strong>Name:</strong></td>
+                            <td><strong>{{ lieferant.Name }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Kontaktperson:</strong></td>
+                            <td>{{ lieferant.Kontaktperson or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Telefon:</strong></td>
+                            <td>
+                                {% if lieferant.Telefon %}
+                                <a href="tel:{{ lieferant.Telefon }}" class="text-decoration-none">{{ lieferant.Telefon }}</a>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <table class="table table-sm table-borderless mb-0">
+                    <tbody>
+                        <tr>
+                            <td class="text-muted" style="width: 150px;"><strong>Email:</strong></td>
+                            <td>
+                                {% if lieferant.Email %}
+                                <a href="mailto:{{ lieferant.Email }}" class="text-decoration-none">{{ lieferant.Email }}</a>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Straße:</strong></td>
+                            <td>{{ lieferant.Strasse or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>PLZ:</strong></td>
+                            <td>{{ lieferant.PLZ or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Ort:</strong></td>
+                            <td>{{ lieferant.Ort or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Status:</strong></td>
+                            <td>
+                                {% if lieferant.Aktiv %}
+                                <span class="badge bg-success">Aktiv</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Inaktiv</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ersatzteile dieses Lieferanten -->
+<div class="card shadow-sm">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0">Ersatzteile von diesem Lieferanten</h5>
+    </div>
+    <div class="card-body">
+        {% if ersatzteile %}
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Artikelnummer</th>
+                        <th>Bezeichnung</th>
+                        <th>Kategorie</th>
+                        <th>Bestand</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in ersatzteile %}
+                    <tr {% if e.Mindestbestand > 0 and e.AktuellerBestand <= e.Mindestbestand %}class="table-warning"{% endif %}>
+                        <td><strong>{{ e.Artikelnummer }}</strong></td>
+                        <td>
+                            <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none">
+                                {{ e.Bezeichnung }}
+                            </a>
+                        </td>
+                        <td>{{ e.Kategorie or '-' }}</td>
+                        <td>
+                            <span class="badge {% if e.Mindestbestand > 0 and e.AktuellerBestand <= e.Mindestbestand %}bg-warning{% elif e.AktuellerBestand > 0 %}bg-success{% else %}bg-secondary{% endif %}">
+                                {{ e.AktuellerBestand }} {{ e.Einheit }}
+                            </span>
+                            {% if e.Mindestbestand > 0 %}
+                            <br><small class="text-muted">Min: {{ e.Mindestbestand }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Keine Ersatzteile von diesem Lieferanten vorhanden.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="mb-3 mt-3">
+    <a href="{{ url_for('ersatzteile.lieferanten_liste') }}" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Zurück zur Liste
+    </a>
+</div>
+{% endblock %}
+

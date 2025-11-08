@@ -1,0 +1,124 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<h1 class="mb-4">🔧 Ersatzteil bearbeiten</h1>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Ersatzteil bearbeiten</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label"><strong>Artikelnummer:</strong></label>
+                    <input type="text" class="form-control" value="{{ ersatzteil.Artikelnummer }}" disabled>
+                    <small class="text-muted">Artikelnummer kann nicht geändert werden.</small>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label"><strong>Bezeichnung:</strong> <span class="text-danger">*</span></label>
+                    <input type="text" name="bezeichnung" class="form-control" value="{{ ersatzteil.Bezeichnung }}" required>
+                </div>
+                <div class="col-12">
+                    <label class="form-label"><strong>Beschreibung:</strong></label>
+                    <textarea name="beschreibung" class="form-control" rows="3">{{ ersatzteil.Beschreibung or '' }}</textarea>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label"><strong>Kategorie:</strong></label>
+                    <select name="kategorie_id" class="form-select">
+                        <option value="">-- Keine --</option>
+                        {% for k in kategorien %}
+                        <option value="{{ k.ID }}" {% if ersatzteil.KategorieID == k.ID %}selected{% endif %}>{{ k.Bezeichnung }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label"><strong>Hersteller:</strong></label>
+                    <input type="text" name="hersteller" class="form-control" value="{{ ersatzteil.Hersteller or '' }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label"><strong>Lieferant:</strong></label>
+                    <select name="lieferant_id" class="form-select">
+                        <option value="">-- Keine --</option>
+                        {% for l in lieferanten %}
+                        <option value="{{ l.ID }}" {% if ersatzteil.LieferantID == l.ID %}selected{% endif %}>{{ l.Name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><strong>Preis:</strong></label>
+                    <input type="number" name="preis" class="form-control" step="0.01" min="0" value="{{ ersatzteil.Preis or '' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><strong>Währung:</strong></label>
+                    <select name="waehrung" class="form-select">
+                        <option value="EUR" {% if ersatzteil.Waehrung == 'EUR' %}selected{% endif %}>EUR</option>
+                        <option value="USD" {% if ersatzteil.Waehrung == 'USD' %}selected{% endif %}>USD</option>
+                        <option value="CHF" {% if ersatzteil.Waehrung == 'CHF' %}selected{% endif %}>CHF</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label"><strong>Lagerort:</strong></label>
+                    <select name="lagerort_id" class="form-select">
+                        <option value="">-- Keine --</option>
+                        {% for lo in lagerorte %}
+                        <option value="{{ lo.ID }}" {% if ersatzteil.LagerortID == lo.ID %}selected{% endif %}>{{ lo.Bezeichnung }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label"><strong>Lagerplatz:</strong></label>
+                    <select name="lagerplatz_id" class="form-select">
+                        <option value="">-- Keine --</option>
+                        {% for lp in lagerplaetze %}
+                        <option value="{{ lp.ID }}" {% if ersatzteil.LagerplatzID == lp.ID %}selected{% endif %}>{{ lp.Bezeichnung }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><strong>Mindestbestand:</strong></label>
+                    <input type="number" name="mindestbestand" class="form-control" value="{{ ersatzteil.Mindestbestand or 0 }}" min="0">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><strong>Einheit:</strong></label>
+                    <input type="text" name="einheit" class="form-control" value="{{ ersatzteil.Einheit or 'Stück' }}">
+                </div>
+                <div class="col-md-12">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="aktiv" id="aktiv" {% if ersatzteil.Aktiv %}checked{% endif %}>
+                        <label class="form-check-label" for="aktiv">
+                            <strong>Aktiv</strong>
+                        </label>
+                    </div>
+                </div>
+                {% if session.user_abteilungen and 'BIS-Admin' in session.user_abteilungen %}
+                <div class="col-12">
+                    <label class="form-label"><strong>Sichtbar für Abteilungen:</strong></label>
+                    <div class="row">
+                        {% for abt in abteilungen %}
+                        <div class="col-md-3 mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="abteilungen" value="{{ abt.ID }}" id="abt_{{ abt.ID }}" {% if abt.ID in zugriff_ids %}checked{% endif %}>
+                                <label class="form-check-label" for="abt_{{ abt.ID }}">
+                                    {{ abt.Bezeichnung }}
+                                </label>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Speichern
+                    </button>
+                    <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil.ID) }}" class="btn btn-secondary">
+                        <i class="bi bi-x-lg"></i> Abbrechen
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+

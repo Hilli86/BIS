@@ -1,0 +1,205 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<style>
+    .sortable-header a {
+        cursor: pointer;
+        user-select: none;
+    }
+    .sortable-header a:hover {
+        color: var(--bs-primary) !important;
+    }
+    .sortable-header a i {
+        font-size: 0.8em;
+        opacity: 0.7;
+    }
+</style>
+
+<h1 class="mb-4">🔧 Ersatzteile</h1>
+
+{% if session.user_abteilungen and 'BIS-Admin' in session.user_abteilungen %}
+<div class="mb-3">
+    <a href="{{ url_for('ersatzteile.ersatzteil_neu') }}" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Neues Ersatzteil
+    </a>
+</div>
+{% endif %}
+
+<!-- Filter -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Filter</strong>
+        <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#filterCollapse">
+            Anzeigen / Ausblenden
+        </button>
+    </div>
+    <div class="collapse" id="filterCollapse">
+        <div class="card-body">
+            <form method="get" id="filterForm">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Kategorie</label>
+                        <select name="kategorie" class="form-select">
+                            <option value="">-- Alle Kategorien --</option>
+                            {% for k in kategorien %}
+                            <option value="{{ k.ID }}" {% if k.ID|string == kategorie_filter %}selected{% endif %}>{{ k.Bezeichnung }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Lieferant</label>
+                        <select name="lieferant" class="form-select">
+                            <option value="">-- Alle Lieferanten --</option>
+                            {% for l in lieferanten %}
+                            <option value="{{ l.ID }}" {% if l.ID|string == lieferant_filter %}selected{% endif %}>{{ l.Name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Textsuche</label>
+                        <input type="text" name="q" class="form-control" value="{{ q_filter or '' }}" placeholder="Artikelnummer, Bezeichnung...">
+                    </div>
+                    <div class="col-md-12">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="bestandswarnung" value="1" id="bestandswarnung" {% if bestandswarnung %}checked{% endif %}>
+                            <label class="form-check-label" for="bestandswarnung">
+                                Nur Bestandswarnungen anzeigen
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-12">
+                        <button type="submit" class="btn btn-primary">Filter anwenden</button>
+                        <a href="{{ url_for('ersatzteile.ersatzteil_liste') }}" class="btn btn-secondary">Zurücksetzen</a>
+                        <input type="hidden" name="sort" value="{{ sort_by }}">
+                        <input type="hidden" name="dir" value="{{ sort_dir }}">
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Ersatzteil-Liste -->
+<div class="card shadow-sm">
+    <div class="card-body">
+        {% if ersatzteile %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th class="sortable-header">
+                            <a href="{{ url_for('ersatzteile.ersatzteil_liste', sort='id', dir='asc' if sort_by != 'id' or sort_dir == 'desc' else 'desc', kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', q=q_filter or '', bestandswarnung=1 if bestandswarnung else '') }}" 
+                               class="text-decoration-none text-dark d-flex align-items-center gap-1">
+                                ID
+                                {% if sort_by == 'id' %}
+                                    {% if sort_dir == 'asc' %}<i class="bi bi-arrow-up"></i>{% else %}<i class="bi bi-arrow-down"></i>{% endif %}
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="sortable-header">
+                            <a href="{{ url_for('ersatzteile.ersatzteil_liste', sort='artikelnummer', dir='asc' if sort_by != 'artikelnummer' or sort_dir == 'desc' else 'desc', kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', q=q_filter or '', bestandswarnung=1 if bestandswarnung else '') }}" 
+                               class="text-decoration-none text-dark d-flex align-items-center gap-1">
+                                Artikelnummer
+                                {% if sort_by == 'artikelnummer' %}
+                                    {% if sort_dir == 'asc' %}<i class="bi bi-arrow-up"></i>{% else %}<i class="bi bi-arrow-down"></i>{% endif %}
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="sortable-header">
+                            <a href="{{ url_for('ersatzteile.ersatzteil_liste', sort='kategorie', dir='asc' if sort_by != 'kategorie' or sort_dir == 'desc' else 'desc', kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', q=q_filter or '', bestandswarnung=1 if bestandswarnung else '') }}" 
+                               class="text-decoration-none text-dark d-flex align-items-center gap-1">
+                                Kategorie
+                                {% if sort_by == 'kategorie' %}
+                                    {% if sort_dir == 'asc' %}<i class="bi bi-arrow-up"></i>{% else %}<i class="bi bi-arrow-down"></i>{% endif %}
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="sortable-header">
+                            <a href="{{ url_for('ersatzteile.ersatzteil_liste', sort='bezeichnung', dir='asc' if sort_by != 'bezeichnung' or sort_dir == 'desc' else 'desc', kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', q=q_filter or '', bestandswarnung=1 if bestandswarnung else '') }}" 
+                               class="text-decoration-none text-dark d-flex align-items-center gap-1">
+                                Bezeichnung
+                                {% if sort_by == 'bezeichnung' %}
+                                    {% if sort_dir == 'asc' %}<i class="bi bi-arrow-up"></i>{% else %}<i class="bi bi-arrow-down"></i>{% endif %}
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="sortable-header">
+                            <a href="{{ url_for('ersatzteile.ersatzteil_liste', sort='lieferant', dir='asc' if sort_by != 'lieferant' or sort_dir == 'desc' else 'desc', kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', q=q_filter or '', bestandswarnung=1 if bestandswarnung else '') }}" 
+                               class="text-decoration-none text-dark d-flex align-items-center gap-1">
+                                Lieferant
+                                {% if sort_by == 'lieferant' %}
+                                    {% if sort_dir == 'asc' %}<i class="bi bi-arrow-up"></i>{% else %}<i class="bi bi-arrow-down"></i>{% endif %}
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="sortable-header">
+                            <a href="{{ url_for('ersatzteile.ersatzteil_liste', sort='bestand', dir='asc' if sort_by != 'bestand' or sort_dir == 'desc' else 'desc', kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', q=q_filter or '', bestandswarnung=1 if bestandswarnung else '') }}" 
+                               class="text-decoration-none text-dark d-flex align-items-center gap-1">
+                                Bestand
+                                {% if sort_by == 'bestand' %}
+                                    {% if sort_dir == 'asc' %}<i class="bi bi-arrow-up"></i>{% else %}<i class="bi bi-arrow-down"></i>{% endif %}
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="sortable-header">
+                            <a href="{{ url_for('ersatzteile.ersatzteil_liste', sort='lagerort', dir='asc' if sort_by != 'lagerort' or sort_dir == 'desc' else 'desc', kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', q=q_filter or '', bestandswarnung=1 if bestandswarnung else '') }}" 
+                               class="text-decoration-none text-dark d-flex align-items-center gap-1">
+                                Lagerort
+                                {% if sort_by == 'lagerort' %}
+                                    {% if sort_dir == 'asc' %}<i class="bi bi-arrow-up"></i>{% else %}<i class="bi bi-arrow-down"></i>{% endif %}
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="sortable-header">
+                            <a href="{{ url_for('ersatzteile.ersatzteil_liste', sort='lagerplatz', dir='asc' if sort_by != 'lagerplatz' or sort_dir == 'desc' else 'desc', kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', q=q_filter or '', bestandswarnung=1 if bestandswarnung else '') }}" 
+                               class="text-decoration-none text-dark d-flex align-items-center gap-1">
+                                Lagerplatz
+                                {% if sort_by == 'lagerplatz' %}
+                                    {% if sort_dir == 'asc' %}<i class="bi bi-arrow-up"></i>{% else %}<i class="bi bi-arrow-down"></i>{% endif %}
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in ersatzteile %}
+                    <tr {% if e.Mindestbestand > 0 and e.AktuellerBestand <= e.Mindestbestand %}class="table-warning"{% endif %}>
+                        <td>
+                            <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none fw-bold">
+                                {{ e.ID }}
+                            </a>
+                        </td>
+                        <td><strong>{{ e.Artikelnummer }}</strong></td>
+                        <td>{{ e.Kategorie or '-' }}</td>
+                        <td>{{ e.Bezeichnung }}</td>
+                        <td>{{ e.Lieferant or '-' }}</td>
+                        <td>
+                            <span class="badge {% if e.Mindestbestand > 0 and e.AktuellerBestand <= e.Mindestbestand %}bg-warning{% elif e.AktuellerBestand > 0 %}bg-success{% else %}bg-secondary{% endif %}">
+                                {{ e.AktuellerBestand }} {{ e.Einheit }}
+                            </span>
+                            {% if e.Mindestbestand > 0 %}
+                            <br><small class="text-muted">Min: {{ e.Mindestbestand }}</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ e.LagerortName or '-' }}</td>
+                        <td>{{ e.LagerplatzName or '-' }}</td>
+                        <td>
+                            <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Keine Ersatzteile gefunden.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

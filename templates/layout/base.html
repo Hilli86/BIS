@@ -229,6 +229,17 @@
       ➕ Neues Thema
     </a>
 
+    <h6>Ersatzteile</h6>
+    <a href="{{ url_for('ersatzteile.ersatzteil_liste') }}" class="{% if request.endpoint and 'ersatzteile' in request.endpoint and 'lieferant' not in request.endpoint and 'lagerbuchung' not in request.endpoint %}active{% endif %}">
+      🔧 Ersatzteile
+    </a>
+    <a href="{{ url_for('ersatzteile.lieferanten_liste') }}" class="{% if request.endpoint and 'lieferant' in request.endpoint %}active{% endif %}">
+      📦 Lieferanten
+    </a>
+    <a href="{{ url_for('ersatzteile.lagerbuchungen_liste') }}" class="{% if request.endpoint and 'lagerbuchung' in request.endpoint %}active{% endif %}">
+      📋 Lagerbuchungen
+    </a>
+
     <hr>
 
     <div class="sidebar-footer">

@@ -10,6 +10,11 @@
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-gewerk">Gewerke</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-taetigkeit">Tätigkeiten</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-status">Status</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-kategorie">Ersatzteil-Kategorien</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-kostenstelle">Kostenstellen</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-lagerort">Lagerorte</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-lagerplatz">Lagerplätze</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-lieferant">Lieferanten</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-datenbank">Datenbank</a></li>
   <li class="nav-item ms-auto"><a class="nav-link" href="{{ url_for('dashboard') }}">Zurück zum Dashboard</a></li>
   </ul>
@@ -358,6 +363,274 @@
           </td>
           <td>
               <button class="btn btn-sm btn-primary">Speichern</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Ersatzteil-Kategorien -->
+  <div class="tab-pane fade" id="tab-kategorie">
+    <div class="card mb-3">
+      <div class="card-header">Neue Ersatzteil-Kategorie anlegen</div>
+      <div class="card-body">
+        <form action="{{ url_for('admin.ersatzteil_kategorie_add') }}" method="post" class="row g-2">
+          <div class="col-md-5"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung" required></div>
+          <div class="col-md-4"><input name="beschreibung" class="form-control" placeholder="Beschreibung (optional)"></div>
+          <div class="col-md-2"><input type="number" name="sortierung" class="form-control" placeholder="Sortierung" value="0"></div>
+          <div class="col-md-1"><button class="btn btn-success w-100">Anlegen</button></div>
+        </form>
+      </div>
+    </div>
+
+    <table class="table table-striped align-middle">
+      <thead class="table-dark"><tr><th>Bezeichnung</th><th>Beschreibung</th><th style="width: 150px;">Sortierung</th><th style="width: 120px;">Aktiv</th><th style="width: 120px;">Aktionen</th></tr></thead>
+      <tbody>
+        {% for k in ersatzteil_kategorien %}
+        <tr>
+          <td>
+            <form action="{{ url_for('admin.ersatzteil_kategorie_update', kid=k.ID) }}" method="post" class="d-flex align-items-center gap-2">
+              <input name="bezeichnung" class="form-control form-control-sm" value="{{ k.Bezeichnung }}" required>
+          </td>
+          <td>
+              <input name="beschreibung" class="form-control form-control-sm" value="{{ k.Beschreibung or '' }}">
+          </td>
+          <td>
+              <input type="number" name="sortierung" class="form-control form-control-sm" value="{{ k.Sortierung }}">
+          </td>
+          <td>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="aktiv" id="katAktiv{{ k.ID }}" {% if k.Aktiv %}checked{% endif %}>
+                <label class="form-check-label" for="katAktiv{{ k.ID }}">Aktiv</label>
+              </div>
+          </td>
+          <td>
+              <button class="btn btn-sm btn-primary">Speichern</button>
+            </form>
+            <form action="{{ url_for('admin.ersatzteil_kategorie_delete', kid=k.ID) }}" method="post" class="d-inline mt-1">
+              <button class="btn btn-sm btn-danger" onclick="return confirm('Kategorie wirklich deaktivieren?')">Löschen</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Kostenstellen -->
+  <div class="tab-pane fade" id="tab-kostenstelle">
+    <div class="card mb-3">
+      <div class="card-header">Neue Kostenstelle anlegen</div>
+      <div class="card-body">
+        <form action="{{ url_for('admin.kostenstelle_add') }}" method="post" class="row g-2">
+          <div class="col-md-4"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung *" required></div>
+          <div class="col-md-5"><input name="beschreibung" class="form-control" placeholder="Beschreibung"></div>
+          <div class="col-md-2"><input type="number" name="sortierung" class="form-control" placeholder="Sortierung" value="0"></div>
+          <div class="col-md-1"><button class="btn btn-success w-100">Anlegen</button></div>
+        </form>
+      </div>
+    </div>
+
+    <table class="table table-striped align-middle">
+      <thead class="table-dark"><tr><th>Bezeichnung</th><th>Beschreibung</th><th style="width: 150px;">Sortierung</th><th style="width: 120px;">Aktiv</th><th style="width: 120px;">Aktionen</th></tr></thead>
+      <tbody>
+        {% for k in kostenstellen %}
+        <tr>
+          <td>
+            <form action="{{ url_for('admin.kostenstelle_update', kid=k.ID) }}" method="post" class="d-flex align-items-center gap-2">
+              <input name="bezeichnung" class="form-control form-control-sm" value="{{ k.Bezeichnung }}" required>
+          </td>
+          <td>
+              <input name="beschreibung" class="form-control form-control-sm" value="{{ k.Beschreibung or '' }}">
+          </td>
+          <td>
+              <input type="number" name="sortierung" class="form-control form-control-sm" value="{{ k.Sortierung }}">
+          </td>
+          <td>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="aktiv" id="kostenstelleAktiv{{ k.ID }}" {% if k.Aktiv %}checked{% endif %}>
+                <label class="form-check-label" for="kostenstelleAktiv{{ k.ID }}">Aktiv</label>
+              </div>
+          </td>
+          <td>
+              <button class="btn btn-sm btn-primary">Speichern</button>
+            </form>
+            <form action="{{ url_for('admin.kostenstelle_delete', kid=k.ID) }}" method="post" class="d-inline mt-1">
+              <button class="btn btn-sm btn-danger" onclick="return confirm('Kostenstelle wirklich deaktivieren?')">Löschen</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Lagerorte -->
+  <div class="tab-pane fade" id="tab-lagerort">
+    <div class="card mb-3">
+      <div class="card-header">Neuen Lagerort anlegen</div>
+      <div class="card-body">
+        <form action="{{ url_for('admin.lagerort_add') }}" method="post" class="row g-2">
+          <div class="col-md-4"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung *" required></div>
+          <div class="col-md-5"><input name="beschreibung" class="form-control" placeholder="Beschreibung"></div>
+          <div class="col-md-2"><input type="number" name="sortierung" class="form-control" placeholder="Sortierung" value="0"></div>
+          <div class="col-md-1"><button class="btn btn-success w-100">Anlegen</button></div>
+        </form>
+      </div>
+    </div>
+
+    <table class="table table-striped align-middle">
+      <thead class="table-dark"><tr><th>Bezeichnung</th><th>Beschreibung</th><th style="width: 150px;">Sortierung</th><th style="width: 120px;">Aktiv</th><th style="width: 120px;">Aktionen</th></tr></thead>
+      <tbody>
+        {% for l in lagerorte %}
+        <tr>
+          <td>
+            <form action="{{ url_for('admin.lagerort_update', lid=l.ID) }}" method="post" class="d-flex align-items-center gap-2">
+              <input name="bezeichnung" class="form-control form-control-sm" value="{{ l.Bezeichnung }}" required>
+          </td>
+          <td>
+              <input name="beschreibung" class="form-control form-control-sm" value="{{ l.Beschreibung or '' }}">
+          </td>
+          <td>
+              <input type="number" name="sortierung" class="form-control form-control-sm" value="{{ l.Sortierung }}">
+          </td>
+          <td>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="aktiv" id="lagerortAktiv{{ l.ID }}" {% if l.Aktiv %}checked{% endif %}>
+                <label class="form-check-label" for="lagerortAktiv{{ l.ID }}">Aktiv</label>
+              </div>
+          </td>
+          <td>
+              <button class="btn btn-sm btn-primary">Speichern</button>
+            </form>
+            <form action="{{ url_for('admin.lagerort_delete', lid=l.ID) }}" method="post" class="d-inline mt-1">
+              <button class="btn btn-sm btn-danger" onclick="return confirm('Lagerort wirklich deaktivieren?')">Löschen</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Lagerplätze -->
+  <div class="tab-pane fade" id="tab-lagerplatz">
+    <div class="card mb-3">
+      <div class="card-header">Neuen Lagerplatz anlegen</div>
+      <div class="card-body">
+        <form action="{{ url_for('admin.lagerplatz_add') }}" method="post" class="row g-2">
+          <div class="col-md-4"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung *" required></div>
+          <div class="col-md-5"><input name="beschreibung" class="form-control" placeholder="Beschreibung"></div>
+          <div class="col-md-2"><input type="number" name="sortierung" class="form-control" placeholder="Sortierung" value="0"></div>
+          <div class="col-md-1"><button class="btn btn-success w-100">Anlegen</button></div>
+        </form>
+      </div>
+    </div>
+
+    <table class="table table-striped align-middle">
+      <thead class="table-dark"><tr><th>Bezeichnung</th><th>Beschreibung</th><th style="width: 150px;">Sortierung</th><th style="width: 120px;">Aktiv</th><th style="width: 120px;">Aktionen</th></tr></thead>
+      <tbody>
+        {% for l in lagerplaetze %}
+        <tr>
+          <td>
+            <form action="{{ url_for('admin.lagerplatz_update', lid=l.ID) }}" method="post" class="d-flex align-items-center gap-2">
+              <input name="bezeichnung" class="form-control form-control-sm" value="{{ l.Bezeichnung }}" required>
+          </td>
+          <td>
+              <input name="beschreibung" class="form-control form-control-sm" value="{{ l.Beschreibung or '' }}">
+          </td>
+          <td>
+              <input type="number" name="sortierung" class="form-control form-control-sm" value="{{ l.Sortierung }}">
+          </td>
+          <td>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="aktiv" id="lagerplatzAktiv{{ l.ID }}" {% if l.Aktiv %}checked{% endif %}>
+                <label class="form-check-label" for="lagerplatzAktiv{{ l.ID }}">Aktiv</label>
+              </div>
+          </td>
+          <td>
+              <button class="btn btn-sm btn-primary">Speichern</button>
+            </form>
+            <form action="{{ url_for('admin.lagerplatz_delete', lid=l.ID) }}" method="post" class="d-inline mt-1">
+              <button class="btn btn-sm btn-danger" onclick="return confirm('Lagerplatz wirklich deaktivieren?')">Löschen</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Lieferanten -->
+  <div class="tab-pane fade" id="tab-lieferant">
+    <div class="card mb-3">
+      <div class="card-header">Neuen Lieferanten anlegen</div>
+      <div class="card-body">
+        <form action="{{ url_for('admin.lieferant_add') }}" method="post" class="row g-2">
+          <div class="col-md-2"><input name="name" class="form-control" placeholder="Name *" required></div>
+          <div class="col-md-2"><input name="kontaktperson" class="form-control" placeholder="Kontaktperson"></div>
+          <div class="col-md-2"><input name="telefon" class="form-control" placeholder="Telefon"></div>
+          <div class="col-md-2"><input type="email" name="email" class="form-control" placeholder="Email"></div>
+          <div class="col-md-2"><input name="strasse" class="form-control" placeholder="Straße"></div>
+          <div class="col-md-1"><input name="plz" class="form-control" placeholder="PLZ"></div>
+          <div class="col-md-1"><input name="ort" class="form-control" placeholder="Ort"></div>
+          <div class="col-md-1"><button class="btn btn-success w-100">Anlegen</button></div>
+        </form>
+      </div>
+    </div>
+
+    <table class="table table-striped align-middle">
+      <thead class="table-dark">
+        <tr>
+          <th>Name</th>
+          <th>Kontaktperson</th>
+          <th>Telefon</th>
+          <th>Email</th>
+          <th>Straße</th>
+          <th>PLZ</th>
+          <th>Ort</th>
+          <th style="width: 120px;">Aktiv</th>
+          <th style="width: 200px;">Aktionen</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for l in lieferanten %}
+        <tr>
+          <td>
+            <form action="{{ url_for('admin.lieferant_update', lid=l.ID) }}" method="post">
+              <input name="name" class="form-control form-control-sm" value="{{ l.Name }}" required>
+          </td>
+          <td>
+              <input name="kontaktperson" class="form-control form-control-sm" value="{{ l.Kontaktperson or '' }}">
+          </td>
+          <td>
+              <input name="telefon" class="form-control form-control-sm" value="{{ l.Telefon or '' }}">
+          </td>
+          <td>
+              <input type="email" name="email" class="form-control form-control-sm" value="{{ l.Email or '' }}">
+          </td>
+          <td>
+              <input name="strasse" class="form-control form-control-sm" value="{{ l.Strasse or '' }}">
+          </td>
+          <td>
+              <input name="plz" class="form-control form-control-sm" value="{{ l.PLZ or '' }}">
+          </td>
+          <td>
+              <input name="ort" class="form-control form-control-sm" value="{{ l.Ort or '' }}">
+          </td>
+          <td>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="aktiv" id="lieferantAktiv{{ l.ID }}" {% if l.Aktiv %}checked{% endif %}>
+                <label class="form-check-label" for="lieferantAktiv{{ l.ID }}">Aktiv</label>
+              </div>
+          </td>
+          <td>
+              <button class="btn btn-sm btn-primary">Speichern</button>
+            </form>
+            <form action="{{ url_for('admin.lieferant_delete', lid=l.ID) }}" method="post" class="d-inline mt-1">
+              <button class="btn btn-sm btn-danger" onclick="return confirm('Lieferant wirklich löschen?')">Löschen</button>
             </form>
           </td>
         </tr>

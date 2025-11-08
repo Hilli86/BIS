@@ -657,6 +657,54 @@ def thema_detail(thema_id):
 
         mitarbeiter = conn.execute('SELECT * FROM Mitarbeiter').fetchall()
 
+        # Ersatzteil-Verknüpfungen laden
+        ersatzteil_verknuepfungen = conn.execute('''
+            SELECT 
+                v.ID,
+                v.ErsatzteilID,
+                v.Menge,
+                v.VerwendetAm,
+                v.Bemerkung,
+                e.Artikelnummer,
+                e.Bezeichnung AS ErsatzteilBezeichnung,
+                m.Vorname || ' ' || m.Nachname AS VerwendetVon
+            FROM ErsatzteilThemaVerknuepfung v
+            JOIN Ersatzteil e ON v.ErsatzteilID = e.ID
+            JOIN Mitarbeiter m ON v.VerwendetVonID = m.ID
+            WHERE v.ThemaID = ?
+            ORDER BY v.VerwendetAm DESC
+        ''', (thema_id,)).fetchall()
+
+        # Verfügbare Ersatzteile für den aktuellen Benutzer laden
+        mitarbeiter_id = session.get('user_id')
+        sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+        is_admin = 'BIS-Admin' in (session.get('user_abteilungen') or [])
+        
+        verfuegbare_query = '''
+            SELECT e.ID, e.Artikelnummer, e.Bezeichnung, e.AktuellerBestand, e.Einheit
+            FROM Ersatzteil e
+            WHERE e.Gelöscht = 0 AND e.Aktiv = 1 AND e.AktuellerBestand > 0
+        '''
+        verfuegbare_params = []
+        
+        if not is_admin and sichtbare_abteilungen:
+            placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+            verfuegbare_query += f'''
+                AND e.ID IN (
+                    SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
+                    WHERE AbteilungID IN ({placeholders})
+                )
+            '''
+            verfuegbare_params.extend(sichtbare_abteilungen)
+        elif not is_admin:
+            verfuegbare_query += ' AND 1=0'
+        
+        verfuegbare_query += ' ORDER BY e.Bezeichnung'
+        verfuegbare_ersatzteile = conn.execute(verfuegbare_query, verfuegbare_params).fetchall()
+
+        # Kostenstellen für Dropdown
+        kostenstellen = conn.execute('SELECT ID, Bezeichnung FROM Kostenstelle WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung').fetchall()
+
     previous_page = request.args.get('next') or url_for('index')
     
     # Dateianzahl ermitteln
@@ -671,7 +719,10 @@ def thema_detail(thema_id):
         taetigkeiten=taetigkeiten,
         sichtbarkeiten=sichtbarkeiten,
         previous_page=previous_page,
-        datei_anzahl=datei_anzahl
+        datei_anzahl=datei_anzahl,
+        ersatzteil_verknuepfungen=ersatzteil_verknuepfungen,
+        verfuegbare_ersatzteile=verfuegbare_ersatzteile,
+        kostenstellen=kostenstellen
     )
 
 
