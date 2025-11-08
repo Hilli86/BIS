@@ -361,14 +361,17 @@ document.addEventListener("submit", async (e) => {
 
 // Infinite Scroll
 let isLoading = false;
+let allLoaded = false;
 let currentOffset = {{ themen|length }};
 const statusFilters = {{ (status_filter_list or []) | tojson }};
 let bereichFilter = '{{ bereich_filter or '' }}';
 let gewerkFilter = '{{ gewerk_filter or '' }}';
 let qFilter = '{{ q_filter or '' }}';
+let scrollTimeout = null;
 
 async function loadMoreThemen() {
-  if (isLoading) return;
+  // Prüfen ob bereits alle geladen sind oder gerade geladen wird
+  if (isLoading || allLoaded) return;
   isLoading = true;
 
   const loadingIndicator = document.getElementById('loadingIndicator');
@@ -510,32 +513,51 @@ async function loadMoreThemen() {
       });
 
       currentOffset += data.themen.length;
+      
+      // Wenn weniger als 50 Themen geladen wurden, sind alle geladen
+      if (data.themen.length < 50) {
+        allLoaded = true;
+        loadingIndicator.innerHTML = '<p class="text-muted">Alle Einträge geladen.</p>';
+      }
     } else {
+      allLoaded = true;
       loadingIndicator.innerHTML = '<p class="text-muted">Alle Einträge geladen.</p>';
     }
   } catch (error) {
     console.error('Fehler beim Laden:', error);
     loadingIndicator.innerHTML = '<p class="text-danger">Fehler beim Laden weiterer Einträge.</p>';
+    // Bei Fehler nicht als "alle geladen" markieren, damit es später nochmal versucht werden kann
   } finally {
     isLoading = false;
     loadingIndicator.style.display = 'none';
   }
 }
 
-// Scroll-Listener
+// Scroll-Listener mit Debouncing
 window.addEventListener('scroll', () => {
-  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-  const windowHeight = window.innerHeight;
-  const documentHeight = document.documentElement.scrollHeight;
-
-  // Wenn der Benutzer 200px vor dem Ende ist, lade mehr
-  if (scrollTop + windowHeight >= documentHeight - 200) {
-    loadMoreThemen();
+  // Debouncing: Warte 100ms nach dem letzten Scroll-Event
+  if (scrollTimeout) {
+    clearTimeout(scrollTimeout);
   }
+  
+  scrollTimeout = setTimeout(() => {
+    // Prüfen ob bereits alle geladen sind
+    if (allLoaded || isLoading) return;
+    
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    const windowHeight = window.innerHeight;
+    const documentHeight = document.documentElement.scrollHeight;
+
+    // Wenn der Benutzer 300px vor dem Ende ist, lade mehr (erhöht von 200px auf 300px für besseren Puffer)
+    if (scrollTop + windowHeight >= documentHeight - 300) {
+      loadMoreThemen();
+    }
+  }, 100);
 });
 
 // Initial prüfen, ob bereits mehr geladen werden soll
 if (currentOffset < 50) {
+  allLoaded = true;
   document.getElementById('loadingIndicator').innerHTML = '<p class="text-muted">Alle Einträge geladen.</p>';
 }
 

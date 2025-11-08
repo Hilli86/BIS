@@ -1,0 +1,155 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">👤 Mein Profil</h1>
+
+    <div class="row">
+        <!-- Profil-Informationen -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">📋 Profil-Informationen</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('auth.profil') }}">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="personalnummer" class="form-label">
+                                    <strong>Personalnummer:</strong>
+                                </label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="personalnummer" 
+                                       value="{{ user.Personalnummer }}" 
+                                       disabled
+                                       readonly>
+                                <small class="text-muted">Die Personalnummer kann nicht geändert werden.</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="aktiv" class="form-label">
+                                    <strong>Status:</strong>
+                                </label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="aktiv" 
+                                       value="{% if user.Aktiv %}Aktiv{% else %}Inaktiv{% endif %}" 
+                                       disabled
+                                       readonly>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="vorname" class="form-label">
+                                    <strong>Vorname:</strong> <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="vorname" 
+                                       name="vorname" 
+                                       value="{{ user.Vorname or '' }}" 
+                                       required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="nachname" class="form-label">
+                                    <strong>Nachname:</strong> <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="nachname" 
+                                       name="nachname" 
+                                       value="{{ user.Nachname }}" 
+                                       required>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <strong>Primärabteilung:</strong>
+                            </label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   value="{{ user.PrimaerAbteilung or 'Keine Abteilung zugewiesen' }}" 
+                                   disabled
+                                   readonly>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save"></i> Änderungen speichern
+                            </button>
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left"></i> Zurück
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Abteilungen -->
+            {% if alle_abteilungen %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">🏢 Zugeordnete Abteilungen</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for abt in alle_abteilungen %}
+                        <span class="badge bg-secondary fs-6">
+                            {% if abt.ParentAbteilungID %}↳{% endif %} {{ abt.Bezeichnung }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                    <small class="text-muted d-block mt-2">
+                        Die Abteilungszuordnungen können nur von einem Administrator geändert werden.
+                    </small>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Seitenleiste: Statistiken & Aktionen -->
+        <div class="col-lg-4">
+            <!-- Statistiken -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">📊 Statistiken</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-muted">Bemerkungen erstellt:</span>
+                            <strong class="fs-5">{{ bemerkung_anzahl }}</strong>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-muted">Themen bearbeitet:</span>
+                            <strong class="fs-5">{{ thema_anzahl }}</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Schnellzugriff -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">⚡ Schnellzugriff</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('auth.passwort_aendern') }}" class="btn btn-outline-primary">
+                            <i class="bi bi-key"></i> Passwort ändern
+                        </a>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-speedometer2"></i> Zum Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

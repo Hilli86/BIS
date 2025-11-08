@@ -114,12 +114,19 @@ Automatische Deployment-Scripts finden Sie im Ordner `deployment/`.
 BIS/
 ├── app.py                 # Hauptanwendung
 ├── config.py              # Konfiguration
+├── init_database.py       # Datenbank-Initialisierung
+├── modules/               # Modulare Blueprints
+│   ├── auth/             # Authentifizierung
+│   ├── schichtbuch/      # Schichtbuch-Funktionen
+│   └── admin/            # Admin-Bereich
+├── utils/                 # Hilfsfunktionen
+├── migrations/            # Datenbank-Migrationen
 ├── templates/             # HTML-Templates
 │   ├── layout/
-│   ├── mitarbeiter/
-│   ├── schichtbuch/
+│   ├── dashboard/
+│   ├── auth/
 │   └── errors/
-├── static/                # CSS/JS Dateien
+├── static/                # CSS/JS/Icons
 ├── env_example.txt        # Beispiel-Env
 ├── requirements.txt       # Python-Abhängigkeiten
 └── database_main.db       # SQLite-Datenbank (Standard)
@@ -127,20 +134,41 @@ BIS/
 
 ## 🔧 Funktionen
 
+### Benutzerverwaltung
 - **Benutzerauthentifizierung** mit Personalnummer
-- **Schichtbuch-Verwaltung** mit Themen und Bemerkungen
-- **Status-Tracking** (Offen, In Arbeit, Abgeschlossen)
-- **Liste Details (sbListeDetails)**
-  - Infinite Scroll: Laden in Seiten à 50 Einträgen
-  - Filter (einklappbar):
-    - Bereich und Gewerk (Gewerk dynamisch nach Bereich)
-    - Status-Mehrfachauswahl
-    - Textsuche in Bemerkungen
-  - Bemerkungen werden nur für die angezeigten Themen geladen
+- **Benutzerprofil** - Anzeige und Bearbeitung persönlicher Daten
+- **Passwort ändern** - Selbstständige Passwortänderung
+- **Dashboard** - Übersicht mit Statistiken und Aktivitäten
+
+### Schichtbuch-Verwaltung
+- **Themenliste** mit Infinite Scroll (Laden in Seiten à 50 Einträgen)
+- **Filter** (einklappbar):
+  - Bereich und Gewerk (Gewerk dynamisch nach Bereich)
+  - Status-Mehrfachauswahl
+  - Textsuche in Bemerkungen
 - **Thema-Details**
   - Tätigkeit wird pro Bemerkung angezeigt
   - Eigene Bemerkungen können inline bearbeitet werden (Text und Tätigkeit)
+  - **PDF-Export** - Themen als PDF exportieren
+  - Datei-Upload und QR-Code-Generierung
+- **Status-Tracking** (Offen, In Arbeit, Abgeschlossen)
+- **Sichtbarkeitssteuerung** - Themen für bestimmte Abteilungen sichtbar machen
+
+### Benachrichtigungen
+- **Toast-Benachrichtigungen** bei neuen Bemerkungen auf eigenen Themen
+- **Badge-Anzeige** in der Navigation für ungelesene Nachrichten
+- Automatische Aktualisierung alle 30 Sekunden
+
+### Admin-Bereich
+- **Mitarbeiter-Verwaltung** - Anlegen, Bearbeiten, Passwort zurücksetzen
+- **Abteilungs-Verwaltung** - Hierarchische Struktur
+- **Stammdaten-Verwaltung** - Bereiche, Gewerke, Status, Tätigkeiten
+- **Datenbank-Check** - Überprüfung und Reparatur der Datenbankstruktur
+
+### Technische Features
 - **AJAX-Unterstützung** für dynamische Updates
+- **Responsive Design** - Mobile Navigation mit Hamburger-Menü
+- **PWA-Unterstützung** - Installierbar als Web-App
 
 ## 🛠️ Entwicklung
 
@@ -180,7 +208,16 @@ python app.py
 
 ## 📝 Changelog
 
-### Version 1.2 (Aktuell)
+### Version 1.3 (Aktuell)
+- ✅ **Benutzerprofil** - Anzeige und Bearbeitung persönlicher Daten
+- ✅ **PDF-Export** - Themen als PDF exportieren
+- ✅ **Benachrichtigungssystem** - Toast-Benachrichtigungen und Badge-Anzeige
+- ✅ **Passwort ändern** - Selbstständige Passwortänderung für Benutzer
+- ✅ **Dashboard** - Übersicht mit Statistiken und Aktivitäten
+- ✅ **Mobile Navigation** - Responsive Design mit Hamburger-Menü
+- ✅ **Admin: Passwort zurücksetzen** - Passwort auf Vorname zurücksetzen
+
+### Version 1.2
 - ✅ sbListeDetails: Infinite Scroll, neue Filter (Bereich, Gewerk, Status-Multi, Textsuche)
 - ✅ sbThemaDetail: Tätigkeit pro Bemerkung, Inline-Bearbeitung eigener Bemerkungen
 

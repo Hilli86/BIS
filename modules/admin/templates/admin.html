@@ -102,6 +102,10 @@
                 <button class="btn btn-sm btn-outline-warning mt-1">Deaktivieren</button>
               </form>
               {% endif %}
+              
+              <button class="btn btn-sm btn-outline-danger mt-1" onclick="resetPassword({{ m.ID }}, '{{ m.Vorname }}', '{{ m.Nachname }}')">
+                <i class="bi bi-key-fill"></i> Passwort zurücksetzen
+              </button>
             </td>
           </tr>
           {% endfor %}
@@ -517,6 +521,33 @@ function setupColorPickers() {
         }
       });
     }
+  });
+}
+
+// Passwort zurücksetzen
+function resetPassword(mitarbeiterId, vorname, nachname) {
+  const confirmMessage = `Möchten Sie das Passwort für ${vorname} ${nachname} wirklich auf "${vorname}" zurücksetzen?`;
+  
+  if (!confirm(confirmMessage)) {
+    return;
+  }
+  
+  fetch(`{{ url_for('admin.mitarbeiter_reset_password', mid=0) }}`.replace('/0', `/${mitarbeiterId}`), {
+    method: 'POST',
+    headers: {
+      'X-Requested-With': 'XMLHttpRequest'
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showToast(data.message, 'success');
+    } else {
+      showToast(data.message, 'error');
+    }
+  })
+  .catch(error => {
+    showToast('Ein Fehler ist aufgetreten: ' + error.message, 'error');
   });
 }
 

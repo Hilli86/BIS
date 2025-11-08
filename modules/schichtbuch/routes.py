@@ -2,10 +2,18 @@
 Schichtbuch Routes - Themenliste, Details, Bemerkungen
 """
 
-from flask import render_template, request, redirect, url_for, session, jsonify, flash, send_from_directory, current_app
+from flask import render_template, request, redirect, url_for, session, jsonify, flash, send_from_directory, current_app, Response
 from datetime import datetime
 import os
+from xml.sax.saxutils import escape
 from werkzeug.utils import secure_filename
+from io import BytesIO
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import cm
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
 from . import schichtbuch_bp
 from utils import get_db_connection, login_required, get_sichtbare_abteilungen_fuer_mitarbeiter
 
@@ -312,6 +320,15 @@ def add_bemerkung():
             INSERT INTO SchichtbuchBemerkungen (ThemaID, MitarbeiterID, Bemerkung, Datum, TaetigkeitID)
             VALUES (?, ?, ?, ?, ?)
             """, (thema_id, mitarbeiter_id, bemerkung_text, datum, taetigkeit_id))
+        
+        bemerkung_id = cursor.lastrowid
+        
+        # Benachrichtigungen für andere Mitarbeiter erstellen
+        from utils import erstelle_benachrichtigung_fuer_bemerkung
+        try:
+            erstelle_benachrichtigung_fuer_bemerkung(thema_id, bemerkung_id, mitarbeiter_id, conn)
+        except Exception as e:
+            print(f"Fehler beim Erstellen von Benachrichtigungen: {e}")
 
         neuer_status = None
         neue_farbe = None
@@ -390,6 +407,25 @@ def themaneu():
                 INSERT INTO SchichtbuchBemerkungen (ThemaID, MitarbeiterID, Datum, TaetigkeitID, Bemerkung)
                 VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?)
             ''', (thema_id, mitarbeiter_id, taetigkeit_id, bemerkung))
+            
+            # Benachrichtigungen für Mitarbeiter in sichtbaren Abteilungen erstellen
+            from utils import erstelle_benachrichtigung_fuer_neues_thema
+            try:
+                # Alle Abteilungs-IDs sammeln (inkl. Unterabteilungen)
+                alle_abteilungs_ids = []
+                from utils import get_untergeordnete_abteilungen
+                for abt_id in sichtbare_abteilungen:
+                    alle_abteilungs_ids.append(abt_id)
+                    unterabteilungen = get_untergeordnete_abteilungen(abt_id, conn)
+                    alle_abteilungs_ids.extend([u['ID'] for u in unterabteilungen])
+                
+                # Duplikate entfernen
+                alle_abteilungs_ids = list(set(alle_abteilungs_ids))
+                
+                if alle_abteilungs_ids:
+                    erstelle_benachrichtigung_fuer_neues_thema(thema_id, alle_abteilungs_ids, conn)
+            except Exception as e:
+                print(f"Fehler beim Erstellen von Benachrichtigungen: {e}")
 
             # Sichtbarkeiten speichern
             if sichtbare_abteilungen:
@@ -548,10 +584,20 @@ def thema_detail(thema_id):
 
         with get_db_connection() as conn:
             # Bemerkung speichern
-            conn.execute('''
+            cursor = conn.cursor()
+            cursor.execute('''
                 INSERT INTO SchichtbuchBemerkungen (ThemaID, MitarbeiterID, Datum, TaetigkeitID, Bemerkung)
                 VALUES (?, ?, ?, ?, ?)
             ''', (thema_id, mitarbeiter_id, datum, taetigkeit_id, bemerkung))
+            
+            bemerkung_id = cursor.lastrowid
+            
+            # Benachrichtigungen für andere Mitarbeiter erstellen
+            from utils import erstelle_benachrichtigung_fuer_bemerkung
+            try:
+                erstelle_benachrichtigung_fuer_bemerkung(thema_id, bemerkung_id, mitarbeiter_id, conn)
+            except Exception as e:
+                print(f"Fehler beim Erstellen von Benachrichtigungen: {e}")
 
             # Status ggf. ändern
             if neuer_status and neuer_status != "":
@@ -990,4 +1036,299 @@ def thema_datei_upload(thema_id):
         })
     except Exception as e:
         return jsonify({'success': False, 'message': f'Fehler beim Speichern: {str(e)}'}), 500
+
+
+# ========== Benachrichtigungen ==========
+
+@schichtbuch_bp.route('/api/benachrichtigungen')
+@login_required
+def api_benachrichtigungen():
+    """API: Ungelesene Benachrichtigungen abrufen"""
+    mitarbeiter_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        benachrichtigungen = conn.execute('''
+            SELECT 
+                B.ID,
+                B.Typ,
+                B.Titel,
+                B.Nachricht,
+                B.ThemaID,
+                B.ErstelltAm,
+                T.GewerkID,
+                G.Bezeichnung AS Gewerk,
+                BE.Bezeichnung AS Bereich
+            FROM Benachrichtigung B
+            JOIN SchichtbuchThema T ON B.ThemaID = T.ID
+            JOIN Gewerke G ON T.GewerkID = G.ID
+            JOIN Bereich BE ON G.BereichID = BE.ID
+            WHERE B.MitarbeiterID = ? AND B.Gelesen = 0 AND T.Gelöscht = 0
+            ORDER BY B.ErstelltAm DESC
+            LIMIT 20
+        ''', (mitarbeiter_id,)).fetchall()
+        
+        anzahl_ungelesen = conn.execute('''
+            SELECT COUNT(*) AS Anzahl
+            FROM Benachrichtigung
+            WHERE MitarbeiterID = ? AND Gelesen = 0
+        ''', (mitarbeiter_id,)).fetchone()['Anzahl']
+    
+    return jsonify({
+        'success': True,
+        'benachrichtigungen': [dict(b) for b in benachrichtigungen],
+        'anzahl_ungelesen': anzahl_ungelesen
+    })
+
+
+@schichtbuch_bp.route('/api/benachrichtigungen/<int:benachrichtigung_id>/gelesen', methods=['POST'])
+@login_required
+def api_benachrichtigung_gelesen(benachrichtigung_id):
+    """API: Benachrichtigung als gelesen markieren"""
+    mitarbeiter_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        # Prüfen ob Benachrichtigung dem Benutzer gehört
+        benachrichtigung = conn.execute('''
+            SELECT ID FROM Benachrichtigung 
+            WHERE ID = ? AND MitarbeiterID = ?
+        ''', (benachrichtigung_id, mitarbeiter_id)).fetchone()
+        
+        if not benachrichtigung:
+            return jsonify({'success': False, 'message': 'Benachrichtigung nicht gefunden'}), 404
+        
+        # Als gelesen markieren
+        conn.execute('''
+            UPDATE Benachrichtigung SET Gelesen = 1 
+            WHERE ID = ?
+        ''', (benachrichtigung_id,))
+        conn.commit()
+    
+    return jsonify({'success': True, 'message': 'Benachrichtigung als gelesen markiert'})
+
+
+@schichtbuch_bp.route('/api/benachrichtigungen/alle-gelesen', methods=['POST'])
+@login_required
+def api_alle_benachrichtigungen_gelesen():
+    """API: Alle Benachrichtigungen als gelesen markieren"""
+    mitarbeiter_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        conn.execute('''
+            UPDATE Benachrichtigung SET Gelesen = 1 
+            WHERE MitarbeiterID = ? AND Gelesen = 0
+        ''', (mitarbeiter_id,))
+        conn.commit()
+    
+    return jsonify({'success': True, 'message': 'Alle Benachrichtigungen als gelesen markiert'})
+
+
+# ========== PDF-Export ==========
+
+def hex_to_color(hex_color):
+    """Konvertiert Hex-Farbe zu ReportLab Color"""
+    if not hex_color or not hex_color.startswith('#'):
+        return colors.HexColor('#6c757d')
+    try:
+        return colors.HexColor(hex_color)
+    except:
+        return colors.HexColor('#6c757d')
+
+
+@schichtbuch_bp.route('/thema/<int:thema_id>/pdf')
+@login_required
+def thema_pdf_export(thema_id):
+    """PDF-Export für ein Thema"""
+    mitarbeiter_id = session.get('user_id')
+    
+    # Berechtigungsprüfung
+    with get_db_connection() as conn:
+        sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+        
+        if sichtbare_abteilungen:
+            placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+            berechtigt = conn.execute(f'''
+                SELECT COUNT(*) as count FROM SchichtbuchThemaSichtbarkeit
+                WHERE ThemaID = ? AND AbteilungID IN ({placeholders})
+            ''', [thema_id] + sichtbare_abteilungen).fetchone()
+            
+            if berechtigt['count'] == 0:
+                flash('Sie haben keine Berechtigung, dieses Thema zu exportieren.', 'danger')
+                return redirect(url_for('schichtbuch.themaliste'))
+        
+        # Thema-Informationen laden
+        thema = conn.execute('''
+            SELECT 
+                t.ID,
+                t.ErstelltAm,
+                g.Bezeichnung AS Gewerk,
+                b.Bezeichnung AS Bereich,
+                s.Bezeichnung AS Status,
+                s.Farbe AS StatusFarbe,
+                a.Bezeichnung AS Abteilung
+            FROM SchichtbuchThema t
+            JOIN Gewerke g ON t.GewerkID = g.ID
+            JOIN Bereich b ON g.BereichID = b.ID
+            JOIN Status s ON t.StatusID = s.ID
+            LEFT JOIN Abteilung a ON t.ErstellerAbteilungID = a.ID
+            WHERE t.ID = ?
+        ''', (thema_id,)).fetchone()
+        
+        if not thema:
+            flash('Thema nicht gefunden.', 'danger')
+            return redirect(url_for('schichtbuch.themaliste'))
+        
+        # Sichtbare Abteilungen laden
+        sichtbarkeiten = conn.execute('''
+            SELECT a.Bezeichnung, a.ParentAbteilungID
+            FROM SchichtbuchThemaSichtbarkeit sv
+            JOIN Abteilung a ON sv.AbteilungID = a.ID
+            WHERE sv.ThemaID = ?
+            ORDER BY a.Sortierung, a.Bezeichnung
+        ''', (thema_id,)).fetchall()
+        
+        # Bemerkungen laden (chronologisch, älteste zuerst)
+        bemerkungen = conn.execute('''
+            SELECT 
+                b.ID AS BemerkungID,
+                b.Datum,
+                m.Vorname,
+                m.Nachname,
+                b.Bemerkung,
+                t.Bezeichnung AS Taetigkeit
+            FROM SchichtbuchBemerkungen b
+            JOIN Mitarbeiter m ON b.MitarbeiterID = m.ID
+            LEFT JOIN Taetigkeit t ON b.TaetigkeitID = t.ID
+            WHERE b.ThemaID = ? AND b.Gelöscht = 0
+            ORDER BY b.Datum ASC
+        ''', (thema_id,)).fetchall()
+    
+    # PDF erstellen
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4,
+                            rightMargin=2*cm, leftMargin=2*cm,
+                            topMargin=2*cm, bottomMargin=2*cm)
+    
+    # Container für PDF-Inhalt
+    story = []
+    
+    # Styles definieren
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        textColor=colors.HexColor('#0066cc'),
+        spaceAfter=30,
+        alignment=TA_CENTER
+    )
+    
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=14,
+        textColor=colors.HexColor('#333333'),
+        spaceAfter=12,
+        spaceBefore=12
+    )
+    
+    normal_style = styles['Normal']
+    normal_style.fontSize = 10
+    normal_style.leading = 14
+    
+    # Header
+    story.append(Paragraph("BIS - Betriebsinformationssystem", title_style))
+    story.append(Spacer(1, 0.5*cm))
+    story.append(Paragraph(f"Thema #{thema['ID']}", title_style))
+    story.append(Spacer(1, 0.5*cm))
+    
+    # Thema-Informationen als Tabelle (mit Paragraph-Objekten für HTML-Formatierung)
+    thema_data = [
+        [Paragraph('<b>Bereich:</b>', normal_style), Paragraph(escape(str(thema['Bereich'])), normal_style)],
+        [Paragraph('<b>Gewerk:</b>', normal_style), Paragraph(escape(str(thema['Gewerk'])), normal_style)],
+        [Paragraph('<b>Status:</b>', normal_style), Paragraph(escape(str(thema['Status'])), normal_style)],
+    ]
+    
+    if thema['Abteilung']:
+        thema_data.append([Paragraph('<b>Abteilung:</b>', normal_style), Paragraph(escape(str(thema['Abteilung'])), normal_style)])
+    
+    if thema['ErstelltAm']:
+        erstellt_datum = thema['ErstelltAm'][:10] if len(thema['ErstelltAm']) >= 10 else thema['ErstelltAm']
+        thema_data.append([Paragraph('<b>Erstellt am:</b>', normal_style), Paragraph(escape(str(erstellt_datum)), normal_style)])
+    
+    if sichtbarkeiten:
+        sichtbarkeiten_text = ', '.join([s['Bezeichnung'] for s in sichtbarkeiten])
+        thema_data.append([Paragraph('<b>Sichtbar für:</b>', normal_style), Paragraph(escape(sichtbarkeiten_text), normal_style)])
+    
+    thema_table = Table(thema_data, colWidths=[5*cm, 12*cm])
+    thema_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f8f9fa')),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+        ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+    ]))
+    
+    story.append(thema_table)
+    story.append(Spacer(1, 1*cm))
+    
+    # Bemerkungen
+    story.append(Paragraph("Bemerkungen", heading_style))
+    
+    if bemerkungen:
+        for idx, bemerkung in enumerate(bemerkungen, 1):
+            # Bemerkungs-Header
+            datum_text = bemerkung['Datum'][:16] if len(bemerkung['Datum']) >= 16 else bemerkung['Datum']
+            header_text = f"<b>Bemerkung #{idx}</b> - {datum_text} - {bemerkung['Vorname']} {bemerkung['Nachname']}"
+            if bemerkung['Taetigkeit']:
+                header_text += f" ({bemerkung['Taetigkeit']})"
+            
+            story.append(Paragraph(header_text, ParagraphStyle(
+                'BemerkungHeader',
+                parent=normal_style,
+                fontSize=10,
+                textColor=colors.HexColor('#0066cc'),
+                spaceAfter=6
+            )))
+            
+            # Bemerkungstext (mit Zeilenumbrüchen und HTML-Escape)
+            bemerkung_text = escape(bemerkung['Bemerkung']).replace('\n', '<br/>')
+            story.append(Paragraph(bemerkung_text, normal_style))
+            
+            # Abstand zwischen Bemerkungen
+            if idx < len(bemerkungen):
+                story.append(Spacer(1, 0.5*cm))
+                # Horizontale Linie
+                story.append(Table([['']], colWidths=[17*cm], style=TableStyle([
+                    ('LINEBELOW', (0, 0), (0, 0), 0.5, colors.grey),
+                ])))
+                story.append(Spacer(1, 0.5*cm))
+    else:
+        story.append(Paragraph("<i>Keine Bemerkungen vorhanden.</i>", normal_style))
+    
+    # Footer mit Datum
+    story.append(Spacer(1, 1*cm))
+    export_datum = datetime.now().strftime("%d.%m.%Y %H:%M")
+    story.append(Paragraph(f"<i>Exportiert am: {export_datum}</i>", ParagraphStyle(
+        'Footer',
+        parent=normal_style,
+        fontSize=8,
+        textColor=colors.grey,
+        alignment=TA_RIGHT
+    )))
+    
+    # PDF generieren
+    doc.build(story)
+    buffer.seek(0)
+    
+    # PDF als Download senden
+    filename = f"Thema_{thema_id}_{datetime.now().strftime('%Y%m%d')}.pdf"
+    return Response(
+        buffer.getvalue(),
+        mimetype='application/pdf',
+        headers={
+            'Content-Disposition': f'attachment; filename={filename}'
+        }
+    )
 

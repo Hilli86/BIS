@@ -49,6 +49,7 @@ Das Script erstellt folgende Tabellen:
 8. **SchichtbuchThema** - Schichtbuch-Themen
 9. **SchichtbuchBemerkungen** - Bemerkungen zu Themen
 10. **SchichtbuchThemaSichtbarkeit** - Sichtbarkeitssteuerung für Themen
+11. **Benachrichtigung** - Benachrichtigungen für Benutzer
 
 Alle Tabellen werden mit den entsprechenden Indizes für optimale Performance erstellt.
 

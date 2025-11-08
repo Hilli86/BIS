@@ -83,9 +83,12 @@
     }
 
     .main-content {
-      margin-left: 260px;
       padding: 1.5rem;
       transition: margin-left 0.3s ease-in-out;
+    }
+
+    .main-content.with-sidebar {
+      margin-left: 260px;
     }
 
     /* --- Kartenstil --- */
@@ -165,8 +168,12 @@
       }
 
       .main-content {
-        margin-left: 0;
+        margin-left: 0 !important;
         padding: 4rem 1rem 1rem 1rem;
+      }
+
+      .main-content.with-sidebar {
+        margin-left: 0 !important;
       }
 
       .menu-toggle {
@@ -185,6 +192,7 @@
 
 <body>
 
+  {% if session.user_id %}
   <!-- 🔹 Hamburger-Menü für Mobile -->
   <button class="menu-toggle" id="menuToggle" aria-label="Menü">
     <span></span>
@@ -199,11 +207,12 @@
   <div class="sidebar" id="sidebar">
     <div class="d-flex align-items-center mb-3">
       <img src="{{ url_for('static', filename='icons/icon-120.png') }}" alt="BIS Logo" style="width: 32px; height: 32px; margin-right: 10px; border-radius: 6px;">
-      <h5 class="mb-0">BIS</h5>
+      <h5 class="mb-0">Binca Manufaktur</h5>
     </div>
   
     <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}">
       📊 Dashboard
+      <span id="notificationBadge" class="badge bg-danger ms-2" style="display: none;">0</span>
     </a>
 
     {% if session.user_abteilungen and 'BIS-Admin' in session.user_abteilungen %}
@@ -232,15 +241,26 @@
             <small class="text-muted">🏢 Keine Abteilung</small>
           {% endif %}
         </div>
-        <a href="{{ url_for('auth.logout') }}" class="text-decoration-none text-danger">Abmelden</a>
+        <div class="d-flex flex-column gap-2">
+          <a href="{{ url_for('auth.profil') }}" class="text-decoration-none">
+            <i class="bi bi-person"></i> Mein Profil
+          </a>
+          <a href="{{ url_for('auth.passwort_aendern') }}" class="text-decoration-none">
+            <i class="bi bi-key"></i> Passwort ändern
+          </a>
+          <a href="{{ url_for('auth.logout') }}" class="text-decoration-none text-danger">
+            <i class="bi bi-box-arrow-right"></i> Abmelden
+          </a>
+        </div>
       {% else %}
         <a href="{{ url_for('auth.login') }}">Anmelden</a>
       {% endif %}
     </div>
   </div>
+  {% endif %}
 
   <!-- 🔹 Hauptinhalt -->
-  <div class="main-content">
+  <div class="main-content {% if session.user_id %}with-sidebar{% endif %}">
     {% block content %}
     {% endblock %}
   </div>
@@ -249,28 +269,30 @@
   <script>window.bootstrap = bootstrap;</script>
 
   <script>
-    // Mobile Menü Toggle
+    // Mobile Menü Toggle (nur wenn Elemente vorhanden sind)
     const menuToggle = document.getElementById('menuToggle');
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebarOverlay');
 
-    function toggleMenu() {
-      sidebar.classList.toggle('open');
-      overlay.classList.toggle('show');
-    }
+    if (menuToggle && sidebar && overlay) {
+      function toggleMenu() {
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('show');
+      }
 
-    menuToggle.addEventListener('click', toggleMenu);
-    overlay.addEventListener('click', toggleMenu);
+      menuToggle.addEventListener('click', toggleMenu);
+      overlay.addEventListener('click', toggleMenu);
 
-    // Menü schließen bei Klick auf einen Link (nur auf mobilen Geräten)
-    if (window.innerWidth <= 768) {
-      const sidebarLinks = sidebar.querySelectorAll('a');
-      sidebarLinks.forEach(link => {
-        link.addEventListener('click', () => {
-          sidebar.classList.remove('open');
-          overlay.classList.remove('show');
+      // Menü schließen bei Klick auf einen Link (nur auf mobilen Geräten)
+      if (window.innerWidth <= 768) {
+        const sidebarLinks = sidebar.querySelectorAll('a');
+        sidebarLinks.forEach(link => {
+          link.addEventListener('click', () => {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('show');
+          });
         });
-      });
+      }
     }
 
     // Service Worker registrieren
@@ -285,6 +307,147 @@
           });
       });
     }
+
+    // Benachrichtigungen laden und anzeigen
+    function loadBenachrichtigungen() {
+      fetch('{{ url_for("schichtbuch.api_benachrichtigungen") }}', {
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          const badge = document.getElementById('notificationBadge');
+          if (badge) {
+            if (data.anzahl_ungelesen > 0) {
+              badge.textContent = data.anzahl_ungelesen > 99 ? '99+' : data.anzahl_ungelesen;
+              badge.style.display = 'inline-block';
+            } else {
+              badge.style.display = 'none';
+            }
+          }
+
+          // Neue Benachrichtigungen als Toast anzeigen
+          if (data.benachrichtigungen && data.benachrichtigungen.length > 0) {
+            // Nur die neuesten 3 anzeigen (um Spam zu vermeiden)
+            const neue = data.benachrichtigungen.slice(0, 3);
+            neue.forEach(notif => {
+              showNotificationToast(notif);
+            });
+          }
+        }
+      })
+      .catch(error => {
+        console.error('Fehler beim Laden der Benachrichtigungen:', error);
+      });
+    }
+
+    // Toast-Benachrichtigung anzeigen
+    function showNotificationToast(notif) {
+      // Prüfen ob diese Benachrichtigung bereits angezeigt wurde
+      const storageKey = `notif_shown_${notif.ID}`;
+      if (localStorage.getItem(storageKey)) {
+        return; // Bereits angezeigt
+      }
+
+      // Toast-Container erstellen falls nicht vorhanden
+      let toastContainer = document.getElementById('toastContainer');
+      if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toastContainer';
+        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
+      }
+
+      // Toast erstellen
+      const toastId = 'toast-' + Date.now();
+      const toastHtml = `
+        <div id="${toastId}" class="toast align-items-center text-white bg-primary border-0" role="alert" aria-live="assertive" aria-atomic="true">
+          <div class="d-flex">
+            <div class="toast-body">
+              <strong>${notif.Titel}</strong><br>
+              <small>${notif.Nachricht}</small>
+              <div class="mt-2">
+                <a href="${'{{ url_for("schichtbuch.thema_detail", thema_id=0) }}'.replace('/0', `/${notif.ThemaID}`)}" 
+                   class="btn btn-sm btn-light me-2" onclick="markAsRead(${notif.ID})">
+                  Ansehen
+                </a>
+                <button type="button" class="btn btn-sm btn-outline-light" onclick="markAsRead(${notif.ID}); document.getElementById('${toastId}').remove();">
+                  Schließen
+                </button>
+              </div>
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close" onclick="markAsRead(${notif.ID})"></button>
+          </div>
+        </div>
+      `;
+      
+      toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+      const toastElement = document.getElementById(toastId);
+      const toast = new bootstrap.Toast(toastElement, { delay: 10000 });
+      toast.show();
+      
+      // Als angezeigt markieren
+      localStorage.setItem(storageKey, 'true');
+      
+      // Toast nach dem Ausblenden entfernen
+      toastElement.addEventListener('hidden.bs.toast', () => {
+        toastElement.remove();
+      });
+    }
+
+    // Benachrichtigung als gelesen markieren
+    function markAsRead(benachrichtigungId) {
+      fetch(`{{ url_for("schichtbuch.api_benachrichtigung_gelesen", benachrichtigung_id=0) }}`.replace('/0', `/${benachrichtigungId}`), {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          // Badge aktualisieren
+          loadBenachrichtigungen();
+        }
+      })
+      .catch(error => {
+        console.error('Fehler beim Markieren als gelesen:', error);
+      });
+    }
+
+    // Benachrichtigungen beim Laden der Seite abrufen
+    {% if session.user_id %}
+    // Sofort beim Laden ausführen (auch wenn DOM bereits geladen ist)
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() {
+        loadBenachrichtigungen();
+      });
+    } else {
+      // DOM ist bereits geladen
+      loadBenachrichtigungen();
+    }
+    
+    // Alle 30 Sekunden aktualisieren
+    setInterval(loadBenachrichtigungen, 30000);
+    
+    // Bei Seitenwechsel auch aktualisieren (für Single-Page-App-Verhalten)
+    // Event-Listener für alle Navigation-Links
+    document.addEventListener('click', function(e) {
+      const link = e.target.closest('a');
+      if (link && link.href && !link.href.startsWith('#')) {
+        // Kurz warten, dann Benachrichtigungen neu laden
+        setTimeout(loadBenachrichtigungen, 500);
+      }
+    });
+    
+    // Auch beim Zurück-Button im Browser
+    window.addEventListener('popstate', function() {
+      setTimeout(loadBenachrichtigungen, 500);
+    });
+    {% endif %}
   </script>
 
   {% block scripts %}{% endblock %}

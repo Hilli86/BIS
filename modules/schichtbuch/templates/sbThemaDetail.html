@@ -7,6 +7,12 @@
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0">📋 Thema-Details</h5>
             <div class="d-flex gap-2">
+                <a href="{{ url_for('schichtbuch.thema_pdf_export', thema_id=thema.ID) }}" 
+                   class="btn btn-sm btn-light" 
+                   title="Als PDF exportieren"
+                   target="_blank">
+                    <i class="bi bi-file-pdf"></i> <span class="d-none d-sm-inline">PDF</span>
+                </a>
                 <button class="btn btn-sm btn-light position-relative" type="button"
                         onclick="openDateienModal({{ thema.ID }})"
                         title="Dateien & Bilder anzeigen">

@@ -190,7 +190,7 @@ def init_database():
         cursor.execute('CREATE INDEX idx_bemerkung_geloescht ON SchichtbuchBemerkungen(Gelöscht)')
         print("  [OK] Tabelle SchichtbuchBemerkungen erstellt")
         
-        print("[10/10] Erstelle Tabelle: SchichtbuchThemaSichtbarkeit...")
+        print("[10/11] Erstelle Tabelle: SchichtbuchThemaSichtbarkeit...")
         cursor.execute('''
             CREATE TABLE SchichtbuchThemaSichtbarkeit (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -205,6 +205,28 @@ def init_database():
         cursor.execute('CREATE INDEX idx_sichtbarkeit_thema ON SchichtbuchThemaSichtbarkeit(ThemaID)')
         cursor.execute('CREATE INDEX idx_sichtbarkeit_abteilung ON SchichtbuchThemaSichtbarkeit(AbteilungID)')
         print("  [OK] Tabelle SchichtbuchThemaSichtbarkeit erstellt")
+        
+        print("[11/11] Erstelle Tabelle: Benachrichtigung...")
+        cursor.execute('''
+            CREATE TABLE Benachrichtigung (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                MitarbeiterID INTEGER NOT NULL,
+                ThemaID INTEGER NOT NULL,
+                BemerkungID INTEGER NULL,
+                Typ TEXT NOT NULL,
+                Titel TEXT NOT NULL,
+                Nachricht TEXT NOT NULL,
+                Gelesen INTEGER NOT NULL DEFAULT 0,
+                ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (MitarbeiterID) REFERENCES Mitarbeiter(ID) ON DELETE CASCADE,
+                FOREIGN KEY (ThemaID) REFERENCES SchichtbuchThema(ID) ON DELETE CASCADE,
+                FOREIGN KEY (BemerkungID) REFERENCES SchichtbuchBemerkungen(ID) ON DELETE CASCADE
+            )
+        ''')
+        cursor.execute('CREATE INDEX idx_benachrichtigung_mitarbeiter ON Benachrichtigung(MitarbeiterID)')
+        cursor.execute('CREATE INDEX idx_benachrichtigung_thema ON Benachrichtigung(ThemaID)')
+        cursor.execute('CREATE INDEX idx_benachrichtigung_gelesen ON Benachrichtigung(Gelesen)')
+        print("  [OK] Tabelle Benachrichtigung erstellt")
         
         print()
         print("=" * 70)

@@ -134,6 +134,40 @@ def mitarbeiter_deactivate(mid):
         return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
 
 
+@admin_bp.route('/mitarbeiter/reset-password/<int:mid>', methods=['POST'])
+@admin_required
+def mitarbeiter_reset_password(mid):
+    """Passwort des Mitarbeiters auf Vorname zurücksetzen"""
+    try:
+        with get_db_connection() as conn:
+            # Vorname des Mitarbeiters abrufen
+            mitarbeiter = conn.execute(
+                'SELECT Vorname, Nachname FROM Mitarbeiter WHERE ID = ?',
+                (mid,)
+            ).fetchone()
+            
+            if not mitarbeiter:
+                return ajax_response('Mitarbeiter nicht gefunden.', success=False, status_code=404)
+            
+            vorname = mitarbeiter['Vorname']
+            nachname = mitarbeiter['Nachname']
+            
+            if not vorname:
+                return ajax_response('Mitarbeiter hat keinen Vornamen.', success=False)
+            
+            # Passwort auf Vorname setzen (gehasht)
+            neues_passwort_hash = generate_password_hash(vorname)
+            conn.execute(
+                'UPDATE Mitarbeiter SET Passwort = ? WHERE ID = ?',
+                (neues_passwort_hash, mid)
+            )
+            conn.commit()
+            
+        return ajax_response(f'Passwort für {vorname} {nachname} wurde auf "{vorname}" zurückgesetzt.')
+    except Exception as e:
+        return ajax_response(f'Fehler beim Zurücksetzen: {str(e)}', success=False, status_code=500)
+
+
 # ========== Abteilungs-Verwaltung ==========
 
 @admin_bp.route('/abteilung/add', methods=['POST'])
@@ -559,6 +593,24 @@ DATABASE_SCHEMA = {
         'indexes': [
             'idx_sichtbarkeit_thema',
             'idx_sichtbarkeit_abteilung'
+        ]
+    },
+    'Benachrichtigung': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'MitarbeiterID': 'INTEGER NOT NULL',
+            'ThemaID': 'INTEGER NOT NULL',
+            'BemerkungID': 'INTEGER NULL',
+            'Typ': 'TEXT NOT NULL',
+            'Titel': 'TEXT NOT NULL',
+            'Nachricht': 'TEXT NOT NULL',
+            'Gelesen': 'INTEGER NOT NULL DEFAULT 0',
+            'ErstelltAm': 'DATETIME DEFAULT CURRENT_TIMESTAMP'
+        },
+        'indexes': [
+            'idx_benachrichtigung_mitarbeiter',
+            'idx_benachrichtigung_thema',
+            'idx_benachrichtigung_gelesen'
         ]
     }
 }
