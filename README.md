@@ -118,6 +118,7 @@ BIS/
 ├── modules/               # Modulare Blueprints
 │   ├── auth/             # Authentifizierung
 │   ├── schichtbuch/      # Schichtbuch-Funktionen
+│   ├── ersatzteile/     # Ersatzteile-Verwaltung
 │   └── admin/            # Admin-Bereich
 ├── utils/                 # Hilfsfunktionen
 ├── migrations/            # Datenbank-Migrationen
@@ -159,10 +160,42 @@ BIS/
 - **Badge-Anzeige** in der Navigation für ungelesene Nachrichten
 - Automatische Aktualisierung alle 30 Sekunden
 
+### Ersatzteile-Verwaltung
+- **Ersatzteil-Liste** mit umfangreichen Filtern:
+  - Kategorie, Lieferant, Bestandswarnung
+  - Textsuche (Artikelnummer, Bezeichnung, Beschreibung)
+  - Sortierung nach verschiedenen Kriterien (ID, Artikelnummer, Kategorie, Bezeichnung, Lieferant, Bestand, Lagerort, Lagerplatz)
+- **Ersatzteil-Detailansicht**:
+  - Vollständige Informationen (Artikelnummer, Bezeichnung, Hersteller, Preis, Währung, Lagerort, Lagerplatz)
+  - Bestandsanzeige mit Mindestbestand und Warnung
+  - End-of-Life und Nachfolgeartikel-Verwaltung
+  - Kennzeichen (A-Z) für Kategorisierung
+  - Bilder und Dokumente hochladen/verwalten
+  - Abteilungsbasierte Zugriffsrechte
+- **Lagerbuchungen**:
+  - Übersicht aller Lagerbuchungen mit Filtern (Ersatzteil, Typ, Kostenstelle, Datum)
+  - Eingang, Ausgang und Inventur
+  - Automatische Bestandsaktualisierung
+  - Preis- und Währungserfassung pro Buchung
+  - Verknüpfung mit Schichtbuch-Themen
+  - Schnellbuchung durch Eingabe der Ersatzteil-ID
+- **Thema-Verknüpfung**:
+  - Ersatzteile direkt mit Schichtbuch-Themen verknüpfen
+  - Automatische Lagerbuchung (Ausgang) bei Verknüpfung
+- **Lieferanten-Verwaltung**:
+  - Lieferanten-Liste mit Kontaktdaten
+  - Detailansicht mit zugehörigen Ersatzteilen
+  - Adressverwaltung (Straße, PLZ, Ort)
+- **Berechtigungen**:
+  - Abteilungsbasierte Zugriffsrechte für Ersatzteile
+  - Administratoren haben vollen Zugriff
+  - Nur Administratoren können Ersatzteile anlegen/bearbeiten/löschen
+
 ### Admin-Bereich
 - **Mitarbeiter-Verwaltung** - Anlegen, Bearbeiten, Passwort zurücksetzen
 - **Abteilungs-Verwaltung** - Hierarchische Struktur
 - **Stammdaten-Verwaltung** - Bereiche, Gewerke, Status, Tätigkeiten
+- **Ersatzteil-Stammdaten** - Kategorien, Kostenstellen, Lagerorte, Lagerplätze, Lieferanten
 - **Datenbank-Check** - Überprüfung und Reparatur der Datenbankstruktur
 
 ### Technische Features
