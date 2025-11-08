@@ -13,6 +13,7 @@ venv/
 venv_old/
 env/
 ENV/
+.venv/
 
 # Flask
 instance/
@@ -22,6 +23,8 @@ instance/
 *.db
 *.sqlite
 *.sqlite3
+*.db.bak
+*.bak
 
 # Environment variables
 .env
