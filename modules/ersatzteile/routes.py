@@ -611,12 +611,33 @@ def lagerbuchung(ersatzteil_id):
     menge = request.form.get('menge', type=int)
     grund = request.form.get('grund', '').strip()
     kostenstelle_id = request.form.get('kostenstelle_id') or None
-    thema_id = request.form.get('thema_id') or None
+    thema_id_raw = request.form.get('thema_id', '').strip()
+    thema_id = None
+    if thema_id_raw:
+        try:
+            thema_id = int(thema_id_raw)
+        except ValueError:
+            flash('Ungültige Thema-ID. Bitte geben Sie eine Zahl ein.', 'danger')
+            return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
     bemerkung = request.form.get('bemerkung', '').strip()
     
-    if not typ or not menge or menge <= 0:
-        flash('Typ und Menge sind erforderlich.', 'danger')
+    if not typ:
+        flash('Typ ist erforderlich.', 'danger')
         return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+    
+    if menge is None:
+        flash('Menge ist erforderlich.', 'danger')
+        return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+    
+    # Bei Inventur ist auch 0 erlaubt, sonst muss Menge > 0 sein
+    if typ == 'Inventur':
+        if menge < 0:
+            flash('Lagerstand kann nicht negativ sein.', 'danger')
+            return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+    else:
+        if menge <= 0:
+            flash('Menge muss größer als 0 sein.', 'danger')
+            return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
     
     try:
         with get_db_connection() as conn:
@@ -624,6 +645,13 @@ def lagerbuchung(ersatzteil_id):
             if not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
                 flash('Sie haben keine Berechtigung für dieses Ersatzteil.', 'danger')
                 return redirect(url_for('ersatzteile.ersatzteil_liste'))
+            
+            # Prüfe ob Thema existiert (wenn ThemaID angegeben)
+            if thema_id:
+                thema = conn.execute('SELECT ID FROM SchichtbuchThema WHERE ID = ? AND Gelöscht = 0', (thema_id,)).fetchone()
+                if not thema:
+                    flash('Thema nicht gefunden.', 'danger')
+                    return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
             
             # Aktuellen Bestand ermitteln
             ersatzteil = conn.execute('SELECT AktuellerBestand FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
@@ -636,6 +664,12 @@ def lagerbuchung(ersatzteil_id):
             # Bestand aktualisieren
             if typ == 'Eingang':
                 neuer_bestand = aktueller_bestand + menge
+            elif typ == 'Inventur':
+                # Bei Inventur wird der Bestand auf den eingegebenen Wert gesetzt
+                neuer_bestand = menge
+                if neuer_bestand < 0:
+                    flash('Bestand kann nicht negativ werden.', 'danger')
+                    return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
             else:  # Ausgang
                 neuer_bestand = aktueller_bestand - menge
                 if neuer_bestand < 0:
@@ -649,6 +683,22 @@ def lagerbuchung(ersatzteil_id):
                     VerwendetVonID, Bemerkung
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ''', (ersatzteil_id, typ, menge, grund, thema_id, kostenstelle_id, mitarbeiter_id, bemerkung))
+            
+            # Wenn ThemaID angegeben UND Ausgang: Verknüpfung erstellen (nur eine pro Ersatzteil/Thema-Kombination)
+            if thema_id and typ == 'Ausgang':
+                # Prüfe ob Verknüpfung bereits existiert
+                existing = conn.execute('''
+                    SELECT ID FROM ErsatzteilThemaVerknuepfung 
+                    WHERE ErsatzteilID = ? AND ThemaID = ?
+                ''', (ersatzteil_id, thema_id)).fetchone()
+                
+                if not existing:
+                    # Verknüpfung erstellen
+                    conn.execute('''
+                        INSERT INTO ErsatzteilThemaVerknuepfung (
+                            ErsatzteilID, ThemaID, Menge, VerwendetVonID, Bemerkung
+                        ) VALUES (?, ?, ?, ?, ?)
+                    ''', (ersatzteil_id, thema_id, menge, mitarbeiter_id, bemerkung))
             
             # Bestand aktualisieren
             conn.execute('UPDATE Ersatzteil SET AktuellerBestand = ? WHERE ID = ?', (neuer_bestand, ersatzteil_id))

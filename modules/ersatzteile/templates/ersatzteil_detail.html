@@ -7,6 +7,11 @@
     <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0">📋 Ersatzteil-Details</h5>
         <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-light" type="button"
+                    onclick="openQRCodeModal({{ ersatzteil.ID }})"
+                    title="QR-Code anzeigen">
+                <i class="bi bi-qr-code"></i> <span class="d-none d-sm-inline">QR-Code</span>
+            </button>
             {% if session.user_abteilungen and 'BIS-Admin' in session.user_abteilungen %}
             <a href="{{ url_for('ersatzteile.ersatzteil_bearbeiten', ersatzteil_id=ersatzteil.ID) }}" class="btn btn-sm btn-light">
                 <i class="bi bi-pencil"></i> <span class="d-none d-sm-inline">Bearbeiten</span>
@@ -148,14 +153,16 @@
             <div class="row g-3">
                 <div class="col-md-3">
                     <label class="form-label"><strong>Typ:</strong></label>
-                    <select name="typ" class="form-select" required>
+                    <select name="typ" class="form-select" required id="buchungstyp">
                         <option value="Eingang">Eingang</option>
                         <option value="Ausgang">Ausgang</option>
+                        <option value="Inventur">Inventur</option>
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label"><strong>Menge:</strong></label>
-                    <input type="number" name="menge" class="form-control" min="1" required>
+                    <label class="form-label"><strong id="menge-label">Menge:</strong></label>
+                    <input type="number" name="menge" class="form-control" min="1" required id="menge-input">
+                    <small class="text-muted" id="menge-hinweis"></small>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label"><strong>Kostenstelle:</strong></label>
@@ -165,6 +172,11 @@
                         <option value="{{ k.ID }}">{{ k.Bezeichnung }}</option>
                         {% endfor %}
                     </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><strong>Thema ID:</strong></label>
+                    <input type="number" name="thema_id" class="form-control" placeholder="z.B. 123" min="1">
+                    <small class="text-muted">Optional: Thema-Nummer eingeben</small>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label"><strong>Grund:</strong></label>
@@ -200,6 +212,7 @@
                         <th>Menge</th>
                         <th>Grund</th>
                         <th>Kostenstelle</th>
+                        <th>Thema</th>
                         <th>Von</th>
                         <th>Bemerkung</th>
                     </tr>
@@ -209,13 +222,22 @@
                     <tr>
                         <td>{{ lb.Buchungsdatum[:16] if lb.Buchungsdatum else '-' }}</td>
                         <td>
-                            <span class="badge {% if lb.Typ == 'Eingang' %}bg-success{% else %}bg-danger{% endif %}">
+                            <span class="badge {% if lb.Typ == 'Eingang' %}bg-success{% elif lb.Typ == 'Inventur' %}bg-info{% else %}bg-danger{% endif %}">
                                 {{ lb.Typ }}
                             </span>
                         </td>
                         <td>{{ lb.Menge }}</td>
                         <td>{{ lb.Grund or '-' }}</td>
                         <td>{{ lb.Kostenstelle or '-' }}</td>
+                        <td>
+                            {% if lb.ThemaID %}
+                            <a href="{{ url_for('schichtbuch.thema_detail', thema_id=lb.ThemaID) }}" class="text-decoration-none">
+                                Thema #{{ lb.ThemaID }}
+                            </a>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
                         <td>{{ lb.VerwendetVon }}</td>
                         <td>{{ lb.Bemerkung or '-' }}</td>
                     </tr>
@@ -383,5 +405,166 @@
         <i class="bi bi-arrow-left"></i> Zurück zur Liste
     </a>
 </div>
+
+<!-- Modal: QR-Code anzeigen -->
+<div class="modal fade" id="qrCodeModal" tabindex="-1" aria-labelledby="qrCodeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="qrCodeModalLabel">
+                    <i class="bi bi-qr-code"></i> QR-Code für Ersatzteil #<span id="qrErsatzteilId"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Schließen"></button>
+            </div>
+            <div class="modal-body text-center">
+                <p class="text-muted mb-3">
+                    Scannen Sie diesen QR-Code mit Ihrem Handy, um direkt zu diesem Ersatzteil zu gelangen.
+                </p>
+                <div id="qrcode" class="d-flex justify-content-center mb-3"></div>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="qrCodeUrl" readonly>
+                    <button class="btn btn-outline-secondary" type="button" onclick="copyQRCodeUrl()" title="Link kopieren">
+                        <i class="bi bi-clipboard"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-lg"></i> Schließen
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Dynamische Anpassung des Mengenfelds je nach Buchungstyp
+document.addEventListener('DOMContentLoaded', function() {
+    const buchungstypSelect = document.getElementById('buchungstyp');
+    const mengeInput = document.getElementById('menge-input');
+    const mengeLabel = document.getElementById('menge-label');
+    const mengeHinweis = document.getElementById('menge-hinweis');
+    
+    function updateMengeField() {
+        const typ = buchungstypSelect.value;
+        
+        if (typ === 'Inventur') {
+            mengeLabel.textContent = 'Lagerstand:';
+            mengeInput.min = '0';
+            mengeInput.placeholder = 'Aktueller Lagerstand';
+            mengeHinweis.textContent = 'Geben Sie den genauen Lagerstand ein';
+        } else {
+            mengeLabel.textContent = 'Menge:';
+            mengeInput.min = '1';
+            mengeInput.placeholder = '';
+            mengeHinweis.textContent = '';
+        }
+    }
+    
+    if (buchungstypSelect) {
+        buchungstypSelect.addEventListener('change', updateMengeField);
+        updateMengeField(); // Initial aufrufen
+    }
+});
+
+// QR-Code Modal JavaScript
+window.openQRCodeModal = function(ersatzteilId) {
+    try {
+        // Ersatzteil-ID im Modal anzeigen
+        const qrErsatzteilIdEl = document.getElementById('qrErsatzteilId');
+        if (!qrErsatzteilIdEl) {
+            console.error('qrErsatzteilId element not found');
+            return;
+        }
+        qrErsatzteilIdEl.textContent = ersatzteilId;
+        
+        // URL zum Ersatzteil generieren (aktuelle URL ohne Query-Parameter)
+        const currentUrl = window.location.href.split('?')[0];
+        const ersatzteilUrl = currentUrl;
+        
+        // URL im Input-Feld anzeigen
+        const urlInput = document.getElementById('qrCodeUrl');
+        if (urlInput) {
+            urlInput.value = ersatzteilUrl;
+        }
+        
+        // QR-Code Container leeren
+        const qrContainer = document.getElementById('qrcode');
+        if (!qrContainer) {
+            console.error('qrcode container not found');
+            return;
+        }
+        
+        // QR-Code über API generieren (qr-server.com)
+        const encodedUrl = encodeURIComponent(ersatzteilUrl);
+        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodedUrl}`;
+        
+        // Loading-Spinner anzeigen
+        qrContainer.innerHTML = `
+            <div class="text-center">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <span class="visually-hidden">Lädt...</span>
+                </div>
+            </div>
+        `;
+        
+        // QR-Code-Bild erstellen
+        const img = document.createElement('img');
+        img.src = qrCodeUrl;
+        img.alt = 'QR-Code';
+        img.className = 'img-fluid';
+        img.style.maxWidth = '256px';
+        img.style.height = 'auto';
+        
+        img.onload = function() {
+            qrContainer.innerHTML = '';
+            qrContainer.appendChild(img);
+        };
+        
+        img.onerror = function() {
+            qrContainer.innerHTML = '<div class="alert alert-danger">Fehler beim Laden des QR-Codes. Bitte versuchen Sie es erneut.</div>';
+        };
+        
+        // Modal öffnen
+        const modalElement = document.getElementById('qrCodeModal');
+        if (!modalElement) {
+            console.error('qrCodeModal element not found');
+            return;
+        }
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    } catch (error) {
+        console.error('Fehler beim Öffnen des QR-Code-Modals:', error);
+        alert('Fehler beim Öffnen des QR-Code-Modals: ' + error.message);
+    }
+};
+
+function copyQRCodeUrl() {
+    const urlInput = document.getElementById('qrCodeUrl');
+    urlInput.select();
+    urlInput.setSelectionRange(0, 99999); // Für mobile Geräte
+    
+    try {
+        navigator.clipboard.writeText(urlInput.value).then(() => {
+            // Erfolgs-Feedback
+            const button = document.querySelector('#qrCodeModal .btn-outline-secondary');
+            const originalHTML = button.innerHTML;
+            button.innerHTML = '<i class="bi bi-check-lg"></i>';
+            button.classList.remove('btn-outline-secondary');
+            button.classList.add('btn-success');
+            
+            setTimeout(() => {
+                button.innerHTML = originalHTML;
+                button.classList.remove('btn-success');
+                button.classList.add('btn-outline-secondary');
+            }, 2000);
+        });
+    } catch (err) {
+        // Fallback für ältere Browser
+        document.execCommand('copy');
+        alert('Link wurde in die Zwischenablage kopiert!');
+    }
+}
+</script>
 {% endblock %}
 
