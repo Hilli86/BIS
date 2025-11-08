@@ -66,6 +66,7 @@ def create_column_if_not_exists(conn, table_name, column_name, alter_sql):
             return True
         except sqlite3.OperationalError as e:
             # Spalte könnte bereits existieren oder andere Probleme
+            # Ignoriere Fehler, da Spalte möglicherweise bereits existiert
             return False
     return False
 
@@ -285,7 +286,8 @@ def init_database_schema(db_path, verbose=False):
         ])
         if not created:
             # Prüfe auf fehlende Spalten
-            create_column_if_not_exists(conn, 'SchichtbuchThema', 'ErstelltAm', 'ALTER TABLE SchichtbuchThema ADD COLUMN ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP')
+            if create_column_if_not_exists(conn, 'SchichtbuchThema', 'ErstelltAm', 'ALTER TABLE SchichtbuchThema ADD COLUMN ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP'):
+                print(f"[INFO] Spalte 'ErstelltAm' zu 'SchichtbuchThema' hinzugefügt")
         
         # ========== 9. SchichtbuchBemerkungen ==========
         create_table_if_not_exists(conn, 'SchichtbuchBemerkungen', '''
@@ -650,6 +652,10 @@ def initialize_database_on_startup(app):
             sys.exit(1)
     else:
         print("[OK] Datenbank-Integrität OK")
+        # Auch wenn alle Tabellen vorhanden sind, prüfe auf fehlende Spalten
+        print("[INFO] Prüfe auf fehlende Spalten und Indexes...")
+        init_database_schema(db_path, verbose=False)
+        print("[OK] Spaltenprüfung abgeschlossen")
     
     print()
     print("=" * 70)
