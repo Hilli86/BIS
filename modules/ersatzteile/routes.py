@@ -459,7 +459,12 @@ def ersatzteil_neu():
         
         # Neue Felder
         end_of_life = 1 if request.form.get('end_of_life') == 'on' else 0
-        nachfolgeartikel_id = request.form.get('nachfolgeartikel_id') or None
+        nachfolgeartikel_id_raw = request.form.get('nachfolgeartikel_id', '').strip()
+        try:
+            nachfolgeartikel_id = int(nachfolgeartikel_id_raw) if nachfolgeartikel_id_raw else None
+        except ValueError:
+            flash('Ungültige Nachfolgeartikel-ID. Bitte geben Sie eine Zahl ein.', 'danger')
+            return redirect(url_for('ersatzteile.ersatzteil_neu'))
         kennzeichen = request.form.get('kennzeichen', '').strip().upper()[:1] if request.form.get('kennzeichen') else None  # Nur ein Zeichen A-Z
         artikelnummer_hersteller = request.form.get('artikelnummer_hersteller', '').strip() or None
         
@@ -530,8 +535,6 @@ def ersatzteil_neu():
         abteilungen = conn.execute('SELECT ID, Bezeichnung FROM Abteilung WHERE Aktiv = 1 ORDER BY Bezeichnung').fetchall()
         lagerorte = conn.execute('SELECT ID, Bezeichnung FROM Lagerort WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung').fetchall()
         lagerplaetze = conn.execute('SELECT ID, Bezeichnung FROM Lagerplatz WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung').fetchall()
-        # Alle Ersatzteile für Nachfolgeartikel-Dropdown
-        ersatzteile = conn.execute('SELECT ID, Artikelnummer, Bezeichnung FROM Ersatzteil WHERE Gelöscht = 0 ORDER BY Artikelnummer').fetchall()
     
     return render_template(
         'ersatzteil_neu.html',
@@ -539,8 +542,7 @@ def ersatzteil_neu():
         lieferanten=lieferanten,
         abteilungen=abteilungen,
         lagerorte=lagerorte,
-        lagerplaetze=lagerplaetze,
-        ersatzteile=ersatzteile
+        lagerplaetze=lagerplaetze
     )
 
 
@@ -574,7 +576,12 @@ def ersatzteil_bearbeiten(ersatzteil_id):
             
             # Neue Felder
             end_of_life = 1 if request.form.get('end_of_life') == 'on' else 0
-            nachfolgeartikel_id = request.form.get('nachfolgeartikel_id') or None
+            nachfolgeartikel_id_raw = request.form.get('nachfolgeartikel_id', '').strip()
+            try:
+                nachfolgeartikel_id = int(nachfolgeartikel_id_raw) if nachfolgeartikel_id_raw else None
+            except ValueError:
+                flash('Ungültige Nachfolgeartikel-ID. Bitte geben Sie eine Zahl ein.', 'danger')
+                return redirect(url_for('ersatzteile.ersatzteil_bearbeiten', ersatzteil_id=ersatzteil_id))
             kennzeichen = request.form.get('kennzeichen', '').strip().upper()[:1] if request.form.get('kennzeichen') else None  # Nur ein Zeichen A-Z
             artikelnummer_hersteller = request.form.get('artikelnummer_hersteller', '').strip() or None
             
@@ -641,8 +648,6 @@ def ersatzteil_bearbeiten(ersatzteil_id):
         lagerplaetze = conn.execute('SELECT ID, Bezeichnung FROM Lagerplatz WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung').fetchall()
         zugriffe = conn.execute('SELECT AbteilungID FROM ErsatzteilAbteilungZugriff WHERE ErsatzteilID = ?', (ersatzteil_id,)).fetchall()
         zugriff_ids = [z['AbteilungID'] for z in zugriffe]
-        # Alle Ersatzteile für Nachfolgeartikel-Dropdown (außer dem aktuellen)
-        ersatzteile = conn.execute('SELECT ID, Artikelnummer, Bezeichnung FROM Ersatzteil WHERE Gelöscht = 0 AND ID != ? ORDER BY Artikelnummer', (ersatzteil_id,)).fetchall()
     
     return render_template(
         'ersatzteil_bearbeiten.html',
@@ -652,8 +657,7 @@ def ersatzteil_bearbeiten(ersatzteil_id):
         abteilungen=abteilungen,
         lagerorte=lagerorte,
         lagerplaetze=lagerplaetze,
-        zugriff_ids=zugriff_ids,
-        ersatzteile=ersatzteile
+        zugriff_ids=zugriff_ids
     )
 
 

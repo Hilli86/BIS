@@ -93,13 +93,8 @@
                     <small class="text-muted">Ein Buchstabe für Zuordnung</small>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label"><strong>Nachfolgeartikel:</strong></label>
-                    <select name="nachfolgeartikel_id" class="form-select">
-                        <option value="">-- Keine --</option>
-                        {% for e in ersatzteile %}
-                        <option value="{{ e.ID }}" {% if ersatzteil.NachfolgeartikelID == e.ID %}selected{% endif %}>{{ e.Artikelnummer }} - {{ e.Bezeichnung }}</option>
-                        {% endfor %}
-                    </select>
+                    <label class="form-label"><strong>Nachfolgeartikel ID:</strong> <small class="text-muted">(Optional)</small></label>
+                    <input type="number" name="nachfolgeartikel_id" class="form-control" min="1" placeholder="ID des Nachfolgeartikels" value="{{ ersatzteil.NachfolgeartikelID or '' }}">
                 </div>
                 <div class="col-md-12">
                     <div class="form-check">

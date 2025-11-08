@@ -10,18 +10,7 @@
     <div class="card-body">
         <form method="POST">
             <div class="row g-3">
-                <div class="col-md-6">
-                    <label class="form-label"><strong>Artikelnummer:</strong> <span class="text-danger">*</span></label>
-                    <input type="text" name="artikelnummer" class="form-control" required>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label"><strong>Bezeichnung:</strong> <span class="text-danger">*</span></label>
-                    <input type="text" name="bezeichnung" class="form-control" required>
-                </div>
-                <div class="col-12">
-                    <label class="form-label"><strong>Beschreibung:</strong></label>
-                    <textarea name="beschreibung" class="form-control" rows="3"></textarea>
-                </div>
+                <!-- 1. Kategorie | Lieferant | Hersteller -->
                 <div class="col-md-6">
                     <label class="form-label"><strong>Kategorie:</strong></label>
                     <select name="kategorie_id" class="form-select">
@@ -31,11 +20,7 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-6">
-                    <label class="form-label"><strong>Hersteller:</strong></label>
-                    <input type="text" name="hersteller" class="form-control">
-                </div>
-                <div class="col-md-6">
+                <div class="col-md-3">
                     <label class="form-label"><strong>Lieferant:</strong></label>
                     <select name="lieferant_id" class="form-select">
                         <option value="">-- Keine --</option>
@@ -45,18 +30,36 @@
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label"><strong>Preis:</strong></label>
-                    <input type="number" name="preis" class="form-control" step="0.01" min="0">
+                    <label class="form-label"><strong>Hersteller: </strong><small class="text-muted">(Optional)</small></label>
+                    <input type="text" name="hersteller" class="form-control">
+                </div>
+
+                <!-- 2. Zeile - Kennzeichen(schmal), Bezeichnung | Artikelnummer, Artikelnummer Hersteller(Optional) -->
+                <div class="col-md-1">
+                    <label class="form-label"><strong>Kennzeichen:</strong></label>
+                    <input type="text" name="kennzeichen" class="form-control" maxlength="1" pattern="[A-Za-z]" placeholder="A-Z">
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label"><strong>Bezeichnung:</strong> <span class="text-danger">*</span></label>
+                    <input type="text" name="bezeichnung" class="form-control" required>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label"><strong>Währung:</strong></label>
-                    <select name="waehrung" class="form-select">
-                        <option value="EUR" selected>EUR</option>
-                        <option value="USD">USD</option>
-                        <option value="CHF">CHF</option>
-                    </select>
+                    <label class="form-label"><strong>Artikelnummer:</strong> <span class="text-danger">*</span></label>
+                    <input type="text" name="artikelnummer" class="form-control" required>
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-3">
+                    <label class="form-label"><strong>Artikelnummer Hersteller:</strong> <small class="text-muted">(Optional)</small></label>
+                    <input type="text" name="artikelnummer_hersteller" class="form-control">
+                </div>
+
+                <!-- 3. Beschreibung -->
+                <div class="col-12">
+                    <label class="form-label"><strong>Beschreibung:</strong></label>
+                    <textarea name="beschreibung" class="form-control" rows="3"></textarea>
+                </div>
+
+                <!-- 4. Lagerort, Lagerplatz | Mindestbestand, Einheit -->
+                <div class="col-md-3">
                     <label class="form-label"><strong>Lagerort:</strong></label>
                     <select name="lagerort_id" class="form-select">
                         <option value="">-- Keine --</option>
@@ -65,7 +68,7 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-3">
                     <label class="form-label"><strong>Lagerplatz:</strong></label>
                     <select name="lagerplatz_id" class="form-select">
                         <option value="">-- Keine --</option>
@@ -82,48 +85,64 @@
                     <label class="form-label"><strong>Einheit:</strong></label>
                     <input type="text" name="einheit" class="form-control" value="Stück">
                 </div>
+
+                <!-- 5. Preis, Währung | EndofLife, Nachfolgeartikel -->
                 <div class="col-md-3">
-                    <label class="form-label"><strong>Artikelnummer Hersteller:</strong></label>
-                    <input type="text" name="artikelnummer_hersteller" class="form-control">
+                    <label class="form-label"><strong>Preis:</strong></label>
+                    <input type="number" name="preis" class="form-control" step="0.01" min="0">
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label"><strong>Kennzeichen:</strong></label>
-                    <input type="text" name="kennzeichen" class="form-control" maxlength="1" pattern="[A-Za-z]" placeholder="A-Z">
-                    <small class="text-muted">Ein Buchstabe für Zuordnung</small>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label"><strong>Nachfolgeartikel:</strong></label>
-                    <select name="nachfolgeartikel_id" class="form-select">
-                        <option value="">-- Keine --</option>
-                        {% for e in ersatzteile %}
-                        <option value="{{ e.ID }}">{{ e.Artikelnummer }} - {{ e.Bezeichnung }}</option>
-                        {% endfor %}
+                    <label class="form-label"><strong>Währung:</strong></label>
+                    <select name="waehrung" class="form-select">
+                        <option value="EUR" selected>EUR</option>
+                        <option value="USD">USD</option>
+                        <option value="CHF">CHF</option>
                     </select>
                 </div>
-                <div class="col-md-12">
-                    <div class="form-check">
+                <div class="col-md-3">
+                    <label class="form-label"><strong>End of Life:</strong></label>
+                    <div class="form-check mt-2">
                         <input class="form-check-input" type="checkbox" name="end_of_life" id="end_of_life">
                         <label class="form-check-label" for="end_of_life">
-                            <strong>End of Life</strong>
+                            End of Life
                         </label>
                     </div>
                 </div>
+                <div class="col-md-3">
+                    <label class="form-label"><strong>Nachfolgeartikel ID:</strong> <small class="text-muted">(Optional)</small></label>
+                    <input type="number" name="nachfolgeartikel_id" class="form-control" min="1" placeholder="ID des Nachfolgeartikels">
+                </div>
+
+                <!-- 6. Sichtbarkeit -->
                 <div class="col-12">
-                    <label class="form-label"><strong>Sichtbar für Abteilungen:</strong></label>
-                    <div class="row">
-                        {% for abt in abteilungen %}
-                        <div class="col-md-3 mb-2">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="abteilungen" value="{{ abt.ID }}" id="abt_{{ abt.ID }}">
-                                <label class="form-check-label" for="abt_{{ abt.ID }}">
-                                    {{ abt.Bezeichnung }}
-                                </label>
+                    <hr class="my-3">
+                    <label class="form-label fw-bold">
+                        <i class="bi bi-eye"></i> Sichtbarkeit - Welche Abteilungen sollen dieses Ersatzteil sehen?
+                    </label>
+                    <div class="form-text text-muted mb-2">
+                        Wählen Sie aus, welche Abteilungen Zugriff auf dieses Ersatzteil haben sollen.
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row">
+                                {% for abt in abteilungen %}
+                                <div class="col-md-3 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="abteilungen" value="{{ abt.ID }}" id="abt_{{ abt.ID }}">
+                                        <label class="form-check-label" for="abt_{{ abt.ID }}">
+                                            {{ abt.Bezeichnung }}
+                                        </label>
+                                    </div>
+                                </div>
+                                {% endfor %}
                             </div>
                         </div>
-                        {% endfor %}
                     </div>
                 </div>
+
+                <!-- Buttons -->
                 <div class="col-12">
+                    <hr class="my-3">
                     <button type="submit" class="btn btn-primary">
                         <i class="bi bi-save"></i> Speichern
                     </button>
