@@ -286,7 +286,17 @@ def init_database_schema(db_path, verbose=False):
         ])
         if not created:
             # Prüfe auf fehlende Spalten
-            if create_column_if_not_exists(conn, 'SchichtbuchThema', 'ErstelltAm', 'ALTER TABLE SchichtbuchThema ADD COLUMN ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP'):
+            if create_column_if_not_exists(conn, 'SchichtbuchThema', 'ErstelltAm', 'ALTER TABLE SchichtbuchThema ADD COLUMN ErstelltAm DATETIME'):
+                # SQLite unterstützt kein DEFAULT CURRENT_TIMESTAMP beim ALTER TABLE
+                # Setze für bestehende Einträge das Datum der ersten Bemerkung oder aktuelles Datum
+                conn.execute('''
+                    UPDATE SchichtbuchThema 
+                    SET ErstelltAm = COALESCE(
+                        (SELECT MIN(Datum) FROM SchichtbuchBemerkungen WHERE ThemaID = SchichtbuchThema.ID),
+                        datetime('now')
+                    )
+                    WHERE ErstelltAm IS NULL
+                ''')
                 print(f"[INFO] Spalte 'ErstelltAm' zu 'SchichtbuchThema' hinzugefügt")
         
         # ========== 9. SchichtbuchBemerkungen ==========
@@ -326,7 +336,8 @@ def init_database_schema(db_path, verbose=False):
         ])
         if not created:
             # Prüfe auf fehlende Spalten
-            create_column_if_not_exists(conn, 'SchichtbuchThemaSichtbarkeit', 'ErstelltAm', 'ALTER TABLE SchichtbuchThemaSichtbarkeit ADD COLUMN ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP')
+            if create_column_if_not_exists(conn, 'SchichtbuchThemaSichtbarkeit', 'ErstelltAm', 'ALTER TABLE SchichtbuchThemaSichtbarkeit ADD COLUMN ErstelltAm DATETIME'):
+                conn.execute('UPDATE SchichtbuchThemaSichtbarkeit SET ErstelltAm = datetime(\'now\') WHERE ErstelltAm IS NULL')
         
         # ========== 11. Benachrichtigung ==========
         created = create_table_if_not_exists(conn, 'Benachrichtigung', '''
@@ -352,7 +363,8 @@ def init_database_schema(db_path, verbose=False):
         ])
         if not created:
             # Prüfe auf fehlende Spalten
-            create_column_if_not_exists(conn, 'Benachrichtigung', 'ErstelltAm', 'ALTER TABLE Benachrichtigung ADD COLUMN ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP')
+            if create_column_if_not_exists(conn, 'Benachrichtigung', 'ErstelltAm', 'ALTER TABLE Benachrichtigung ADD COLUMN ErstelltAm DATETIME'):
+                conn.execute('UPDATE Benachrichtigung SET ErstelltAm = datetime(\'now\') WHERE ErstelltAm IS NULL')
         
         # ========== 12. ErsatzteilKategorie ==========
         create_table_if_not_exists(conn, 'ErsatzteilKategorie', '''
