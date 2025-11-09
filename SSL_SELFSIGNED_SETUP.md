@@ -55,12 +55,21 @@ SERVER_NAME="${1:-bis-server.local}"  # Standard: bis-server.local, kann auch IP
 echo "Erstelle Self-Signed Certificate für: $SERVER_NAME"
 echo "Verzeichnis: $CERT_DIR"
 
+# Prüfen ob es eine IP-Adresse ist (Format: xxx.xxx.xxx.xxx)
+if [[ $SERVER_NAME =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+    # IP-Adresse: Als IP in SANs hinzufügen (WICHTIG für moderne Browser!)
+    SAN_STRING="IP:$SERVER_NAME,IP:127.0.0.1,DNS:localhost"
+else
+    # Hostname: Als DNS in SANs hinzufügen
+    SAN_STRING="DNS:$SERVER_NAME,DNS:*.$SERVER_NAME,IP:127.0.0.1"
+fi
+
 # Zertifikat erstellen (gültig für 10 Jahre)
 openssl req -x509 -nodes -days 3650 -newkey rsa:4096 \
   -keyout $CERT_DIR/bis.key \
   -out $CERT_DIR/bis.crt \
   -subj "/C=DE/ST=State/L=City/O=BIS/CN=$SERVER_NAME" \
-  -addext "subjectAltName=DNS:$SERVER_NAME,DNS:*.$SERVER_NAME,IP:127.0.0.1"
+  -addext "subjectAltName=$SAN_STRING"
 
 # Berechtigungen setzen
 chmod 600 $CERT_DIR/bis.key
@@ -80,15 +89,20 @@ echo "Sie können das Zertifikat jetzt in der Nginx-Konfiguration verwenden."
 # Script ausführbar machen
 chmod +x create_self_signed_cert.sh
 
+# Mit IP-Adresse (wichtig: Script erkennt automatisch IP und verwendet IP: in SANs)
+sudo bash create_self_signed_cert.sh 192.168.1.17
+
 # Mit Hostname
 sudo bash create_self_signed_cert.sh bis-server.local
-
-# Mit IP-Adresse
-sudo bash create_self_signed_cert.sh 192.168.1.100
 
 # Standard (bis-server.local)
 sudo bash create_self_signed_cert.sh
 ```
+
+**Wichtig bei IP-Adressen:** 
+- Das Script erkennt automatisch, ob es sich um eine IP-Adresse handelt
+- Bei IP-Adressen wird `IP:192.168.1.17` in den SANs verwendet (nicht `DNS:192.168.1.17`)
+- Moderne Browser benötigen bei IP-Adressen einen IP-Eintrag in den SANs, sonst erscheint der Fehler `ERR_CERT_COMMON_NAME_INVALID`
 
 ### Option 2: Manuell mit OpenSSL
 
@@ -97,12 +111,22 @@ sudo bash create_self_signed_cert.sh
 sudo mkdir -p /etc/nginx/ssl/bis
 cd /etc/nginx/ssl/bis
 
-# Zertifikat erstellen (ersetzen Sie bis-server.local mit Ihrer IP oder Hostname)
+# Zertifikat erstellen
+# WICHTIG: Bei IP-Adressen muss IP: in SANs verwendet werden, nicht DNS:!
+
+# Beispiel für IP-Adresse (z.B. 192.168.1.17):
 sudo openssl req -x509 -nodes -days 3650 -newkey rsa:4096 \
   -keyout bis.key \
   -out bis.crt \
-  -subj "/C=DE/ST=State/L=City/O=BIS/CN=bis-server.local" \
-  -addext "subjectAltName=DNS:bis-server.local,DNS:*.bis-server.local,IP:127.0.0.1"
+  -subj "/C=DE/ST=State/L=City/O=BIS/CN=192.168.1.17" \
+  -addext "subjectAltName=IP:192.168.1.17,IP:127.0.0.1,DNS:localhost"
+
+# Beispiel für Hostname (z.B. bis-server.local):
+# sudo openssl req -x509 -nodes -days 3650 -newkey rsa:4096 \
+#   -keyout bis.key \
+#   -out bis.crt \
+#   -subj "/C=DE/ST=State/L=City/O=BIS/CN=bis-server.local" \
+#   -addext "subjectAltName=DNS:bis-server.local,DNS:*.bis-server.local,IP:127.0.0.1"
 
 # Berechtigungen setzen
 sudo chmod 600 bis.key
@@ -121,6 +145,7 @@ Falls OpenSSL nicht verfügbar ist, können Sie dieses Python-Script verwenden:
 import os
 import subprocess
 import sys
+import re
 
 CERT_DIR = "/etc/nginx/ssl/bis"
 SERVER_NAME = sys.argv[1] if len(sys.argv) > 1 else "bis-server.local"
@@ -128,13 +153,26 @@ SERVER_NAME = sys.argv[1] if len(sys.argv) > 1 else "bis-server.local"
 # Verzeichnis erstellen
 os.makedirs(CERT_DIR, exist_ok=True)
 
-# Zertifikat erstellen
+# Prüfen ob es eine IP-Adresse ist (Format: xxx.xxx.xxx.xxx)
+is_ip = re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', SERVER_NAME)
+
+# Subject Alternative Names erstellen
+# WICHTIG: Moderne Browser benötigen SANs, besonders bei IP-Adressen!
+if is_ip:
+    # Wenn IP-Adresse: IP in SANs hinzufügen (nicht DNS!)
+    san_string = f"IP:{SERVER_NAME},IP:127.0.0.1,DNS:localhost"
+else:
+    # Wenn Hostname: DNS in SANs hinzufügen
+    san_string = f"DNS:{SERVER_NAME},DNS:*.{SERVER_NAME},IP:127.0.0.1"
+
+# Zertifikat erstellen mit SANs
 cmd = [
     "openssl", "req", "-x509", "-nodes", "-days", "3650",
     "-newkey", "rsa:4096",
     "-keyout", f"{CERT_DIR}/bis.key",
     "-out", f"{CERT_DIR}/bis.crt",
-    "-subj", f"/C=DE/ST=State/L=City/O=BIS/CN={SERVER_NAME}"
+    "-subj", f"/C=DE/ST=State/L=City/O=BIS/CN={SERVER_NAME}",
+    "-addext", f"subjectAltName={san_string}"
 ]
 
 subprocess.run(cmd, check=True)
@@ -146,10 +184,15 @@ os.chmod(f"{CERT_DIR}/bis.crt", 0o644)
 print(f"✓ Zertifikat erstellt für: {SERVER_NAME}")
 print(f"  Key: {CERT_DIR}/bis.key")
 print(f"  Cert: {CERT_DIR}/bis.crt")
+print(f"  SANs: {san_string}")
 ```
 
 **Verwendung:**
 ```bash
+# Mit IP-Adresse
+sudo python3 create_cert.py 192.168.1.17
+
+# Mit Hostname
 sudo python3 create_cert.py bis-server.local
 ```
 
@@ -426,6 +469,44 @@ sudo chmod 644 /etc/nginx/ssl/bis/bis.crt
 - Browser-Cache leeren
 - Browser neu starten
 
+### Problem: ERR_CERT_COMMON_NAME_INVALID bei IP-Adressen
+
+**Symptom:** Browser zeigt Fehler `ERR_CERT_COMMON_NAME_INVALID` obwohl Zertifikat installiert wurde.
+
+**Ursache:** Das Zertifikat wurde mit `DNS:192.168.1.17` statt `IP:192.168.1.17` in den SANs erstellt. Moderne Browser benötigen bei IP-Adressen einen IP-Eintrag in den SANs, nicht einen DNS-Eintrag.
+
+**Lösung:**
+1. **Zertifikat überprüfen:**
+   ```bash
+   sudo openssl x509 -in /etc/nginx/ssl/bis/bis.crt -text -noout | grep -A 5 "Subject Alternative Name"
+   ```
+   Sie sollten `IP Address:192.168.1.17` sehen, nicht `DNS:192.168.1.17`.
+
+2. **Neues Zertifikat mit korrekter IP erstellen:**
+   ```bash
+   # Altes Zertifikat sichern
+   sudo mv /etc/nginx/ssl/bis/bis.crt /etc/nginx/ssl/bis/bis.crt.backup
+   sudo mv /etc/nginx/ssl/bis/bis.key /etc/nginx/ssl/bis/bis.key.backup
+   
+   # Neues Zertifikat mit korrekter IP in SANs erstellen
+   sudo bash create_self_signed_cert.sh 192.168.1.17
+   # oder
+   sudo python3 create_cert.py 192.168.1.17
+   ```
+
+3. **Nginx neu laden:**
+   ```bash
+   sudo nginx -t
+   sudo systemctl reload nginx
+   ```
+
+4. **Zertifikat am Client erneut installieren:**
+   - Altes Zertifikat entfernen (Windows: `certmgr.msc`)
+   - Neues Zertifikat installieren
+   - Browser komplett neu starten
+
+**Wichtig:** Bei IP-Adressen muss `IP:` in den SANs verwendet werden, nicht `DNS:`. Die Scripts erkennen automatisch IP-Adressen und verwenden die korrekte Formatierung.
+
 ### Problem: Verbindung wird abgelehnt
 
 **Lösung:**
@@ -459,7 +540,9 @@ Self-Signed Certificates sind standardmäßig 10 Jahre gültig. Um ein neues Zer
 # Altes Zertifikat sichern (optional)
 sudo mv /etc/nginx/ssl/bis /etc/nginx/ssl/bis.backup
 
-# Neues Zertifikat erstellen
+# Neues Zertifikat erstellen (mit IP oder Hostname)
+sudo bash create_self_signed_cert.sh 192.168.1.17
+# oder
 sudo bash create_self_signed_cert.sh bis-server.local
 
 # Nginx neu laden
