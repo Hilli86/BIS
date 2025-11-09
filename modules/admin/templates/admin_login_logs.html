@@ -1,0 +1,180 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <h1 class="mb-4">Login-Logbuch</h1>
+    
+    <!-- Statistiken -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Gesamt</h5>
+                    <h3 class="text-primary">{{ stats.gesamt }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Erfolgreich</h5>
+                    <h3 class="text-success">{{ stats.erfolgreich }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Fehlgeschlagen</h5>
+                    <h3 class="text-danger">{{ stats.fehlgeschlagen }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Heute</h5>
+                    <h3 class="text-info">{{ stats.heute }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filter -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Filter</h5>
+        </div>
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('admin.login_logs') }}" class="row g-3">
+                <div class="col-md-3">
+                    <label for="personalnummer" class="form-label">Personalnummer</label>
+                    <input type="text" class="form-control" id="personalnummer" name="personalnummer" 
+                           value="{{ personalnummer_filter }}" placeholder="z.B. 1001">
+                </div>
+                <div class="col-md-2">
+                    <label for="erfolgreich" class="form-label">Status</label>
+                    <select class="form-select" id="erfolgreich" name="erfolgreich">
+                        <option value="">Alle</option>
+                        <option value="1" {% if erfolgreich_filter == '1' %}selected{% endif %}>Erfolgreich</option>
+                        <option value="0" {% if erfolgreich_filter == '0' %}selected{% endif %}>Fehlgeschlagen</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="datum_von" class="form-label">Von</label>
+                    <input type="date" class="form-control" id="datum_von" name="datum_von" value="{{ datum_von }}">
+                </div>
+                <div class="col-md-2">
+                    <label for="datum_bis" class="form-label">Bis</label>
+                    <input type="date" class="form-control" id="datum_bis" name="datum_bis" value="{{ datum_bis }}">
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">Filtern</button>
+                    <a href="{{ url_for('admin.login_logs') }}" class="btn btn-secondary">Zurücksetzen</a>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Logs-Tabelle -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Login-Versuche ({{ total_count }} Einträge)</h5>
+        </div>
+        <div class="card-body">
+            {% if logs %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Zeitpunkt</th>
+                            <th>Personalnummer</th>
+                            <th>Mitarbeiter</th>
+                            <th>Status</th>
+                            <th>IP-Adresse</th>
+                            <th>User-Agent</th>
+                            <th>Fehlermeldung</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                        <tr>
+                            <td>{{ log.Zeitpunkt[:19] if log.Zeitpunkt else '-' }}</td>
+                            <td><code>{{ log.Personalnummer }}</code></td>
+                            <td>
+                                {% if log.Vorname and log.Nachname %}
+                                    {{ log.Vorname }} {{ log.Nachname }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if log.Erfolgreich %}
+                                    <span class="badge bg-success">Erfolgreich</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Fehlgeschlagen</span>
+                                {% endif %}
+                            </td>
+                            <td><code>{{ log.IPAdresse or '-' }}</code></td>
+                            <td>
+                                <small class="text-muted" title="{{ log.UserAgent or '-' }}">
+                                    {{ (log.UserAgent or '-')[:50] }}{% if log.UserAgent and log.UserAgent|length > 50 %}...{% endif %}
+                                </small>
+                            </td>
+                            <td>
+                                {% if log.Fehlermeldung %}
+                                    <span class="text-danger">{{ log.Fehlermeldung }}</span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination -->
+            {% if total_pages > 1 %}
+            <nav aria-label="Seitennavigation">
+                <ul class="pagination justify-content-center">
+                    {% if page > 1 %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('admin.login_logs', page=page-1, personalnummer=personalnummer_filter, erfolgreich=erfolgreich_filter, datum_von=datum_von, datum_bis=datum_bis) }}">Zurück</a>
+                    </li>
+                    {% endif %}
+                    
+                    {% for p in range(1, total_pages + 1) %}
+                        {% if p == page %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ p }}</span>
+                        </li>
+                        {% elif p <= 3 or p > total_pages - 3 or (p >= page - 1 and p <= page + 1) %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('admin.login_logs', page=p, personalnummer=personalnummer_filter, erfolgreich=erfolgreich_filter, datum_von=datum_von, datum_bis=datum_bis) }}">{{ p }}</a>
+                        </li>
+                        {% elif p == 4 or p == total_pages - 3 %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if page < total_pages %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('admin.login_logs', page=page+1, personalnummer=personalnummer_filter, erfolgreich=erfolgreich_filter, datum_von=datum_von, datum_bis=datum_bis) }}">Weiter</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+            {% else %}
+            <div class="alert alert-info">
+                Keine Login-Logs gefunden.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+

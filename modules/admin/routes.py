@@ -1336,3 +1336,104 @@ def database_repair():
             'success': False,
             'message': f'Fehler bei der Datenbankreparatur: {str(e)}'
         }), 500
+
+
+# ========== Login-Log-Verwaltung ==========
+
+@admin_bp.route('/login-logs')
+@admin_required
+def login_logs():
+    """Anzeige der Login-Logs"""
+    # Filter-Parameter
+    personalnummer_filter = request.args.get('personalnummer', '')
+    erfolgreich_filter = request.args.get('erfolgreich', '')
+    datum_von = request.args.get('datum_von', '')
+    datum_bis = request.args.get('datum_bis', '')
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    
+    with get_db_connection() as conn:
+        # Query aufbauen
+        query = '''
+            SELECT 
+                l.ID,
+                l.Personalnummer,
+                l.MitarbeiterID,
+                l.Erfolgreich,
+                l.IPAdresse,
+                l.UserAgent,
+                l.Fehlermeldung,
+                l.Zeitpunkt,
+                m.Vorname,
+                m.Nachname
+            FROM LoginLog l
+            LEFT JOIN Mitarbeiter m ON l.MitarbeiterID = m.ID
+            WHERE 1=1
+        '''
+        params = []
+        
+        if personalnummer_filter:
+            query += ' AND l.Personalnummer LIKE ?'
+            params.append(f'%{personalnummer_filter}%')
+        
+        if erfolgreich_filter != '':
+            query += ' AND l.Erfolgreich = ?'
+            params.append(1 if erfolgreich_filter == '1' else 0)
+        
+        if datum_von:
+            query += ' AND DATE(l.Zeitpunkt) >= ?'
+            params.append(datum_von)
+        
+        if datum_bis:
+            query += ' AND DATE(l.Zeitpunkt) <= ?'
+            params.append(datum_bis)
+        
+        query += ' ORDER BY l.Zeitpunkt DESC LIMIT ? OFFSET ?'
+        params.extend([per_page, (page - 1) * per_page])
+        
+        logs = conn.execute(query, params).fetchall()
+        
+        # Gesamtanzahl für Pagination
+        count_query = '''
+            SELECT COUNT(*) as count
+            FROM LoginLog l
+            WHERE 1=1
+        '''
+        count_params = []
+        
+        if personalnummer_filter:
+            count_query += ' AND l.Personalnummer LIKE ?'
+            count_params.append(f'%{personalnummer_filter}%')
+        
+        if erfolgreich_filter != '':
+            count_query += ' AND l.Erfolgreich = ?'
+            count_params.append(1 if erfolgreich_filter == '1' else 0)
+        
+        if datum_von:
+            count_query += ' AND DATE(l.Zeitpunkt) >= ?'
+            count_params.append(datum_von)
+        
+        if datum_bis:
+            count_query += ' AND DATE(l.Zeitpunkt) <= ?'
+            count_params.append(datum_bis)
+        
+        total_count = conn.execute(count_query, count_params).fetchone()['count']
+        total_pages = (total_count + per_page - 1) // per_page
+        
+        # Statistiken
+        stats = {}
+        stats['gesamt'] = conn.execute('SELECT COUNT(*) as count FROM LoginLog').fetchone()['count']
+        stats['erfolgreich'] = conn.execute('SELECT COUNT(*) as count FROM LoginLog WHERE Erfolgreich = 1').fetchone()['count']
+        stats['fehlgeschlagen'] = conn.execute('SELECT COUNT(*) as count FROM LoginLog WHERE Erfolgreich = 0').fetchone()['count']
+        stats['heute'] = conn.execute('SELECT COUNT(*) as count FROM LoginLog WHERE DATE(Zeitpunkt) = DATE("now")').fetchone()['count']
+    
+    return render_template('admin_login_logs.html',
+                         logs=logs,
+                         stats=stats,
+                         personalnummer_filter=personalnummer_filter,
+                         erfolgreich_filter=erfolgreich_filter,
+                         datum_von=datum_von,
+                         datum_bis=datum_bis,
+                         page=page,
+                         total_pages=total_pages,
+                         total_count=total_count)

@@ -128,7 +128,8 @@ def get_required_tables():
         'ErsatzteilBild',
         'ErsatzteilDokument',
         'Lagerbuchung',
-        'ErsatzteilAbteilungZugriff'
+        'ErsatzteilAbteilungZugriff',
+        'LoginLog'
     ]
 
 
@@ -687,6 +688,26 @@ def init_database_schema(db_path, verbose=False):
         ''', [
             'CREATE INDEX idx_ersatzteil_abteilung_ersatzteil ON ErsatzteilAbteilungZugriff(ErsatzteilID)',
             'CREATE INDEX idx_ersatzteil_abteilung_abteilung ON ErsatzteilAbteilungZugriff(AbteilungID)'
+        ])
+        
+        # ========== 22. LoginLog ==========
+        create_table_if_not_exists(conn, 'LoginLog', '''
+            CREATE TABLE LoginLog (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                Personalnummer TEXT,
+                MitarbeiterID INTEGER NULL,
+                Erfolgreich INTEGER NOT NULL DEFAULT 1,
+                IPAdresse TEXT,
+                UserAgent TEXT,
+                Fehlermeldung TEXT NULL,
+                Zeitpunkt DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (MitarbeiterID) REFERENCES Mitarbeiter(ID)
+            )
+        ''', [
+            'CREATE INDEX idx_loginlog_mitarbeiter ON LoginLog(MitarbeiterID)',
+            'CREATE INDEX idx_loginlog_zeitpunkt ON LoginLog(Zeitpunkt)',
+            'CREATE INDEX idx_loginlog_erfolgreich ON LoginLog(Erfolgreich)',
+            'CREATE INDEX idx_loginlog_personalnummer ON LoginLog(Personalnummer)'
         ])
         
         # ========== Entferne ErsatzteilThemaVerknuepfung falls vorhanden (Migration 008) ==========

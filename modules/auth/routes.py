@@ -4,9 +4,32 @@ Auth Routes - Login, Logout
 
 from flask import render_template, request, redirect, url_for, session, flash
 from werkzeug.security import check_password_hash, generate_password_hash
+from datetime import datetime
 from . import auth_bp
 from utils import get_db_connection
 from utils.decorators import is_safe_url, login_required
+
+
+def _log_login_attempt(conn, personalnummer, mitarbeiter_id, erfolgreich, request, fehlermeldung):
+    """Hilfsfunktion zum Loggen von Login-Versuchen"""
+    try:
+        ip_adresse = request.environ.get('HTTP_X_FORWARDED_FOR', request.environ.get('REMOTE_ADDR', ''))
+        if ip_adresse and ',' in ip_adresse:
+            # Bei mehreren IPs (Proxy) die erste nehmen
+            ip_adresse = ip_adresse.split(',')[0].strip()
+        
+        user_agent = request.headers.get('User-Agent', '')[:500]  # Begrenzen auf 500 Zeichen
+        
+        conn.execute('''
+            INSERT INTO LoginLog (Personalnummer, MitarbeiterID, Erfolgreich, IPAdresse, UserAgent, Fehlermeldung)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (personalnummer, mitarbeiter_id, 1 if erfolgreich else 0, ip_adresse, user_agent, fehlermeldung))
+        conn.commit()
+    except Exception as e:
+        # Logging-Fehler sollten den Login-Prozess nicht beeinträchtigen
+        print(f"Fehler beim Loggen des Login-Versuchs: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -26,17 +49,21 @@ def login():
                     (personalnummer,)
                 ).fetchone()
 
-            if not user:
-                flash('Kein Benutzer mit dieser Personalnummer gefunden oder Benutzer inaktiv.', 'danger')
-                return render_template('login.html', personalnummer=personalnummer)
+                if not user:
+                    # Fehlgeschlagene Anmeldung loggen
+                    _log_login_attempt(conn, personalnummer, None, False, request, 'Benutzer nicht gefunden oder inaktiv')
+                    flash('Kein Benutzer mit dieser Personalnummer gefunden oder Benutzer inaktiv.', 'danger')
+                    return render_template('login.html', personalnummer=personalnummer)
 
-            if user and check_password_hash(user['Passwort'], passwort):
-                session['user_id'] = user['ID']
-                session['user_name'] = f"{user['Vorname']} {user['Nachname']}"
-                session['user_abteilung'] = user['AbteilungName'] if user['AbteilungName'] else None
-                
-                # Alle Abteilungen des Mitarbeiters laden (primär + zusätzliche)
-                with get_db_connection() as conn:
+                if user and check_password_hash(user['Passwort'], passwort):
+                    # Erfolgreiche Anmeldung loggen
+                    _log_login_attempt(conn, personalnummer, user['ID'], True, request, None)
+                    
+                    session['user_id'] = user['ID']
+                    session['user_name'] = f"{user['Vorname']} {user['Nachname']}"
+                    session['user_abteilung'] = user['AbteilungName'] if user['AbteilungName'] else None
+                    
+                    # Alle Abteilungen des Mitarbeiters laden (primär + zusätzliche)
                     alle_abteilungen = []
                     
                     # Primärabteilung hinzufügen
@@ -56,16 +83,18 @@ def login():
                             alle_abteilungen.append(abt['Bezeichnung'])
                     
                     session['user_abteilungen'] = alle_abteilungen
-                
-                flash('Erfolgreich angemeldet.', 'success')
-                
-                # Weiterleitung zur ursprünglichen URL (next-Parameter) oder zum Dashboard
-                next_page = request.args.get('next')
-                if next_page and is_safe_url(next_page):
-                    return redirect(next_page)
-                return redirect(url_for('dashboard'))
-            else:
-                flash('Ungültige Personalnummer oder Passwort.', 'danger')
+                    
+                    flash('Erfolgreich angemeldet.', 'success')
+                    
+                    # Weiterleitung zur ursprünglichen URL (next-Parameter) oder zum Dashboard
+                    next_page = request.args.get('next')
+                    if next_page and is_safe_url(next_page):
+                        return redirect(next_page)
+                    return redirect(url_for('dashboard'))
+                else:
+                    # Fehlgeschlagene Anmeldung loggen
+                    _log_login_attempt(conn, personalnummer, user['ID'] if user else None, False, request, 'Ungültiges Passwort')
+                    flash('Ungültige Personalnummer oder Passwort.', 'danger')
         except Exception as e:
             flash('Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.', 'danger')
             print(f"Login error: {e}")
