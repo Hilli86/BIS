@@ -13,6 +13,39 @@
         font-size: 0.8em;
         opacity: 0.7;
     }
+    
+    /* Alle Tabellenzellen vertikal zentrieren für einheitliche Zeilenhöhe */
+    .table tbody td,
+    .table thead th {
+        vertical-align: middle;
+    }
+    
+    /* Erste Spalte (Artikelnummer) - verhindert Umbruch */
+    .table tbody td:first-child,
+    .table thead th:first-child {
+        white-space: nowrap;
+        min-width: 100px;
+    }
+    
+    /* Sicherstellen, dass Badge und Zahl nebeneinander bleiben ohne Flex */
+    .table tbody td:first-child {
+        line-height: 1.5;
+    }
+    
+    /* Badge und Link inline nebeneinander */
+    .table tbody td:first-child .badge,
+    .table tbody td:first-child a {
+        display: inline-block;
+        vertical-align: middle;
+    }
+    
+    /* Bei sehr kleinen Bildschirmen: Spalte etwas schmaler, aber immer noch ohne Umbruch */
+    @media (max-width: 576px) {
+        .table tbody td:first-child,
+        .table thead th:first-child {
+            min-width: 80px;
+        }
+    }
 </style>
 
 <h1 class="mb-4">🔧 Ersatzteile</h1>

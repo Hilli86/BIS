@@ -172,6 +172,9 @@ def lagerbuchungen_liste():
     # Filterparameter
     ersatzteil_filter = request.args.get('ersatzteil')
     typ_filter = request.args.get('typ')  # 'Eingang' oder 'Ausgang'
+    # Wenn kein Typ-Filter-Parameter vorhanden ist (erster Aufruf), standardmäßig 'Ausgang' verwenden
+    if 'typ' not in request.args:
+        typ_filter = 'Ausgang'
     kostenstelle_filter = request.args.get('kostenstelle')
     datum_von = request.args.get('datum_von')
     datum_bis = request.args.get('datum_bis')
@@ -949,6 +952,81 @@ def thema_verknuepfen(thema_id):
         print(f"Thema verknüpfen Fehler: {e}")
     
     return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
+
+
+@ersatzteile_bp.route('/suche')
+@login_required
+def suche_artikel():
+    """Suche nach Artikelnummer (Bestellnummer oder ID)"""
+    mitarbeiter_id = session.get('user_id')
+    artikelnummer = request.args.get('artikelnummer', '').strip()
+    
+    if artikelnummer:
+        try:
+            with get_db_connection() as conn:
+                # Berechtigte Abteilungen ermitteln
+                sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+                is_admin = 'BIS-Admin' in (session.get('user_abteilungen') or [])
+                
+                # Zuerst versuchen nach Bestellnummer zu suchen
+                query = '''
+                    SELECT e.ID
+                    FROM Ersatzteil e
+                    WHERE e.Gelöscht = 0 AND e.Bestellnummer = ?
+                '''
+                params = [artikelnummer]
+                
+                # Berechtigungsfilter
+                if not is_admin and sichtbare_abteilungen:
+                    placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+                    query += f'''
+                        AND e.ID IN (
+                            SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
+                            WHERE AbteilungID IN ({placeholders})
+                        )
+                    '''
+                    params.extend(sichtbare_abteilungen)
+                elif not is_admin:
+                    query += ' AND 1=0'
+                
+                ersatzteil = conn.execute(query, params).fetchone()
+                
+                # Wenn nicht gefunden, versuche nach ID zu suchen
+                if not ersatzteil:
+                    try:
+                        artikelnummer_int = int(artikelnummer)
+                        query_id = '''
+                            SELECT e.ID
+                            FROM Ersatzteil e
+                            WHERE e.Gelöscht = 0 AND e.ID = ?
+                        '''
+                        params_id = [artikelnummer_int]
+                        
+                        # Berechtigungsfilter
+                        if not is_admin and sichtbare_abteilungen:
+                            placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+                            query_id += f'''
+                                AND e.ID IN (
+                                    SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
+                                    WHERE AbteilungID IN ({placeholders})
+                                )
+                            '''
+                            params_id.extend(sichtbare_abteilungen)
+                        elif not is_admin:
+                            query_id += ' AND 1=0'
+                        
+                        ersatzteil = conn.execute(query_id, params_id).fetchone()
+                    except ValueError:
+                        pass  # Keine gültige ID
+                
+                if ersatzteil:
+                    return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil['ID']))
+                else:
+                    flash('Artikelnummer nicht gefunden oder Sie haben keine Berechtigung.', 'danger')
+        except Exception as e:
+            flash(f'Fehler bei der Suche: {str(e)}', 'danger')
+    
+    return render_template('ersatzteil_suche.html')
 
 
 @ersatzteile_bp.route('/lieferanten')

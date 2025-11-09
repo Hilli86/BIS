@@ -277,8 +277,11 @@
     </a>
 
     <h6>Ersatzteile</h6>
-    <a href="{{ url_for('ersatzteile.ersatzteil_liste') }}" class="{% if request.endpoint and 'ersatzteile' in request.endpoint and 'lieferant' not in request.endpoint and 'lagerbuchung' not in request.endpoint %}active{% endif %}">
-      🔧 Ersatzteile
+    <a href="{{ url_for('ersatzteile.suche_artikel') }}" class="{% if request.endpoint and 'suche' in request.endpoint %}active{% endif %}">
+      🔍 Suche Artikel
+    </a>
+    <a href="{{ url_for('ersatzteile.ersatzteil_liste') }}" class="{% if request.endpoint and 'ersatzteile' in request.endpoint and 'lieferant' not in request.endpoint and 'lagerbuchung' not in request.endpoint and 'suche' not in request.endpoint %}active{% endif %}">
+      🔧 Artikelliste
     </a>
     <a href="{{ url_for('ersatzteile.lieferanten_liste') }}" class="{% if request.endpoint and 'lieferant' in request.endpoint %}active{% endif %}">
       📦 Lieferanten
