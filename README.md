@@ -100,8 +100,9 @@ SQL_TRACING=False
 
 **📦 Produktionsserver-Deployment:**
 
-Für die Einrichtung eines produktiven Servers (z.B. in Proxmox LXC):
+Für die Einrichtung eines produktiven Servers:
 
+- **💰 Hosting-Optionen:** [HOSTING_OPTIONEN.md](HOSTING_OPTIONEN.md) - Günstige Hosting-Anbieter für Tests & Start
 - **⭐ Schnellstart:** [SCHNELLSTART_DEPLOYMENT.md](SCHNELLSTART_DEPLOYMENT.md) - Setup in 30 Min
 - **📖 Vollständiger Guide:** [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) - Alle Details
 - **📋 Übersicht:** [DEPLOYMENT_ÜBERSICHT.md](DEPLOYMENT_ÜBERSICHT.md) - Alle Optionen
