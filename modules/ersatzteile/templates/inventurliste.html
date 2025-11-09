@@ -1,0 +1,141 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<h1 class="mb-4">📋 Inventurliste</h1>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Ersatzteile nach Lagerort und Lagerplatz</h5>
+        <div>
+            <button onclick="window.print()" class="btn btn-sm btn-light">
+                <i class="bi bi-printer"></i> Drucken
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if inventur_gruppiert %}
+            {% for lagerort, lagerplaetze in inventur_gruppiert.items() %}
+                {% for lagerplatz, ersatzteile in lagerplaetze.items() %}
+                    <div class="inventur-gruppe mb-4">
+                        <h4 class="border-bottom pb-2 mb-3">
+                            <i class="bi bi-geo-alt"></i> {{ lagerort }}
+                            {% if lagerplatz != 'Ohne Lagerplatz' %}
+                                <span class="text-muted">→ {{ lagerplatz }}</span>
+                            {% endif %}
+                            <small class="text-muted">({{ ersatzteile|length }} Artikel)</small>
+                        </h4>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 80px;">ID</th>
+                                        <th style="width: 120px;">Bestellnummer</th>
+                                        <th>Bezeichnung</th>
+                                        <th style="width: 100px;" class="text-center">Bestand</th>
+                                        <th style="width: 100px; white-space: nowrap;" class="text-center">Bestand neu</th>
+                                        <th style="width: 80px;" class="text-center">Einheit</th>
+                                        <th style="width: 80px;" class="text-center">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for e in ersatzteile %}
+                                    <tr {% if not e.EndOfLife and e.Mindestbestand > 0 and e.AktuellerBestand <= e.Mindestbestand %}class="table-warning"{% elif e.EndOfLife %}class="table-secondary"{% endif %}>
+                                        <td><strong>{{ e.ID }}</strong></td>
+                                        <td><strong>{{ e.Bestellnummer }}</strong></td>
+                                        <td>{{ e.Bezeichnung }}</td>
+                                        <td class="text-center">
+                                            <strong>{{ e.AktuellerBestand }}</strong>
+                                        </td>
+                                        <td class="text-center" style="white-space: nowrap;">
+                                            &nbsp;
+                                        </td>
+                                        <td class="text-center">{{ e.Einheit }}</td>
+                                        <td class="text-center">
+                                            {% if e.EndOfLife %}
+                                            <span class="badge bg-danger">EOL</span>
+                                            {% elif not e.Aktiv %}
+                                            <span class="badge bg-secondary">Inaktiv</span>
+                                            {% else %}
+                                            <span class="badge bg-success">Aktiv</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% endfor %}
+        {% else %}
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> Keine Ersatzteile gefunden.
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="mb-3">
+    <a href="{{ url_for('ersatzteile.ersatzteil_liste') }}" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Zurück zur Liste
+    </a>
+</div>
+
+<style>
+@media print {
+    /* Navigation ausblenden */
+    .sidebar,
+    .menu-toggle,
+    .sidebar-overlay {
+        display: none !important;
+    }
+    
+    /* Hauptinhalt ohne Sidebar-Margin */
+    .main-content {
+        margin-left: 0 !important;
+        padding: 0 !important;
+    }
+    
+    /* Buttons und Header ausblenden */
+    .card-header,
+    .btn,
+    .mb-3:last-child {
+        display: none !important;
+    }
+    
+    .card {
+        border: none !important;
+        box-shadow: none !important;
+        margin-bottom: 0 !important;
+    }
+    
+    .card-body {
+        padding: 0 !important;
+    }
+    
+    /* Seitenlayout für Druck */
+    body {
+        background-color: white !important;
+    }
+    
+    .inventur-gruppe {
+        page-break-inside: avoid;
+        margin-bottom: 2rem;
+    }
+    
+    .table {
+        font-size: 0.85rem;
+    }
+    
+    h4 {
+        page-break-after: avoid;
+    }
+    
+    h1 {
+        margin-bottom: 1rem !important;
+    }
+}
+</style>
+{% endblock %}
+

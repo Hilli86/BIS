@@ -954,6 +954,92 @@ def thema_verknuepfen(thema_id):
     return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
 
 
+@ersatzteile_bp.route('/inventurliste')
+@login_required
+def inventurliste():
+    """Inventurliste - Gruppiert nach Lagerort + Lagerplatz, sortiert nach Artikel-ID"""
+    mitarbeiter_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        # Berechtigte Abteilungen ermitteln
+        sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+        is_admin = 'BIS-Admin' in (session.get('user_abteilungen') or [])
+        
+        # Query für Inventurliste: Gruppiert nach Lagerort + Lagerplatz, sortiert nach Artikel-ID
+        query = '''
+            SELECT 
+                e.ID,
+                e.Bestellnummer,
+                e.Bezeichnung,
+                e.Hersteller,
+                e.AktuellerBestand,
+                e.Mindestbestand,
+                e.Einheit,
+                e.EndOfLife,
+                e.Aktiv,
+                e.Kennzeichen,
+                k.Bezeichnung AS Kategorie,
+                lo.Bezeichnung AS LagerortName,
+                lo.ID AS LagerortID,
+                lp.Bezeichnung AS LagerplatzName,
+                lp.ID AS LagerplatzID,
+                CASE 
+                    WHEN lo.Bezeichnung IS NULL THEN 'Ohne Lagerort'
+                    ELSE lo.Bezeichnung 
+                END AS SortLagerort,
+                CASE 
+                    WHEN lp.Bezeichnung IS NULL THEN 'Ohne Lagerplatz'
+                    ELSE lp.Bezeichnung 
+                END AS SortLagerplatz
+            FROM Ersatzteil e
+            LEFT JOIN ErsatzteilKategorie k ON e.KategorieID = k.ID
+            LEFT JOIN Lagerort lo ON e.LagerortID = lo.ID
+            LEFT JOIN Lagerplatz lp ON e.LagerplatzID = lp.ID
+            WHERE e.Gelöscht = 0 AND e.Aktiv = 1
+        '''
+        params = []
+        
+        # Berechtigungsfilter
+        if not is_admin and sichtbare_abteilungen:
+            placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+            query += f'''
+                AND e.ID IN (
+                    SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
+                    WHERE AbteilungID IN ({placeholders})
+                )
+            '''
+            params.extend(sichtbare_abteilungen)
+        elif not is_admin:
+            # Keine Berechtigung
+            query += ' AND 1=0'
+        
+        # Sortierung: Erst nach Lagerort, dann Lagerplatz, dann Artikel-ID
+        query += '''
+            ORDER BY 
+                SortLagerort ASC,
+                SortLagerplatz ASC,
+                e.ID ASC
+        '''
+        
+        ersatzteile = conn.execute(query, params).fetchall()
+        
+        # Daten für Template gruppieren
+        inventur_gruppiert = {}
+        for ersatzteil in ersatzteile:
+            lagerort_key = ersatzteil['SortLagerort']
+            lagerplatz_key = ersatzteil['SortLagerplatz']
+            
+            if lagerort_key not in inventur_gruppiert:
+                inventur_gruppiert[lagerort_key] = {}
+            
+            if lagerplatz_key not in inventur_gruppiert[lagerort_key]:
+                inventur_gruppiert[lagerort_key][lagerplatz_key] = []
+            
+            inventur_gruppiert[lagerort_key][lagerplatz_key].append(ersatzteil)
+    
+    return render_template('inventurliste.html', inventur_gruppiert=inventur_gruppiert)
+
+
 @ersatzteile_bp.route('/suche')
 @login_required
 def suche_artikel():

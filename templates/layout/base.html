@@ -231,6 +231,27 @@
         flex-shrink: 0;
       }
     }
+    
+    /* --- Druck-Styles --- */
+    @media print {
+      /* Navigation komplett ausblenden */
+      .sidebar,
+      .menu-toggle,
+      .sidebar-overlay {
+        display: none !important;
+      }
+      
+      /* Hauptinhalt ohne Sidebar-Margin und Padding */
+      .main-content {
+        margin-left: 0 !important;
+        padding: 0 !important;
+      }
+      
+      /* Body-Hintergrund weiß für Druck */
+      body {
+        background-color: white !important;
+      }
+    }
   </style>
 
   {% block styles %}{% endblock %}
@@ -280,8 +301,11 @@
     <a href="{{ url_for('ersatzteile.suche_artikel') }}" class="{% if request.endpoint and 'suche' in request.endpoint %}active{% endif %}">
       🔍 Suche Artikel
     </a>
-    <a href="{{ url_for('ersatzteile.ersatzteil_liste') }}" class="{% if request.endpoint and 'ersatzteile' in request.endpoint and 'lieferant' not in request.endpoint and 'lagerbuchung' not in request.endpoint and 'suche' not in request.endpoint %}active{% endif %}">
+    <a href="{{ url_for('ersatzteile.ersatzteil_liste') }}" class="{% if request.endpoint and 'ersatzteile' in request.endpoint and 'lieferant' not in request.endpoint and 'lagerbuchung' not in request.endpoint and 'suche' not in request.endpoint and 'inventur' not in request.endpoint %}active{% endif %}">
       🔧 Artikelliste
+    </a>
+    <a href="{{ url_for('ersatzteile.inventurliste') }}" class="{% if request.endpoint and 'inventur' in request.endpoint %}active{% endif %}">
+      📋 Inventurliste
     </a>
     <a href="{{ url_for('ersatzteile.lieferanten_liste') }}" class="{% if request.endpoint and 'lieferant' in request.endpoint %}active{% endif %}">
       📦 Lieferanten
