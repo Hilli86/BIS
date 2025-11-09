@@ -12,6 +12,9 @@ from utils.decorators import is_safe_url, login_required
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     """Login-Seite"""
+    # Personalnummer aus URL-Parameter oder Formular
+    personalnummer_param = request.args.get('personalnummer', '')
+    
     if request.method == 'POST':
         personalnummer = request.form['personalnummer']
         passwort = request.form['passwort']
@@ -25,7 +28,7 @@ def login():
 
             if not user:
                 flash('Kein Benutzer mit dieser Personalnummer gefunden oder Benutzer inaktiv.', 'danger')
-                return render_template('login.html')
+                return render_template('login.html', personalnummer=personalnummer)
 
             if user and check_password_hash(user['Passwort'], passwort):
                 session['user_id'] = user['ID']
@@ -67,7 +70,7 @@ def login():
             flash('Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.', 'danger')
             print(f"Login error: {e}")
 
-    return render_template('login.html')
+    return render_template('login.html', personalnummer=personalnummer_param)
 
 
 @auth_bp.route('/logout')

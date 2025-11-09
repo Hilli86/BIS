@@ -365,7 +365,7 @@ def fill_ersatzteile(conn, kategorie_ids, lieferant_ids, lagerort_ids, lagerplat
     num_ersatzteile = max(100, len(ERSATZTEIL_BEZEICHNUNGEN))
     
     for i in range(num_ersatzteile):
-        artikelnummer = f"ET-{1000 + i:05d}"
+        bestellnummer = f"ET-{1000 + i:05d}"
         bezeichnung = ERSATZTEIL_BEZEICHNUNGEN[i % len(ERSATZTEIL_BEZEICHNUNGEN)]
         if i >= len(ERSATZTEIL_BEZEICHNUNGEN):
             bezeichnung = f"{bezeichnung} Variante {i // len(ERSATZTEIL_BEZEICHNUNGEN) + 1}"
@@ -390,18 +390,18 @@ def fill_ersatzteile(conn, kategorie_ids, lieferant_ids, lagerort_ids, lagerplat
         
         cursor.execute('''
             INSERT OR IGNORE INTO Ersatzteil (
-                Artikelnummer, Bezeichnung, Beschreibung, KategorieID, Hersteller,
+                Bestellnummer, Bezeichnung, Beschreibung, KategorieID, Hersteller,
                 LieferantID, Preis, Waehrung, LagerortID, LagerplatzID, Mindestbestand,
                 AktuellerBestand, Einheit, EndOfLife, NachfolgeartikelID, Kennzeichen,
                 ArtikelnummerHersteller, Aktiv, Gelöscht, ErstelltVonID
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
-        ''', (artikelnummer, bezeichnung, beschreibung, kategorie_id, hersteller,
+        ''', (bestellnummer, bezeichnung, beschreibung, kategorie_id, hersteller,
               lieferant_id, preis, waehrung, lagerort_id, lagerplatz_id, mindestbestand,
               aktueller_bestand, einheit, end_of_life, nachfolgeartikel_id, kennzeichen,
               artikelnummer_hersteller, aktiv, erstellt_von_id))
         
         ersatzteil_id = cursor.lastrowid if cursor.lastrowid else cursor.execute(
-            'SELECT ID FROM Ersatzteil WHERE Artikelnummer = ?', (artikelnummer,)
+            'SELECT ID FROM Ersatzteil WHERE Bestellnummer = ?', (bestellnummer,)
         ).fetchone()[0]
         ersatzteil_ids.append(ersatzteil_id)
         

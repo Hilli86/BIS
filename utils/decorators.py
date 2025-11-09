@@ -21,7 +21,12 @@ def login_required(view_func):
         if 'user_id' not in session:
             flash('Bitte zuerst anmelden.', 'warning')
             # Speichere die ursprüngliche URL als next-Parameter
-            return redirect(url_for('auth.login', next=request.url))
+            # Und Personalnummer falls vorhanden
+            personalnummer = request.args.get('personalnummer')
+            login_url = url_for('auth.login', next=request.url)
+            if personalnummer:
+                login_url = url_for('auth.login', next=request.url, personalnummer=personalnummer)
+            return redirect(login_url)
         return view_func(*args, **kwargs)
     return wrapper
 
@@ -38,7 +43,12 @@ def admin_required(view_func):
                 return jsonify({'success': False, 'message': 'Bitte zuerst anmelden.'}), 401
             flash('Bitte zuerst anmelden.', 'warning')
             # Speichere die ursprüngliche URL als next-Parameter
-            return redirect(url_for('auth.login', next=request.url))
+            # Und Personalnummer falls vorhanden
+            personalnummer = request.args.get('personalnummer')
+            login_url = url_for('auth.login', next=request.url)
+            if personalnummer:
+                login_url = url_for('auth.login', next=request.url, personalnummer=personalnummer)
+            return redirect(login_url)
         
         # Prüfe, ob Benutzer in BIS-Admin Abteilung ist
         user_abteilungen = session.get('user_abteilungen', [])

@@ -86,7 +86,7 @@
             <table class="table table-sm">
                 <thead>
                     <tr>
-                        <th>Artikelnummer</th>
+                        <th>Bestellnummer</th>
                         <th>Bezeichnung</th>
                         <th>Kategorie</th>
                         <th>Bestand</th>
@@ -96,7 +96,7 @@
                 <tbody>
                     {% for e in ersatzteile %}
                     <tr {% if e.Mindestbestand > 0 and e.AktuellerBestand <= e.Mindestbestand %}class="table-warning"{% endif %}>
-                        <td><strong>{{ e.Artikelnummer }}</strong></td>
+                        <td><strong>{{ e.Bestellnummer }}</strong></td>
                         <td>
                             <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none">
                                 {{ e.Bezeichnung }}

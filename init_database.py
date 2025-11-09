@@ -469,7 +469,7 @@ def init_database():
         created = create_table_if_not_exists(conn, 'Ersatzteil', '''
             CREATE TABLE Ersatzteil (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
-                Artikelnummer TEXT NOT NULL UNIQUE,
+                Bestellnummer TEXT NOT NULL UNIQUE,
                 Bezeichnung TEXT NOT NULL,
                 Beschreibung TEXT,
                 KategorieID INTEGER,
@@ -499,7 +499,7 @@ def init_database():
                 FOREIGN KEY (NachfolgeartikelID) REFERENCES Ersatzteil(ID)
             )
         ''', [
-            'CREATE INDEX idx_ersatzteil_artikelnummer ON Ersatzteil(Artikelnummer)',
+            'CREATE INDEX idx_ersatzteil_bestellnummer ON Ersatzteil(Bestellnummer)',
             'CREATE INDEX idx_ersatzteil_kategorie ON Ersatzteil(KategorieID)',
             'CREATE INDEX idx_ersatzteil_lieferant ON Ersatzteil(LieferantID)',
             'CREATE INDEX idx_ersatzteil_aktiv ON Ersatzteil(Aktiv)',

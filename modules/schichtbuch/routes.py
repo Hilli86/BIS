@@ -669,7 +669,7 @@ def thema_detail(thema_id):
                 l.Bemerkung,
                 l.Preis,
                 l.Waehrung,
-                e.Artikelnummer,
+                e.Bestellnummer,
                 e.Bezeichnung AS ErsatzteilBezeichnung,
                 m.Vorname || ' ' || m.Nachname AS VerwendetVon,
                 k.Bezeichnung AS Kostenstelle
@@ -687,7 +687,7 @@ def thema_detail(thema_id):
         is_admin = 'BIS-Admin' in (session.get('user_abteilungen') or [])
         
         verfuegbare_query = '''
-            SELECT e.ID, e.Artikelnummer, e.Bezeichnung, e.AktuellerBestand, e.Einheit
+            SELECT e.ID, e.Bestellnummer, e.Bezeichnung, e.AktuellerBestand, e.Einheit
             FROM Ersatzteil e
             WHERE e.Gelöscht = 0 AND e.Aktiv = 1 AND e.AktuellerBestand > 0
         '''

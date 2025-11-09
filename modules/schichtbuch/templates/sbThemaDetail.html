@@ -181,7 +181,7 @@
                             <td>{{ v.Buchungsdatum[:16] if v.Buchungsdatum else '-' }}</td>
                             <td>
                                 <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=v.ErsatzteilID) }}" class="text-decoration-none">
-                                    {{ v.Artikelnummer }} - {{ v.ErsatzteilBezeichnung }}
+                                    {{ v.Bestellnummer }} - {{ v.ErsatzteilBezeichnung }}
                                 </a>
                             </td>
                             <td>
@@ -229,7 +229,7 @@
                             <option value="">-- Ersatzteil wählen --</option>
                             {% for e in verfuegbare_ersatzteile %}
                             <option value="{{ e.ID }}" data-bestand="{{ e.AktuellerBestand }}">
-                                {{ e.Artikelnummer }} - {{ e.Bezeichnung }} (Bestand: {{ e.AktuellerBestand }} {{ e.Einheit }})
+                                {{ e.Bestellnummer }} - {{ e.Bezeichnung }} (Bestand: {{ e.AktuellerBestand }} {{ e.Einheit }})
                             </option>
                             {% endfor %}
                         </select>

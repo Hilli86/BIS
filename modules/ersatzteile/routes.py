@@ -68,7 +68,7 @@ def ersatzteil_liste():
         query = '''
             SELECT 
                 e.ID,
-                e.Artikelnummer,
+                e.Bestellnummer,
                 e.Bezeichnung,
                 e.Hersteller,
                 e.AktuellerBestand,
@@ -118,14 +118,14 @@ def ersatzteil_liste():
             query += ' AND e.AktuellerBestand <= e.Mindestbestand AND e.Mindestbestand > 0 AND e.EndOfLife = 0'
         
         if q_filter:
-            query += ' AND (e.Artikelnummer LIKE ? OR e.Bezeichnung LIKE ? OR e.Beschreibung LIKE ?)'
+            query += ' AND (e.Bestellnummer LIKE ? OR e.Bezeichnung LIKE ? OR e.Beschreibung LIKE ?)'
             search_term = f'%{q_filter}%'
             params.extend([search_term, search_term, search_term])
         
         # Sortierung
         sort_mapping = {
             'id': 'e.ID',
-            'artikelnummer': 'e.Artikelnummer',
+            'artikelnummer': 'e.Bestellnummer',
             'kategorie': 'k.Bezeichnung',
             'bezeichnung': 'e.Bezeichnung',
             'lieferant': 'l.Name',
@@ -205,7 +205,7 @@ def lagerbuchungen_liste():
                 l.ErsatzteilID,
                 l.Preis,
                 l.Waehrung,
-                e.Artikelnummer,
+                e.Bestellnummer,
                 e.Bezeichnung AS ErsatzteilBezeichnung,
                 m.Vorname || ' ' || m.Nachname AS VerwendetVon,
                 k.Bezeichnung AS Kostenstelle,
@@ -269,7 +269,7 @@ def lagerbuchungen_liste():
         # Filter-Optionen laden
         # Nur Ersatzteile, auf die der Benutzer Zugriff hat
         ersatzteile_query = '''
-            SELECT DISTINCT e.ID, e.Artikelnummer, e.Bezeichnung
+            SELECT DISTINCT e.ID, e.Bestellnummer, e.Bezeichnung
             FROM Ersatzteil e
             JOIN Lagerbuchung l ON e.ID = l.ErsatzteilID
             WHERE e.Gelöscht = 0
@@ -288,7 +288,7 @@ def lagerbuchungen_liste():
         elif not is_admin:
             ersatzteile_query += ' AND 1=0'
         
-        ersatzteile_query += ' ORDER BY e.Artikelnummer'
+        ersatzteile_query += ' ORDER BY e.Bestellnummer'
         ersatzteile = conn.execute(ersatzteile_query, ersatzteile_params).fetchall()
         
         kostenstellen = conn.execute('SELECT ID, Bezeichnung FROM Kostenstelle WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung').fetchall()
@@ -332,7 +332,7 @@ def ersatzteil_detail(ersatzteil_id):
                 lo.Bezeichnung AS LagerortName,
                 lp.Bezeichnung AS LagerplatzName,
                 m.Vorname || ' ' || m.Nachname AS ErstelltVon,
-                n.Artikelnummer AS NachfolgeartikelNummer,
+                n.Bestellnummer AS NachfolgeartikelNummer,
                 n.Bezeichnung AS NachfolgeartikelBezeichnung
             FROM Ersatzteil e
             LEFT JOIN ErsatzteilKategorie k ON e.KategorieID = k.ID
@@ -443,7 +443,7 @@ def ersatzteil_neu():
         return redirect(url_for('ersatzteile.ersatzteil_liste'))
     
     if request.method == 'POST':
-        artikelnummer = request.form.get('artikelnummer', '').strip()
+        bestellnummer = request.form.get('bestellnummer', '').strip()
         bezeichnung = request.form.get('bezeichnung', '').strip()
         beschreibung = request.form.get('beschreibung', '').strip()
         kategorie_id = request.form.get('kategorie_id') or None
@@ -469,8 +469,8 @@ def ersatzteil_neu():
         artikelnummer_hersteller = request.form.get('artikelnummer_hersteller', '').strip() or None
         
         # Validierung
-        if not artikelnummer or not bezeichnung:
-            flash('Artikelnummer und Bezeichnung sind erforderlich.', 'danger')
+        if not bestellnummer or not bezeichnung:
+            flash('Bestellnummer und Bezeichnung sind erforderlich.', 'danger')
             return redirect(url_for('ersatzteile.ersatzteil_neu'))
         
         # Kennzeichen validieren (nur A-Z)
@@ -482,10 +482,10 @@ def ersatzteil_neu():
             with get_db_connection() as conn:
                 cursor = conn.cursor()
                 
-                # Prüfe ob Artikelnummer bereits existiert
-                existing = cursor.execute('SELECT ID FROM Ersatzteil WHERE Artikelnummer = ?', (artikelnummer,)).fetchone()
+                # Prüfe ob Bestellnummer bereits existiert
+                existing = cursor.execute('SELECT ID FROM Ersatzteil WHERE Bestellnummer = ?', (bestellnummer,)).fetchone()
                 if existing:
-                    flash('Artikelnummer existiert bereits.', 'danger')
+                    flash('Bestellnummer existiert bereits.', 'danger')
                     return redirect(url_for('ersatzteile.ersatzteil_neu'))
                 
                 # Prüfe ob Nachfolgeartikel existiert (falls angegeben)
@@ -498,12 +498,12 @@ def ersatzteil_neu():
                 # Ersatzteil anlegen
                 cursor.execute('''
                     INSERT INTO Ersatzteil (
-                        Artikelnummer, Bezeichnung, Beschreibung, KategorieID, Hersteller,
+                        Bestellnummer, Bezeichnung, Beschreibung, KategorieID, Hersteller,
                         LieferantID, Preis, Waehrung, LagerortID, LagerplatzID, Mindestbestand,
                         AktuellerBestand, Einheit, ErstelltVonID, EndOfLife, NachfolgeartikelID,
                         Kennzeichen, ArtikelnummerHersteller
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
-                ''', (artikelnummer, bezeichnung, beschreibung, kategorie_id, hersteller,
+                ''', (bestellnummer, bezeichnung, beschreibung, kategorie_id, hersteller,
                       lieferant_id, preis, waehrung, lagerort_id, lagerplatz_id, mindestbestand, 
                       einheit, mitarbeiter_id, end_of_life, nachfolgeartikel_id, kennzeichen, artikelnummer_hersteller))
                 
@@ -1001,7 +1001,7 @@ def lieferant_detail(lieferant_id):
         query = '''
             SELECT 
                 e.ID,
-                e.Artikelnummer,
+                e.Bestellnummer,
                 e.Bezeichnung,
                 e.AktuellerBestand,
                 e.Mindestbestand,

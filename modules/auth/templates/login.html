@@ -15,7 +15,7 @@
   <form method="post">
     <div class="mb-3">
       <label for="personalnummer" class="form-label">Personalnummer</label>
-      <input type="text" name="personalnummer" id="personalnummer" class="form-control" required>
+      <input type="text" name="personalnummer" id="personalnummer" class="form-control" value="{{ personalnummer or '' }}" required>
     </div>
     <div class="mb-3">
       <label for="passwort" class="form-label">Passwort</label>

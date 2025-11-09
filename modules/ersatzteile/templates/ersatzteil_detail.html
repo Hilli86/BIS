@@ -31,12 +31,21 @@
                 <table class="table table-sm table-borderless mb-0">
                     <tbody>
                         <tr>
-                            <td class="text-muted" style="width: 150px;"><strong>Artikelnummer:</strong></td>
-                            <td><strong>{{ ersatzteil.Artikelnummer }}</strong></td>
+                            <td class="text-muted"><strong>Artikelnummer:</strong></td>
+                            <td>{% if ersatzteil.Kennzeichen %}
+                                <span class="badge bg-info">{{ ersatzteil.Kennzeichen }}</span>
+                                {% else %}
+                                -
+                                {% endif %}
+                                <strong class="text-primary">{{ ersatzteil.ID }}</strong></td>
                         </tr>
                         <tr>
-                            <td class="text-muted"><strong>Interne Artikelnummer (ID):</strong></td>
-                            <td><strong class="text-primary">{{ ersatzteil.ID }}</strong></td>
+                            <td class="text-muted" style="width: 150px;"><strong>Bestellnummer:</strong></td>
+                            <td><strong>{{ ersatzteil.Bestellnummer }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Kategorie:</strong></td>
+                            <td>{{ ersatzteil.Kategorie or '-' }}</td>
                         </tr>
                         <tr>
                             <td class="text-muted"><strong>Bezeichnung:</strong></td>
@@ -47,48 +56,12 @@
                             <td>{{ ersatzteil.Beschreibung or '-' }}</td>
                         </tr>
                         <tr>
-                            <td class="text-muted"><strong>Kategorie:</strong></td>
-                            <td>{{ ersatzteil.Kategorie or '-' }}</td>
-                        </tr>
-                        <tr>
                             <td class="text-muted"><strong>Hersteller:</strong></td>
                             <td>{{ ersatzteil.Hersteller or '-' }}</td>
                         </tr>
                         <tr>
-                            <td class="text-muted"><strong>Artikelnummer Hersteller:</strong></td>
+                            <td class="text-muted"><strong>Hersteller Art.Nr.:</strong></td>
                             <td>{{ ersatzteil.ArtikelnummerHersteller or '-' }}</td>
-                        </tr>
-                        <tr>
-                            <td class="text-muted"><strong>Kennzeichen:</strong></td>
-                            <td>
-                                {% if ersatzteil.Kennzeichen %}
-                                <span class="badge bg-info">{{ ersatzteil.Kennzeichen }}</span>
-                                {% else %}
-                                -
-                                {% endif %}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td class="text-muted"><strong>End of Life:</strong></td>
-                            <td>
-                                {% if ersatzteil.EndOfLife %}
-                                <span class="badge bg-danger">Ja</span>
-                                {% else %}
-                                <span class="badge bg-success">Nein</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td class="text-muted"><strong>Nachfolgeartikel:</strong></td>
-                            <td>
-                                {% if ersatzteil.NachfolgeartikelID %}
-                                <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil.NachfolgeartikelID) }}" class="text-decoration-none">
-                                    {{ ersatzteil.NachfolgeartikelNummer }} - {{ ersatzteil.NachfolgeartikelBezeichnung }}
-                                </a>
-                                {% else %}
-                                -
-                                {% endif %}
-                            </td>
                         </tr>
                         <tr>
                             <td class="text-muted"><strong>Lieferant:</strong></td>
@@ -151,6 +124,28 @@
                                 <span class="badge bg-success">Aktiv</span>
                                 {% else %}
                                 <span class="badge bg-secondary">Inaktiv</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>End of Life:</strong></td>
+                            <td>
+                                {% if ersatzteil.EndOfLife %}
+                                <span class="badge bg-danger">Ja</span>
+                                {% else %}
+                                <span class="badge bg-success">Nein</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Nachfolgeartikel:</strong></td>
+                            <td>
+                                {% if ersatzteil.NachfolgeartikelID %}
+                                <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil.NachfolgeartikelID) }}" class="text-decoration-none">
+                                    {{ ersatzteil.NachfolgeartikelNummer }} - {{ ersatzteil.NachfolgeartikelBezeichnung }}
+                                </a>
+                                {% else %}
+                                -
                                 {% endif %}
                             </td>
                         </tr>

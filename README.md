@@ -164,10 +164,10 @@ BIS/
 ### Ersatzteile-Verwaltung
 - **Ersatzteil-Liste** mit umfangreichen Filtern:
   - Kategorie, Lieferant, Bestandswarnung
-  - Textsuche (Artikelnummer, Bezeichnung, Beschreibung)
-  - Sortierung nach verschiedenen Kriterien (ID, Artikelnummer, Kategorie, Bezeichnung, Lieferant, Bestand, Lagerort, Lagerplatz)
+  - Textsuche (Bestellnummer, Bezeichnung, Beschreibung)
+  - Sortierung nach verschiedenen Kriterien (ID, Bestellnummer, Kategorie, Bezeichnung, Lieferant, Bestand, Lagerort, Lagerplatz)
 - **Ersatzteil-Detailansicht**:
-  - Vollständige Informationen (Artikelnummer, Bezeichnung, Hersteller, Preis, Währung, Lagerort, Lagerplatz)
+  - Vollständige Informationen (Bestellnummer, Bezeichnung, Hersteller, Preis, Währung, Lagerort, Lagerplatz)
   - Bestandsanzeige mit Mindestbestand und Warnung
   - End-of-Life und Nachfolgeartikel-Verwaltung
   - Kennzeichen (A-Z) für Kategorisierung

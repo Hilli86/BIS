@@ -970,7 +970,7 @@ DATABASE_SCHEMA = {
     'Ersatzteil': {
         'columns': {
             'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
-            'Artikelnummer': 'TEXT NOT NULL UNIQUE',
+            'Bestellnummer': 'TEXT NOT NULL UNIQUE',
             'Bezeichnung': 'TEXT NOT NULL',
             'Beschreibung': 'TEXT',
             'KategorieID': 'INTEGER',
@@ -988,7 +988,7 @@ DATABASE_SCHEMA = {
             'ErstelltVonID': 'INTEGER'
         },
         'indexes': [
-            'idx_ersatzteil_artikelnummer',
+            'idx_ersatzteil_bestellnummer',
             'idx_ersatzteil_kategorie',
             'idx_ersatzteil_lieferant',
             'idx_ersatzteil_aktiv',
@@ -1181,7 +1181,7 @@ def database_repair():
                                         'abt': 'AbteilungID',
                                         'kategorie': 'KategorieID',
                                         'lieferant': 'LieferantID',
-                                        'artikelnummer': 'Artikelnummer',
+                                        'bestellnummer': 'Bestellnummer',
                                         'bestand': 'AktuellerBestand',
                                         'ersatzteil': 'ErsatzteilID',
                                         'kostenstelle': 'KostenstelleID',
@@ -1283,7 +1283,7 @@ def database_repair():
                                     'abt': 'AbteilungID',
                                     'kategorie': 'KategorieID',
                                     'lieferant': 'LieferantID',
-                                    'artikelnummer': 'Artikelnummer',
+                                    'bestellnummer': 'Bestellnummer',
                                     'bestand': 'AktuellerBestand',
                                     'ersatzteil': 'ErsatzteilID',
                                     'kostenstelle': 'KostenstelleID',

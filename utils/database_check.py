@@ -38,6 +38,23 @@ def index_exists(conn, index_name):
     return cursor.fetchone() is not None
 
 
+def extract_column_from_index(index_sql):
+    """Extrahiert den Spaltennamen aus einem CREATE INDEX Statement"""
+    # CREATE INDEX name ON table(column)
+    try:
+        # Finde die Spalte zwischen den Klammern
+        start = index_sql.find('(')
+        end = index_sql.find(')')
+        if start != -1 and end != -1:
+            column_part = index_sql[start+1:end].strip()
+            # Entferne mögliche zusätzliche Teile wie ASC/DESC
+            column_name = column_part.split()[0]
+            return column_name
+    except:
+        pass
+    return None
+
+
 def create_table_if_not_exists(conn, table_name, create_sql, indices=None):
     """Erstellt eine Tabelle falls sie nicht existiert und erstellt fehlende Indexes"""
     table_created = False
@@ -53,7 +70,16 @@ def create_table_if_not_exists(conn, table_name, create_sql, indices=None):
             if len(parts) >= 3 and parts[0].upper() == 'CREATE' and parts[1].upper() == 'INDEX':
                 index_name = parts[2]
                 if not index_exists(conn, index_name):
-                    conn.execute(index_sql)
+                    # Prüfe ob die Spalte existiert, bevor der Index erstellt wird
+                    column_name = extract_column_from_index(index_sql)
+                    if column_name and column_exists(conn, table_name, column_name):
+                        try:
+                            conn.execute(index_sql)
+                        except sqlite3.OperationalError as e:
+                            # Ignoriere Fehler wenn Spalte nicht existiert oder Index bereits existiert
+                            print(f"[WARN] Index '{index_name}' konnte nicht erstellt werden: {e}")
+                    elif column_name:
+                        print(f"[WARN] Spalte '{column_name}' existiert nicht in Tabelle '{table_name}', überspringe Index '{index_name}'")
     
     return table_created
 
@@ -447,10 +473,85 @@ def init_database_schema(db_path, verbose=False):
         ])
         
         # ========== 17. Ersatzteil ==========
+        # Migration: Artikelnummer -> Bestellnummer (falls noch nicht durchgeführt)
+        if table_exists(conn, 'Ersatzteil'):
+            if column_exists(conn, 'Ersatzteil', 'Artikelnummer') and not column_exists(conn, 'Ersatzteil', 'Bestellnummer'):
+                print("[INFO] Führe Migration durch: Artikelnummer -> Bestellnummer")
+                try:
+                    # SQLite unterstützt kein ALTER TABLE RENAME COLUMN direkt
+                    # Wir müssen eine neue Tabelle erstellen, Daten kopieren, alte löschen, neue umbenennen
+                    
+                    # 1. Neue Tabelle mit Bestellnummer erstellen
+                    cursor.execute('''
+                        CREATE TABLE Ersatzteil_new (
+                            ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                            Bestellnummer TEXT NOT NULL UNIQUE,
+                            Bezeichnung TEXT NOT NULL,
+                            Beschreibung TEXT,
+                            KategorieID INTEGER,
+                            Hersteller TEXT,
+                            LieferantID INTEGER,
+                            Preis REAL,
+                            Waehrung TEXT DEFAULT 'EUR',
+                            Lagerort TEXT,
+                            LagerortID INTEGER,
+                            LagerplatzID INTEGER,
+                            Mindestbestand INTEGER DEFAULT 0,
+                            AktuellerBestand INTEGER DEFAULT 0,
+                            Einheit TEXT DEFAULT 'Stück',
+                            EndOfLife INTEGER NOT NULL DEFAULT 0,
+                            NachfolgeartikelID INTEGER,
+                            Kennzeichen TEXT,
+                            ArtikelnummerHersteller TEXT,
+                            Aktiv INTEGER NOT NULL DEFAULT 1,
+                            Gelöscht INTEGER NOT NULL DEFAULT 0,
+                            ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            ErstelltVonID INTEGER,
+                            FOREIGN KEY (KategorieID) REFERENCES ErsatzteilKategorie(ID),
+                            FOREIGN KEY (LieferantID) REFERENCES Lieferant(ID),
+                            FOREIGN KEY (ErstelltVonID) REFERENCES Mitarbeiter(ID),
+                            FOREIGN KEY (LagerortID) REFERENCES Lagerort(ID),
+                            FOREIGN KEY (LagerplatzID) REFERENCES Lagerplatz(ID),
+                            FOREIGN KEY (NachfolgeartikelID) REFERENCES Ersatzteil(ID)
+                        )
+                    ''')
+                    
+                    # 2. Daten kopieren
+                    cursor.execute('''
+                        INSERT INTO Ersatzteil_new (
+                            ID, Bestellnummer, Bezeichnung, Beschreibung, KategorieID, Hersteller,
+                            LieferantID, Preis, Waehrung, Lagerort, LagerortID, LagerplatzID,
+                            Mindestbestand, AktuellerBestand, Einheit, EndOfLife, NachfolgeartikelID,
+                            Kennzeichen, ArtikelnummerHersteller, Aktiv, Gelöscht, ErstelltAm, ErstelltVonID
+                        )
+                        SELECT 
+                            ID, Artikelnummer, Bezeichnung, Beschreibung, KategorieID, Hersteller,
+                            LieferantID, Preis, Waehrung, Lagerort, LagerortID, LagerplatzID,
+                            Mindestbestand, AktuellerBestand, Einheit, EndOfLife, NachfolgeartikelID,
+                            Kennzeichen, ArtikelnummerHersteller, Aktiv, Gelöscht, ErstelltAm, ErstelltVonID
+                        FROM Ersatzteil
+                    ''')
+                    
+                    # 3. Alte Tabelle löschen
+                    cursor.execute('DROP TABLE Ersatzteil')
+                    
+                    # 4. Neue Tabelle umbenennen
+                    cursor.execute('ALTER TABLE Ersatzteil_new RENAME TO Ersatzteil')
+                    
+                    # 5. Alten Index löschen falls vorhanden
+                    cursor.execute('DROP INDEX IF EXISTS idx_ersatzteil_artikelnummer')
+                    
+                    conn.commit()
+                    print("[OK] Migration erfolgreich abgeschlossen")
+                except Exception as e:
+                    conn.rollback()
+                    print(f"[FEHLER] Migration fehlgeschlagen: {e}")
+                    raise
+        
         created = create_table_if_not_exists(conn, 'Ersatzteil', '''
             CREATE TABLE Ersatzteil (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
-                Artikelnummer TEXT NOT NULL UNIQUE,
+                Bestellnummer TEXT NOT NULL UNIQUE,
                 Bezeichnung TEXT NOT NULL,
                 Beschreibung TEXT,
                 KategorieID INTEGER,
@@ -480,7 +581,7 @@ def init_database_schema(db_path, verbose=False):
                 FOREIGN KEY (NachfolgeartikelID) REFERENCES Ersatzteil(ID)
             )
         ''', [
-            'CREATE INDEX idx_ersatzteil_artikelnummer ON Ersatzteil(Artikelnummer)',
+            'CREATE INDEX idx_ersatzteil_bestellnummer ON Ersatzteil(Bestellnummer)',
             'CREATE INDEX idx_ersatzteil_kategorie ON Ersatzteil(KategorieID)',
             'CREATE INDEX idx_ersatzteil_lieferant ON Ersatzteil(LieferantID)',
             'CREATE INDEX idx_ersatzteil_aktiv ON Ersatzteil(Aktiv)',

@@ -5,7 +5,7 @@ Modulare Flask-Anwendung mit Blueprints
 Hauptdatei - nur Initialisierung und Blueprint-Registrierung
 """
 
-from flask import Flask, render_template, session, redirect, url_for
+from flask import Flask, render_template, session, redirect, url_for, request
 import os
 from config import config
 
@@ -55,6 +55,10 @@ def index():
     """Startseite - Redirect zu Dashboard oder Login"""
     if session.get('user_id'):
         return redirect(url_for('dashboard'))
+    # URL-Parameter (z.B. personalnummer) an Login-Route weitergeben
+    personalnummer = request.args.get('personalnummer')
+    if personalnummer:
+        return redirect(url_for('auth.login', personalnummer=personalnummer))
     return redirect(url_for('auth.login'))
 
 
@@ -62,6 +66,10 @@ def index():
 def dashboard():
     """Dashboard - Übersicht"""
     if 'user_id' not in session:
+        # URL-Parameter (z.B. personalnummer) an Login-Route weitergeben
+        personalnummer = request.args.get('personalnummer')
+        if personalnummer:
+            return redirect(url_for('auth.login', personalnummer=personalnummer, next=url_for('dashboard')))
         return redirect(url_for('auth.login'))
     
     from utils import get_db_connection, get_sichtbare_abteilungen_fuer_mitarbeiter
