@@ -40,15 +40,20 @@
 
     .sidebar {
       min-height: 100vh;
+      height: 100vh;
       width: 240px;
       background-color: #e9ecef;
       padding: 1rem;
+      padding-bottom: 1rem;
       position: fixed;
       top: 0;
       left: 0;
       overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
       transition: transform 0.3s ease-in-out;
       z-index: 1040;
+      box-sizing: border-box;
     }
 
     .sidebar h6 {
@@ -109,10 +114,9 @@
 
     /* Mitarbeiter unten */
     .sidebar-footer {
-      position: absolute;
-      bottom: 1rem;
-      left: 1rem;
-      right: 1rem;
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid #dee2e6;
       font-size: 0.9rem;
       color: #495057;
     }
@@ -158,9 +162,13 @@
     }
 
     /* --- Mobile Ansicht --- */
-    @media (max-width: 768px) {
+    /* Seitenleiste ausblenden bei kleinen Bildschirmen ODER bei geringer Höhe (Querformat) */
+    @media (max-width: 768px), (max-height: 600px) {
       .sidebar {
         transform: translateX(-100%);
+        height: 100vh;
+        max-height: 100vh;
+        width: 280px;
       }
 
       .sidebar.open {
@@ -182,6 +190,45 @@
 
       .sidebar-overlay.show {
         display: block;
+      }
+
+      /* Sidebar-Footer im Querformat besser positionieren */
+      .sidebar-footer {
+        position: relative;
+        margin-top: 2rem;
+        padding-top: 1rem;
+        margin-bottom: 1rem;
+      }
+
+      /* Sicherstellen, dass Sidebar-Inhalt scrollbar ist */
+      .sidebar {
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        -webkit-overflow-scrolling: touch;
+        height: 100vh !important;
+        max-height: 100vh !important;
+        box-sizing: border-box;
+        touch-action: pan-y;
+        overscroll-behavior: contain;
+      }
+      
+      /* Touch-Scrolling für iOS verbessern */
+      .sidebar::-webkit-scrollbar {
+        width: 4px;
+      }
+      
+      .sidebar::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      
+      .sidebar::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 2px;
+      }
+      
+      /* Sicherstellen, dass alle Sidebar-Elemente scrollbar sind */
+      .sidebar > * {
+        flex-shrink: 0;
       }
     }
   </style>
@@ -294,16 +341,35 @@
       menuToggle.addEventListener('click', toggleMenu);
       overlay.addEventListener('click', toggleMenu);
 
-      // Menü schließen bei Klick auf einen Link (nur auf mobilen Geräten)
-      if (window.innerWidth <= 768) {
-        const sidebarLinks = sidebar.querySelectorAll('a');
-        sidebarLinks.forEach(link => {
-          link.addEventListener('click', () => {
-            sidebar.classList.remove('open');
-            overlay.classList.remove('show');
-          });
-        });
+      // Funktion zum Prüfen, ob mobile Ansicht aktiv ist
+      function isMobileView() {
+        return window.innerWidth <= 768 || window.innerHeight <= 600;
       }
+
+      // Menü schließen bei Klick auf einen Link (nur auf mobilen Geräten)
+      function setupMobileMenuClose() {
+        if (isMobileView()) {
+          const sidebarLinks = sidebar.querySelectorAll('a');
+          sidebarLinks.forEach(link => {
+            link.addEventListener('click', () => {
+              sidebar.classList.remove('open');
+              overlay.classList.remove('show');
+            });
+          });
+        }
+      }
+
+      // Initial setup
+      setupMobileMenuClose();
+
+      // Bei Größenänderung neu prüfen
+      window.addEventListener('resize', () => {
+        // Menü automatisch schließen bei Wechsel zu Desktop-Ansicht
+        if (!isMobileView()) {
+          sidebar.classList.remove('open');
+          overlay.classList.remove('show');
+        }
+      });
     }
 
     // Service Worker registrieren

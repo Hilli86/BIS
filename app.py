@@ -223,13 +223,87 @@ def dashboard():
         aktivitaet_query += ''' ORDER BY BM.Datum DESC
             LIMIT 15'''
         aktivitaeten = conn.execute(aktivitaet_query, aktivitaet_params).fetchall()
+        
+        # Ersatzteile-Statistiken
+        is_admin = 'BIS-Admin' in (session.get('user_abteilungen') or [])
+        ersatzteil_stats = {}
+        ersatzteil_warnungen = []
+        
+        # Basis-WHERE-Klausel für Ersatzteile
+        ersatzteil_where = 'WHERE e.Gelöscht = 0 AND e.Aktiv = 1'
+        ersatzteil_params = []
+        
+        # Berechtigungsfilter für Ersatzteile
+        if not is_admin and sichtbare_abteilungen:
+            placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+            ersatzteil_where += f'''
+                AND e.ID IN (
+                    SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
+                    WHERE AbteilungID IN ({placeholders})
+                )
+            '''
+            ersatzteil_params.extend(sichtbare_abteilungen)
+        elif not is_admin:
+            # Keine Berechtigung für Ersatzteile
+            ersatzteil_where += ' AND 1=0'
+        
+        # Gesamtanzahl Ersatzteile
+        ersatzteil_gesamt_query = f'''
+            SELECT COUNT(*) AS Gesamt
+            FROM Ersatzteil e
+            {ersatzteil_where}
+        '''
+        ersatzteil_gesamt = conn.execute(ersatzteil_gesamt_query, ersatzteil_params).fetchone()['Gesamt']
+        
+        # Ersatzteile mit Bestandswarnung
+        warnung_query = f'''
+            SELECT 
+                e.ID,
+                e.Bestellnummer,
+                e.Bezeichnung,
+                e.AktuellerBestand,
+                e.Mindestbestand,
+                e.Einheit,
+                k.Bezeichnung AS Kategorie
+            FROM Ersatzteil e
+            LEFT JOIN ErsatzteilKategorie k ON e.KategorieID = k.ID
+            {ersatzteil_where}
+            AND e.AktuellerBestand <= e.Mindestbestand 
+            AND e.Mindestbestand > 0 
+            AND e.EndOfLife = 0
+            ORDER BY e.AktuellerBestand ASC, e.Bezeichnung ASC
+            LIMIT 10
+        '''
+        ersatzteil_warnungen = conn.execute(warnung_query, ersatzteil_params).fetchall()
+        
+        # Kategorie-Statistiken
+        kategorie_query = f'''
+            SELECT 
+                k.Bezeichnung AS Kategorie,
+                COUNT(e.ID) AS Anzahl
+            FROM Ersatzteil e
+            LEFT JOIN ErsatzteilKategorie k ON e.KategorieID = k.ID
+            {ersatzteil_where}
+            GROUP BY k.Bezeichnung
+            ORDER BY Anzahl DESC
+            LIMIT 5
+        '''
+        kategorie_stats = conn.execute(kategorie_query, ersatzteil_params).fetchall()
+        
+        ersatzteil_stats = {
+            'gesamt': ersatzteil_gesamt,
+            'warnungen': len(ersatzteil_warnungen),
+            'kategorien': kategorie_stats
+        }
 
     return render_template('dashboard/dashboard.html', 
                          status_daten=status_daten,
                          gesamt=gesamt,
                          aktuelle_themen=aktuelle_themen,
                          meine_themen=meine_themen,
-                         aktivitaeten=aktivitaeten)
+                         aktivitaeten=aktivitaeten,
+                         ersatzteil_stats=ersatzteil_stats,
+                         ersatzteil_warnungen=ersatzteil_warnungen)
 
 
 # ========== App starten ==========
