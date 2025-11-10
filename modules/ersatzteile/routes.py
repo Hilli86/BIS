@@ -182,10 +182,8 @@ def lagerbuchungen_liste():
     
     # Filterparameter
     ersatzteil_filter = request.args.get('ersatzteil')
-    typ_filter = request.args.get('typ')  # 'Eingang' oder 'Ausgang'
-    # Wenn kein Typ-Filter-Parameter vorhanden ist (erster Aufruf), standardmäßig 'Ausgang' verwenden
-    if 'typ' not in request.args:
-        typ_filter = 'Ausgang'
+    typ_filter = request.args.get('typ')  # 'Eingang', 'Ausgang' oder 'Inventur'
+    # Kein Standard-Filter mehr - alle Typen werden angezeigt wenn kein Filter gesetzt ist
     kostenstelle_filter = request.args.get('kostenstelle')
     datum_von = request.args.get('datum_von')
     datum_bis = request.args.get('datum_bis')
@@ -258,7 +256,7 @@ def lagerbuchungen_liste():
             query += ' AND e.ID = ?'
             params.append(ersatzteil_filter)
         
-        if typ_filter:
+        if typ_filter and typ_filter.strip():
             query += ' AND l.Typ = ?'
             params.append(typ_filter)
         
@@ -274,7 +272,7 @@ def lagerbuchungen_liste():
             query += ' AND DATE(l.Buchungsdatum) <= ?'
             params.append(datum_bis)
         
-        query += ' ORDER BY l.Buchungsdatum DESC'
+        query += ' ORDER BY COALESCE(l.Buchungsdatum, l.ErstelltAm, datetime("1970-01-01")) DESC'
         
         # Limit anwenden wenn aktiviert
         if limit_aktiv:
@@ -774,7 +772,7 @@ def schnellbuchung():
             if thema_id:
                 thema = conn.execute('SELECT ID FROM SchichtbuchThema WHERE ID = ? AND Gelöscht = 0', (thema_id,)).fetchone()
                 if not thema:
-                    flash('Thema nicht gefunden.', 'danger')
+                    flash(f'Thema-ID {thema_id} wurde nicht gefunden oder ist nicht aktiv. Bitte überprüfen Sie die Eingabe.', 'danger')
                     return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
             
             aktueller_bestand = ersatzteil['AktuellerBestand']
@@ -784,24 +782,29 @@ def schnellbuchung():
             # Bestand aktualisieren
             if typ == 'Eingang':
                 neuer_bestand = aktueller_bestand + menge
+                buchungsmenge = menge
             elif typ == 'Inventur':
+                # Bei Inventur wird der Bestand auf den eingegebenen Wert gesetzt
                 neuer_bestand = menge
                 if neuer_bestand < 0:
                     flash('Bestand kann nicht negativ werden.', 'danger')
                     return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+                # Für die Buchung: Die eingegebene Menge (neuer Lagerstand) speichern
+                buchungsmenge = menge
             else:  # Ausgang
-                neuer_bestand = aktueller_bestand - menge
-                if neuer_bestand < 0:
-                    flash('Bestand kann nicht negativ werden.', 'danger')
+                if aktueller_bestand < menge:
+                    flash(f'Nicht genug Bestand verfügbar! Verfügbar: {aktueller_bestand}, benötigt: {menge}. Die Buchung wurde nicht durchgeführt.', 'danger')
                     return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+                neuer_bestand = aktueller_bestand - menge
+                buchungsmenge = menge
             
             # Lagerbuchung erstellen
             conn.execute('''
                 INSERT INTO Lagerbuchung (
                     ErsatzteilID, Typ, Menge, Grund, ThemaID, KostenstelleID,
-                    VerwendetVonID, Bemerkung, Preis, Waehrung
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (ersatzteil_id, typ, menge, grund, thema_id, kostenstelle_id, mitarbeiter_id, bemerkung, artikel_preis, artikel_waehrung))
+                    VerwendetVonID, Bemerkung, Preis, Waehrung, Buchungsdatum
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            ''', (ersatzteil_id, typ, buchungsmenge, grund, thema_id, kostenstelle_id, mitarbeiter_id, bemerkung, artikel_preis, artikel_waehrung))
             
             # Bestand aktualisieren
             conn.execute('UPDATE Ersatzteil SET AktuellerBestand = ? WHERE ID = ?', (neuer_bestand, ersatzteil_id))
@@ -812,6 +815,8 @@ def schnellbuchung():
     except Exception as e:
         flash(f'Fehler bei der Lagerbuchung: {str(e)}', 'danger')
         print(f"Schnellbuchung Fehler: {e}")
+        import traceback
+        traceback.print_exc()
     
     return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
 
@@ -865,7 +870,7 @@ def lagerbuchung(ersatzteil_id):
             if thema_id:
                 thema = conn.execute('SELECT ID FROM SchichtbuchThema WHERE ID = ? AND Gelöscht = 0', (thema_id,)).fetchone()
                 if not thema:
-                    flash('Thema nicht gefunden.', 'danger')
+                    flash(f'Thema-ID {thema_id} wurde nicht gefunden oder ist nicht aktiv. Bitte überprüfen Sie die Eingabe.', 'danger')
                     return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
             
             # Aktuellen Bestand ermitteln
@@ -881,25 +886,29 @@ def lagerbuchung(ersatzteil_id):
             # Bestand aktualisieren
             if typ == 'Eingang':
                 neuer_bestand = aktueller_bestand + menge
+                buchungsmenge = menge
             elif typ == 'Inventur':
                 # Bei Inventur wird der Bestand auf den eingegebenen Wert gesetzt
                 neuer_bestand = menge
                 if neuer_bestand < 0:
                     flash('Bestand kann nicht negativ werden.', 'danger')
                     return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+                # Für die Buchung: Die eingegebene Menge (neuer Lagerstand) speichern
+                buchungsmenge = menge
             else:  # Ausgang
-                neuer_bestand = aktueller_bestand - menge
-                if neuer_bestand < 0:
-                    flash('Bestand kann nicht negativ werden.', 'danger')
+                if aktueller_bestand < menge:
+                    flash(f'Nicht genug Bestand verfügbar! Verfügbar: {aktueller_bestand}, benötigt: {menge}. Die Buchung wurde nicht durchgeführt.', 'danger')
                     return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+                neuer_bestand = aktueller_bestand - menge
+                buchungsmenge = menge
             
             # Lagerbuchung erstellen (NICHT löschbar!)
             conn.execute('''
                 INSERT INTO Lagerbuchung (
                     ErsatzteilID, Typ, Menge, Grund, ThemaID, KostenstelleID,
-                    VerwendetVonID, Bemerkung, Preis, Waehrung
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (ersatzteil_id, typ, menge, grund, thema_id, kostenstelle_id, mitarbeiter_id, bemerkung, artikel_preis, artikel_waehrung))
+                    VerwendetVonID, Bemerkung, Preis, Waehrung, Buchungsdatum
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            ''', (ersatzteil_id, typ, buchungsmenge, grund, thema_id, kostenstelle_id, mitarbeiter_id, bemerkung, artikel_preis, artikel_waehrung))
             
             # Bestand aktualisieren
             conn.execute('UPDATE Ersatzteil SET AktuellerBestand = ? WHERE ID = ?', (neuer_bestand, ersatzteil_id))
@@ -910,6 +919,8 @@ def lagerbuchung(ersatzteil_id):
     except Exception as e:
         flash(f'Fehler bei der Lagerbuchung: {str(e)}', 'danger')
         print(f"Lagerbuchung Fehler: {e}")
+        import traceback
+        traceback.print_exc()
     
     return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
 
@@ -953,7 +964,7 @@ def thema_verknuepfen(thema_id):
             artikel_waehrung = ersatzteil['Waehrung'] or 'EUR'
             
             if aktueller_bestand < menge:
-                flash(f'Nicht genug Bestand verfügbar. Verfügbar: {aktueller_bestand}', 'danger')
+                flash(f'Nicht genug Bestand verfügbar! Verfügbar: {aktueller_bestand}, benötigt: {menge}. Die Buchung wurde nicht durchgeführt.', 'danger')
                 return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
             
             # Automatische Lagerbuchung (Ausgang) mit Thema-Verknüpfung
@@ -961,8 +972,8 @@ def thema_verknuepfen(thema_id):
             conn.execute('''
                 INSERT INTO Lagerbuchung (
                     ErsatzteilID, Typ, Menge, Grund, ThemaID, KostenstelleID,
-                    VerwendetVonID, Bemerkung, Preis, Waehrung
-                ) VALUES (?, 'Ausgang', ?, 'Thema', ?, ?, ?, ?, ?, ?)
+                    VerwendetVonID, Bemerkung, Preis, Waehrung, Buchungsdatum
+                ) VALUES (?, 'Ausgang', ?, 'Thema', ?, ?, ?, ?, ?, ?, datetime('now'))
             ''', (ersatzteil_id, menge, thema_id, kostenstelle_id, mitarbeiter_id, bemerkung, artikel_preis, artikel_waehrung))
             
             # Bestand aktualisieren

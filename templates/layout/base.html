@@ -346,6 +346,20 @@
 
   <!-- 🔹 Hauptinhalt -->
   <div class="main-content {% if session.user_id %}with-sidebar{% endif %}">
+    <!-- Flash-Meldungen anzeigen -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="container-fluid mt-3">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert" style="z-index: 9999; position: relative;">
+              <strong>{% if category == 'danger' or category == 'error' %}⚠️ Fehler:{% elif category == 'success' %}✅ Erfolg:{% elif category == 'warning' %}⚠️ Warnung:{% else %}ℹ️ Info:{% endif %}</strong> {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    
     {% block content %}
     {% endblock %}
   </div>
