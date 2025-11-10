@@ -19,6 +19,11 @@ def hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
         if 'BIS-Admin' in [a for a in abteilungen if isinstance(a, str)]:
             return True
     
+    # Prüfe ob Benutzer der Ersteller ist
+    ersatzteil = conn.execute('SELECT ErstelltVonID FROM Ersatzteil WHERE ID = ? AND Gelöscht = 0', (ersatzteil_id,)).fetchone()
+    if ersatzteil and ersatzteil['ErstelltVonID'] == mitarbeiter_id:
+        return True
+    
     # Prüfe ob Ersatzteil für Abteilungen des Mitarbeiters freigegeben ist
     sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
     if not sichtbare_abteilungen:
@@ -92,18 +97,24 @@ def ersatzteil_liste():
         params = []
         
         # Berechtigungsfilter
-        if not is_admin and sichtbare_abteilungen:
-            placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
-            query += f'''
-                AND e.ID IN (
-                    SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
-                    WHERE AbteilungID IN ({placeholders})
-                )
-            '''
-            params.extend(sichtbare_abteilungen)
-        elif not is_admin:
-            # Keine Berechtigung
-            query += ' AND 1=0'
+        if not is_admin:
+            if sichtbare_abteilungen:
+                placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+                query += f'''
+                    AND (
+                        e.ErstelltVonID = ? OR
+                        e.ID IN (
+                            SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
+                            WHERE AbteilungID IN ({placeholders})
+                        )
+                    )
+                '''
+                params.append(mitarbeiter_id)
+                params.extend(sichtbare_abteilungen)
+            else:
+                # Nur selbst erstellte Artikel
+                query += ' AND e.ErstelltVonID = ?'
+                params.append(mitarbeiter_id)
         
         # Filter anwenden
         if kategorie_filter:
@@ -223,18 +234,24 @@ def lagerbuchungen_liste():
         params = []
         
         # Berechtigungsfilter: Nur Ersatzteile, auf die der Benutzer Zugriff hat
-        if not is_admin and sichtbare_abteilungen:
-            placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
-            query += f'''
-                AND e.ID IN (
-                    SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
-                    WHERE AbteilungID IN ({placeholders})
-                )
-            '''
-            params.extend(sichtbare_abteilungen)
-        elif not is_admin:
-            # Keine Berechtigung
-            query += ' AND 1=0'
+        if not is_admin:
+            if sichtbare_abteilungen:
+                placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+                query += f'''
+                    AND (
+                        e.ErstelltVonID = ? OR
+                        e.ID IN (
+                            SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
+                            WHERE AbteilungID IN ({placeholders})
+                        )
+                    )
+                '''
+                params.append(mitarbeiter_id)
+                params.extend(sichtbare_abteilungen)
+            else:
+                # Nur selbst erstellte Artikel
+                query += ' AND e.ErstelltVonID = ?'
+                params.append(mitarbeiter_id)
         
         # Filter anwenden
         if ersatzteil_filter:
@@ -279,17 +296,24 @@ def lagerbuchungen_liste():
         '''
         ersatzteile_params = []
         
-        if not is_admin and sichtbare_abteilungen:
-            placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
-            ersatzteile_query += f'''
-                AND e.ID IN (
-                    SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
-                    WHERE AbteilungID IN ({placeholders})
-                )
-            '''
-            ersatzteile_params.extend(sichtbare_abteilungen)
-        elif not is_admin:
-            ersatzteile_query += ' AND 1=0'
+        if not is_admin:
+            if sichtbare_abteilungen:
+                placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+                ersatzteile_query += f'''
+                    AND (
+                        e.ErstelltVonID = ? OR
+                        e.ID IN (
+                            SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
+                            WHERE AbteilungID IN ({placeholders})
+                        )
+                    )
+                '''
+                ersatzteile_params.append(mitarbeiter_id)
+                ersatzteile_params.extend(sichtbare_abteilungen)
+            else:
+                # Nur selbst erstellte Artikel
+                ersatzteile_query += ' AND e.ErstelltVonID = ?'
+                ersatzteile_params.append(mitarbeiter_id)
         
         ersatzteile_query += ' ORDER BY e.Bestellnummer'
         ersatzteile = conn.execute(ersatzteile_query, ersatzteile_params).fetchall()
@@ -1000,18 +1024,24 @@ def inventurliste():
         params = []
         
         # Berechtigungsfilter
-        if not is_admin and sichtbare_abteilungen:
-            placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
-            query += f'''
-                AND e.ID IN (
-                    SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
-                    WHERE AbteilungID IN ({placeholders})
-                )
-            '''
-            params.extend(sichtbare_abteilungen)
-        elif not is_admin:
-            # Keine Berechtigung
-            query += ' AND 1=0'
+        if not is_admin:
+            if sichtbare_abteilungen:
+                placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+                query += f'''
+                    AND (
+                        e.ErstelltVonID = ? OR
+                        e.ID IN (
+                            SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
+                            WHERE AbteilungID IN ({placeholders})
+                        )
+                    )
+                '''
+                params.append(mitarbeiter_id)
+                params.extend(sichtbare_abteilungen)
+            else:
+                # Nur selbst erstellte Artikel
+                query += ' AND e.ErstelltVonID = ?'
+                params.append(mitarbeiter_id)
         
         # Sortierung: Erst nach Lagerort, dann Lagerplatz, dann Artikel-ID
         query += '''
@@ -1063,17 +1093,24 @@ def suche_artikel():
                 params = [artikelnummer]
                 
                 # Berechtigungsfilter
-                if not is_admin and sichtbare_abteilungen:
-                    placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
-                    query += f'''
-                        AND e.ID IN (
-                            SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
-                            WHERE AbteilungID IN ({placeholders})
-                        )
-                    '''
-                    params.extend(sichtbare_abteilungen)
-                elif not is_admin:
-                    query += ' AND 1=0'
+                if not is_admin:
+                    if sichtbare_abteilungen:
+                        placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+                        query += f'''
+                            AND (
+                                e.ErstelltVonID = ? OR
+                                e.ID IN (
+                                    SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
+                                    WHERE AbteilungID IN ({placeholders})
+                                )
+                            )
+                        '''
+                        params.append(mitarbeiter_id)
+                        params.extend(sichtbare_abteilungen)
+                    else:
+                        # Nur selbst erstellte Artikel
+                        query += ' AND e.ErstelltVonID = ?'
+                        params.append(mitarbeiter_id)
                 
                 ersatzteil = conn.execute(query, params).fetchone()
                 
@@ -1089,17 +1126,24 @@ def suche_artikel():
                         params_id = [artikelnummer_int]
                         
                         # Berechtigungsfilter
-                        if not is_admin and sichtbare_abteilungen:
-                            placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
-                            query_id += f'''
-                                AND e.ID IN (
-                                    SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
-                                    WHERE AbteilungID IN ({placeholders})
-                                )
-                            '''
-                            params_id.extend(sichtbare_abteilungen)
-                        elif not is_admin:
-                            query_id += ' AND 1=0'
+                        if not is_admin:
+                            if sichtbare_abteilungen:
+                                placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+                                query_id += f'''
+                                    AND (
+                                        e.ErstelltVonID = ? OR
+                                        e.ID IN (
+                                            SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
+                                            WHERE AbteilungID IN ({placeholders})
+                                        )
+                                    )
+                                '''
+                                params_id.append(mitarbeiter_id)
+                                params_id.extend(sichtbare_abteilungen)
+                            else:
+                                # Nur selbst erstellte Artikel
+                                query_id += ' AND e.ErstelltVonID = ?'
+                                params_id.append(mitarbeiter_id)
                         
                         ersatzteil = conn.execute(query_id, params_id).fetchone()
                     except ValueError:
@@ -1178,17 +1222,24 @@ def lieferant_detail(lieferant_id):
         params = [lieferant_id]
         
         # Berechtigungsfilter für Ersatzteile
-        if not is_admin and sichtbare_abteilungen:
-            placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
-            query += f'''
-                AND e.ID IN (
-                    SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
-                    WHERE AbteilungID IN ({placeholders})
-                )
-            '''
-            params.extend(sichtbare_abteilungen)
-        elif not is_admin:
-            query += ' AND 1=0'
+        if not is_admin:
+            if sichtbare_abteilungen:
+                placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+                query += f'''
+                    AND (
+                        e.ErstelltVonID = ? OR
+                        e.ID IN (
+                            SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
+                            WHERE AbteilungID IN ({placeholders})
+                        )
+                    )
+                '''
+                params.append(mitarbeiter_id)
+                params.extend(sichtbare_abteilungen)
+            else:
+                # Nur selbst erstellte Artikel
+                query += ' AND e.ErstelltVonID = ?'
+                params.append(mitarbeiter_id)
         
         query += ' ORDER BY e.Bezeichnung'
         ersatzteile = conn.execute(query, params).fetchall()

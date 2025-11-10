@@ -197,21 +197,21 @@
                 </thead>
                 <tbody>
                     {% for e in ersatzteile %}
-                    <tr {% if not e.EndOfLife and e.Mindestbestand > 0 and e.AktuellerBestand <= e.Mindestbestand %}class="table-warning"{% endif %}>
+                    <tr {% if not e.EndOfLife and e.Mindestbestand > 0 and e.AktuellerBestand <= e.Mindestbestand %}class="table-warning"{% endif %} style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}';">
                         <td>
                             {% if e.Kennzeichen %}
                             <span class="badge bg-info me-1" style="width: 30px; display: inline-block; text-align: center;">{{ e.Kennzeichen }}</span>
                             {% else %}
                             <span class="badge me-1" style="width: 30px; display: inline-block; visibility: hidden;"></span>
                             {% endif %}
-                            <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none fw-bold">
+                            <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none fw-bold" onclick="event.stopPropagation();">
                                 {{ e.ID }}
                             </a>
                         </td>
-                        <td>{{ e.Kategorie or '-' }}</td>
-                        <td>{{ e.Bezeichnung }}</td>
-                        <td>{{ e.Lieferant or '-' }}</td>
-                        <td>{{ e.Bestellnummer }}</td>
+                        <td><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none text-dark">{{ e.Kategorie or '-' }}</a></td>
+                        <td><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none text-dark">{{ e.Bezeichnung }}</a></td>
+                        <td><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none text-dark">{{ e.Lieferant or '-' }}</a></td>
+                        <td><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none text-dark">{{ e.Bestellnummer }}</a></td>
                         <td>
                             <span class="badge {% if not e.EndOfLife and e.Mindestbestand > 0 and e.AktuellerBestand <= e.Mindestbestand %}bg-warning{% elif e.AktuellerBestand > 0 %}bg-success{% else %}bg-secondary{% endif %}">
                                 {{ e.AktuellerBestand }} {{ e.Einheit }}
@@ -220,9 +220,9 @@
                             <br><small class="text-muted">Min: {{ e.Mindestbestand }}</small>
                             {% endif %}
                         </td>
-                        <td>{{ e.LagerortName or '-' }}</td>
-                        <td>{{ e.LagerplatzName or '-' }}</td>
-                        <td>
+                        <td><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none text-dark">{{ e.LagerortName or '-' }}</a></td>
+                        <td><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none text-dark">{{ e.LagerplatzName or '-' }}</a></td>
+                        <td onclick="event.stopPropagation();">
                             <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="btn btn-sm btn-outline-primary">
                                 <i class="bi bi-eye"></i>
                             </a>
