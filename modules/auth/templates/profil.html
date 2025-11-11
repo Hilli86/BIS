@@ -132,6 +132,61 @@
                 </div>
             </div>
 
+            <!-- Passwort ändern -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">🔑 Passwort ändern</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('auth.passwort_aendern') }}">
+                        <div class="mb-3">
+                            <label for="altes_passwort" class="form-label">
+                                <i class="bi bi-lock"></i> Aktuelles Passwort
+                            </label>
+                            <input type="password" 
+                                   name="altes_passwort" 
+                                   id="altes_passwort" 
+                                   class="form-control" 
+                                   required 
+                                   autocomplete="current-password">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="neues_passwort" class="form-label">
+                                <i class="bi bi-lock-fill"></i> Neues Passwort
+                            </label>
+                            <input type="password" 
+                                   name="neues_passwort" 
+                                   id="neues_passwort" 
+                                   class="form-control" 
+                                   required 
+                                   minlength="6" 
+                                   autocomplete="new-password">
+                            <small class="form-text text-muted">Mindestens 6 Zeichen</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="neues_passwort_wdh" class="form-label">
+                                <i class="bi bi-lock-fill"></i> Neues Passwort wiederholen
+                            </label>
+                            <input type="password" 
+                                   name="neues_passwort_wdh" 
+                                   id="neues_passwort_wdh" 
+                                   class="form-control" 
+                                   required 
+                                   minlength="6" 
+                                   autocomplete="new-password">
+                        </div>
+                        
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-warning">
+                                <i class="bi bi-check-circle"></i> Passwort ändern
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <!-- Schnellzugriff -->
             <div class="card shadow-sm mb-4">
                 <div class="card-header bg-success text-white">
@@ -139,9 +194,6 @@
                 </div>
                 <div class="card-body">
                     <div class="d-grid gap-2">
-                        <a href="{{ url_for('auth.passwort_aendern') }}" class="btn btn-outline-primary">
-                            <i class="bi bi-key"></i> Passwort ändern
-                        </a>
                         <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
                             <i class="bi bi-speedometer2"></i> Zum Dashboard
                         </a>
@@ -151,5 +203,29 @@
         </div>
     </div>
 </div>
+
+<script>
+  // Passwort-Übereinstimmung prüfen
+  const neuesPasswort = document.getElementById('neues_passwort');
+  const neuesPasswortWdh = document.getElementById('neues_passwort_wdh');
+  
+  if (neuesPasswort && neuesPasswortWdh) {
+    neuesPasswortWdh.addEventListener('input', function() {
+      if (neuesPasswort.value !== neuesPasswortWdh.value) {
+        neuesPasswortWdh.setCustomValidity('Passwörter stimmen nicht überein');
+      } else {
+        neuesPasswortWdh.setCustomValidity('');
+      }
+    });
+    
+    neuesPasswort.addEventListener('input', function() {
+      if (neuesPasswort.value !== neuesPasswortWdh.value) {
+        neuesPasswortWdh.setCustomValidity('Passwörter stimmen nicht überein');
+      } else {
+        neuesPasswortWdh.setCustomValidity('');
+      }
+    });
+  }
+</script>
 {% endblock %}
 

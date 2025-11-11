@@ -290,6 +290,9 @@
     {% endif %}
 
     <h6>Schichtbuch</h6>
+    <a href="{{ url_for('schichtbuch.suche_thema') }}" class="{% if request.endpoint == 'schichtbuch.suche_thema' %}active{% endif %}">
+      🔍 Suche Thema
+    </a>
     <a href="{{ url_for('schichtbuch.themaliste') }}" class="{% if request.endpoint == 'sbthemaliste' %}active{% endif %}">
       🧾 Themenliste
     </a>
@@ -329,9 +332,6 @@
         <div class="d-flex flex-column gap-2">
           <a href="{{ url_for('auth.profil') }}" class="text-decoration-none">
             <i class="bi bi-person"></i> Mein Profil
-          </a>
-          <a href="{{ url_for('auth.passwort_aendern') }}" class="text-decoration-none">
-            <i class="bi bi-key"></i> Passwort ändern
           </a>
           <a href="{{ url_for('auth.logout') }}" class="text-decoration-none text-danger">
             <i class="bi bi-box-arrow-right"></i> Abmelden

@@ -48,7 +48,16 @@
                                             <strong>{{ e.AktuellerBestand }}</strong>
                                         </td>
                                         <td class="text-center" style="white-space: nowrap;">
-                                            &nbsp;
+                                            <input type="number" 
+                                                   class="form-control form-control-sm inventur-input" 
+                                                   data-ersatzteil-id="{{ e.ID }}"
+                                                   data-aktueller-bestand="{{ e.AktuellerBestand }}"
+                                                   data-bezeichnung="{{ e.Bezeichnung }}"
+                                                   data-bestellnummer="{{ e.Bestellnummer }}"
+                                                   step="0.01"
+                                                   min="0"
+                                                   placeholder="0"
+                                                   style="width: 100px; display: inline-block;">
                                         </td>
                                         <td class="text-center">{{ e.Einheit }}</td>
                                         <td class="text-center">
@@ -135,7 +144,193 @@
     h1 {
         margin-bottom: 1rem !important;
     }
+    
+    /* Eingabefelder beim Drucken ausblenden */
+    .inventur-input {
+        display: none !important;
+    }
+}
+
+/* Eingabefeld Styling */
+.inventur-input {
+    text-align: center;
+    font-weight: 600;
+}
+
+.inventur-input:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
 }
 </style>
+
+<!-- Bestätigungs-Modal -->
+<div class="modal fade" id="inventurConfirmModal" tabindex="-1" aria-labelledby="inventurConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="inventurConfirmModalLabel">
+                    <i class="bi bi-check-circle"></i> Inventur bestätigen
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Schließen"></button>
+            </div>
+            <div class="modal-body">
+                <p>Möchten Sie die Inventur für folgenden Artikel durchführen?</p>
+                <div class="card bg-light mb-3">
+                    <div class="card-body">
+                        <p class="mb-1"><strong>ID:</strong> <span id="confirmErsatzteilId"></span></p>
+                        <p class="mb-1"><strong>Bestellnummer:</strong> <span id="confirmBestellnummer"></span></p>
+                        <p class="mb-1"><strong>Bezeichnung:</strong> <span id="confirmBezeichnung"></span></p>
+                        <hr>
+                        <p class="mb-0"><strong>Aktueller Bestand:</strong> <span id="confirmAktuellerBestand" class="text-primary"></span></p>
+                        <p class="mb-0"><strong>Neuer Bestand:</strong> <span id="confirmNeuerBestand" class="text-success fw-bold"></span></p>
+                    </div>
+                </div>
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle"></i> Es wird eine Lagerbuchung Typ "Inventur" erstellt und der Bestand aktualisiert.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-primary" id="confirmInventurBtn">
+                    <i class="bi bi-check-circle"></i> Bestätigen
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const inventurInputs = document.querySelectorAll('.inventur-input');
+    const confirmModal = new bootstrap.Modal(document.getElementById('inventurConfirmModal'));
+    let currentErsatzteilId = null;
+    let currentNeuerBestand = null;
+    let currentInput = null;
+    
+    inventurInputs.forEach(input => {
+        // Enter-Taste erkennen
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const neuerBestand = parseFloat(this.value);
+                const aktuellerBestand = parseFloat(this.getAttribute('data-aktueller-bestand'));
+                
+                // Validierung
+                if (isNaN(neuerBestand) || neuerBestand < 0) {
+                    alert('Bitte geben Sie einen gültigen Bestand ein (≥ 0).');
+                    this.focus();
+                    return;
+                }
+                
+                // Wenn sich nichts geändert hat, keine Aktion
+                if (neuerBestand === aktuellerBestand) {
+                    alert('Der neue Bestand entspricht dem aktuellen Bestand. Keine Änderung notwendig.');
+                    this.focus();
+                    return;
+                }
+                
+                // Daten für Bestätigungsfenster speichern
+                currentErsatzteilId = this.getAttribute('data-ersatzteil-id');
+                currentNeuerBestand = neuerBestand;
+                currentInput = this;
+                
+                // Bestätigungsfenster füllen
+                document.getElementById('confirmErsatzteilId').textContent = currentErsatzteilId;
+                document.getElementById('confirmBestellnummer').textContent = this.getAttribute('data-bestellnummer');
+                document.getElementById('confirmBezeichnung').textContent = this.getAttribute('data-bezeichnung');
+                document.getElementById('confirmAktuellerBestand').textContent = aktuellerBestand;
+                document.getElementById('confirmNeuerBestand').textContent = neuerBestand;
+                
+                // Modal anzeigen
+                confirmModal.show();
+            }
+        });
+        
+        // Fokus beim Laden der Seite auf erstes Feld (optional)
+        // inventurInputs[0]?.focus();
+    });
+    
+    // Bestätigungs-Button
+    document.getElementById('confirmInventurBtn').addEventListener('click', function() {
+        if (!currentErsatzteilId || currentNeuerBestand === null) {
+            return;
+        }
+        
+        // Button deaktivieren während der Anfrage
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird verarbeitet...';
+        
+        // AJAX-Request
+        fetch('{{ url_for("ersatzteile.inventurliste_buchung") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                ersatzteil_id: currentErsatzteilId,
+                neuer_bestand: currentNeuerBestand
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Erfolg: Modal schließen und Seite neu laden
+                confirmModal.hide();
+                
+                // Flash-Meldung anzeigen (falls vorhanden)
+                if (data.message) {
+                    // Toast-Benachrichtigung erstellen
+                    const toastHtml = `
+                        <div class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true" style="position: fixed; top: 20px; right: 20px; z-index: 9999;">
+                            <div class="d-flex">
+                                <div class="toast-body">
+                                    <i class="bi bi-check-circle"></i> ${data.message}
+                                </div>
+                                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                            </div>
+                        </div>
+                    `;
+                    document.body.insertAdjacentHTML('beforeend', toastHtml);
+                    const toastElement = document.querySelector('.toast:last-child');
+                    const toast = new bootstrap.Toast(toastElement, { delay: 5000 });
+                    toast.show();
+                    
+                    // Toast nach dem Ausblenden entfernen
+                    toastElement.addEventListener('hidden.bs.toast', () => {
+                        toastElement.remove();
+                    });
+                }
+                
+                // Seite neu laden nach kurzer Verzögerung
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                // Fehler anzeigen
+                alert('Fehler: ' + (data.message || 'Unbekannter Fehler'));
+                this.disabled = false;
+                this.innerHTML = '<i class="bi bi-check-circle"></i> Bestätigen';
+            }
+        })
+        .catch(error => {
+            console.error('Fehler:', error);
+            alert('Fehler bei der Verbindung zum Server. Bitte versuchen Sie es erneut.');
+            this.disabled = false;
+            this.innerHTML = '<i class="bi bi-check-circle"></i> Bestätigen';
+        });
+    });
+    
+    // Modal beim Schließen zurücksetzen
+    document.getElementById('inventurConfirmModal').addEventListener('hidden.bs.modal', function() {
+        currentErsatzteilId = null;
+        currentNeuerBestand = null;
+        currentInput = null;
+        const confirmBtn = document.getElementById('confirmInventurBtn');
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = '<i class="bi bi-check-circle"></i> Bestätigen';
+    });
+});
+</script>
 {% endblock %}
 

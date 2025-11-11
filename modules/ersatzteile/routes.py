@@ -1081,6 +1081,70 @@ def inventurliste():
     return render_template('inventurliste.html', inventur_gruppiert=inventur_gruppiert)
 
 
+@ersatzteile_bp.route('/inventurliste/buchung', methods=['POST'])
+@login_required
+def inventurliste_buchung():
+    """Inventur-Buchung direkt aus der Inventurliste"""
+    mitarbeiter_id = session.get('user_id')
+    
+    try:
+        ersatzteil_id = request.json.get('ersatzteil_id')
+        neuer_bestand = request.json.get('neuer_bestand')
+        
+        if not ersatzteil_id or neuer_bestand is None:
+            return jsonify({'success': False, 'message': 'Ersatzteil-ID und neuer Bestand sind erforderlich.'}), 400
+        
+        try:
+            ersatzteil_id = int(ersatzteil_id)
+            neuer_bestand = float(neuer_bestand)
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': 'Ungültige Werte für Ersatzteil-ID oder Bestand.'}), 400
+        
+        if neuer_bestand < 0:
+            return jsonify({'success': False, 'message': 'Bestand kann nicht negativ sein.'}), 400
+        
+        with get_db_connection() as conn:
+            # Berechtigung prüfen
+            if not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
+                return jsonify({'success': False, 'message': 'Sie haben keine Berechtigung für dieses Ersatzteil.'}), 403
+            
+            # Prüfe ob Ersatzteil existiert
+            ersatzteil = conn.execute('SELECT AktuellerBestand, Preis, Waehrung FROM Ersatzteil WHERE ID = ? AND Gelöscht = 0', (ersatzteil_id,)).fetchone()
+            if not ersatzteil:
+                return jsonify({'success': False, 'message': 'Ersatzteil nicht gefunden.'}), 404
+            
+            aktueller_bestand = ersatzteil['AktuellerBestand']
+            artikel_preis = ersatzteil['Preis']
+            artikel_waehrung = ersatzteil['Waehrung']
+            
+            # Bei Inventur wird der Bestand auf den eingegebenen Wert gesetzt
+            # Für die Buchung: Die eingegebene Menge (neuer Lagerstand) speichern
+            buchungsmenge = neuer_bestand
+            
+            # Lagerbuchung erstellen
+            conn.execute('''
+                INSERT INTO Lagerbuchung (
+                    ErsatzteilID, Typ, Menge, Grund, ThemaID, KostenstelleID,
+                    VerwendetVonID, Bemerkung, Preis, Waehrung, Buchungsdatum
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            ''', (ersatzteil_id, 'Inventur', buchungsmenge, 'Inventur aus Inventurliste', None, None, mitarbeiter_id, f'Inventur: Bestand von {aktueller_bestand} auf {neuer_bestand} geändert', artikel_preis, artikel_waehrung))
+            
+            # Bestand aktualisieren
+            conn.execute('UPDATE Ersatzteil SET AktuellerBestand = ? WHERE ID = ?', (neuer_bestand, ersatzteil_id))
+            
+            conn.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': f'Inventur erfolgreich durchgeführt. Neuer Bestand: {neuer_bestand}',
+                'neuer_bestand': neuer_bestand,
+                'alter_bestand': aktueller_bestand
+            })
+            
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Fehler bei der Inventur-Buchung: {str(e)}'}), 500
+
+
 @ersatzteile_bp.route('/suche')
 @login_required
 def suche_artikel():

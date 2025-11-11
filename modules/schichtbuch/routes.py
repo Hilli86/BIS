@@ -9,11 +9,12 @@ import sqlite3
 from xml.sax.saxutils import escape
 from werkzeug.utils import secure_filename
 from io import BytesIO
+import qrcode
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether, Image
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT, TA_JUSTIFY
 from . import schichtbuch_bp
 from utils import get_db_connection, login_required, get_sichtbare_abteilungen_fuer_mitarbeiter
@@ -1368,18 +1369,39 @@ def thema_pdf_export(thema_id):
         fontName='Helvetica'
     )
     
-    # Header-Bereich mit modernem Design
+    # QR-Code mit ThemenID generieren
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=3,
+        border=2,
+    )
+    qr.add_data(str(thema_id))
+    qr.make(fit=True)
+    
+    # QR-Code als Bild erstellen
+    qr_img = qr.make_image(fill_color="black", back_color="white")
+    qr_buffer = BytesIO()
+    qr_img.save(qr_buffer, format='PNG')
+    qr_buffer.seek(0)
+    
+    # QR-Code-Bild für ReportLab vorbereiten
+    qr_image = Image(qr_buffer, width=2*cm, height=2*cm)
+    
+    # Header-Bereich mit modernem Design (inkl. QR-Code)
     header_table_data = [
         [
             Paragraph('<b>BIS</b><br/><font size="9" color="#64748b">Betriebsinformationssystem</font>', 
                      ParagraphStyle('HeaderLeft', parent=normal_style, fontSize=18, textColor=bg_dark, fontName='Helvetica-Bold')),
             Paragraph(f'<font size="20" color="#2563eb"><b>Thema #{thema["ID"]}</b></font>', 
-                     ParagraphStyle('HeaderRight', parent=normal_style, fontSize=20, textColor=primary_color, alignment=TA_RIGHT, fontName='Helvetica-Bold'))
+                     ParagraphStyle('HeaderRight', parent=normal_style, fontSize=20, textColor=primary_color, alignment=TA_RIGHT, fontName='Helvetica-Bold')),
+            qr_image
         ]
     ]
-    header_table = Table(header_table_data, colWidths=[10*cm, 7*cm])
+    header_table = Table(header_table_data, colWidths=[8*cm, 7*cm, 2*cm])
     header_table.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
         ('TOPPADDING', (0, 0), (-1, -1), 0),
         ('LEFTPADDING', (0, 0), (-1, -1), 0),
@@ -1619,3 +1641,53 @@ def thema_pdf_export(thema_id):
         }
     )
 
+
+@schichtbuch_bp.route('/suche')
+@login_required
+def suche_thema():
+    """Suche nach Thema-ID"""
+    mitarbeiter_id = session.get('user_id')
+    thema_id_str = request.args.get('thema_id', '').strip()
+    
+    if thema_id_str:
+        try:
+            thema_id = int(thema_id_str)
+            
+            with get_db_connection() as conn:
+                # Berechtigte Abteilungen ermitteln
+                sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+                
+                # Prüfen ob Thema existiert und Berechtigung besteht
+                query = '''
+                    SELECT t.ID
+                    FROM SchichtbuchThema t
+                    WHERE t.Gelöscht = 0 AND t.ID = ?
+                '''
+                params = [thema_id]
+                
+                # Sichtbarkeitsfilter: Nur Themen anzeigen, für die Berechtigung besteht
+                if sichtbare_abteilungen:
+                    placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+                    query += f''' AND EXISTS (
+                        SELECT 1 FROM SchichtbuchThemaSichtbarkeit sv
+                        WHERE sv.ThemaID = t.ID 
+                        AND sv.AbteilungID IN ({placeholders})
+                    )'''
+                    params.extend(sichtbare_abteilungen)
+                else:
+                    # Keine Berechtigung
+                    flash('Thema nicht gefunden oder Sie haben keine Berechtigung.', 'danger')
+                    return render_template('thema_suche.html')
+                
+                thema = conn.execute(query, params).fetchone()
+                
+                if thema:
+                    return redirect(url_for('schichtbuch.thema_detail', thema_id=thema['ID']))
+                else:
+                    flash('Thema nicht gefunden oder Sie haben keine Berechtigung.', 'danger')
+        except ValueError:
+            flash('Bitte geben Sie eine gültige Thema-ID ein.', 'danger')
+        except Exception as e:
+            flash(f'Fehler bei der Suche: {str(e)}', 'danger')
+    
+    return render_template('thema_suche.html')

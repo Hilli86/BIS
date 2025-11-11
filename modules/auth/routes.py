@@ -158,7 +158,7 @@ def passwort_aendern():
                 conn.commit()
                 
                 flash('Passwort erfolgreich geändert.', 'success')
-                return redirect(url_for('dashboard'))
+                return redirect(url_for('auth.profil'))
                 
         except Exception as e:
             flash('Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.', 'danger')
