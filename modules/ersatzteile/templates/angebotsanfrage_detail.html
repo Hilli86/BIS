@@ -1,0 +1,601 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<h1 class="mb-4">📋 Angebotsanfrage #{{ anfrage.ID }}</h1>
+
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Grunddaten</h5>
+        <form method="POST" action="{{ url_for('ersatzteile.angebotsanfrage_bearbeiten', angebotsanfrage_id=anfrage.ID) }}" class="d-inline">
+            <select name="status" class="form-select form-select-sm d-inline-block" style="width: auto;" onchange="this.form.submit()">
+                <option value="Offen" {% if anfrage.Status == 'Offen' %}selected{% endif %}>Offen</option>
+                <option value="Versendet" {% if anfrage.Status == 'Versendet' %}selected{% endif %}>Versendet</option>
+                <option value="Angebot erhalten" {% if anfrage.Status == 'Angebot erhalten' %}selected{% endif %}>Angebot erhalten</option>
+                <option value="Abgeschlossen" {% if anfrage.Status == 'Abgeschlossen' %}selected{% endif %}>Abgeschlossen</option>
+            </select>
+        </form>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <table class="table table-sm table-borderless mb-0">
+                    <tbody>
+                        <tr>
+                            <td class="text-muted" style="width: 150px;"><strong>Lieferant:</strong></td>
+                            <td>{{ anfrage.LieferantName or '-' }}</td>
+                        </tr>
+                        {% if anfrage.LieferantKontakt %}
+                        <tr>
+                            <td class="text-muted"><strong>Kontakt:</strong></td>
+                            <td>{{ anfrage.LieferantKontakt }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if anfrage.LieferantTelefon %}
+                        <tr>
+                            <td class="text-muted"><strong>Telefon:</strong></td>
+                            <td>{{ anfrage.LieferantTelefon }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if anfrage.LieferantEmail %}
+                        <tr>
+                            <td class="text-muted"><strong>Email:</strong></td>
+                            <td><a href="mailto:{{ anfrage.LieferantEmail }}">{{ anfrage.LieferantEmail }}</a></td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <table class="table table-sm table-borderless mb-0">
+                    <tbody>
+                        <tr>
+                            <td class="text-muted" style="width: 150px;"><strong>Status:</strong></td>
+                            <td>
+                                {% if anfrage.Status == 'Offen' %}
+                                <span class="badge bg-primary">Offen</span>
+                                {% elif anfrage.Status == 'Versendet' %}
+                                <span class="badge bg-warning">Versendet</span>
+                                {% elif anfrage.Status == 'Angebot erhalten' %}
+                                <span class="badge bg-success">Angebot erhalten</span>
+                                {% elif anfrage.Status == 'Abgeschlossen' %}
+                                <span class="badge bg-secondary">Abgeschlossen</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Erstellt am:</strong></td>
+                            <td>{{ anfrage.ErstelltAm[:16] if anfrage.ErstelltAm else '-' }}</td>
+                        </tr>
+                        {% if anfrage.VersendetAm %}
+                        <tr>
+                            <td class="text-muted"><strong>Versendet am:</strong></td>
+                            <td>{{ anfrage.VersendetAm[:16] }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if anfrage.AngebotErhaltenAm %}
+                        <tr>
+                            <td class="text-muted"><strong>Angebot erhalten am:</strong></td>
+                            <td>{{ anfrage.AngebotErhaltenAm[:16] }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <td class="text-muted"><strong>Erstellt von:</strong></td>
+                            <td>{{ anfrage.ErstelltVon or '-' }}</td>
+                        </tr>
+                        {% if anfrage.Bemerkung %}
+                        <tr>
+                            <td class="text-muted"><strong>Bemerkung:</strong></td>
+                            <td>{{ anfrage.Bemerkung }}</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Positionen -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Positionen</h5>
+        <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#addPositionCollapse">
+            <i class="bi bi-plus-circle"></i> Position hinzufügen
+        </button>
+    </div>
+    <div class="collapse" id="addPositionCollapse">
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('ersatzteile.angebotsanfrage_position_hinzufuegen', angebotsanfrage_id=anfrage.ID) }}">
+                <div class="row g-3">
+                    <div class="col-md-2">
+                        <label class="form-label">ErsatzteilID:</label>
+                        <div class="input-group">
+                            <input type="number" name="ersatzteil_id" class="form-control ersatzteil-id-input" placeholder="Optional">
+                            <button type="button" class="btn btn-outline-secondary btn-lookup" onclick="lookupErsatzteilDetail(this)">
+                                <i class="bi bi-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Bestellnummer:</label>
+                        <input type="text" name="bestellnummer" class="form-control bestellnummer-display" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Bezeichnung:</label>
+                        <input type="text" name="bezeichnung" class="form-control bezeichnung-display" required>
+                    </div>
+                    <div class="col-md-1">
+                        <label class="form-label">Menge:</label>
+                        <input type="number" name="menge" class="form-control" value="1" min="1" required>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Bemerkung:</label>
+                        <input type="text" name="bemerkung" class="form-control" placeholder="Optional">
+                    </div>
+                    <div class="col-md-1">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-plus"></i>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if positionen %}
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <colgroup>
+                    <col style="width: 8%;">
+                    <col style="width: 12%;">
+                    <col style="width: 25%;">
+                    <col style="width: 6%;">
+                    <col style="width: 12%;">
+                    <col style="width: 12%;">
+                    <col style="width: 15%;">
+                    {% if anfrage.Status == 'Offen' %}
+                    <col style="width: 10%;">
+                    {% endif %}
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th>Artikelnummer</th>
+                        <th>Bestellnummer</th>
+                        <th>Bezeichnung</th>
+                        <th>Menge</th>
+                        <th>Aktueller Preis</th>
+                        <th>Angebotspreis</th>
+                        <th>Bemerkung</th>
+                        {% if anfrage.Status == 'Offen' %}
+                        <th>Aktionen</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in positionen %}
+                    <tr {% if anfrage.Status == 'Offen' %}style="cursor: pointer;" onclick="openEditPositionModal({{ p.ID }}, '{{ p.Bestellnummer|replace("'", "\\'") or '' }}', '{{ p.Bezeichnung|replace("'", "\\'") or '' }}', {{ p.Menge }}, '{{ p.Bemerkung|replace("'", "\\'") or '' }}', {{ p.ErsatzteilID or 'null' }})"{% endif %}>
+                        <td onclick="event.stopPropagation();">
+                            {% if p.ErsatzteilID %}
+                            <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=p.ErsatzteilID) }}" class="text-decoration-none">
+                                {{ p.ErsatzteilID }}
+                            </a>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>{{ p.Bestellnummer or '-' }}</td>
+                        <td>{{ p.Bezeichnung or '-' }}</td>
+                        <td>{{ p.Menge }}</td>
+                        <td>
+                            {% if p.AktuellerPreis %}
+                            {{ "%.2f"|format(p.AktuellerPreis) }} {{ p.AktuelleWaehrung or 'EUR' }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if p.Angebotspreis %}
+                            <strong>{{ "%.2f"|format(p.Angebotspreis) }} {{ p.Angebotswaehrung or 'EUR' }}</strong>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>{{ p.Bemerkung or '-' }}</td>
+                        {% if anfrage.Status == 'Offen' %}
+                        <td onclick="event.stopPropagation();">
+                            <form method="POST" action="{{ url_for('ersatzteile.angebotsanfrage_position_loeschen', angebotsanfrage_id=anfrage.ID, position_id=p.ID) }}" 
+                                  onsubmit="return confirm('Position wirklich löschen?');" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                            {% if not p.ErsatzteilID and p.Bestellnummer and p.Bezeichnung %}
+                            <form method="POST" action="{{ url_for('ersatzteile.angebotsanfrage_position_artikel_erstellen', angebotsanfrage_id=anfrage.ID, position_id=p.ID) }}" 
+                                  onsubmit="return confirm('Artikel aus dieser Position erstellen?');" class="d-inline me-1">
+                                <button type="submit" class="btn btn-sm btn-outline-success" title="Artikel erstellen">
+                                    <i class="bi bi-plus-circle"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Keine Positionen vorhanden.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- PDF-Upload (nur wenn Status "Angebot erhalten") -->
+{% if anfrage.Status == 'Angebot erhalten' %}
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">📄 Angebots-PDFs</h5>
+        <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#pdfUploadCollapse">
+            <i class="bi bi-plus-circle"></i> PDF hochladen
+        </button>
+    </div>
+    <div class="collapse" id="pdfUploadCollapse">
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('ersatzteile.angebotsanfrage_datei_upload', angebotsanfrage_id=anfrage.ID) }}" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <input type="file" name="file" class="form-control" accept=".pdf" required>
+                    <small class="text-muted">Nur PDF-Dateien erlaubt</small>
+                </div>
+                <button type="submit" class="btn btn-success">Hochladen</button>
+            </form>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if dateien %}
+        <div class="list-group">
+            {% for datei in dateien %}
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <a href="{{ url_for('ersatzteile.angebotsanfrage_datei_anzeigen', filepath=datei.path) }}" target="_blank" class="text-decoration-none">
+                        <i class="bi bi-file-earmark-pdf"></i> {{ datei.name }}
+                    </a>
+                    <br><small class="text-muted">Geändert: {{ datei.modified.strftime('%d.%m.%Y %H:%M') }}</small>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Keine PDF-Dateien vorhanden.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Preis-Eingabe (nur wenn Status "Angebot erhalten") -->
+{% if anfrage.Status == 'Angebot erhalten' %}
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-warning text-dark">
+        <h5 class="mb-0">💰 Preise eingeben</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('ersatzteile.angebotsanfrage_preise_eingeben', angebotsanfrage_id=anfrage.ID) }}">
+            {% if positionen %}
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <colgroup>
+                        <col style="width: 8%;">
+                        <col style="width: 12%;">
+                        <col style="width: 25%;">
+                        <col style="width: 6%;">
+                        <col style="width: 12%;">
+                        <col style="width: 12%;">
+                        <col style="width: 15%;">
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th>Artikelnummer</th>
+                            <th>Bestellnummer</th>
+                            <th>Bezeichnung</th>
+                            <th>Menge</th>
+                            <th>Aktueller Preis</th>
+                            <th>Angebotspreis</th>
+                            <th>Währung</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in positionen %}
+                        <tr>
+                            <td>{{ p.ErsatzteilID }}</td>
+                            <td>{{ p.Bestellnummer }}</td>
+                            <td>{{ p.Bezeichnung }}</td>
+                            <td>{{ p.Menge }}</td>
+                            <td>
+                                {% if p.AktuellerPreis %}
+                                {{ "%.2f"|format(p.AktuellerPreis) }} {{ p.AktuelleWaehrung or 'EUR' }}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>
+                                <input type="hidden" name="position_id[]" value="{{ p.ID }}">
+                                <input type="number" name="preis[]" class="form-control form-control-sm" 
+                                       step="0.01" min="0" 
+                                       value="{% if p.Angebotspreis %}{{ p.Angebotspreis }}{% endif %}" 
+                                       placeholder="0.00">
+                            </td>
+                            <td>
+                                <select name="waehrung[]" class="form-select form-select-sm">
+                                    <option value="EUR" {% if p.Angebotswaehrung == 'EUR' or not p.Angebotswaehrung %}selected{% endif %}>EUR</option>
+                                    <option value="USD" {% if p.Angebotswaehrung == 'USD' %}selected{% endif %}>USD</option>
+                                    <option value="CHF" {% if p.Angebotswaehrung == 'CHF' %}selected{% endif %}>CHF</option>
+                                </select>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-3">
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" name="preise_uebernehmen" id="preiseUebernehmen">
+                    <label class="form-check-label" for="preiseUebernehmen">
+                        <strong>Preise in Ersatzteile übernehmen</strong> (setzt Preisstand auf heute)
+                    </label>
+                </div>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" name="status_abschliessen" id="statusAbschliessen">
+                    <label class="form-check-label" for="statusAbschliessen">
+                        Angebotsanfrage als abgeschlossen markieren
+                    </label>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-lg"></i> Preise speichern
+                </button>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> Keine Positionen vorhanden.
+            </div>
+            {% endif %}
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<div class="mb-3">
+    <a href="{{ url_for('ersatzteile.angebotsanfrage_liste') }}" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Zurück zur Liste
+    </a>
+    <a href="{{ url_for('ersatzteile.angebotsanfrage_pdf_export', angebotsanfrage_id=anfrage.ID) }}" class="btn btn-primary">
+        <i class="bi bi-file-pdf"></i> Als PDF exportieren
+    </a>
+</div>
+
+<!-- Modal für Position bearbeiten -->
+<div class="modal fade" id="editPositionModal" tabindex="-1" aria-labelledby="editPositionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editPositionModalLabel">Position bearbeiten</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" id="editPositionForm" action="">
+                <div class="modal-body">
+                    <input type="hidden" id="edit_position_id" name="position_id">
+                    <div class="mb-3">
+                        <label class="form-label">ErsatzteilID:</label>
+                        <input type="number" id="edit_ersatzteil_id" name="ersatzteil_id" class="form-control" placeholder="Optional">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Bestellnummer: <span class="text-danger">*</span></label>
+                        <input type="text" id="edit_bestellnummer" name="bestellnummer" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Bezeichnung: <span class="text-danger">*</span></label>
+                        <input type="text" id="edit_bezeichnung" name="bezeichnung" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Menge: <span class="text-danger">*</span></label>
+                        <input type="number" id="edit_menge" name="menge" class="form-control" min="1" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Bemerkung:</label>
+                        <input type="text" id="edit_bemerkung" name="bemerkung" class="form-control">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary">Speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Lookup-Funktion für Detail-Seite
+function lookupErsatzteilDetail(button) {
+    const form = button.closest('form');
+    const ersatzteilInput = form.querySelector('.ersatzteil-id-input');
+    const bestellnummerDisplay = form.querySelector('.bestellnummer-display');
+    const bezeichnungDisplay = form.querySelector('.bezeichnung-display');
+    
+    const ersatzteilId = ersatzteilInput.value.trim();
+    
+    // Wenn keine ID eingegeben, Modal öffnen
+    if (!ersatzteilId) {
+        const lieferantId = {{ anfrage.LieferantID }};
+        
+        if (!lieferantId) {
+            alert('Kein Lieferant zugeordnet.');
+            return;
+        }
+        
+        // Modal öffnen und Ersatzteile laden
+        openErsatzteilModalDetail(lieferantId, form);
+        return;
+    }
+    
+    // Button deaktivieren während der Suche
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    
+    // AJAX-Anfrage
+    fetch(`{{ url_for('ersatzteile.api_ersatzteil_info', ersatzteil_id=0) }}`.replace('/0', `/${ersatzteilId}`))
+        .then(response => response.json())
+        .then(data => {
+            button.disabled = false;
+            button.innerHTML = '<i class="bi bi-arrow-right"></i>';
+            
+            if (data.success) {
+                bestellnummerDisplay.value = data.bestellnummer;
+                bezeichnungDisplay.value = data.bezeichnung;
+                bestellnummerDisplay.classList.remove('is-invalid');
+                bezeichnungDisplay.classList.remove('is-invalid');
+                ersatzteilInput.classList.remove('is-invalid');
+            } else {
+                bestellnummerDisplay.value = '';
+                bezeichnungDisplay.value = '';
+                bestellnummerDisplay.classList.add('is-invalid');
+                bezeichnungDisplay.classList.add('is-invalid');
+                ersatzteilInput.classList.add('is-invalid');
+                alert(data.message || 'Ersatzteil nicht gefunden.');
+            }
+        })
+        .catch(error => {
+            button.disabled = false;
+            button.innerHTML = '<i class="bi bi-arrow-right"></i>';
+            console.error('Fehler:', error);
+            alert('Fehler beim Laden der Ersatzteil-Daten.');
+        });
+}
+
+function openErsatzteilModalDetail(lieferantId, targetForm) {
+    const modal = new bootstrap.Modal(document.getElementById('ersatzteilModalDetail'));
+    const modalBody = document.getElementById('ersatzteilModalListDetail');
+    
+    // Modal-Body leeren und Ladeanzeige anzeigen
+    modalBody.innerHTML = '<div class="text-center p-4"><div class="spinner-border" role="status"><span class="visually-hidden">Lädt...</span></div></div>';
+    
+    // Modal öffnen
+    modal.show();
+    
+    // Ersatzteile laden
+    fetch(`{{ url_for('ersatzteile.api_ersatzteile_lieferant', lieferant_id=0) }}`.replace('/0', `/${lieferantId}`))
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.ersatzteile.length > 0) {
+                let html = '<div class="list-group">';
+                data.ersatzteile.forEach(ersatzteil => {
+                    const preisText = ersatzteil.preis ? `${ersatzteil.preis.toFixed(2)} ${ersatzteil.waehrung}` : 'Kein Preis';
+                    html += `
+                        <a href="#" class="list-group-item list-group-item-action" onclick="selectErsatzteilDetail(${ersatzteil.id}, '${ersatzteil.bestellnummer}', '${ersatzteil.bezeichnung.replace(/'/g, "\\'")}', event)">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">${ersatzteil.bestellnummer || 'Keine Bestellnummer'}</h6>
+                                <small>${preisText}</small>
+                            </div>
+                            <p class="mb-1">${ersatzteil.bezeichnung || 'Keine Bezeichnung'}</p>
+                            <small>ID: ${ersatzteil.id}</small>
+                        </a>
+                    `;
+                });
+                html += '</div>';
+                modalBody.innerHTML = html;
+            } else {
+                modalBody.innerHTML = '<div class="alert alert-info">Keine Ersatzteile für diesen Lieferanten gefunden.</div>';
+            }
+        })
+        .catch(error => {
+            console.error('Fehler:', error);
+            modalBody.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Ersatzteile.</div>';
+        });
+}
+
+function selectErsatzteilDetail(id, bestellnummer, bezeichnung, event) {
+    event.preventDefault();
+    
+    const modal = bootstrap.Modal.getInstance(document.getElementById('ersatzteilModalDetail'));
+    const form = document.querySelector('#addPositionCollapse form');
+    
+    if (form) {
+        const ersatzteilInput = form.querySelector('.ersatzteil-id-input');
+        const bestellnummerDisplay = form.querySelector('.bestellnummer-display');
+        const bezeichnungDisplay = form.querySelector('.bezeichnung-display');
+        
+        if (ersatzteilInput) ersatzteilInput.value = id;
+        if (bestellnummerDisplay) bestellnummerDisplay.value = bestellnummer || '';
+        if (bezeichnungDisplay) bezeichnungDisplay.value = bezeichnung || '';
+        
+        // Validierung entfernen
+        if (bestellnummerDisplay) bestellnummerDisplay.classList.remove('is-invalid');
+        if (bezeichnungDisplay) bezeichnungDisplay.classList.remove('is-invalid');
+        if (ersatzteilInput) ersatzteilInput.classList.remove('is-invalid');
+    }
+    
+    modal.hide();
+}
+
+// Position bearbeiten Modal öffnen
+function openEditPositionModal(positionId, bestellnummer, bezeichnung, menge, bemerkung, ersatzteilId) {
+    document.getElementById('edit_position_id').value = positionId;
+    document.getElementById('edit_ersatzteil_id').value = ersatzteilId || '';
+    document.getElementById('edit_bestellnummer').value = bestellnummer;
+    document.getElementById('edit_bezeichnung').value = bezeichnung;
+    document.getElementById('edit_menge').value = menge;
+    document.getElementById('edit_bemerkung').value = bemerkung;
+    
+    // Action URL setzen
+    const form = document.getElementById('editPositionForm');
+    form.action = `/ersatzteile/angebotsanfragen/{{ anfrage.ID }}/position/${positionId}/bearbeiten`;
+    
+    const modal = new bootstrap.Modal(document.getElementById('editPositionModal'));
+    modal.show();
+}
+
+// Enter-Taste für Detail-Seite
+document.addEventListener('DOMContentLoaded', function() {
+    const detailErsatzteilInput = document.querySelector('#addPositionCollapse .ersatzteil-id-input');
+    if (detailErsatzteilInput) {
+        detailErsatzteilInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const button = this.closest('form').querySelector('.btn-lookup');
+                if (button) {
+                    lookupErsatzteilDetail(button);
+                }
+            }
+        });
+    }
+});
+</script>
+
+<!-- Modal für Ersatzteil-Auswahl (Detail-Seite) -->
+<div class="modal fade" id="ersatzteilModalDetail" tabindex="-1" aria-labelledby="ersatzteilModalDetailLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ersatzteilModalDetailLabel">Ersatzteil auswählen</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="ersatzteilModalListDetail">
+                    <div class="text-center p-4">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Lädt...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

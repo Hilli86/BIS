@@ -27,7 +27,7 @@ def dashboard():
     """Admin Dashboard - Übersicht aller Stammdaten"""
     with get_db_connection() as conn:
         mitarbeiter = conn.execute('''
-            SELECT m.ID, m.Personalnummer, m.Vorname, m.Nachname, m.Aktiv,
+            SELECT m.ID, m.Personalnummer, m.Vorname, m.Nachname, m.Email, m.Handynummer, m.Aktiv,
                    a.Bezeichnung AS PrimaerAbteilung, m.PrimaerAbteilungID
             FROM Mitarbeiter m
             LEFT JOIN Abteilung a ON m.PrimaerAbteilungID = a.ID
@@ -69,6 +69,9 @@ def dashboard():
         kostenstellen = conn.execute('SELECT ID, Bezeichnung, Beschreibung, Aktiv, Sortierung FROM Kostenstelle ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
         lagerorte = conn.execute('SELECT ID, Bezeichnung, Beschreibung, Aktiv, Sortierung FROM Lagerort ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
         lagerplaetze = conn.execute('SELECT ID, Bezeichnung, Beschreibung, Aktiv, Sortierung FROM Lagerplatz ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
+        
+        # Firmendaten laden (nur erste Zeile, sollte nur eine geben)
+        firmendaten = conn.execute('SELECT * FROM Firmendaten LIMIT 1').fetchone()
 
     return render_template('admin.html',
                            mitarbeiter=mitarbeiter,
@@ -82,7 +85,8 @@ def dashboard():
                            lieferanten=lieferanten,
                            kostenstellen=kostenstellen,
                            lagerorte=lagerorte,
-                           lagerplaetze=lagerplaetze)
+                           lagerplaetze=lagerplaetze,
+                           firmendaten=firmendaten)
 
 
 # ========== Mitarbeiter-Verwaltung ==========
@@ -94,6 +98,8 @@ def mitarbeiter_add():
     personalnummer = request.form.get('personalnummer')
     vorname = request.form.get('vorname')
     nachname = request.form.get('nachname')
+    email = request.form.get('email', '').strip() or None
+    handynummer = request.form.get('handynummer', '').strip() or None
     aktiv = 1 if request.form.get('aktiv') == 'on' else 0
     passwort = request.form.get('passwort')
     
@@ -103,11 +109,11 @@ def mitarbeiter_add():
     try:
         with get_db_connection() as conn:
             if passwort:
-                conn.execute('INSERT INTO Mitarbeiter (Personalnummer, Vorname, Nachname, Aktiv, Passwort) VALUES (?, ?, ?, ?, ?)',
-                             (personalnummer, vorname, nachname, aktiv, generate_password_hash(passwort)))
+                conn.execute('INSERT INTO Mitarbeiter (Personalnummer, Vorname, Nachname, Email, Handynummer, Aktiv, Passwort) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                             (personalnummer, vorname, nachname, email, handynummer, aktiv, generate_password_hash(passwort)))
             else:
-                conn.execute('INSERT INTO Mitarbeiter (Personalnummer, Vorname, Nachname, Aktiv) VALUES (?, ?, ?, ?)',
-                             (personalnummer, vorname, nachname, aktiv))
+                conn.execute('INSERT INTO Mitarbeiter (Personalnummer, Vorname, Nachname, Email, Handynummer, Aktiv) VALUES (?, ?, ?, ?, ?, ?)',
+                             (personalnummer, vorname, nachname, email, handynummer, aktiv))
             conn.commit()
         return ajax_response('Mitarbeiter erfolgreich angelegt.')
     except Exception as e:
@@ -120,11 +126,14 @@ def mitarbeiter_update(mid):
     """Mitarbeiter aktualisieren"""
     vorname = request.form.get('vorname')
     nachname = request.form.get('nachname')
+    email = request.form.get('email', '').strip() or None
+    handynummer = request.form.get('handynummer', '').strip() or None
     aktiv = 1 if request.form.get('aktiv') == 'on' else 0
     passwort = request.form.get('passwort')
     try:
         with get_db_connection() as conn:
-            conn.execute('UPDATE Mitarbeiter SET Vorname = ?, Nachname = ?, Aktiv = ? WHERE ID = ?', (vorname, nachname, aktiv, mid))
+            conn.execute('UPDATE Mitarbeiter SET Vorname = ?, Nachname = ?, Email = ?, Handynummer = ?, Aktiv = ? WHERE ID = ?', 
+                        (vorname, nachname, email, handynummer, aktiv, mid))
             if passwort:
                 conn.execute('UPDATE Mitarbeiter SET Passwort = ? WHERE ID = ?', (generate_password_hash(passwort), mid))
             conn.commit()
@@ -1437,3 +1446,88 @@ def login_logs():
                          page=page,
                          total_pages=total_pages,
                          total_count=total_count)
+
+
+# ========== Firmendaten-Verwaltung ==========
+
+@admin_bp.route('/firmendaten', methods=['GET', 'POST'])
+@admin_required
+def firmendaten():
+    """Firmendaten anzeigen und bearbeiten"""
+    if request.method == 'POST':
+        firmenname = request.form.get('firmenname', '').strip()
+        strasse = request.form.get('strasse', '').strip() or None
+        plz = request.form.get('plz', '').strip() or None
+        ort = request.form.get('ort', '').strip() or None
+        lieferstrasse = request.form.get('lieferstrasse', '').strip() or None
+        lieferplz = request.form.get('lieferplz', '').strip() or None
+        lieferort = request.form.get('lieferort', '').strip() or None
+        telefon = request.form.get('telefon', '').strip() or None
+        fax = request.form.get('fax', '').strip() or None
+        email = request.form.get('email', '').strip() or None
+        website = request.form.get('website', '').strip() or None
+        steuernummer = request.form.get('steuernummer', '').strip() or None
+        ust_idnr = request.form.get('ust_idnr', '').strip() or None
+        geschaeftsfuehrer = request.form.get('geschaeftsfuehrer', '').strip() or None
+        logopfad = request.form.get('logopfad', '').strip() or None
+        bankname = request.form.get('bankname', '').strip() or None
+        iban = request.form.get('iban', '').strip() or None
+        bic = request.form.get('bic', '').strip() or None
+        
+        if not firmenname:
+            return ajax_response('Firmenname ist erforderlich.', success=False)
+        
+        try:
+            with get_db_connection() as conn:
+                # Prüfe ob bereits Datensatz existiert
+                vorhanden = conn.execute('SELECT ID FROM Firmendaten LIMIT 1').fetchone()
+                
+                if vorhanden:
+                    # Aktualisieren
+                    conn.execute('''
+                        UPDATE Firmendaten SET
+                            Firmenname = ?,
+                            Strasse = ?,
+                            PLZ = ?,
+                            Ort = ?,
+                            LieferStrasse = ?,
+                            LieferPLZ = ?,
+                            LieferOrt = ?,
+                            Telefon = ?,
+                            Fax = ?,
+                            Email = ?,
+                            Website = ?,
+                            Steuernummer = ?,
+                            UStIdNr = ?,
+                            Geschaeftsfuehrer = ?,
+                            LogoPfad = ?,
+                            BankName = ?,
+                            IBAN = ?,
+                            BIC = ?,
+                            GeaendertAm = datetime("now")
+                        WHERE ID = ?
+                    ''', (firmenname, strasse, plz, ort, lieferstrasse, lieferplz, lieferort,
+                          telefon, fax, email, website, steuernummer, ust_idnr, geschaeftsfuehrer, 
+                          logopfad, bankname, iban, bic, vorhanden['ID']))
+                else:
+                    # Neu anlegen
+                    conn.execute('''
+                        INSERT INTO Firmendaten (
+                            Firmenname, Strasse, PLZ, Ort, LieferStrasse, LieferPLZ, LieferOrt,
+                            Telefon, Fax, Email, Website,
+                            Steuernummer, UStIdNr, Geschaeftsfuehrer, LogoPfad,
+                            BankName, IBAN, BIC
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (firmenname, strasse, plz, ort, lieferstrasse, lieferplz, lieferort,
+                          telefon, fax, email, website, steuernummer, ust_idnr, geschaeftsfuehrer, 
+                          logopfad, bankname, iban, bic))
+                
+                conn.commit()
+                return ajax_response('Firmendaten erfolgreich gespeichert.')
+        except Exception as e:
+            print(f"Firmendaten speichern Fehler: {e}")
+            import traceback
+            traceback.print_exc()
+            return ajax_response(f'Fehler beim Speichern: {str(e)}', success=False, status_code=500)
+    
+    return redirect(url_for('admin.dashboard'))

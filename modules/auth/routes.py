@@ -2,9 +2,9 @@
 Auth Routes - Login, Logout
 """
 
-from flask import render_template, request, redirect, url_for, session, flash
+from flask import render_template, request, redirect, url_for, session, flash, make_response
 from werkzeug.security import check_password_hash, generate_password_hash
-from datetime import datetime
+from datetime import datetime, timedelta
 from . import auth_bp
 from utils import get_db_connection
 from utils.decorators import is_safe_url, login_required
@@ -35,12 +35,18 @@ def _log_login_attempt(conn, personalnummer, mitarbeiter_id, erfolgreich, reques
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     """Login-Seite"""
-    # Personalnummer aus URL-Parameter oder Formular
-    personalnummer_param = request.args.get('personalnummer', '')
+    # Personalnummer aus Cookie oder URL-Parameter oder Formular
+    personalnummer_param = request.cookies.get('remembered_personalnummer', '')
+    if not personalnummer_param:
+        personalnummer_param = request.args.get('personalnummer', '')
+    
+    # Remember-me Status aus Cookie
+    remember_me = request.cookies.get('remembered_personalnummer') is not None
     
     if request.method == 'POST':
         personalnummer = request.form['personalnummer']
         passwort = request.form['passwort']
+        remember_me_checkbox = request.form.get('remember_me') == 'on'
 
         try:
             with get_db_connection() as conn:
@@ -53,7 +59,7 @@ def login():
                     # Fehlgeschlagene Anmeldung loggen
                     _log_login_attempt(conn, personalnummer, None, False, request, 'Benutzer nicht gefunden oder inaktiv')
                     flash('Kein Benutzer mit dieser Personalnummer gefunden oder Benutzer inaktiv.', 'danger')
-                    return render_template('login.html', personalnummer=personalnummer)
+                    return render_template('login.html', personalnummer=personalnummer, remember_me=remember_me_checkbox)
 
                 if user and check_password_hash(user['Passwort'], passwort):
                     # Erfolgreiche Anmeldung loggen
@@ -89,8 +95,21 @@ def login():
                     # Weiterleitung zur ursprünglichen URL (next-Parameter) oder zum Dashboard
                     next_page = request.args.get('next')
                     if next_page and is_safe_url(next_page):
-                        return redirect(next_page)
-                    return redirect(url_for('dashboard'))
+                        response = make_response(redirect(next_page))
+                    else:
+                        response = make_response(redirect(url_for('dashboard')))
+                    
+                    # Cookie für "Zugangsdaten merken" setzen oder löschen
+                    if remember_me_checkbox:
+                        # Cookie für 30 Tage setzen
+                        expires = datetime.now() + timedelta(days=30)
+                        response.set_cookie('remembered_personalnummer', personalnummer, 
+                                          expires=expires, httponly=True, samesite='Lax')
+                    else:
+                        # Cookie löschen falls vorhanden
+                        response.set_cookie('remembered_personalnummer', '', expires=0)
+                    
+                    return response
                 else:
                     # Fehlgeschlagene Anmeldung loggen
                     _log_login_attempt(conn, personalnummer, user['ID'] if user else None, False, request, 'Ungültiges Passwort')
@@ -99,7 +118,7 @@ def login():
             flash('Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.', 'danger')
             print(f"Login error: {e}")
 
-    return render_template('login.html', personalnummer=personalnummer_param)
+    return render_template('login.html', personalnummer=personalnummer_param, remember_me=remember_me)
 
 
 @auth_bp.route('/logout')

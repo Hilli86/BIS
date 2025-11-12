@@ -21,6 +21,10 @@
       <label for="passwort" class="form-label">Passwort</label>
       <input type="password" name="passwort" id="passwort" class="form-control" required>
     </div>
+    <div class="mb-3 form-check">
+      <input type="checkbox" name="remember_me" id="remember_me" class="form-check-input" {{ 'checked' if remember_me else '' }}>
+      <label for="remember_me" class="form-check-label">Meine Zugangsdaten merken</label>
+    </div>
     <button type="submit" class="btn btn-primary w-100">Anmelden</button>
   </form>
 </div>

@@ -1,0 +1,107 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<h1 class="mb-4">📋 Angebotsanfragen</h1>
+
+<div class="mb-3">
+    <a href="{{ url_for('ersatzteile.angebotsanfrage_neu') }}" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Neue Angebotsanfrage
+    </a>
+</div>
+
+<!-- Filter -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#filterCollapse" aria-expanded="false" aria-controls="filterCollapse">
+        <strong>Filter</strong>
+        <span class="btn btn-sm btn-outline-primary">
+            Anzeigen / Ausblenden
+        </span>
+    </div>
+    <div class="collapse" id="filterCollapse">
+        <div class="card-body">
+            <form method="get" id="filterForm">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Status</label>
+                        <select name="status" class="form-select">
+                            <option value="" {% if not status_filter %}selected{% endif %}>-- Alle in Arbeit --</option>
+                            <option value="Offen" {% if status_filter == 'Offen' %}selected{% endif %}>Offen</option>
+                            <option value="Versendet" {% if status_filter == 'Versendet' %}selected{% endif %}>Versendet</option>
+                            <option value="Angebot erhalten" {% if status_filter == 'Angebot erhalten' %}selected{% endif %}>Angebot erhalten</option>
+                            <option value="Abgeschlossen" {% if status_filter == 'Abgeschlossen' %}selected{% endif %}>Abgeschlossen</option>
+                        </select>
+                    </div>
+                    <div class="col-md-12">
+                        <button type="submit" class="btn btn-primary">Filter anwenden</button>
+                        <a href="{{ url_for('ersatzteile.angebotsanfrage_liste') }}" class="btn btn-secondary">Zurücksetzen</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Angebotsanfragen-Liste -->
+<div class="card shadow-sm">
+    <div class="card-body">
+        {% if angebotsanfragen %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Nr.</th>
+                        <th>Lieferant</th>
+                        <th>Bestellnummer</th>
+                        <th>Bezeichnung</th>
+                        <th>Status</th>
+                        <th>Erstellt am</th>
+                        <th>Erstellt von</th>
+                        <th>Positionen</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in angebotsanfragen %}
+                    <tr style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.angebotsanfrage_detail', angebotsanfrage_id=a.ID) }}';">
+                        <td><strong>{{ a.ID }}</strong></td>
+                        <td>{{ a.LieferantName or '-' }}</td>
+                        <td>{{ a.ErsteBestellnummer or '-' }}</td>
+                        <td>{{ a.ErsteBezeichnung or '-' }}</td>
+                        <td>
+                            {% if a.Status == 'Offen' %}
+                            <span class="badge bg-primary">Offen</span>
+                            {% elif a.Status == 'Versendet' %}
+                            <span class="badge bg-warning">Versendet</span>
+                            {% elif a.Status == 'Angebot erhalten' %}
+                            <span class="badge bg-success">Angebot erhalten</span>
+                            {% elif a.Status == 'Abgeschlossen' %}
+                            <span class="badge bg-secondary">Abgeschlossen</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ a.Status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ a.ErstelltAm[:16] if a.ErstelltAm else '-' }}</td>
+                        <td>{{ a.ErstelltVon or '-' }}</td>
+                        <td>{{ a.PositionenAnzahl }}</td>
+                        <td onclick="event.stopPropagation();">
+                            <a href="{{ url_for('ersatzteile.angebotsanfrage_detail', angebotsanfrage_id=a.ID) }}" class="btn btn-sm btn-outline-primary" title="Details anzeigen">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            <a href="{{ url_for('ersatzteile.angebotsanfrage_pdf_export', angebotsanfrage_id=a.ID) }}" class="btn btn-sm btn-outline-danger" title="Als PDF exportieren">
+                                <i class="bi bi-file-pdf"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Keine Angebotsanfragen gefunden.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

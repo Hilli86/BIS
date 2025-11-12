@@ -11,9 +11,9 @@
         <form method="POST">
             <div class="row g-3">
                 <div class="col-md-6">
-                    <label class="form-label"><strong>Bestellnummer:</strong></label>
-                    <input type="text" class="form-control" value="{{ ersatzteil.Bestellnummer }}" disabled>
-                    <small class="text-muted">Bestellnummer kann nicht geändert werden.</small>
+                    <label class="form-label"><strong>Bestellnummer:</strong> <span class="text-danger">*</span></label>
+                    <input type="text" name="bestellnummer" class="form-control" value="{{ ersatzteil.Bestellnummer }}" required>
+                    <small class="text-muted">Muss eindeutig sein.</small>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label"><strong>Bezeichnung:</strong> <span class="text-danger">*</span></label>

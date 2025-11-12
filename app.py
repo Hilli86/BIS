@@ -24,6 +24,7 @@ with app.app_context():
 # Upload-Ordner erstellen falls nicht vorhanden
 os.makedirs(app.config['SCHICHTBUCH_UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['ERSATZTEIL_UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(app.config['ANGEBOTE_UPLOAD_FOLDER'], exist_ok=True)
 
 # Blueprints registrieren
 from modules import auth_bp, schichtbuch_bp, admin_bp, ersatzteile_bp

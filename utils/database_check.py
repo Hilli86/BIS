@@ -129,7 +129,10 @@ def get_required_tables():
         'ErsatzteilDokument',
         'Lagerbuchung',
         'ErsatzteilAbteilungZugriff',
-        'LoginLog'
+        'LoginLog',
+        'Firmendaten',
+        'Angebotsanfrage',
+        'AngebotsanfragePosition'
     ]
 
 
@@ -211,6 +214,8 @@ def init_database_schema(db_path, verbose=False):
         if not created:
             # Prüfe auf fehlende Spalten
             create_column_if_not_exists(conn, 'Mitarbeiter', 'PrimaerAbteilungID', 'ALTER TABLE Mitarbeiter ADD COLUMN PrimaerAbteilungID INTEGER')
+            create_column_if_not_exists(conn, 'Mitarbeiter', 'Email', 'ALTER TABLE Mitarbeiter ADD COLUMN Email TEXT NULL')
+            create_column_if_not_exists(conn, 'Mitarbeiter', 'Handynummer', 'ALTER TABLE Mitarbeiter ADD COLUMN Handynummer TEXT NULL')
         
         # ========== 2. Abteilung ==========
         create_table_if_not_exists(conn, 'Abteilung', '''
@@ -602,6 +607,7 @@ def init_database_schema(db_path, verbose=False):
             create_column_if_not_exists(conn, 'Ersatzteil', 'NachfolgeartikelID', 'ALTER TABLE Ersatzteil ADD COLUMN NachfolgeartikelID INTEGER NULL')
             create_column_if_not_exists(conn, 'Ersatzteil', 'Kennzeichen', 'ALTER TABLE Ersatzteil ADD COLUMN Kennzeichen TEXT NULL')
             create_column_if_not_exists(conn, 'Ersatzteil', 'ArtikelnummerHersteller', 'ALTER TABLE Ersatzteil ADD COLUMN ArtikelnummerHersteller TEXT NULL')
+            create_column_if_not_exists(conn, 'Ersatzteil', 'Preisstand', 'ALTER TABLE Ersatzteil ADD COLUMN Preisstand DATETIME NULL')
             # Prüfe auf fehlende Indexes
             create_index_if_not_exists(conn, 'idx_ersatzteil_lagerort', 'CREATE INDEX idx_ersatzteil_lagerort ON Ersatzteil(LagerortID)')
             create_index_if_not_exists(conn, 'idx_ersatzteil_lagerplatz', 'CREATE INDEX idx_ersatzteil_lagerplatz ON Ersatzteil(LagerplatzID)')
@@ -709,6 +715,88 @@ def init_database_schema(db_path, verbose=False):
             'CREATE INDEX idx_loginlog_erfolgreich ON LoginLog(Erfolgreich)',
             'CREATE INDEX idx_loginlog_personalnummer ON LoginLog(Personalnummer)'
         ])
+        
+        # ========== 23. Firmendaten ==========
+        create_table_if_not_exists(conn, 'Firmendaten', '''
+            CREATE TABLE Firmendaten (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                Firmenname TEXT NOT NULL,
+                Strasse TEXT NULL,
+                PLZ TEXT NULL,
+                Ort TEXT NULL,
+                LieferStrasse TEXT NULL,
+                LieferPLZ TEXT NULL,
+                LieferOrt TEXT NULL,
+                Telefon TEXT NULL,
+                Fax TEXT NULL,
+                Email TEXT NULL,
+                Website TEXT NULL,
+                Steuernummer TEXT NULL,
+                UStIdNr TEXT NULL,
+                Geschaeftsfuehrer TEXT NULL,
+                LogoPfad TEXT NULL,
+                BankName TEXT NULL,
+                IBAN TEXT NULL,
+                BIC TEXT NULL,
+                ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
+                GeaendertAm DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Prüfe ob Firmendaten-Eintrag vorhanden ist, wenn nicht, Standard-Eintrag erstellen
+        cursor.execute('SELECT COUNT(*) as count FROM Firmendaten')
+        if cursor.fetchone()['count'] == 0:
+            cursor.execute('INSERT INTO Firmendaten (Firmenname) VALUES (?)', ('Ihre Firma GmbH',))
+        
+        # Prüfe auf fehlende Lieferanschrift-Spalten
+        if not created:
+            create_column_if_not_exists(conn, 'Firmendaten', 'LieferStrasse', 'ALTER TABLE Firmendaten ADD COLUMN LieferStrasse TEXT NULL')
+            create_column_if_not_exists(conn, 'Firmendaten', 'LieferPLZ', 'ALTER TABLE Firmendaten ADD COLUMN LieferPLZ TEXT NULL')
+            create_column_if_not_exists(conn, 'Firmendaten', 'LieferOrt', 'ALTER TABLE Firmendaten ADD COLUMN LieferOrt TEXT NULL')
+        
+        # ========== 24. Angebotsanfrage ==========
+        create_table_if_not_exists(conn, 'Angebotsanfrage', '''
+            CREATE TABLE Angebotsanfrage (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                LieferantID INTEGER NOT NULL,
+                ErstelltVonID INTEGER NOT NULL,
+                Status TEXT NOT NULL DEFAULT 'Offen',
+                ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
+                VersendetAm DATETIME NULL,
+                AngebotErhaltenAm DATETIME NULL,
+                Bemerkung TEXT NULL,
+                FOREIGN KEY (LieferantID) REFERENCES Lieferant(ID),
+                FOREIGN KEY (ErstelltVonID) REFERENCES Mitarbeiter(ID)
+            )
+        ''', [
+            'CREATE INDEX idx_angebotsanfrage_lieferant ON Angebotsanfrage(LieferantID)',
+            'CREATE INDEX idx_angebotsanfrage_erstellt_von ON Angebotsanfrage(ErstelltVonID)',
+            'CREATE INDEX idx_angebotsanfrage_status ON Angebotsanfrage(Status)'
+        ])
+        
+        # ========== 25. AngebotsanfragePosition ==========
+        created = create_table_if_not_exists(conn, 'AngebotsanfragePosition', '''
+            CREATE TABLE AngebotsanfragePosition (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                AngebotsanfrageID INTEGER NOT NULL,
+                ErsatzteilID INTEGER NULL,
+                Menge INTEGER NOT NULL,
+                Bemerkung TEXT NULL,
+                Angebotspreis REAL NULL,
+                Angebotswaehrung TEXT NULL,
+                Bestellnummer TEXT NULL,
+                Bezeichnung TEXT NULL,
+                FOREIGN KEY (AngebotsanfrageID) REFERENCES Angebotsanfrage(ID) ON DELETE CASCADE,
+                FOREIGN KEY (ErsatzteilID) REFERENCES Ersatzteil(ID)
+            )
+        ''', [
+            'CREATE INDEX idx_angebotsanfrage_position_anfrage ON AngebotsanfragePosition(AngebotsanfrageID)',
+            'CREATE INDEX idx_angebotsanfrage_position_ersatzteil ON AngebotsanfragePosition(ErsatzteilID)'
+        ])
+        if not created:
+            # Prüfe auf fehlende Spalten
+            create_column_if_not_exists(conn, 'AngebotsanfragePosition', 'Bestellnummer', 'ALTER TABLE AngebotsanfragePosition ADD COLUMN Bestellnummer TEXT NULL')
+            create_column_if_not_exists(conn, 'AngebotsanfragePosition', 'Bezeichnung', 'ALTER TABLE AngebotsanfragePosition ADD COLUMN Bezeichnung TEXT NULL')
         
         # ========== Entferne ErsatzteilThemaVerknuepfung falls vorhanden (Migration 008) ==========
         if table_exists(conn, 'ErsatzteilThemaVerknuepfung'):

@@ -15,6 +15,7 @@
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-lagerort">Lagerorte</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-lagerplatz">Lagerplätze</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-lieferant">Lieferanten</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-firmendaten">Firmendaten</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-datenbank">Datenbank</a></li>
   <li class="nav-item ms-auto"><a class="nav-link" href="{{ url_for('admin.login_logs') }}">Login-Logs</a></li>
   <li class="nav-item"><a class="nav-link" href="{{ url_for('dashboard') }}">Zurück zum Dashboard</a></li>
@@ -28,9 +29,11 @@
       <div class="card-body">
         <form action="{{ url_for('admin.mitarbeiter_add') }}" method="post" class="row g-2">
           <div class="col-md-2"><input name="personalnummer" class="form-control" placeholder="Personalnr." required></div>
-          <div class="col-md-3"><input name="vorname" class="form-control" placeholder="Vorname" required></div>
-          <div class="col-md-3"><input name="nachname" class="form-control" placeholder="Nachname" required></div>
-          <div class="col-md-3"><input type="password" name="passwort" class="form-control" placeholder="Passwort (optional)"></div>
+          <div class="col-md-2"><input name="vorname" class="form-control" placeholder="Vorname" required></div>
+          <div class="col-md-2"><input name="nachname" class="form-control" placeholder="Nachname" required></div>
+          <div class="col-md-2"><input type="email" name="email" class="form-control" placeholder="E-Mail"></div>
+          <div class="col-md-2"><input type="tel" name="handynummer" class="form-control" placeholder="Handynummer"></div>
+          <div class="col-md-2"><input type="password" name="passwort" class="form-control" placeholder="Passwort (optional)"></div>
           <div class="col-md-1 form-check d-flex align-items-center">
             <input class="form-check-input" type="checkbox" name="aktiv" id="maAktiv" checked>
             <label class="form-check-label ms-1" for="maAktiv">Aktiv</label>
@@ -43,13 +46,15 @@
     <div class="table-responsive">
       <table class="table table-striped align-middle">
         <thead class="table-dark">
-          <tr><th>Personalnr.</th><th>Name</th><th>Primärabteilung</th><th>Aktiv</th><th>Aktionen</th></tr>
+          <tr><th>Personalnr.</th><th>Name</th><th>E-Mail</th><th>Handynummer</th><th>Primärabteilung</th><th>Aktiv</th><th>Aktionen</th></tr>
         </thead>
         <tbody>
           {% for m in mitarbeiter %}
           <tr>
             <td>{{ m.Personalnummer }}</td>
             <td>{{ m.Nachname }}, {{ m.Vorname }}</td>
+            <td>{{ m.Email or '—' }}</td>
+            <td>{{ m.Handynummer or '—' }}</td>
             <td>
               {% if m.PrimaerAbteilung %}
                 <span class="badge bg-info">{{ m.PrimaerAbteilung }}</span>
@@ -60,14 +65,16 @@
             <td>{% if m.Aktiv %}<span class="badge bg-success">aktiv</span>{% else %}<span class="badge bg-secondary">inaktiv</span>{% endif %}</td>
             <td>
               <form action="{{ url_for('admin.mitarbeiter_update', mid=m.ID) }}" method="post" class="row g-1 mb-2">
-                <div class="col-md-3"><input name="vorname" class="form-control form-control-sm" value="{{ m.Vorname }}"></div>
-                <div class="col-md-3"><input name="nachname" class="form-control form-control-sm" value="{{ m.Nachname }}"></div>
-                <div class="col-md-3"><input type="password" name="passwort" class="form-control form-control-sm" placeholder="Neues Passwort"></div>
-                <div class="col-md-2 form-check d-flex align-items-center">
+                <div class="col-md-2"><input name="vorname" class="form-control form-control-sm" value="{{ m.Vorname }}"></div>
+                <div class="col-md-2"><input name="nachname" class="form-control form-control-sm" value="{{ m.Nachname }}"></div>
+                <div class="col-md-2"><input type="email" name="email" class="form-control form-control-sm" value="{{ m.Email or '' }}" placeholder="E-Mail"></div>
+                <div class="col-md-2"><input type="tel" name="handynummer" class="form-control form-control-sm" value="{{ m.Handynummer or '' }}" placeholder="Handynummer"></div>
+                <div class="col-md-2"><input type="password" name="passwort" class="form-control form-control-sm" placeholder="Neues Passwort"></div>
+                <div class="col-md-1 form-check d-flex align-items-center">
                   <input class="form-check-input" type="checkbox" name="aktiv" id="aktiv{{ m.ID }}" {% if m.Aktiv %}checked{% endif %}>
                   <label class="form-check-label ms-1" for="aktiv{{ m.ID }}">Aktiv</label>
                 </div>
-                <div class="col-md-1"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-save"></i> Speichern</button></div>
+                <div class="col-md-1"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-save"></i></button></div>
               </form>
               
               <!-- Abteilungszuweisung -->
@@ -638,6 +645,113 @@
         {% endfor %}
       </tbody>
     </table>
+  </div>
+
+  <!-- Firmendaten -->
+  <div class="tab-pane fade" id="tab-firmendaten">
+    <div class="card">
+      <div class="card-header">Firmendaten bearbeiten</div>
+      <div class="card-body">
+        <form action="{{ url_for('admin.firmendaten') }}" method="post">
+          <div class="row g-3">
+            <div class="col-md-12">
+              <h5>Grunddaten</h5>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Firmenname <span class="text-danger">*</span></label>
+              <input type="text" name="firmenname" class="form-control" value="{{ firmendaten.Firmenname if firmendaten else '' }}" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Geschäftsführer</label>
+              <input type="text" name="geschaeftsfuehrer" class="form-control" value="{{ firmendaten.Geschaeftsfuehrer if firmendaten else '' }}">
+            </div>
+            <div class="col-md-12">
+              <label class="form-label">Straße</label>
+              <input type="text" name="strasse" class="form-control" value="{{ firmendaten.Strasse if firmendaten else '' }}">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">PLZ</label>
+              <input type="text" name="plz" class="form-control" value="{{ firmendaten.PLZ if firmendaten else '' }}">
+            </div>
+            <div class="col-md-8">
+              <label class="form-label">Ort</label>
+              <input type="text" name="ort" class="form-control" value="{{ firmendaten.Ort if firmendaten else '' }}">
+            </div>
+            <div class="col-md-12">
+              <h5 class="mt-4">Lieferanschrift (falls abweichend)</h5>
+            </div>
+            <div class="col-md-12">
+              <label class="form-label">Straße</label>
+              <input type="text" name="lieferstrasse" class="form-control" value="{{ firmendaten.LieferStrasse if firmendaten else '' }}">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">PLZ</label>
+              <input type="text" name="lieferplz" class="form-control" value="{{ firmendaten.LieferPLZ if firmendaten else '' }}">
+            </div>
+            <div class="col-md-8">
+              <label class="form-label">Ort</label>
+              <input type="text" name="lieferort" class="form-control" value="{{ firmendaten.LieferOrt if firmendaten else '' }}">
+            </div>
+            <div class="col-md-12">
+              <h5 class="mt-4">Kontaktdaten</h5>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Telefon</label>
+              <input type="text" name="telefon" class="form-control" value="{{ firmendaten.Telefon if firmendaten else '' }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Fax</label>
+              <input type="text" name="fax" class="form-control" value="{{ firmendaten.Fax if firmendaten else '' }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">E-Mail</label>
+              <input type="email" name="email" class="form-control" value="{{ firmendaten.Email if firmendaten else '' }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Website</label>
+              <input type="url" name="website" class="form-control" value="{{ firmendaten.Website if firmendaten else '' }}" placeholder="https://...">
+            </div>
+            <div class="col-md-12">
+              <h5 class="mt-4">Steuerdaten</h5>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Steuernummer</label>
+              <input type="text" name="steuernummer" class="form-control" value="{{ firmendaten.Steuernummer if firmendaten else '' }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">USt-IdNr.</label>
+              <input type="text" name="ust_idnr" class="form-control" value="{{ firmendaten.UStIdNr if firmendaten else '' }}">
+            </div>
+            <div class="col-md-12">
+              <h5 class="mt-4">Bankverbindung</h5>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Bankname</label>
+              <input type="text" name="bankname" class="form-control" value="{{ firmendaten.BankName if firmendaten else '' }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">IBAN</label>
+              <input type="text" name="iban" class="form-control" value="{{ firmendaten.IBAN if firmendaten else '' }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">BIC</label>
+              <input type="text" name="bic" class="form-control" value="{{ firmendaten.BIC if firmendaten else '' }}">
+            </div>
+            <div class="col-md-12">
+              <h5 class="mt-4">Logo</h5>
+            </div>
+            <div class="col-md-12">
+              <label class="form-label">Logo-Pfad</label>
+              <input type="text" name="logopfad" class="form-control" value="{{ firmendaten.LogoPfad if firmendaten else '' }}" placeholder="z.B. static/logo.png">
+              <small class="form-text text-muted">Pfad zum Logo-Bild (relativ zum Projektverzeichnis)</small>
+            </div>
+            <div class="col-12 mt-3">
+              <button type="submit" class="btn btn-primary">Speichern</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 
   <!-- Datenbank -->

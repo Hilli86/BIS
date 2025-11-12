@@ -1,0 +1,358 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<h1 class="mb-4">📋 Neue Angebotsanfrage</h1>
+
+<form method="post" id="anfrageForm">
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Grunddaten</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label"><strong>Lieferant:</strong> <span class="text-danger">*</span></label>
+                    <select name="lieferant_id" class="form-select" required id="lieferantSelect">
+                        <option value="">-- Bitte wählen --</option>
+                        {% for l in lieferanten %}
+                        <option value="{{ l.ID }}" {% if vorausgefuellter_lieferant_id and l.ID == vorausgefuellter_lieferant_id %}selected{% endif %}>{{ l.Name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-12">
+                    <label class="form-label"><strong>Bemerkung:</strong></label>
+                    <textarea name="bemerkung" class="form-control" rows="2" placeholder="Optionale Bemerkung zur Anfrage"></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Ersatzteile</h5>
+            <button type="button" class="btn btn-sm btn-light" onclick="addPosition()">
+                <i class="bi bi-plus-circle"></i> Ersatzteil hinzufügen
+            </button>
+        </div>
+        <div class="card-body">
+            <div id="positionenContainer">
+                {% if vorausgefuelltes_ersatzteil %}
+                <!-- Vorausgefüllte Position -->
+                <div class="position-row mb-3 p-3 border rounded" data-row-id="row-pre-filled">
+                    <div class="row g-3">
+                        <div class="col-md-2">
+                            <label class="form-label">ErsatzteilID:</label>
+                            <div class="input-group">
+                                <input type="number" name="ersatzteil_id[]" class="form-control ersatzteil-id-input" value="{{ vorausgefuelltes_ersatzteil.ID }}" placeholder="Optional">
+                                <button type="button" class="btn btn-outline-secondary btn-lookup" onclick="lookupErsatzteil(this)">
+                                    <i class="bi bi-arrow-right"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Bestellnummer:</label>
+                            <input type="text" name="bestellnummer[]" class="form-control bestellnummer-display" value="{{ vorausgefuelltes_ersatzteil.Bestellnummer }}" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Bezeichnung:</label>
+                            <input type="text" name="bezeichnung[]" class="form-control bezeichnung-display" value="{{ vorausgefuelltes_ersatzteil.Bezeichnung }}" required>
+                        </div>
+                        <div class="col-md-1">
+                            <label class="form-label">Menge:</label>
+                            <input type="number" name="menge[]" class="form-control" value="1" min="1" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Bemerkung:</label>
+                            <input type="text" name="position_bemerkung[]" class="form-control" placeholder="Optional">
+                        </div>
+                        <div class="col-md-1">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="button" class="btn btn-danger w-100" onclick="removePosition(this)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            <div id="emptyMessage" class="alert alert-info" {% if vorausgefuelltes_ersatzteil %}style="display: none;"{% endif %}>
+                <i class="bi bi-info-circle"></i> Bitte fügen Sie mindestens ein Ersatzteil hinzu. Geben Sie die Ersatzteil-ID ein oder klicken Sie auf den Button ">" um aus einer Liste zu wählen.
+            </div>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg"></i> Angebotsanfrage erstellen
+        </button>
+        <a href="{{ url_for('ersatzteile.angebotsanfrage_liste') }}" class="btn btn-secondary">
+            <i class="bi bi-x-lg"></i> Abbrechen
+        </a>
+    </div>
+</form>
+
+<script>
+function addPosition() {
+    const container = document.getElementById('positionenContainer');
+    const emptyMessage = document.getElementById('emptyMessage');
+    
+    const positionRow = document.createElement('div');
+    positionRow.className = 'position-row mb-3 p-3 border rounded';
+    positionRow.setAttribute('data-row-id', 'row-' + Date.now());
+    positionRow.innerHTML = `
+        <div class="row g-3">
+            <div class="col-md-2">
+                <label class="form-label">ErsatzteilID:</label>
+                <div class="input-group">
+                    <input type="number" name="ersatzteil_id[]" class="form-control ersatzteil-id-input" placeholder="Optional">
+                    <button type="button" class="btn btn-outline-secondary btn-lookup" onclick="lookupErsatzteil(this)">
+                        <i class="bi bi-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Bestellnummer:</label>
+                <input type="text" name="bestellnummer[]" class="form-control bestellnummer-display" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Bezeichnung:</label>
+                <input type="text" name="bezeichnung[]" class="form-control bezeichnung-display" required>
+            </div>
+            <div class="col-md-1">
+                <label class="form-label">Menge:</label>
+                <input type="number" name="menge[]" class="form-control" value="1" min="1" required>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Bemerkung:</label>
+                <input type="text" name="position_bemerkung[]" class="form-control" placeholder="Optional">
+            </div>
+            <div class="col-md-1">
+                <label class="form-label">&nbsp;</label>
+                <button type="button" class="btn btn-danger w-100" onclick="removePosition(this)">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(positionRow);
+    emptyMessage.style.display = 'none';
+    
+    // Event-Listener für Enter-Taste hinzufügen
+    const ersatzteilInput = positionRow.querySelector('.ersatzteil-id-input');
+    ersatzteilInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            lookupErsatzteil(positionRow.querySelector('.btn-lookup'));
+        }
+    });
+}
+
+function removePosition(button) {
+    const row = button.closest('.position-row');
+    row.remove();
+    
+    const container = document.getElementById('positionenContainer');
+    if (container.children.length === 0) {
+        document.getElementById('emptyMessage').style.display = 'block';
+    }
+}
+
+function lookupErsatzteil(button) {
+    const row = button.closest('.position-row');
+    const ersatzteilInput = row.querySelector('.ersatzteil-id-input');
+    const bestellnummerDisplay = row.querySelector('.bestellnummer-display');
+    const bezeichnungDisplay = row.querySelector('.bezeichnung-display');
+    
+    const ersatzteilId = ersatzteilInput.value.trim();
+    
+    // Wenn keine ID eingegeben, Modal öffnen
+    if (!ersatzteilId) {
+        const lieferantSelect = document.getElementById('lieferantSelect');
+        const lieferantId = lieferantSelect ? lieferantSelect.value : null;
+        
+        if (!lieferantId) {
+            alert('Bitte wählen Sie zuerst einen Lieferanten aus.');
+            return;
+        }
+        
+        // Modal öffnen und Ersatzteile laden
+        openErsatzteilModal(lieferantId, row);
+        return;
+    }
+    
+    // Button deaktivieren während der Suche
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    
+    // AJAX-Anfrage
+    fetch(`{{ url_for('ersatzteile.api_ersatzteil_info', ersatzteil_id=0) }}`.replace('/0', `/${ersatzteilId}`))
+        .then(response => response.json())
+        .then(data => {
+            button.disabled = false;
+            button.innerHTML = '<i class="bi bi-arrow-right"></i>';
+            
+            if (data.success) {
+                bestellnummerDisplay.value = data.bestellnummer;
+                bezeichnungDisplay.value = data.bezeichnung;
+                bestellnummerDisplay.classList.remove('is-invalid');
+                bezeichnungDisplay.classList.remove('is-invalid');
+                ersatzteilInput.classList.remove('is-invalid');
+            } else {
+                bestellnummerDisplay.value = '';
+                bezeichnungDisplay.value = '';
+                bestellnummerDisplay.classList.add('is-invalid');
+                bezeichnungDisplay.classList.add('is-invalid');
+                ersatzteilInput.classList.add('is-invalid');
+                alert(data.message || 'Ersatzteil nicht gefunden.');
+            }
+        })
+        .catch(error => {
+            button.disabled = false;
+            button.innerHTML = '<i class="bi bi-arrow-right"></i>';
+            console.error('Fehler:', error);
+            alert('Fehler beim Laden der Ersatzteil-Daten.');
+        });
+}
+
+function openErsatzteilModal(lieferantId, targetRow) {
+    const modal = new bootstrap.Modal(document.getElementById('ersatzteilModal'));
+    const modalBody = document.getElementById('ersatzteilModalList');
+    const currentRow = targetRow;
+    
+    // Modal-Body leeren und Ladeanzeige anzeigen
+    modalBody.innerHTML = '<div class="text-center p-4"><div class="spinner-border" role="status"><span class="visually-hidden">Lädt...</span></div></div>';
+    
+    // Modal öffnen
+    modal.show();
+    
+    // Ersatzteile laden
+    fetch(`{{ url_for('ersatzteile.api_ersatzteile_lieferant', lieferant_id=0) }}`.replace('/0', `/${lieferantId}`))
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.ersatzteile.length > 0) {
+                let html = '<div class="list-group">';
+                data.ersatzteile.forEach(ersatzteil => {
+                    const preisText = ersatzteil.preis ? `${ersatzteil.preis.toFixed(2)} ${ersatzteil.waehrung}` : 'Kein Preis';
+                    html += `
+                        <a href="#" class="list-group-item list-group-item-action" onclick="selectErsatzteil(${ersatzteil.id}, '${ersatzteil.bestellnummer}', '${ersatzteil.bezeichnung.replace(/'/g, "\\'")}', event)">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">${ersatzteil.bestellnummer || 'Keine Bestellnummer'}</h6>
+                                <small>${preisText}</small>
+                            </div>
+                            <p class="mb-1">${ersatzteil.bezeichnung || 'Keine Bezeichnung'}</p>
+                            <small>ID: ${ersatzteil.id}</small>
+                        </a>
+                    `;
+                });
+                html += '</div>';
+                modalBody.innerHTML = html;
+            } else {
+                modalBody.innerHTML = '<div class="alert alert-info">Keine Ersatzteile für diesen Lieferanten gefunden.</div>';
+            }
+        })
+        .catch(error => {
+            console.error('Fehler:', error);
+            modalBody.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Ersatzteile.</div>';
+        });
+    
+    // Speichere die aktuelle Zeile für die Auswahl
+    document.getElementById('ersatzteilModal').setAttribute('data-target-row', '');
+    if (currentRow) {
+        document.getElementById('ersatzteilModal').setAttribute('data-target-row-id', currentRow.getAttribute('data-row-id') || '');
+    }
+}
+
+function selectErsatzteil(id, bestellnummer, bezeichnung, event) {
+    event.preventDefault();
+    
+    const modal = bootstrap.Modal.getInstance(document.getElementById('ersatzteilModal'));
+    const targetRowId = document.getElementById('ersatzteilModal').getAttribute('data-target-row-id');
+    
+    // Finde die entsprechende Zeile
+    let targetRow = null;
+    if (targetRowId) {
+        targetRow = document.querySelector(`[data-row-id="${targetRowId}"]`);
+    } else {
+        // Fallback: nehme die erste Positionen-Zeile
+        targetRow = document.querySelector('.position-row');
+    }
+    
+    if (targetRow) {
+        const ersatzteilInput = targetRow.querySelector('.ersatzteil-id-input');
+        const bestellnummerDisplay = targetRow.querySelector('.bestellnummer-display');
+        const bezeichnungDisplay = targetRow.querySelector('.bezeichnung-display');
+        
+        if (ersatzteilInput) ersatzteilInput.value = id;
+        if (bestellnummerDisplay) bestellnummerDisplay.value = bestellnummer || '';
+        if (bezeichnungDisplay) bezeichnungDisplay.value = bezeichnung || '';
+        
+        // Validierung entfernen
+        if (bestellnummerDisplay) bestellnummerDisplay.classList.remove('is-invalid');
+        if (bezeichnungDisplay) bezeichnungDisplay.classList.remove('is-invalid');
+        if (ersatzteilInput) ersatzteilInput.classList.remove('is-invalid');
+    }
+    
+    modal.hide();
+}
+
+// Event-Listener für Enter-Taste bei vorhandenen Positionen hinzufügen
+document.addEventListener('DOMContentLoaded', function() {
+    const ersatzteilInputs = document.querySelectorAll('.ersatzteil-id-input');
+    ersatzteilInputs.forEach(input => {
+        input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const row = input.closest('.position-row');
+                const button = row.querySelector('.btn-lookup');
+                if (button) {
+                    lookupErsatzteil(button);
+                }
+            }
+        });
+    });
+});
+
+// Ersatzteil-Modal für Lookup ohne ID
+function openErsatzteilModalFromButton(button) {
+    const row = button.closest('.position-row');
+    const lieferantSelect = document.getElementById('lieferantSelect');
+    const lieferantId = lieferantSelect ? lieferantSelect.value : null;
+    
+    if (!lieferantId) {
+        alert('Bitte wählen Sie zuerst einen Lieferanten aus.');
+        return;
+    }
+    
+    // Speichere die Zeilen-ID
+    const rowId = row.getAttribute('data-row-id') || 'row-' + Date.now();
+    row.setAttribute('data-row-id', rowId);
+    
+    openErsatzteilModal(lieferantId, row);
+}
+</script>
+
+<!-- Modal für Ersatzteil-Auswahl -->
+<div class="modal fade" id="ersatzteilModal" tabindex="-1" aria-labelledby="ersatzteilModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ersatzteilModalLabel">Ersatzteil auswählen</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="ersatzteilModalList">
+                    <div class="text-center p-4">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Lädt...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

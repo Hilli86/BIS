@@ -161,18 +161,34 @@ BIS/
 - **Badge-Anzeige** in der Navigation für ungelesene Nachrichten
 - Automatische Aktualisierung alle 30 Sekunden
 
+### Bestellwesen
+- **Angebotsanfragen**:
+  - Anfragen an Lieferanten mit mehreren Positionen
+  - Status-Verwaltung (Offen, Versendet, Angebot erhalten, Abgeschlossen)
+  - Smart-Add-Funktion: Prüft auf bestehende offene Anfragen beim Lieferanten
+  - PDF-Export im professionellen Geschäftsdokument-Stil
+  - Positionen bearbeitbar per Klick (bei offenen Anfragen)
+  - Artikel direkt aus Position erstellen (wenn noch nicht vorhanden)
+  - PDF-Upload für erhaltene Angebote
+  - Preisübernahme aus Angebot mit automatischer Preisstand-Aktualisierung
+- **Modal-Auswahl**:
+  - Ersatzteile vom Lieferanten per Modal auswählbar
+  - Automatisches Befüllen von Bestellnummer und Bezeichnung
+
 ### Ersatzteile-Verwaltung
 - **Ersatzteil-Liste** mit umfangreichen Filtern:
   - Kategorie, Lieferant, Bestandswarnung
   - Textsuche (Bestellnummer, Bezeichnung, Beschreibung)
   - Sortierung nach verschiedenen Kriterien (ID, Bestellnummer, Kategorie, Bezeichnung, Lieferant, Bestand, Lagerort, Lagerplatz)
+  - Direkt zu Angebotsanfrage hinzufügen (Button in Liste)
 - **Ersatzteil-Detailansicht**:
-  - Vollständige Informationen (Bestellnummer, Bezeichnung, Hersteller, Preis, Währung, Lagerort, Lagerplatz)
+  - Vollständige Informationen (Bestellnummer editierbar, Bezeichnung, Hersteller, Preis mit Preisstand, Währung, Lagerort, Lagerplatz)
   - Bestandsanzeige mit Mindestbestand und Warnung
   - End-of-Life und Nachfolgeartikel-Verwaltung
   - Kennzeichen (A-Z) für Kategorisierung
   - Bilder und Dokumente hochladen/verwalten
   - Abteilungsbasierte Zugriffsrechte
+  - Smart-Add zu Angebotsanfrage mit Toast-Benachrichtigung
 - **Lagerbuchungen**:
   - Übersicht aller Lagerbuchungen mit Filtern (Ersatzteil, Typ, Kostenstelle, Datum)
   - Eingang, Ausgang und Inventur
@@ -193,11 +209,13 @@ BIS/
   - Nur Administratoren können Ersatzteile anlegen/bearbeiten/löschen
 
 ### Admin-Bereich
-- **Mitarbeiter-Verwaltung** - Anlegen, Bearbeiten, Passwort zurücksetzen
+- **Mitarbeiter-Verwaltung** - Anlegen, Bearbeiten, Passwort zurücksetzen, Email und Handynummer
 - **Abteilungs-Verwaltung** - Hierarchische Struktur
 - **Stammdaten-Verwaltung** - Bereiche, Gewerke, Status, Tätigkeiten
 - **Ersatzteil-Stammdaten** - Kategorien, Kostenstellen, Lagerorte, Lagerplätze, Lieferanten
+- **Firmendaten** - Verwaltung von Firmendaten für PDF-Export (Adresse, Lieferanschrift, Kontakt, Logo, Bankverbindung)
 - **Datenbank-Check** - Überprüfung und Reparatur der Datenbankstruktur
+- **Login-Logs** - Übersicht aller Login-Versuche mit Filterung
 
 ### Technische Features
 - **AJAX-Unterstützung** für dynamische Updates
@@ -242,7 +260,19 @@ python app.py
 
 ## 📝 Changelog
 
-### Version 1.3 (Aktuell)
+### Version 1.4 (Aktuell)
+- ✅ **Bestellwesen** - Neuer Navigationsbereich für Angebotsanfragen
+- ✅ **Angebotsanfragen** - Vollständiges Anfragewesen mit Status-Verwaltung
+- ✅ **PDF-Export Angebotsanfragen** - Professioneller Geschäftsdokument-Stil
+- ✅ **Firmendaten** - Verwaltung mit Logo, Lieferanschrift und Bankverbindung
+- ✅ **Smart-Add zu Angebotsanfrage** - Intelligente Zuordnung zu bestehenden Anfragen
+- ✅ **Position-Editor** - Angebotspositionen per Klick bearbeitbar
+- ✅ **Artikel aus Position erstellen** - Neue Ersatzteile direkt aus Angebotsposition anlegen
+- ✅ **Mitarbeiter Email/Handy** - Kontaktdaten für Mitarbeiter mit Anzeige im PDF
+- ✅ **Bestellnummer bearbeitbar** - Ersatzteil-Bestellnummern können geändert werden
+- ✅ **Preisstand-Verwaltung** - Automatische Aktualisierung bei Preisübernahme
+
+### Version 1.3
 - ✅ **Benutzerprofil** - Anzeige und Bearbeitung persönlicher Daten
 - ✅ **PDF-Export** - Themen als PDF exportieren
 - ✅ **Benachrichtigungssystem** - Toast-Benachrichtigungen und Badge-Anzeige
@@ -270,7 +300,6 @@ python app.py
 
 ## 🐛 Bekannte Probleme
 
-- Datenbank-Schema muss bei Updates manuell migriert werden (siehe SQL-Datei `sql_befehle`)
 - Keine automatischen Tests implementiert
 
 ## 📞 Support

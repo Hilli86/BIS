@@ -223,9 +223,16 @@
                         <td><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none text-dark">{{ e.LagerortName or '-' }}</a></td>
                         <td><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none text-dark">{{ e.LagerplatzName or '-' }}</a></td>
                         <td onclick="event.stopPropagation();">
-                            <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-eye"></i>
-                            </a>
+                            <div class="btn-group" role="group">
+                                <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="btn btn-sm btn-outline-primary" title="Details anzeigen">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                {% if e.LieferantID %}
+                                <button type="button" class="btn btn-sm btn-outline-success" onclick="addToAngebotsanfrage({{ e.ID }}, event)" title="Zu Angebotsanfrage hinzufügen">
+                                    <i class="bi bi-cart-plus"></i>
+                                </button>
+                                {% endif %}
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
@@ -239,5 +246,80 @@
         {% endif %}
     </div>
 </div>
+
+<script>
+function addToAngebotsanfrage(ersatzteilId, event) {
+    event.stopPropagation();
+    
+    // Button deaktivieren während der Anfrage
+    const button = event.target.closest('button');
+    const originalContent = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    
+    // AJAX-Anfrage
+    fetch(`{{ url_for('ersatzteile.angebotsanfrage_smart_add', ersatzteil_id=0) }}`.replace('/0', `/${ersatzteilId}`))
+        .then(response => response.json())
+        .then(data => {
+            button.disabled = false;
+            button.innerHTML = originalContent;
+            
+            // Toast anzeigen
+            const toastType = data.success ? 'success' : 'danger';
+            const toastMessage = data.message || 'Unbekannter Fehler';
+            
+            showToast(toastMessage, toastType);
+        })
+        .catch(error => {
+            button.disabled = false;
+            button.innerHTML = originalContent;
+            console.error('Fehler:', error);
+            showToast('Fehler beim Hinzufügen zur Angebotsanfrage.', 'danger');
+        });
+}
+
+function showToast(message, type = 'info') {
+    // Toast-Container erstellen falls nicht vorhanden
+    let toastContainer = document.getElementById('toastContainer');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toastContainer';
+        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
+    }
+    
+    // Toast erstellen
+    const toastId = 'toast-' + Date.now();
+    const toastHtml = `
+        <div id="${toastId}" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header bg-${type === 'success' ? 'success' : type === 'danger' ? 'danger' : 'info'} text-white">
+                <strong class="me-auto">
+                    ${type === 'success' ? '✓ Erfolg' : type === 'danger' ? '✗ Fehler' : 'ℹ Info'}
+                </strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+        </div>
+    `;
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+    
+    // Toast anzeigen
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement, {
+        autohide: true,
+        delay: 5000
+    });
+    toast.show();
+    
+    // Toast nach dem Ausblenden entfernen
+    toastElement.addEventListener('hidden.bs.toast', function() {
+        toastElement.remove();
+    });
+}
+</script>
 {% endblock %}
 

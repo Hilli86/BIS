@@ -16,6 +16,7 @@ from .benachrichtigungen import (
     erstelle_benachrichtigung_fuer_bemerkung,
     erstelle_benachrichtigung_fuer_neues_thema
 )
+from .firmendaten import get_firmendaten
 
 __all__ = [
     'get_db_connection',
@@ -28,6 +29,7 @@ __all__ = [
     'get_auswaehlbare_abteilungen_fuer_mitarbeiter',
     'get_auswaehlbare_abteilungen_fuer_neues_thema',
     'erstelle_benachrichtigung_fuer_bemerkung',
-    'erstelle_benachrichtigung_fuer_neues_thema'
+    'erstelle_benachrichtigung_fuer_neues_thema',
+    'get_firmendaten'
 ]
 
