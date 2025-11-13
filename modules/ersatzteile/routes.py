@@ -8,7 +8,7 @@ import os
 from io import BytesIO
 from werkzeug.utils import secure_filename
 from . import ersatzteile_bp
-from utils import get_db_connection, login_required, get_sichtbare_abteilungen_fuer_mitarbeiter
+from utils import get_db_connection, login_required, permission_required, get_sichtbare_abteilungen_fuer_mitarbeiter, ist_admin
 from utils.firmendaten import get_firmendaten
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
@@ -21,11 +21,8 @@ from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
 def hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
     """Prüft ob Mitarbeiter Zugriff auf Ersatzteil hat"""
     # Admin hat immer Zugriff
-    mitarbeiter = conn.execute('SELECT PrimaerAbteilungID FROM Mitarbeiter WHERE ID = ?', (mitarbeiter_id,)).fetchone()
-    if mitarbeiter:
-        abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
-        if 'BIS-Admin' in [a for a in abteilungen if isinstance(a, str)]:
-            return True
+    if 'admin' in session.get('user_berechtigungen', []):
+        return True
     
     # Prüfe ob Benutzer der Ersteller ist
     ersatzteil = conn.execute('SELECT ErstelltVonID FROM Ersatzteil WHERE ID = ? AND Gelöscht = 0', (ersatzteil_id,)).fetchone()
@@ -75,7 +72,7 @@ def ersatzteil_liste():
     with get_db_connection() as conn:
         # Berechtigte Abteilungen ermitteln
         sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
-        is_admin = 'BIS-Admin' in (session.get('user_abteilungen') or [])
+        is_admin = 'admin' in session.get('user_berechtigungen', [])
         
         # Basis-Query
         query = '''
@@ -212,7 +209,7 @@ def lagerbuchungen_liste():
     with get_db_connection() as conn:
         # Berechtigte Abteilungen ermitteln
         sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
-        is_admin = 'BIS-Admin' in (session.get('user_abteilungen') or [])
+        is_admin = 'admin' in session.get('user_berechtigungen', [])
         
         # Basis-Query
         query = '''
@@ -470,11 +467,34 @@ def ersatzteil_detail(ersatzteil_id):
 def ersatzteil_neu():
     """Neues Ersatzteil anlegen"""
     mitarbeiter_id = session.get('user_id')
-    is_admin = 'BIS-Admin' in (session.get('user_abteilungen') or [])
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
     
     if not is_admin:
         flash('Nur Administratoren können Ersatzteile anlegen.', 'danger')
         return redirect(url_for('ersatzteile.ersatzteil_liste'))
+    
+    # Vorlage-Artikel laden (falls angegeben)
+    vorlage_id = request.args.get('vorlage', type=int)
+    vorlage = None
+    vorlage_abteilungen = []
+    
+    if vorlage_id:
+        with get_db_connection() as conn:
+            vorlage = conn.execute('''
+                SELECT e.*, k.Bezeichnung as KategorieBezeichnung, l.Name as LieferantName
+                FROM Ersatzteil e
+                LEFT JOIN ErsatzteilKategorie k ON e.KategorieID = k.ID
+                LEFT JOIN Lieferant l ON e.LieferantID = l.ID
+                WHERE e.ID = ? AND e.Gelöscht = 0
+            ''', (vorlage_id,)).fetchone()
+            
+            if vorlage:
+                # Abteilungen der Vorlage laden
+                vorlage_abteilungen_rows = conn.execute('''
+                    SELECT AbteilungID FROM ErsatzteilAbteilungZugriff
+                    WHERE ErsatzteilID = ?
+                ''', (vorlage_id,)).fetchall()
+                vorlage_abteilungen = [row['AbteilungID'] for row in vorlage_abteilungen_rows]
     
     if request.method == 'POST':
         bestellnummer = request.form.get('bestellnummer', '').strip()
@@ -576,8 +596,85 @@ def ersatzteil_neu():
         lieferanten=lieferanten,
         abteilungen=abteilungen,
         lagerorte=lagerorte,
-        lagerplaetze=lagerplaetze
+        lagerplaetze=lagerplaetze,
+        vorlage=vorlage,
+        vorlage_abteilungen=vorlage_abteilungen
     )
+
+
+@ersatzteile_bp.route('/api/suche-vorlage', methods=['GET'])
+@login_required
+def api_suche_vorlage():
+    """AJAX-Endpoint: Suche nach Ersatzteilen für Vorlage"""
+    query = request.args.get('q', '').strip()
+    
+    if not query or len(query) < 2:
+        return jsonify([])
+    
+    mitarbeiter_id = session.get('user_id')
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
+    
+    with get_db_connection() as conn:
+        # Admin sieht alle Artikel, normale User nur ihre sichtbaren
+        if is_admin:
+            ersatzteile = conn.execute('''
+                SELECT ID, Bestellnummer, Bezeichnung, Hersteller, Kennzeichen
+                FROM Ersatzteil
+                WHERE Gelöscht = 0 
+                  AND (
+                    CAST(ID AS TEXT) = ? 
+                    OR Bestellnummer LIKE ? 
+                    OR Bezeichnung LIKE ?
+                    OR Hersteller LIKE ?
+                  )
+                ORDER BY 
+                  CASE WHEN CAST(ID AS TEXT) = ? THEN 0 ELSE 1 END,
+                  CASE WHEN Bestellnummer LIKE ? THEN 0 ELSE 1 END,
+                  Bezeichnung
+                LIMIT 10
+            ''', (query, f'%{query}%', f'%{query}%', f'%{query}%', query, f'{query}%')).fetchall()
+        else:
+            sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+            if not sichtbare_abteilungen:
+                return jsonify([])
+            
+            placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+            ersatzteile = conn.execute(f'''
+                SELECT DISTINCT e.ID, e.Bestellnummer, e.Bezeichnung, e.Hersteller, e.Kennzeichen
+                FROM Ersatzteil e
+                LEFT JOIN ErsatzteilAbteilungZugriff eza ON e.ID = eza.ErsatzteilID
+                WHERE e.Gelöscht = 0 
+                  AND (e.ErstelltVonID = ? OR eza.AbteilungID IN ({placeholders}))
+                  AND (
+                    CAST(e.ID AS TEXT) = ? 
+                    OR e.Bestellnummer LIKE ? 
+                    OR e.Bezeichnung LIKE ?
+                    OR e.Hersteller LIKE ?
+                  )
+                ORDER BY 
+                  CASE WHEN CAST(e.ID AS TEXT) = ? THEN 0 ELSE 1 END,
+                  CASE WHEN e.Bestellnummer LIKE ? THEN 0 ELSE 1 END,
+                  e.Bezeichnung
+                LIMIT 10
+            ''', [mitarbeiter_id] + sichtbare_abteilungen + [query, f'%{query}%', f'%{query}%', f'%{query}%', query, f'{query}%']).fetchall()
+        
+        result = []
+        for e in ersatzteile:
+            label = f"{e['ID']}"
+            if e['Kennzeichen']:
+                label += f" ({e['Kennzeichen']})"
+            label += f" - {e['Bestellnummer']} - {e['Bezeichnung']}"
+            if e['Hersteller']:
+                label += f" ({e['Hersteller']})"
+            
+            result.append({
+                'id': e['ID'],
+                'label': label,
+                'bestellnummer': e['Bestellnummer'],
+                'bezeichnung': e['Bezeichnung']
+            })
+        
+        return jsonify(result)
 
 
 @ersatzteile_bp.route('/<int:ersatzteil_id>/bearbeiten', methods=['GET', 'POST'])
@@ -585,7 +682,7 @@ def ersatzteil_neu():
 def ersatzteil_bearbeiten(ersatzteil_id):
     """Ersatzteil bearbeiten"""
     mitarbeiter_id = session.get('user_id')
-    is_admin = 'BIS-Admin' in (session.get('user_abteilungen') or [])
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
     
     with get_db_connection() as conn:
         # Berechtigung prüfen
@@ -708,7 +805,7 @@ def ersatzteil_bearbeiten(ersatzteil_id):
 def ersatzteil_loeschen(ersatzteil_id):
     """Ersatzteil soft-delete"""
     mitarbeiter_id = session.get('user_id')
-    is_admin = 'BIS-Admin' in (session.get('user_abteilungen') or [])
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
     
     if not is_admin:
         flash('Nur Administratoren können Ersatzteile löschen.', 'danger')
@@ -727,6 +824,7 @@ def ersatzteil_loeschen(ersatzteil_id):
 
 @ersatzteile_bp.route('/lagerbuchungen/schnellbuchung', methods=['POST'])
 @login_required
+@permission_required('artikel_buchen')
 def schnellbuchung():
     """Schnelle Lagerbuchung durch Eingabe der Ersatzteil-ID"""
     mitarbeiter_id = session.get('user_id')
@@ -840,6 +938,7 @@ def schnellbuchung():
 
 @ersatzteile_bp.route('/<int:ersatzteil_id>/lagerbuchung', methods=['POST'])
 @login_required
+@permission_required('artikel_buchen')
 def lagerbuchung(ersatzteil_id):
     """Lagerbuchung durchführen (Eingang/Ausgang)"""
     mitarbeiter_id = session.get('user_id')
@@ -1015,7 +1114,7 @@ def inventurliste():
     with get_db_connection() as conn:
         # Berechtigte Abteilungen ermitteln
         sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
-        is_admin = 'BIS-Admin' in (session.get('user_abteilungen') or [])
+        is_admin = 'admin' in session.get('user_berechtigungen', [])
         
         # Query für Inventurliste: Gruppiert nach Lagerort + Lagerplatz, sortiert nach Artikel-ID
         query = '''
@@ -1100,6 +1199,7 @@ def inventurliste():
 
 @ersatzteile_bp.route('/inventurliste/buchung', methods=['POST'])
 @login_required
+@permission_required('artikel_buchen')
 def inventurliste_buchung():
     """Inventur-Buchung direkt aus der Inventurliste"""
     mitarbeiter_id = session.get('user_id')
@@ -1172,7 +1272,7 @@ def api_ersatzteil_info(ersatzteil_id):
         with get_db_connection() as conn:
             # Berechtigte Abteilungen ermitteln
             sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
-            is_admin = 'BIS-Admin' in (session.get('user_abteilungen') or [])
+            is_admin = 'admin' in session.get('user_berechtigungen', [])
             
             # Ersatzteil laden
             query = '''
@@ -1233,7 +1333,7 @@ def api_ersatzteile_lieferant(lieferant_id):
         with get_db_connection() as conn:
             # Berechtigte Abteilungen ermitteln
             sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
-            is_admin = 'BIS-Admin' in (session.get('user_abteilungen') or [])
+            is_admin = 'admin' in session.get('user_berechtigungen', [])
             
             # Ersatzteile laden
             query = '''
@@ -1299,7 +1399,7 @@ def suche_artikel():
             with get_db_connection() as conn:
                 # Berechtigte Abteilungen ermitteln
                 sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
-                is_admin = 'BIS-Admin' in (session.get('user_abteilungen') or [])
+                is_admin = 'admin' in session.get('user_berechtigungen', [])
                 
                 # Zuerst versuchen nach Bestellnummer zu suchen
                 query = '''
@@ -1421,7 +1521,7 @@ def lieferant_detail(lieferant_id):
         # Ersatzteile dieses Lieferanten laden (nur die, auf die der Benutzer Zugriff hat)
         mitarbeiter_id = session.get('user_id')
         sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
-        is_admin = 'BIS-Admin' in (session.get('user_abteilungen') or [])
+        is_admin = 'admin' in session.get('user_berechtigungen', [])
         
         query = '''
             SELECT 
@@ -1581,7 +1681,7 @@ def dokument_upload(ersatzteil_id):
 def bild_loeschen(ersatzteil_id, bild_id):
     """Bild löschen"""
     mitarbeiter_id = session.get('user_id')
-    is_admin = 'BIS-Admin' in (session.get('user_abteilungen') or [])
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
     
     if not is_admin:
         flash('Nur Administratoren können Bilder löschen.', 'danger')
@@ -1611,7 +1711,7 @@ def bild_loeschen(ersatzteil_id, bild_id):
 def dokument_loeschen(ersatzteil_id, dokument_id):
     """Dokument löschen"""
     mitarbeiter_id = session.get('user_id')
-    is_admin = 'BIS-Admin' in (session.get('user_abteilungen') or [])
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
     
     if not is_admin:
         flash('Nur Administratoren können Dokumente löschen.', 'danger')
@@ -1710,6 +1810,13 @@ def angebotsanfrage_liste():
     status_filter = request.args.get('status')
     
     with get_db_connection() as conn:
+        # Sichtbare Abteilungen für den Mitarbeiter ermitteln (eigene + alle Unterabteilungen)
+        from utils import get_sichtbare_abteilungen_fuer_mitarbeiter
+        sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+        
+        # BIS-Admin sieht alle Angebote
+        is_admin = 'admin' in session.get('user_berechtigungen', [])
+        
         # Basis-Query mit Bestellnummer und Bezeichnung der ersten Position
         query = '''
             SELECT 
@@ -1720,6 +1827,7 @@ def angebotsanfrage_liste():
                 a.AngebotErhaltenAm,
                 l.Name AS LieferantName,
                 m.Vorname || ' ' || m.Nachname AS ErstelltVon,
+                abt.Bezeichnung AS Abteilung,
                 COUNT(p.ID) AS PositionenAnzahl,
                 (SELECT e.Bestellnummer FROM AngebotsanfragePosition ap 
                  JOIN Ersatzteil e ON ap.ErsatzteilID = e.ID 
@@ -1730,10 +1838,20 @@ def angebotsanfrage_liste():
             FROM Angebotsanfrage a
             LEFT JOIN Lieferant l ON a.LieferantID = l.ID
             LEFT JOIN Mitarbeiter m ON a.ErstelltVonID = m.ID
+            LEFT JOIN Abteilung abt ON a.ErstellerAbteilungID = abt.ID
             LEFT JOIN AngebotsanfragePosition p ON a.ID = p.AngebotsanfrageID
             WHERE 1=1
         '''
         params = []
+        
+        # Abteilungsfilter: Nur Angebote aus sichtbaren Abteilungen (außer Admin)
+        if not is_admin and sichtbare_abteilungen:
+            placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+            query += f' AND a.ErstellerAbteilungID IN ({placeholders})'
+            params.extend(sichtbare_abteilungen)
+        elif not is_admin:
+            # Keine Berechtigung - keine Angebote anzeigen
+            query += ' AND 1=0'
         
         # Status-Filter
         if status_filter:
@@ -1831,11 +1949,18 @@ def angebotsanfrage_smart_add(ersatzteil_id):
                         'action': 'hinzugefuegt'
                     })
             else:
+                # Primärabteilung des Mitarbeiters ermitteln
+                mitarbeiter = conn.execute(
+                    'SELECT PrimaerAbteilungID FROM Mitarbeiter WHERE ID = ?',
+                    (mitarbeiter_id,)
+                ).fetchone()
+                abteilung_id = mitarbeiter['PrimaerAbteilungID'] if mitarbeiter else None
+                
                 # Neue Anfrage erstellen
                 cursor = conn.execute('''
-                    INSERT INTO Angebotsanfrage (LieferantID, ErstelltVonID, Status)
-                    VALUES (?, ?, 'Offen')
-                ''', (lieferant_id, mitarbeiter_id))
+                    INSERT INTO Angebotsanfrage (LieferantID, ErstelltVonID, ErstellerAbteilungID, Status)
+                    VALUES (?, ?, ?, 'Offen')
+                ''', (lieferant_id, mitarbeiter_id, abteilung_id))
                 anfrage_id = cursor.lastrowid
                 
                 # Ersatzteil-Daten laden für Bestellnummer und Bezeichnung
@@ -1907,11 +2032,18 @@ def angebotsanfrage_neu():
         
         try:
             with get_db_connection() as conn:
+                # Primärabteilung des Mitarbeiters ermitteln
+                mitarbeiter = conn.execute(
+                    'SELECT PrimaerAbteilungID FROM Mitarbeiter WHERE ID = ?',
+                    (mitarbeiter_id,)
+                ).fetchone()
+                abteilung_id = mitarbeiter['PrimaerAbteilungID'] if mitarbeiter else None
+                
                 # Angebotsanfrage erstellen
                 cursor = conn.execute('''
-                    INSERT INTO Angebotsanfrage (LieferantID, ErstelltVonID, Status, Bemerkung)
-                    VALUES (?, ?, 'Offen', ?)
-                ''', (lieferant_id, mitarbeiter_id, bemerkung))
+                    INSERT INTO Angebotsanfrage (LieferantID, ErstelltVonID, ErstellerAbteilungID, Status, Bemerkung)
+                    VALUES (?, ?, ?, 'Offen', ?)
+                ''', (lieferant_id, mitarbeiter_id, abteilung_id, bemerkung))
                 anfrage_id = cursor.lastrowid
                 
                 # Positionen hinzufügen
@@ -1993,16 +2125,28 @@ def angebotsanfrage_detail(angebotsanfrage_id):
                 l.Kontaktperson AS LieferantKontakt,
                 l.Telefon AS LieferantTelefon,
                 l.Email AS LieferantEmail,
-                m.Vorname || ' ' || m.Nachname AS ErstelltVon
+                m.Vorname || ' ' || m.Nachname AS ErstelltVon,
+                abt.Bezeichnung AS Abteilung
             FROM Angebotsanfrage a
             LEFT JOIN Lieferant l ON a.LieferantID = l.ID
             LEFT JOIN Mitarbeiter m ON a.ErstelltVonID = m.ID
+            LEFT JOIN Abteilung abt ON a.ErstellerAbteilungID = abt.ID
             WHERE a.ID = ?
         ''', (angebotsanfrage_id,)).fetchone()
         
         if not anfrage:
             flash('Angebotsanfrage nicht gefunden.', 'danger')
             return redirect(url_for('ersatzteile.angebotsanfrage_liste'))
+        
+        # Berechtigungsprüfung: Nur Angebote der eigenen Abteilung(en) + Unterabteilungen
+        is_admin = 'admin' in session.get('user_berechtigungen', [])
+        if not is_admin:
+            from utils import get_sichtbare_abteilungen_fuer_mitarbeiter
+            sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+            
+            if anfrage['ErstellerAbteilungID'] not in sichtbare_abteilungen:
+                flash('Sie haben keine Berechtigung, diese Angebotsanfrage zu sehen.', 'danger')
+                return redirect(url_for('ersatzteile.angebotsanfrage_liste'))
         
         # Positionen laden
         positionen = conn.execute('''

@@ -82,6 +82,10 @@
                             <td class="text-muted"><strong>Erstellt von:</strong></td>
                             <td>{{ anfrage.ErstelltVon or '-' }}</td>
                         </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Abteilung:</strong></td>
+                            <td>{{ anfrage.Abteilung or '-' }}</td>
+                        </tr>
                         {% if anfrage.Bemerkung %}
                         <tr>
                             <td class="text-muted"><strong>Bemerkung:</strong></td>

@@ -44,6 +44,16 @@ def dashboard():
             ''', (m['ID'],)).fetchall()
             mitarbeiter_abteilungen[m['ID']] = [row['AbteilungID'] for row in zusaetzliche]
         
+        # Berechtigungen für jeden Mitarbeiter laden
+        mitarbeiter_berechtigungen = {}
+        for m in mitarbeiter:
+            berechtigungen = conn.execute('''
+                SELECT BerechtigungID
+                FROM MitarbeiterBerechtigung
+                WHERE MitarbeiterID = ?
+            ''', (m['ID'],)).fetchall()
+            mitarbeiter_berechtigungen[m['ID']] = [row['BerechtigungID'] for row in berechtigungen]
+        
         # Abteilungen hierarchisch laden
         abteilungen = conn.execute('''
             SELECT a.ID, a.Bezeichnung, a.ParentAbteilungID, a.Aktiv, a.Sortierung,
@@ -72,10 +82,14 @@ def dashboard():
         
         # Firmendaten laden (nur erste Zeile, sollte nur eine geben)
         firmendaten = conn.execute('SELECT * FROM Firmendaten LIMIT 1').fetchone()
+        
+        # Berechtigungen laden
+        berechtigungen = conn.execute('SELECT ID, Schluessel, Bezeichnung, Beschreibung, Aktiv FROM Berechtigung ORDER BY Bezeichnung').fetchall()
 
     return render_template('admin.html',
                            mitarbeiter=mitarbeiter,
                            mitarbeiter_abteilungen=mitarbeiter_abteilungen,
+                           mitarbeiter_berechtigungen=mitarbeiter_berechtigungen,
                            abteilungen=abteilungen,
                            bereiche=bereiche,
                            gewerke=gewerke,
@@ -86,7 +100,8 @@ def dashboard():
                            kostenstellen=kostenstellen,
                            lagerorte=lagerorte,
                            lagerplaetze=lagerplaetze,
-                           firmendaten=firmendaten)
+                           firmendaten=firmendaten,
+                           berechtigungen=berechtigungen)
 
 
 # ========== Mitarbeiter-Verwaltung ==========
@@ -1531,3 +1546,124 @@ def firmendaten():
             return ajax_response(f'Fehler beim Speichern: {str(e)}', success=False, status_code=500)
     
     return redirect(url_for('admin.dashboard'))
+
+
+# ========== Berechtigungs-Verwaltung ==========
+
+@admin_bp.route('/berechtigung/add', methods=['POST'])
+@admin_required
+def berechtigung_add():
+    """Berechtigung anlegen"""
+    schluessel = request.form.get('schluessel', '').strip()
+    bezeichnung = request.form.get('bezeichnung', '').strip()
+    beschreibung = request.form.get('beschreibung', '').strip()
+    aktiv = 1 if request.form.get('aktiv') == 'on' else 0
+    
+    if not schluessel or not bezeichnung:
+        return ajax_response('Bitte Schlüssel und Bezeichnung ausfüllen.', success=False)
+    
+    try:
+        with get_db_connection() as conn:
+            conn.execute(
+                'INSERT INTO Berechtigung (Schluessel, Bezeichnung, Beschreibung, Aktiv) VALUES (?, ?, ?, ?)',
+                (schluessel, bezeichnung, beschreibung, aktiv)
+            )
+            conn.commit()
+        return ajax_response('Berechtigung erfolgreich angelegt.')
+    except sqlite3.IntegrityError:
+        return ajax_response('Eine Berechtigung mit diesem Schlüssel existiert bereits.', success=False, status_code=400)
+    except Exception as e:
+        return ajax_response(f'Fehler beim Anlegen: {str(e)}', success=False, status_code=500)
+
+
+@admin_bp.route('/berechtigung/update/<int:bid>', methods=['POST'])
+@admin_required
+def berechtigung_update(bid):
+    """Berechtigung aktualisieren"""
+    bezeichnung = request.form.get('bezeichnung', '').strip()
+    beschreibung = request.form.get('beschreibung', '').strip()
+    aktiv = 1 if request.form.get('aktiv') == 'on' else 0
+    
+    if not bezeichnung:
+        return ajax_response('Bitte Bezeichnung ausfüllen.', success=False)
+    
+    try:
+        with get_db_connection() as conn:
+            conn.execute(
+                'UPDATE Berechtigung SET Bezeichnung = ?, Beschreibung = ?, Aktiv = ? WHERE ID = ?',
+                (bezeichnung, beschreibung, aktiv, bid)
+            )
+            conn.commit()
+        return ajax_response('Berechtigung aktualisiert.')
+    except Exception as e:
+        return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
+
+
+@admin_bp.route('/berechtigung/toggle/<int:bid>', methods=['POST'])
+@admin_required
+def berechtigung_toggle(bid):
+    """Berechtigung aktivieren/deaktivieren"""
+    try:
+        with get_db_connection() as conn:
+            berechtigung = conn.execute('SELECT Aktiv FROM Berechtigung WHERE ID = ?', (bid,)).fetchone()
+            if not berechtigung:
+                return ajax_response('Berechtigung nicht gefunden.', success=False, status_code=404)
+            
+            neuer_status = 0 if berechtigung['Aktiv'] == 1 else 1
+            conn.execute('UPDATE Berechtigung SET Aktiv = ? WHERE ID = ?', (neuer_status, bid))
+            conn.commit()
+        
+        status_text = 'aktiviert' if neuer_status == 1 else 'deaktiviert'
+        return ajax_response(f'Berechtigung {status_text}.')
+    except Exception as e:
+        return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
+
+
+@admin_bp.route('/mitarbeiter/<int:mid>/berechtigung/add', methods=['POST'])
+@admin_required
+def mitarbeiter_berechtigung_add(mid):
+    """Berechtigung einem Mitarbeiter zuweisen"""
+    berechtigung_id = request.form.get('berechtigung_id', type=int)
+    
+    if not berechtigung_id:
+        return ajax_response('Bitte Berechtigung auswählen.', success=False)
+    
+    try:
+        with get_db_connection() as conn:
+            # Prüfen ob Berechtigung existiert
+            berechtigung = conn.execute('SELECT ID FROM Berechtigung WHERE ID = ?', (berechtigung_id,)).fetchone()
+            if not berechtigung:
+                return ajax_response('Berechtigung nicht gefunden.', success=False, status_code=404)
+            
+            # Prüfen ob Mitarbeiter existiert
+            mitarbeiter = conn.execute('SELECT ID FROM Mitarbeiter WHERE ID = ?', (mid,)).fetchone()
+            if not mitarbeiter:
+                return ajax_response('Mitarbeiter nicht gefunden.', success=False, status_code=404)
+            
+            # Berechtigung zuweisen
+            conn.execute(
+                'INSERT OR IGNORE INTO MitarbeiterBerechtigung (MitarbeiterID, BerechtigungID) VALUES (?, ?)',
+                (mid, berechtigung_id)
+            )
+            conn.commit()
+        
+        return ajax_response('Berechtigung erfolgreich zugewiesen.')
+    except Exception as e:
+        return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
+
+
+@admin_bp.route('/mitarbeiter/<int:mid>/berechtigung/remove/<int:bid>', methods=['POST'])
+@admin_required
+def mitarbeiter_berechtigung_remove(mid, bid):
+    """Berechtigung von einem Mitarbeiter entfernen"""
+    try:
+        with get_db_connection() as conn:
+            conn.execute(
+                'DELETE FROM MitarbeiterBerechtigung WHERE MitarbeiterID = ? AND BerechtigungID = ?',
+                (mid, bid)
+            )
+            conn.commit()
+        
+        return ajax_response('Berechtigung erfolgreich entfernt.')
+    except Exception as e:
+        return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)

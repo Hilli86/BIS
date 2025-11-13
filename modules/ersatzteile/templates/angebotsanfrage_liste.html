@@ -56,6 +56,7 @@
                         <th>Status</th>
                         <th>Erstellt am</th>
                         <th>Erstellt von</th>
+                        <th>Abteilung</th>
                         <th>Positionen</th>
                         <th>Aktionen</th>
                     </tr>
@@ -82,6 +83,7 @@
                         </td>
                         <td>{{ a.ErstelltAm[:16] if a.ErstelltAm else '-' }}</td>
                         <td>{{ a.ErstelltVon or '-' }}</td>
+                        <td>{{ a.Abteilung or '-' }}</td>
                         <td>{{ a.PositionenAnzahl }}</td>
                         <td onclick="event.stopPropagation();">
                             <a href="{{ url_for('ersatzteile.angebotsanfrage_detail', angebotsanfrage_id=a.ID) }}" class="btn btn-sm btn-outline-primary" title="Details anzeigen">

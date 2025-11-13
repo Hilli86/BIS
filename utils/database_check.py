@@ -755,24 +755,43 @@ def init_database_schema(db_path, verbose=False):
             create_column_if_not_exists(conn, 'Firmendaten', 'LieferOrt', 'ALTER TABLE Firmendaten ADD COLUMN LieferOrt TEXT NULL')
         
         # ========== 24. Angebotsanfrage ==========
-        create_table_if_not_exists(conn, 'Angebotsanfrage', '''
+        created = create_table_if_not_exists(conn, 'Angebotsanfrage', '''
             CREATE TABLE Angebotsanfrage (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
                 LieferantID INTEGER NOT NULL,
                 ErstelltVonID INTEGER NOT NULL,
+                ErstellerAbteilungID INTEGER NULL,
                 Status TEXT NOT NULL DEFAULT 'Offen',
                 ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
                 VersendetAm DATETIME NULL,
                 AngebotErhaltenAm DATETIME NULL,
                 Bemerkung TEXT NULL,
                 FOREIGN KEY (LieferantID) REFERENCES Lieferant(ID),
-                FOREIGN KEY (ErstelltVonID) REFERENCES Mitarbeiter(ID)
+                FOREIGN KEY (ErstelltVonID) REFERENCES Mitarbeiter(ID),
+                FOREIGN KEY (ErstellerAbteilungID) REFERENCES Abteilung(ID)
             )
         ''', [
             'CREATE INDEX idx_angebotsanfrage_lieferant ON Angebotsanfrage(LieferantID)',
             'CREATE INDEX idx_angebotsanfrage_erstellt_von ON Angebotsanfrage(ErstelltVonID)',
+            'CREATE INDEX idx_angebotsanfrage_abteilung ON Angebotsanfrage(ErstellerAbteilungID)',
             'CREATE INDEX idx_angebotsanfrage_status ON Angebotsanfrage(Status)'
         ])
+        if not created:
+            # Prüfe auf fehlende Spalten
+            if create_column_if_not_exists(conn, 'Angebotsanfrage', 'ErstellerAbteilungID', 'ALTER TABLE Angebotsanfrage ADD COLUMN ErstellerAbteilungID INTEGER NULL'):
+                # Für bestehende Angebotsanfragen die Abteilung vom Ersteller übernehmen
+                conn.execute('''
+                    UPDATE Angebotsanfrage
+                    SET ErstellerAbteilungID = (
+                        SELECT PrimaerAbteilungID 
+                        FROM Mitarbeiter 
+                        WHERE Mitarbeiter.ID = Angebotsanfrage.ErstelltVonID
+                    )
+                    WHERE ErstellerAbteilungID IS NULL
+                ''')
+                print("[INFO] Spalte 'ErstellerAbteilungID' zu 'Angebotsanfrage' hinzugefügt")
+            # Prüfe auf fehlende Indexes
+            create_index_if_not_exists(conn, 'idx_angebotsanfrage_abteilung', 'CREATE INDEX idx_angebotsanfrage_abteilung ON Angebotsanfrage(ErstellerAbteilungID)')
         
         # ========== 25. AngebotsanfragePosition ==========
         created = create_table_if_not_exists(conn, 'AngebotsanfragePosition', '''
@@ -797,6 +816,48 @@ def init_database_schema(db_path, verbose=False):
             # Prüfe auf fehlende Spalten
             create_column_if_not_exists(conn, 'AngebotsanfragePosition', 'Bestellnummer', 'ALTER TABLE AngebotsanfragePosition ADD COLUMN Bestellnummer TEXT NULL')
             create_column_if_not_exists(conn, 'AngebotsanfragePosition', 'Bezeichnung', 'ALTER TABLE AngebotsanfragePosition ADD COLUMN Bezeichnung TEXT NULL')
+        
+        # ========== 26. Berechtigung ==========
+        created = create_table_if_not_exists(conn, 'Berechtigung', '''
+            CREATE TABLE Berechtigung (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                Schluessel TEXT NOT NULL UNIQUE,
+                Bezeichnung TEXT NOT NULL,
+                Beschreibung TEXT,
+                Aktiv INTEGER NOT NULL DEFAULT 1
+            )
+        ''', [
+            'CREATE INDEX idx_berechtigung_schluessel ON Berechtigung(Schluessel)',
+            'CREATE INDEX idx_berechtigung_aktiv ON Berechtigung(Aktiv)'
+        ])
+        if created:
+            # Standard-Berechtigungen einfügen
+            berechtigungen = [
+                ('admin', 'Admin', 'Vollzugriff auf alle Admin-Funktionen'),
+                ('artikel_buchen', 'Darf Artikel buchen', 'Erlaubt Lagerbuchungen von Ersatzteilen'),
+                ('bestellungen_erstellen', 'Darf Bestellungen erstellen', 'Erlaubt das Erstellen von Bestellungen/Angebotsanfragen'),
+                ('bestellungen_freigeben', 'Darf Bestellungen freigeben', 'Erlaubt die Freigabe von Bestellungen')
+            ]
+            for schluessel, bezeichnung, beschreibung in berechtigungen:
+                conn.execute('''
+                    INSERT OR IGNORE INTO Berechtigung (Schluessel, Bezeichnung, Beschreibung, Aktiv)
+                    VALUES (?, ?, ?, 1)
+                ''', (schluessel, bezeichnung, beschreibung))
+        
+        # ========== 27. MitarbeiterBerechtigung ==========
+        created = create_table_if_not_exists(conn, 'MitarbeiterBerechtigung', '''
+            CREATE TABLE MitarbeiterBerechtigung (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                MitarbeiterID INTEGER NOT NULL,
+                BerechtigungID INTEGER NOT NULL,
+                FOREIGN KEY (MitarbeiterID) REFERENCES Mitarbeiter(ID) ON DELETE CASCADE,
+                FOREIGN KEY (BerechtigungID) REFERENCES Berechtigung(ID) ON DELETE CASCADE,
+                UNIQUE(MitarbeiterID, BerechtigungID)
+            )
+        ''', [
+            'CREATE INDEX idx_mitarbeiter_berechtigung_ma ON MitarbeiterBerechtigung(MitarbeiterID)',
+            'CREATE INDEX idx_mitarbeiter_berechtigung_ber ON MitarbeiterBerechtigung(BerechtigungID)'
+        ])
         
         # ========== Entferne ErsatzteilThemaVerknuepfung falls vorhanden (Migration 008) ==========
         if table_exists(conn, 'ErsatzteilThemaVerknuepfung'):
@@ -828,6 +889,33 @@ def init_database_schema(db_path, verbose=False):
                     INSERT INTO Mitarbeiter (Personalnummer, Vorname, Nachname, Aktiv, Passwort, PrimaerAbteilungID)
                     VALUES (?, ?, ?, ?, ?, ?)
                 ''', ('99999', '', 'BIS-Admin', 1, passwort_hash, abteilung_id))
+            
+            # BIS-Admin Mitarbeitern Admin-Berechtigung geben
+            cursor.execute("SELECT ID FROM Berechtigung WHERE Schluessel = 'admin'")
+            admin_berechtigung = cursor.fetchone()
+            if admin_berechtigung:
+                admin_ber_id = admin_berechtigung['ID']
+                # Primärabteilung BIS-Admin
+                cursor.execute('SELECT ID FROM Mitarbeiter WHERE PrimaerAbteilungID = ?', (abteilung_id,))
+                mitarbeiter_list = cursor.fetchall()
+                for ma in mitarbeiter_list:
+                    cursor.execute('''
+                        INSERT OR IGNORE INTO MitarbeiterBerechtigung (MitarbeiterID, BerechtigungID)
+                        VALUES (?, ?)
+                    ''', (ma['ID'], admin_ber_id))
+                # Zusätzliche Abteilung BIS-Admin
+                cursor.execute('''
+                    SELECT DISTINCT m.ID 
+                    FROM Mitarbeiter m
+                    JOIN MitarbeiterAbteilung ma ON m.ID = ma.MitarbeiterID
+                    WHERE ma.AbteilungID = ?
+                ''', (abteilung_id,))
+                mitarbeiter_zusatz = cursor.fetchall()
+                for ma in mitarbeiter_zusatz:
+                    cursor.execute('''
+                        INSERT OR IGNORE INTO MitarbeiterBerechtigung (MitarbeiterID, BerechtigungID)
+                        VALUES (?, ?)
+                    ''', (ma['ID'], admin_ber_id))
             
             conn.commit()
         

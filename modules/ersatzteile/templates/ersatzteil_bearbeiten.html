@@ -10,19 +10,7 @@
     <div class="card-body">
         <form method="POST">
             <div class="row g-3">
-                <div class="col-md-6">
-                    <label class="form-label"><strong>Bestellnummer:</strong> <span class="text-danger">*</span></label>
-                    <input type="text" name="bestellnummer" class="form-control" value="{{ ersatzteil.Bestellnummer }}" required>
-                    <small class="text-muted">Muss eindeutig sein.</small>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label"><strong>Bezeichnung:</strong> <span class="text-danger">*</span></label>
-                    <input type="text" name="bezeichnung" class="form-control" value="{{ ersatzteil.Bezeichnung }}" required>
-                </div>
-                <div class="col-12">
-                    <label class="form-label"><strong>Beschreibung:</strong></label>
-                    <textarea name="beschreibung" class="form-control" rows="3">{{ ersatzteil.Beschreibung or '' }}</textarea>
-                </div>
+                <!-- 1. Kategorie | Lieferant | Hersteller -->
                 <div class="col-md-6">
                     <label class="form-label"><strong>Kategorie:</strong></label>
                     <select name="kategorie_id" class="form-select">
@@ -32,11 +20,7 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-6">
-                    <label class="form-label"><strong>Hersteller:</strong></label>
-                    <input type="text" name="hersteller" class="form-control" value="{{ ersatzteil.Hersteller or '' }}">
-                </div>
-                <div class="col-md-6">
+                <div class="col-md-3">
                     <label class="form-label"><strong>Lieferant:</strong></label>
                     <select name="lieferant_id" class="form-select">
                         <option value="">-- Keine --</option>
@@ -46,18 +30,36 @@
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label"><strong>Preis:</strong></label>
-                    <input type="number" name="preis" class="form-control" step="0.01" min="0" value="{{ ersatzteil.Preis or '' }}">
+                    <label class="form-label"><strong>Hersteller: </strong><small class="text-muted">(Optional)</small></label>
+                    <input type="text" name="hersteller" class="form-control" value="{{ ersatzteil.Hersteller or '' }}">
+                </div>
+
+                <!-- 2. Zeile - Kennzeichen(schmal), Bezeichnung | Bestellnummer, Artikelnummer Hersteller(Optional) -->
+                <div class="col-md-1">
+                    <label class="form-label"><strong>Kennzeichen:</strong></label>
+                    <input type="text" name="kennzeichen" class="form-control" maxlength="1" pattern="[A-Za-z]" placeholder="A-Z" value="{{ ersatzteil.Kennzeichen or '' }}">
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label"><strong>Bezeichnung:</strong> <span class="text-danger">*</span></label>
+                    <input type="text" name="bezeichnung" class="form-control" value="{{ ersatzteil.Bezeichnung }}" required>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label"><strong>Währung:</strong></label>
-                    <select name="waehrung" class="form-select">
-                        <option value="EUR" {% if ersatzteil.Waehrung == 'EUR' %}selected{% endif %}>EUR</option>
-                        <option value="USD" {% if ersatzteil.Waehrung == 'USD' %}selected{% endif %}>USD</option>
-                        <option value="CHF" {% if ersatzteil.Waehrung == 'CHF' %}selected{% endif %}>CHF</option>
-                    </select>
+                    <label class="form-label"><strong>Bestellnummer:</strong> <span class="text-danger">*</span></label>
+                    <input type="text" name="bestellnummer" class="form-control" value="{{ ersatzteil.Bestellnummer }}" required>
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-3">
+                    <label class="form-label"><strong>Artikelnummer Hersteller:</strong> <small class="text-muted">(Optional)</small></label>
+                    <input type="text" name="artikelnummer_hersteller" class="form-control" value="{{ ersatzteil.ArtikelnummerHersteller or '' }}">
+                </div>
+
+                <!-- 3. Beschreibung -->
+                <div class="col-12">
+                    <label class="form-label"><strong>Beschreibung:</strong></label>
+                    <textarea name="beschreibung" class="form-control" rows="3">{{ ersatzteil.Beschreibung or '' }}</textarea>
+                </div>
+
+                <!-- 4. Lagerort, Lagerplatz | Mindestbestand, Einheit -->
+                <div class="col-md-3">
                     <label class="form-label"><strong>Lagerort:</strong></label>
                     <select name="lagerort_id" class="form-select">
                         <option value="">-- Keine --</option>
@@ -66,7 +68,7 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-3">
                     <label class="form-label"><strong>Lagerplatz:</strong></label>
                     <select name="lagerplatz_id" class="form-select">
                         <option value="">-- Keine --</option>
@@ -83,53 +85,75 @@
                     <label class="form-label"><strong>Einheit:</strong></label>
                     <input type="text" name="einheit" class="form-control" value="{{ ersatzteil.Einheit or 'Stück' }}">
                 </div>
+
+                <!-- 5. Preis, Währung | EndofLife, Nachfolgeartikel, Aktiv -->
                 <div class="col-md-3">
-                    <label class="form-label"><strong>Artikelnummer Hersteller:</strong></label>
-                    <input type="text" name="artikelnummer_hersteller" class="form-control" value="{{ ersatzteil.ArtikelnummerHersteller or '' }}">
+                    <label class="form-label"><strong>Preis:</strong></label>
+                    <input type="number" name="preis" class="form-control" step="0.01" min="0" value="{{ ersatzteil.Preis or '' }}">
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label"><strong>Kennzeichen:</strong></label>
-                    <input type="text" name="kennzeichen" class="form-control" maxlength="1" pattern="[A-Za-z]" placeholder="A-Z" value="{{ ersatzteil.Kennzeichen or '' }}">
-                    <small class="text-muted">Ein Buchstabe für Zuordnung</small>
+                    <label class="form-label"><strong>Währung:</strong></label>
+                    <select name="waehrung" class="form-select">
+                        <option value="EUR" {% if ersatzteil.Waehrung == 'EUR' %}selected{% endif %}>EUR</option>
+                        <option value="USD" {% if ersatzteil.Waehrung == 'USD' %}selected{% endif %}>USD</option>
+                        <option value="CHF" {% if ersatzteil.Waehrung == 'CHF' %}selected{% endif %}>CHF</option>
+                    </select>
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label"><strong>Nachfolgeartikel ID:</strong> <small class="text-muted">(Optional)</small></label>
-                    <input type="number" name="nachfolgeartikel_id" class="form-control" min="1" placeholder="ID des Nachfolgeartikels" value="{{ ersatzteil.NachfolgeartikelID or '' }}">
-                </div>
-                <div class="col-md-12">
-                    <div class="form-check">
+                <div class="col-md-2">
+                    <label class="form-label"><strong>End of Life:</strong></label>
+                    <div class="form-check mt-2">
                         <input class="form-check-input" type="checkbox" name="end_of_life" id="end_of_life" {% if ersatzteil.EndOfLife %}checked{% endif %}>
                         <label class="form-check-label" for="end_of_life">
-                            <strong>End of Life</strong>
+                            End of Life
                         </label>
                     </div>
                 </div>
-                <div class="col-md-12">
-                    <div class="form-check">
+                <div class="col-md-2">
+                    <label class="form-label"><strong>Aktiv:</strong></label>
+                    <div class="form-check mt-2">
                         <input class="form-check-input" type="checkbox" name="aktiv" id="aktiv" {% if ersatzteil.Aktiv %}checked{% endif %}>
                         <label class="form-check-label" for="aktiv">
-                            <strong>Aktiv</strong>
+                            Aktiv
                         </label>
                     </div>
                 </div>
-                {% if session.user_abteilungen and 'BIS-Admin' in session.user_abteilungen %}
+                <div class="col-md-2">
+                    <label class="form-label"><strong>Nachfolgeartikel ID:</strong> <small class="text-muted">(Optional)</small></label>
+                    <input type="number" name="nachfolgeartikel_id" class="form-control" min="1" placeholder="ID" value="{{ ersatzteil.NachfolgeartikelID or '' }}">
+                </div>
+
+                <!-- 6. Sichtbarkeit -->
+                {% if 'admin' in session.get('user_berechtigungen', []) %}
                 <div class="col-12">
-                    <label class="form-label"><strong>Sichtbar für Abteilungen:</strong></label>
-                    <div class="row">
-                        {% for abt in abteilungen %}
-                        <div class="col-md-3 mb-2">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="abteilungen" value="{{ abt.ID }}" id="abt_{{ abt.ID }}" {% if abt.ID in zugriff_ids %}checked{% endif %}>
-                                <label class="form-check-label" for="abt_{{ abt.ID }}">
-                                    {{ abt.Bezeichnung }}
-                                </label>
+                    <hr class="my-3">
+                    <label class="form-label fw-bold">
+                        <i class="bi bi-eye"></i> Sichtbarkeit - Welche Abteilungen sollen dieses Ersatzteil sehen?
+                    </label>
+                    <div class="form-text text-muted mb-2">
+                        Wählen Sie aus, welche Abteilungen Zugriff auf dieses Ersatzteil haben sollen.
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row">
+                                {% for abt in abteilungen %}
+                                <div class="col-md-3 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="abteilungen" value="{{ abt.ID }}" id="abt_{{ abt.ID }}" {% if abt.ID in zugriff_ids %}checked{% endif %}>
+                                        <label class="form-check-label" for="abt_{{ abt.ID }}">
+                                            {{ abt.Bezeichnung }}
+                                        </label>
+                                    </div>
+                                </div>
+                                {% endfor %}
                             </div>
                         </div>
-                        {% endfor %}
                     </div>
                 </div>
                 {% endif %}
+
+                <!-- Buttons -->
                 <div class="col-12">
+                    <hr class="my-3">
                     <button type="submit" class="btn btn-primary">
                         <i class="bi bi-save"></i> Speichern
                     </button>

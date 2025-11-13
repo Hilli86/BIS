@@ -17,7 +17,10 @@
                     title="QR-Code anzeigen">
                 <i class="bi bi-qr-code"></i> <span class="d-none d-sm-inline">QR-Code</span>
             </button>
-            {% if session.user_abteilungen and 'BIS-Admin' in session.user_abteilungen %}
+            {% if 'admin' in session.get('user_berechtigungen', []) %}
+            <a href="{{ url_for('ersatzteile.ersatzteil_neu', vorlage=ersatzteil.ID) }}" class="btn btn-sm btn-light" title="Als Vorlage für neuen Artikel verwenden">
+                <i class="bi bi-copy"></i> <span class="d-none d-sm-inline">Als Vorlage verwenden</span>
+            </a>
             <a href="{{ url_for('ersatzteile.ersatzteil_bearbeiten', ersatzteil_id=ersatzteil.ID) }}" class="btn btn-sm btn-light">
                 <i class="bi bi-pencil"></i> <span class="d-none d-sm-inline">Bearbeiten</span>
             </a>
@@ -180,6 +183,7 @@
 </div>
 
 <!-- Lagerbuchung -->
+{% if 'artikel_buchen' in session.get('user_berechtigungen', []) or 'admin' in session.get('user_berechtigungen', []) %}
 <div class="card mb-4 shadow-sm">
     <div class="card-header bg-info text-white">
         <h5 class="mb-0">📦 Lagerbuchung</h5>
@@ -231,6 +235,7 @@
         </form>
     </div>
 </div>
+{% endif %}
 
 <!-- Lagerbuchungen Historie -->
 <div class="card mb-4 shadow-sm">
@@ -378,7 +383,7 @@
                     </a>
                     <div class="card-body p-2">
                         <small class="text-muted">{{ bild.Dateiname }}</small>
-                        {% if session.user_abteilungen and 'BIS-Admin' in session.user_abteilungen %}
+                        {% if 'admin' in session.get('user_berechtigungen', []) %}
                         <form method="POST" action="{{ url_for('ersatzteile.bild_loeschen', ersatzteil_id=ersatzteil.ID, bild_id=bild.ID) }}" 
                               onsubmit="return confirm('Bild wirklich löschen?');" class="mt-2">
                             <button type="submit" class="btn btn-sm btn-danger w-100">
@@ -435,7 +440,7 @@
                     <br><small class="text-muted">Typ: {{ dok.Typ }}</small>
                     {% endif %}
                 </div>
-                {% if session.user_abteilungen and 'BIS-Admin' in session.user_abteilungen %}
+                {% if 'admin' in session.get('user_berechtigungen', []) %}
                 <form method="POST" action="{{ url_for('ersatzteile.dokument_loeschen', ersatzteil_id=ersatzteil.ID, dokument_id=dok.ID) }}" 
                       onsubmit="return confirm('Dokument wirklich löschen?');" class="d-inline">
                     <button type="submit" class="btn btn-sm btn-danger">

@@ -283,7 +283,7 @@
       <span id="notificationBadge" class="badge bg-danger ms-2" style="display: none;">0</span>
     </a>
 
-    {% if session.user_abteilungen and 'BIS-Admin' in session.user_abteilungen %}
+    {% if 'admin' in session.get('user_berechtigungen', []) %}
     <a href="{{ url_for('admin.dashboard') }}" class="{% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
       ⚙️ Adminbereich
     </a>

@@ -688,7 +688,7 @@ def thema_detail(thema_id):
         # Verfügbare Ersatzteile für den aktuellen Benutzer laden
         mitarbeiter_id = session.get('user_id')
         sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
-        is_admin = 'BIS-Admin' in (session.get('user_abteilungen') or [])
+        is_admin = 'admin' in session.get('user_berechtigungen', [])
         
         verfuegbare_query = '''
             SELECT e.ID, e.Bestellnummer, e.Bezeichnung, e.AktuellerBestand, e.Einheit

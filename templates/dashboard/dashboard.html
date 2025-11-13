@@ -30,7 +30,7 @@
             <a href="{{ url_for('ersatzteile.ersatzteil_liste', bestandswarnung='1') }}" class="btn btn-outline-warning" id="bestandswarnungBtn" style="display: none;">
               <i class="bi bi-exclamation-triangle"></i> Bestandswarnungen
             </a>
-            {% if session.user_abteilungen and 'BIS-Admin' in session.user_abteilungen %}
+            {% if 'admin' in session.get('user_berechtigungen', []) %}
             <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-secondary">
               <i class="bi bi-gear"></i> Adminbereich
             </a>

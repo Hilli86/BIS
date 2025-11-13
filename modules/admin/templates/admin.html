@@ -5,6 +5,7 @@
 
 <ul class="nav nav-tabs mb-3" role="tablist">
   <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-mitarbeiter">Mitarbeiter</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-berechtigungen">Berechtigungen</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-abteilung">Abteilungen</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-bereich">Bereiche</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-gewerk">Gewerke</a></li>
@@ -64,67 +65,164 @@
             </td>
             <td>{% if m.Aktiv %}<span class="badge bg-success">aktiv</span>{% else %}<span class="badge bg-secondary">inaktiv</span>{% endif %}</td>
             <td>
-              <form action="{{ url_for('admin.mitarbeiter_update', mid=m.ID) }}" method="post" class="row g-1 mb-2">
-                <div class="col-md-2"><input name="vorname" class="form-control form-control-sm" value="{{ m.Vorname }}"></div>
-                <div class="col-md-2"><input name="nachname" class="form-control form-control-sm" value="{{ m.Nachname }}"></div>
-                <div class="col-md-2"><input type="email" name="email" class="form-control form-control-sm" value="{{ m.Email or '' }}" placeholder="E-Mail"></div>
-                <div class="col-md-2"><input type="tel" name="handynummer" class="form-control form-control-sm" value="{{ m.Handynummer or '' }}" placeholder="Handynummer"></div>
-                <div class="col-md-2"><input type="password" name="passwort" class="form-control form-control-sm" placeholder="Neues Passwort"></div>
-                <div class="col-md-1 form-check d-flex align-items-center">
-                  <input class="form-check-input" type="checkbox" name="aktiv" id="aktiv{{ m.ID }}" {% if m.Aktiv %}checked{% endif %}>
-                  <label class="form-check-label ms-1" for="aktiv{{ m.ID }}">Aktiv</label>
+              <div id="accordion{{ m.ID }}">
+                <!-- Stammdaten -->
+                <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#stamm{{ m.ID }}">
+                  <i class="bi bi-person-fill"></i> Stammdaten
+                </button>
+                <div class="collapse mt-2" id="stamm{{ m.ID }}" data-bs-parent="#accordion{{ m.ID }}">
+                  <form action="{{ url_for('admin.mitarbeiter_update', mid=m.ID) }}" method="post" class="border p-2 rounded bg-light">
+                    <div class="row g-2">
+                      <div class="col-md-6">
+                        <label class="form-label fw-bold">Vorname:</label>
+                        <input name="vorname" class="form-control form-control-sm" value="{{ m.Vorname }}">
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label fw-bold">Nachname:</label>
+                        <input name="nachname" class="form-control form-control-sm" value="{{ m.Nachname }}">
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label fw-bold">E-Mail:</label>
+                        <input type="email" name="email" class="form-control form-control-sm" value="{{ m.Email or '' }}" placeholder="E-Mail">
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label fw-bold">Handynummer:</label>
+                        <input type="tel" name="handynummer" class="form-control form-control-sm" value="{{ m.Handynummer or '' }}" placeholder="Handynummer">
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label fw-bold">Neues Passwort:</label>
+                        <input type="password" name="passwort" class="form-control form-control-sm" placeholder="Nur ausfüllen um zu ändern">
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label fw-bold">Status:</label>
+                        <div class="form-check mt-2">
+                          <input class="form-check-input" type="checkbox" name="aktiv" id="aktiv{{ m.ID }}" {% if m.Aktiv %}checked{% endif %}>
+                          <label class="form-check-label" for="aktiv{{ m.ID }}">Aktiv</label>
+                        </div>
+                      </div>
+                      <div class="col-12">
+                        <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-save"></i> Speichern</button>
+                      </div>
+                    </div>
+                  </form>
                 </div>
-                <div class="col-md-1"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-save"></i></button></div>
-              </form>
-              
-              <!-- Abteilungszuweisung -->
-              <button class="btn btn-sm btn-outline-info" data-bs-toggle="collapse" data-bs-target="#abt{{ m.ID }}">
-                Abteilungen
-              </button>
-              <div class="collapse mt-2" id="abt{{ m.ID }}">
-                <form action="{{ url_for('admin.mitarbeiter_abteilungen', mid=m.ID) }}" method="post" class="border p-2 rounded bg-light">
-                  <div class="mb-2">
-                    <label class="form-label fw-bold">Primärabteilung:</label>
-                    <select name="primaer_abteilung_id" class="form-select form-select-sm">
-                      <option value="">-- Keine --</option>
+                
+                <!-- Abteilungszuweisung -->
+                <button class="btn btn-sm btn-outline-info" data-bs-toggle="collapse" data-bs-target="#abt{{ m.ID }}">
+                  <i class="bi bi-building"></i> Abteilungen
+                </button>
+                <div class="collapse mt-2" id="abt{{ m.ID }}" data-bs-parent="#accordion{{ m.ID }}">
+                  <form action="{{ url_for('admin.mitarbeiter_abteilungen', mid=m.ID) }}" method="post" class="border p-2 rounded bg-light">
+                    <div class="mb-2">
+                      <label class="form-label fw-bold">Primärabteilung:</label>
+                      <select name="primaer_abteilung_id" class="form-select form-select-sm">
+                        <option value="">-- Keine --</option>
+                        {% for a in abteilungen %}
+                          <option value="{{ a.ID }}" {% if m.PrimaerAbteilungID == a.ID %}selected{% endif %}>
+                            {{ a.Bezeichnung }}{% if a.ParentBezeichnung %} ({{ a.ParentBezeichnung }}){% endif %}
+                          </option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label fw-bold">Zusätzliche Abteilungen:</label>
                       {% for a in abteilungen %}
-                        <option value="{{ a.ID }}" {% if m.PrimaerAbteilungID == a.ID %}selected{% endif %}>
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="zusaetzliche_abteilungen" value="{{ a.ID }}" id="zusatz{{ m.ID }}_{{ a.ID }}" 
+                          {% if mitarbeiter_abteilungen[m.ID] and a.ID in mitarbeiter_abteilungen[m.ID] %}checked{% endif %}>
+                        <label class="form-check-label" for="zusatz{{ m.ID }}_{{ a.ID }}">
                           {{ a.Bezeichnung }}{% if a.ParentBezeichnung %} ({{ a.ParentBezeichnung }}){% endif %}
-                        </option>
+                        </label>
+                      </div>
                       {% endfor %}
-                    </select>
-                  </div>
-                  <div class="mb-2">
-                    <label class="form-label fw-bold">Zusätzliche Abteilungen:</label>
-                    {% for a in abteilungen %}
+                    </div>
+                    <button class="btn btn-sm btn-success"><i class="bi bi-save"></i> Abteilungen speichern</button>
+                  </form>
+                </div>
+                
+                <!-- Berechtigungszuweisung -->
+                <button class="btn btn-sm btn-outline-warning" data-bs-toggle="collapse" data-bs-target="#ber{{ m.ID }}">
+                  <i class="bi bi-shield-check"></i> Berechtigungen
+                </button>
+                <div class="collapse mt-2" id="ber{{ m.ID }}" data-bs-parent="#accordion{{ m.ID }}">
+                  <div class="border p-2 rounded bg-light">
+                    <label class="form-label fw-bold">Berechtigungen:</label>
+                    {% for b in berechtigungen %}
                     <div class="form-check">
-                      <input class="form-check-input" type="checkbox" name="zusaetzliche_abteilungen" value="{{ a.ID }}" id="zusatz{{ m.ID }}_{{ a.ID }}" 
-                        {% if mitarbeiter_abteilungen[m.ID] and a.ID in mitarbeiter_abteilungen[m.ID] %}checked{% endif %}>
-                      <label class="form-check-label" for="zusatz{{ m.ID }}_{{ a.ID }}">
-                        {{ a.Bezeichnung }}{% if a.ParentBezeichnung %} ({{ a.ParentBezeichnung }}){% endif %}
+                      <input class="form-check-input berechtigung-checkbox" type="checkbox" 
+                             data-mitarbeiter-id="{{ m.ID }}" 
+                             data-berechtigung-id="{{ b.ID }}"
+                             id="ber{{ m.ID }}_{{ b.ID }}"
+                             {% if b.ID in mitarbeiter_berechtigungen[m.ID] %}checked{% endif %}
+                             onchange="toggleBerechtigung(this)">
+                      <label class="form-check-label" for="ber{{ m.ID }}_{{ b.ID }}">
+                        {{ b.Bezeichnung }}
+                        {% if b.Beschreibung %}<small class="text-muted">({{ b.Beschreibung }})</small>{% endif %}
                       </label>
                     </div>
                     {% endfor %}
                   </div>
-                  <button class="btn btn-sm btn-success"><i class="bi bi-save"></i> Abteilungen speichern</button>
-                </form>
+                </div>
+                
+                <button class="btn btn-sm btn-outline-danger mt-1" onclick="resetPassword({{ m.ID }}, '{{ m.Vorname }}', '{{ m.Nachname }}')">
+                  <i class="bi bi-key-fill"></i> Passwort zurücksetzen
+                </button>
               </div>
-              
-              {% if m.Aktiv %}
-              <form action="{{ url_for('admin.mitarbeiter_deactivate', mid=m.ID) }}" method="post" class="d-inline">
-                <button class="btn btn-sm btn-outline-warning mt-1">Deaktivieren</button>
-              </form>
-              {% endif %}
-              
-              <button class="btn btn-sm btn-outline-danger mt-1" onclick="resetPassword({{ m.ID }}, '{{ m.Vorname }}', '{{ m.Nachname }}')">
-                <i class="bi bi-key-fill"></i> Passwort zurücksetzen
-              </button>
             </td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
+  </div>
+
+  <!-- Berechtigungen -->
+  <div class="tab-pane fade" id="tab-berechtigungen">
+    <div class="card mb-3">
+      <div class="card-header">Neue Berechtigung anlegen</div>
+      <div class="card-body">
+        <form action="{{ url_for('admin.berechtigung_add') }}" method="post" class="row g-2">
+          <div class="col-md-3"><input name="schluessel" class="form-control" placeholder="Schlüssel (z.B. artikel_buchen)" required></div>
+          <div class="col-md-3"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung" required></div>
+          <div class="col-md-5"><input name="beschreibung" class="form-control" placeholder="Beschreibung"></div>
+          <div class="col-md-1 form-check d-flex align-items-center">
+            <input class="form-check-input" type="checkbox" name="aktiv" id="berAktiv" checked>
+            <label class="form-check-label ms-1" for="berAktiv">Aktiv</label>
+          </div>
+          <div class="col-12"><button class="btn btn-success">Anlegen</button></div>
+        </form>
+      </div>
+    </div>
+
+    <table class="table table-striped align-middle">
+      <thead class="table-dark">
+        <tr><th>Schlüssel</th><th>Bezeichnung</th><th>Beschreibung</th><th>Aktiv</th><th>Aktionen</th></tr>
+      </thead>
+      <tbody>
+        {% for b in berechtigungen %}
+        <tr>
+          <td><code>{{ b.Schluessel }}</code></td>
+          <td>{{ b.Bezeichnung }}</td>
+          <td>{{ b.Beschreibung or '—' }}</td>
+          <td>{% if b.Aktiv %}<span class="badge bg-success">aktiv</span>{% else %}<span class="badge bg-secondary">inaktiv</span>{% endif %}</td>
+          <td>
+            <form action="{{ url_for('admin.berechtigung_update', bid=b.ID) }}" method="post" class="row g-1 mb-1">
+              <div class="col-md-4"><input name="bezeichnung" class="form-control form-control-sm" value="{{ b.Bezeichnung }}"></div>
+              <div class="col-md-5"><input name="beschreibung" class="form-control form-control-sm" value="{{ b.Beschreibung or '' }}" placeholder="Beschreibung"></div>
+              <div class="col-md-2 form-check d-flex align-items-center">
+                <input class="form-check-input" type="checkbox" name="aktiv" id="berAktiv{{ b.ID }}" {% if b.Aktiv %}checked{% endif %}>
+                <label class="form-check-label ms-1" for="berAktiv{{ b.ID }}">Aktiv</label>
+              </div>
+              <div class="col-md-1"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-save"></i></button></div>
+            </form>
+            <form action="{{ url_for('admin.berechtigung_toggle', bid=b.ID) }}" method="post" class="d-inline">
+              <button class="btn btn-sm btn-outline-secondary">{% if b.Aktiv %}Deaktivieren{% else %}Aktivieren{% endif %}</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 
   <!-- Abteilungen -->
@@ -1150,6 +1248,61 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 });
+
+// Berechtigungszuweisung per AJAX
+function toggleBerechtigung(checkbox) {
+  const mitarbeiterId = checkbox.dataset.mitarbeiterId;
+  const berechtigungId = checkbox.dataset.berechtigungId;
+  const isChecked = checkbox.checked;
+  
+  const url = isChecked 
+    ? `/admin/mitarbeiter/${mitarbeiterId}/berechtigung/add`
+    : `/admin/mitarbeiter/${mitarbeiterId}/berechtigung/remove/${berechtigungId}`;
+  
+  const formData = new FormData();
+  if (isChecked) {
+    formData.append('berechtigung_id', berechtigungId);
+  }
+  
+  fetch(url, {
+    method: 'POST',
+    body: formData
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showAlert('success', data.message);
+    } else {
+      // Bei Fehler Checkbox zurücksetzen
+      checkbox.checked = !isChecked;
+      showAlert('danger', data.message);
+    }
+  })
+  .catch(error => {
+    // Bei Fehler Checkbox zurücksetzen
+    checkbox.checked = !isChecked;
+    showAlert('danger', 'Ein Fehler ist aufgetreten: ' + error.message);
+  });
+}
+
+// Hilfsfunktion für Alerts
+function showAlert(type, message) {
+  const alertDiv = document.createElement('div');
+  alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+  alertDiv.innerHTML = `
+    ${message}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  `;
+  
+  // Alert am Anfang der Seite einfügen
+  const content = document.querySelector('.tab-content');
+  content.insertBefore(alertDiv, content.firstChild);
+  
+  // Alert nach 3 Sekunden automatisch ausblenden
+  setTimeout(() => {
+    alertDiv.remove();
+  }, 3000);
+}
 </script>
 {% endblock %}
 

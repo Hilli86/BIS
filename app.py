@@ -245,7 +245,7 @@ def api_dashboard():
             aktivitaeten = conn.execute(aktivitaet_query, aktivitaet_params).fetchall()
             
             # Ersatzteile-Statistiken
-            is_admin = 'BIS-Admin' in (session.get('user_abteilungen') or [])
+            is_admin = 'admin' in session.get('user_berechtigungen', [])
             ersatzteil_stats = {}
             ersatzteil_warnungen = []
             

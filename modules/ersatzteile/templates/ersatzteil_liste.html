@@ -50,7 +50,7 @@
 
 <h1 class="mb-4">🔧 Ersatzteile</h1>
 
-{% if session.user_abteilungen and 'BIS-Admin' in session.user_abteilungen %}
+{% if 'admin' in session.get('user_berechtigungen', []) %}
 <div class="mb-3">
     <a href="{{ url_for('ersatzteile.ersatzteil_neu') }}" class="btn btn-primary">
         <i class="bi bi-plus-circle"></i> Neues Ersatzteil

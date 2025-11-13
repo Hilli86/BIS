@@ -28,11 +28,8 @@
     </div>
 
     <div class="card mb-4 shadow-sm">
-        <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+        <div class="card-header bg-info text-white">
             <h5 class="mb-0">Ersatzteile</h5>
-            <button type="button" class="btn btn-sm btn-light" onclick="addPosition()">
-                <i class="bi bi-plus-circle"></i> Ersatzteil hinzufügen
-            </button>
         </div>
         <div class="card-body">
             <div id="positionenContainer">
@@ -77,6 +74,11 @@
             </div>
             <div id="emptyMessage" class="alert alert-info" {% if vorausgefuelltes_ersatzteil %}style="display: none;"{% endif %}>
                 <i class="bi bi-info-circle"></i> Bitte fügen Sie mindestens ein Ersatzteil hinzu. Geben Sie die Ersatzteil-ID ein oder klicken Sie auf den Button ">" um aus einer Liste zu wählen.
+            </div>
+            <div class="mt-3">
+                <button type="button" class="btn btn-success" onclick="addPosition()">
+                    <i class="bi bi-plus-circle"></i> Ersatzteil hinzufügen
+                </button>
             </div>
         </div>
     </div>

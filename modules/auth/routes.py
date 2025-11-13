@@ -90,6 +90,16 @@ def login():
                     
                     session['user_abteilungen'] = alle_abteilungen
                     
+                    # Berechtigungen des Mitarbeiters laden
+                    berechtigungen = conn.execute('''
+                        SELECT b.Schluessel
+                        FROM MitarbeiterBerechtigung mb
+                        JOIN Berechtigung b ON mb.BerechtigungID = b.ID
+                        WHERE mb.MitarbeiterID = ? AND b.Aktiv = 1
+                    ''', (user['ID'],)).fetchall()
+                    
+                    session['user_berechtigungen'] = [b['Schluessel'] for b in berechtigungen]
+                    
                     flash('Erfolgreich angemeldet.', 'success')
                     
                     # Weiterleitung zur ursprünglichen URL (next-Parameter) oder zum Dashboard

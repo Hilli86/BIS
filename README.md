@@ -210,6 +210,10 @@ BIS/
 
 ### Admin-Bereich
 - **Mitarbeiter-Verwaltung** - Anlegen, Bearbeiten, Passwort zurücksetzen, Email und Handynummer
+- **Berechtigungs-Verwaltung** - Flexible Rechtevergabe pro Mitarbeiter
+  - Admin, Artikel buchen, Bestellungen erstellen/freigeben
+  - Checkboxen für schnelle Zuweisung
+  - Erweiterbar für zukünftige Berechtigungen
 - **Abteilungs-Verwaltung** - Hierarchische Struktur
 - **Stammdaten-Verwaltung** - Bereiche, Gewerke, Status, Tätigkeiten
 - **Ersatzteil-Stammdaten** - Kategorien, Kostenstellen, Lagerorte, Lagerplätze, Lieferanten
@@ -260,7 +264,24 @@ python app.py
 
 ## 📝 Changelog
 
-### Version 1.4 (Aktuell)
+### Version 1.5 (Aktuell)
+- ✅ **Berechtigungssystem** - Flexibles, tabellen-basiertes Rechtesystem
+  - Admin-Berechtigung für vollständigen Zugriff
+  - Artikel-Buchungs-Berechtigung für Lagerbewegungen
+  - Bestellungs-Berechtigungen vorbereitet (erstellen/freigeben)
+  - Verwaltung direkt im Admin-Bereich
+- ✅ **Artikel-Vorlage** - Neue Artikel aus bestehenden erstellen
+  - Suchfeld mit Autocomplete auf "Neuer Artikel"-Seite
+  - Button "Als Vorlage verwenden" auf Detail-Seite
+  - Alle Daten werden automatisch übernommen
+- ✅ **Admin-UI verbessert** - Übersichtliche Accordion-Struktur
+  - Stammdaten, Abteilungen und Berechtigungen in ausklappbaren Bereichen
+  - Nur ein Bereich gleichzeitig geöffnet
+  - Redundanter "Deaktivieren"-Button entfernt
+- ✅ **Code-Bereinigung** - BIS-Admin Abteilungsprüfungen durch Berechtigungen ersetzt
+- ✅ **Inventurliste** - Bestand-Feld optimiert (Schrittweite 1, kein Placeholder)
+
+### Version 1.4
 - ✅ **Bestellwesen** - Neuer Navigationsbereich für Angebotsanfragen
 - ✅ **Angebotsanfragen** - Vollständiges Anfragewesen mit Status-Verwaltung
 - ✅ **PDF-Export Angebotsanfragen** - Professioneller Geschäftsdokument-Stil

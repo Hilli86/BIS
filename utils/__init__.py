@@ -3,7 +3,7 @@ Utils Package - Hilfsfunktionen für BIS
 """
 
 from .database import get_db_connection
-from .decorators import login_required, admin_required
+from .decorators import login_required, admin_required, permission_required
 from .abteilungen import (
     get_untergeordnete_abteilungen,
     get_mitarbeiter_abteilungen,
@@ -17,11 +17,20 @@ from .benachrichtigungen import (
     erstelle_benachrichtigung_fuer_neues_thema
 )
 from .firmendaten import get_firmendaten
+from .berechtigungen import (
+    hat_berechtigung,
+    ist_admin,
+    get_mitarbeiter_berechtigungen,
+    get_alle_berechtigungen,
+    mitarbeiter_berechtigung_hinzufuegen,
+    mitarbeiter_berechtigung_entfernen
+)
 
 __all__ = [
     'get_db_connection',
     'login_required',
     'admin_required',
+    'permission_required',
     'get_untergeordnete_abteilungen',
     'get_mitarbeiter_abteilungen',
     'get_sichtbare_abteilungen_fuer_mitarbeiter',
@@ -30,6 +39,12 @@ __all__ = [
     'get_auswaehlbare_abteilungen_fuer_neues_thema',
     'erstelle_benachrichtigung_fuer_bemerkung',
     'erstelle_benachrichtigung_fuer_neues_thema',
-    'get_firmendaten'
+    'get_firmendaten',
+    'hat_berechtigung',
+    'ist_admin',
+    'get_mitarbeiter_berechtigungen',
+    'get_alle_berechtigungen',
+    'mitarbeiter_berechtigung_hinzufuegen',
+    'mitarbeiter_berechtigung_entfernen'
 ]
 

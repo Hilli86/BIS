@@ -32,7 +32,7 @@ def login_required(view_func):
 
 
 def admin_required(view_func):
-    """Decorator: Überprüft, ob User eingeloggt ist und zur BIS-Admin Abteilung gehört"""
+    """Decorator: Überprüft, ob User eingeloggt ist und Admin-Berechtigung hat"""
     @wraps(view_func)
     def wrapper(*args, **kwargs):
         # Prüfe, ob AJAX-Request
@@ -50,13 +50,64 @@ def admin_required(view_func):
                 login_url = url_for('auth.login', next=request.url, personalnummer=personalnummer)
             return redirect(login_url)
         
-        # Prüfe, ob Benutzer in BIS-Admin Abteilung ist
-        user_abteilungen = session.get('user_abteilungen', [])
-        if 'BIS-Admin' not in user_abteilungen:
+        # Prüfe, ob Benutzer Admin-Berechtigung hat
+        user_berechtigungen = session.get('user_berechtigungen', [])
+        if 'admin' not in user_berechtigungen:
             if is_ajax:
-                return jsonify({'success': False, 'message': 'Zugriff verweigert. Sie benötigen Admin-Rechte (BIS-Admin Abteilung).'}), 403
-            flash('Zugriff verweigert. Sie benötigen Admin-Rechte (BIS-Admin Abteilung).', 'danger')
+                return jsonify({'success': False, 'message': 'Zugriff verweigert. Sie benötigen Admin-Rechte.'}), 403
+            flash('Zugriff verweigert. Sie benötigen Admin-Rechte.', 'danger')
             return redirect(url_for('dashboard'))
         
         return view_func(*args, **kwargs)
     return wrapper
+
+
+def permission_required(berechtigung_schluessel):
+    """
+    Decorator: Überprüft, ob User eine bestimmte Berechtigung hat
+    
+    Args:
+        berechtigung_schluessel: Schlüssel der benötigten Berechtigung (z.B. 'artikel_buchen')
+    
+    Usage:
+        @permission_required('artikel_buchen')
+        def meine_route():
+            pass
+    """
+    def decorator(view_func):
+        @wraps(view_func)
+        def wrapper(*args, **kwargs):
+            # Prüfe, ob AJAX-Request
+            is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+            
+            # Login-Prüfung
+            if 'user_id' not in session:
+                if is_ajax:
+                    return jsonify({'success': False, 'message': 'Bitte zuerst anmelden.'}), 401
+                flash('Bitte zuerst anmelden.', 'warning')
+                personalnummer = request.args.get('personalnummer')
+                login_url = url_for('auth.login', next=request.url)
+                if personalnummer:
+                    login_url = url_for('auth.login', next=request.url, personalnummer=personalnummer)
+                return redirect(login_url)
+            
+            # Berechtigungs-Prüfung
+            user_berechtigungen = session.get('user_berechtigungen', [])
+            
+            # Admin hat alle Berechtigungen
+            if 'admin' in user_berechtigungen:
+                return view_func(*args, **kwargs)
+            
+            # Prüfe spezifische Berechtigung
+            if berechtigung_schluessel not in user_berechtigungen:
+                if is_ajax:
+                    return jsonify({
+                        'success': False, 
+                        'message': f'Zugriff verweigert. Sie benötigen die Berechtigung: {berechtigung_schluessel}'
+                    }), 403
+                flash(f'Zugriff verweigert. Sie benötigen die erforderliche Berechtigung.', 'danger')
+                return redirect(url_for('dashboard'))
+            
+            return view_func(*args, **kwargs)
+        return wrapper
+    return decorator
