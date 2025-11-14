@@ -296,9 +296,6 @@
     <a href="{{ url_for('schichtbuch.themaliste') }}" class="{% if request.endpoint == 'sbthemaliste' %}active{% endif %}">
       🧾 Themenliste
     </a>
-    <a href="{{ url_for('schichtbuch.themaneu') }}" class="{% if request.endpoint == 'sbthemaneu' %}active{% endif %}">
-      ➕ Neues Thema
-    </a>
 
     <h6>Bestellwesen</h6>
     <a href="{{ url_for('ersatzteile.angebotsanfrage_liste') }}" class="{% if request.endpoint and 'angebotsanfrage' in request.endpoint %}active{% endif %}">

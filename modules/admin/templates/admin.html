@@ -145,23 +145,23 @@
                   <i class="bi bi-shield-check"></i> Berechtigungen
                 </button>
                 <div class="collapse mt-2" id="ber{{ m.ID }}" data-bs-parent="#accordion{{ m.ID }}">
-                  <div class="border p-2 rounded bg-light">
+                  <form action="{{ url_for('admin.mitarbeiter_berechtigungen', mid=m.ID) }}" method="post" class="border p-2 rounded bg-light">
                     <label class="form-label fw-bold">Berechtigungen:</label>
                     {% for b in berechtigungen %}
                     <div class="form-check">
-                      <input class="form-check-input berechtigung-checkbox" type="checkbox" 
-                             data-mitarbeiter-id="{{ m.ID }}" 
-                             data-berechtigung-id="{{ b.ID }}"
+                      <input class="form-check-input" type="checkbox" 
+                             name="berechtigungen" 
+                             value="{{ b.ID }}"
                              id="ber{{ m.ID }}_{{ b.ID }}"
-                             {% if b.ID in mitarbeiter_berechtigungen[m.ID] %}checked{% endif %}
-                             onchange="toggleBerechtigung(this)">
+                             {% if b.ID in mitarbeiter_berechtigungen[m.ID] %}checked{% endif %}>
                       <label class="form-check-label" for="ber{{ m.ID }}_{{ b.ID }}">
                         {{ b.Bezeichnung }}
                         {% if b.Beschreibung %}<small class="text-muted">({{ b.Beschreibung }})</small>{% endif %}
                       </label>
                     </div>
                     {% endfor %}
-                  </div>
+                    <button class="btn btn-sm btn-success mt-2"><i class="bi bi-save"></i> Berechtigungen speichern</button>
+                  </form>
                 </div>
                 
                 <button class="btn btn-sm btn-outline-danger mt-1" onclick="resetPassword({{ m.ID }}, '{{ m.Vorname }}', '{{ m.Nachname }}')">
@@ -1249,41 +1249,6 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
-// Berechtigungszuweisung per AJAX
-function toggleBerechtigung(checkbox) {
-  const mitarbeiterId = checkbox.dataset.mitarbeiterId;
-  const berechtigungId = checkbox.dataset.berechtigungId;
-  const isChecked = checkbox.checked;
-  
-  const url = isChecked 
-    ? `/admin/mitarbeiter/${mitarbeiterId}/berechtigung/add`
-    : `/admin/mitarbeiter/${mitarbeiterId}/berechtigung/remove/${berechtigungId}`;
-  
-  const formData = new FormData();
-  if (isChecked) {
-    formData.append('berechtigung_id', berechtigungId);
-  }
-  
-  fetch(url, {
-    method: 'POST',
-    body: formData
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      showAlert('success', data.message);
-    } else {
-      // Bei Fehler Checkbox zurücksetzen
-      checkbox.checked = !isChecked;
-      showAlert('danger', data.message);
-    }
-  })
-  .catch(error => {
-    // Bei Fehler Checkbox zurücksetzen
-    checkbox.checked = !isChecked;
-    showAlert('danger', 'Ein Fehler ist aufgetreten: ' + error.message);
-  });
-}
 
 // Hilfsfunktion für Alerts
 function showAlert(type, message) {

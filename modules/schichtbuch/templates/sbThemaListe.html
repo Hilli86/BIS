@@ -62,7 +62,13 @@
 {% endblock %}
 
 {% block content %}
-<h1>Themenliste mit allen Bemerkungen</h1>
+<h1 class="mb-4">📋 Themenliste</h1>
+
+<div class="mb-3">
+    <a href="{{ url_for('schichtbuch.themaneu') }}" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Neues Thema
+    </a>
+</div>
 
 <!-- 🔹 Filter (einklappbar) -->
 <div class="card mb-3">

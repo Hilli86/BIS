@@ -1619,51 +1619,41 @@ def berechtigung_toggle(bid):
         return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
 
 
-@admin_bp.route('/mitarbeiter/<int:mid>/berechtigung/add', methods=['POST'])
+@admin_bp.route('/mitarbeiter/<int:mid>/berechtigungen', methods=['POST'])
 @admin_required
-def mitarbeiter_berechtigung_add(mid):
-    """Berechtigung einem Mitarbeiter zuweisen"""
-    berechtigung_id = request.form.get('berechtigung_id', type=int)
+def mitarbeiter_berechtigungen(mid):
+    """Mitarbeiter-Berechtigungen zuweisen (alle auf einmal)"""
+    berechtigung_ids = request.form.getlist('berechtigungen')
     
-    if not berechtigung_id:
-        return ajax_response('Bitte Berechtigung auswählen.', success=False)
+    # IDs in Integer konvertieren
+    berechtigung_ids = [int(bid) for bid in berechtigung_ids if bid and bid != '']
     
     try:
         with get_db_connection() as conn:
-            # Prüfen ob Berechtigung existiert
-            berechtigung = conn.execute('SELECT ID FROM Berechtigung WHERE ID = ?', (berechtigung_id,)).fetchone()
-            if not berechtigung:
-                return ajax_response('Berechtigung nicht gefunden.', success=False, status_code=404)
-            
             # Prüfen ob Mitarbeiter existiert
             mitarbeiter = conn.execute('SELECT ID FROM Mitarbeiter WHERE ID = ?', (mid,)).fetchone()
             if not mitarbeiter:
                 return ajax_response('Mitarbeiter nicht gefunden.', success=False, status_code=404)
             
-            # Berechtigung zuweisen
-            conn.execute(
-                'INSERT OR IGNORE INTO MitarbeiterBerechtigung (MitarbeiterID, BerechtigungID) VALUES (?, ?)',
-                (mid, berechtigung_id)
-            )
+            # Alle Berechtigungen für diesen Mitarbeiter löschen
+            conn.execute('DELETE FROM MitarbeiterBerechtigung WHERE MitarbeiterID = ?', (mid,))
+            
+            # Neue Berechtigungen hinzufügen
+            for berechtigung_id in berechtigung_ids:
+                # Prüfen ob Berechtigung existiert
+                berechtigung = conn.execute('SELECT ID FROM Berechtigung WHERE ID = ?', (berechtigung_id,)).fetchone()
+                if berechtigung:
+                    try:
+                        conn.execute(
+                            'INSERT INTO MitarbeiterBerechtigung (MitarbeiterID, BerechtigungID) VALUES (?, ?)',
+                            (mid, berechtigung_id)
+                        )
+                    except sqlite3.IntegrityError:
+                        # Duplikat - ignorieren
+                        pass
+            
             conn.commit()
         
-        return ajax_response('Berechtigung erfolgreich zugewiesen.')
-    except Exception as e:
-        return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
-
-
-@admin_bp.route('/mitarbeiter/<int:mid>/berechtigung/remove/<int:bid>', methods=['POST'])
-@admin_required
-def mitarbeiter_berechtigung_remove(mid, bid):
-    """Berechtigung von einem Mitarbeiter entfernen"""
-    try:
-        with get_db_connection() as conn:
-            conn.execute(
-                'DELETE FROM MitarbeiterBerechtigung WHERE MitarbeiterID = ? AND BerechtigungID = ?',
-                (mid, bid)
-            )
-            conn.commit()
-        
-        return ajax_response('Berechtigung erfolgreich entfernt.')
+        return ajax_response('Berechtigungen erfolgreich aktualisiert.')
     except Exception as e:
         return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)

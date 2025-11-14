@@ -1786,9 +1786,11 @@ def get_angebotsanfrage_dateien(angebotsanfrage_id):
                     filepath = os.path.join(angebote_folder, filename)
                     if os.path.isfile(filepath):
                         stat = os.stat(filepath)
+                        # Pfad immer mit Forward-Slash für URL-Kompatibilität
+                        path_for_url = f'Angebote/{angebotsanfrage_id}/{filename}'
                         dateien.append({
                             'name': filename,
-                            'path': os.path.join('Angebote', str(angebotsanfrage_id), filename),
+                            'path': path_for_url,
                             'size': stat.st_size,
                             'modified': datetime.fromtimestamp(stat.st_mtime)
                         })
@@ -2632,12 +2634,17 @@ def angebotsanfrage_datei_anzeigen(filepath):
     """PDF-Datei anzeigen/herunterladen"""
     mitarbeiter_id = session.get('user_id')
     
+    # Normalisiere den Pfad: Backslashes zu Forward-Slashes (für Windows-Kompatibilität)
+    filepath = filepath.replace('\\', '/')
+    
     # Sicherheitsprüfung: Dateipfad muss mit Angebote beginnen
     if not filepath.startswith('Angebote/'):
         flash('Ungültiger Dateipfad.', 'danger')
         return redirect(url_for('ersatzteile.angebotsanfrage_liste'))
     
-    full_path = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], filepath)
+    # Pfad für Dateisystem: Backslashes für Windows
+    filepath_for_fs = filepath.replace('/', os.sep)
+    full_path = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], filepath_for_fs)
     
     if not os.path.exists(full_path):
         flash('Datei nicht gefunden.', 'danger')
