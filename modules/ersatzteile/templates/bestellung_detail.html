@@ -1,0 +1,968 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<h1 class="mb-4">🛒 Bestellung #{{ bestellung.ID }}</h1>
+
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Grunddaten</h5>
+        <div class="d-flex gap-2 align-items-center">
+            <button class="btn btn-sm btn-light" type="button" onclick="openSichtbarkeitModal({{ bestellung.ID }})" title="Sichtbarkeit bearbeiten">
+                <i class="bi bi-eye"></i> Sichtbarkeit
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <table class="table table-sm table-borderless mb-0">
+                    <tbody>
+                        <tr>
+                            <td class="text-muted" style="width: 150px;"><strong>Lieferant:</strong></td>
+                            <td>{{ bestellung.LieferantName or '-' }}</td>
+                        </tr>
+                        {% if bestellung.LieferantKontakt %}
+                        <tr>
+                            <td class="text-muted"><strong>Kontakt:</strong></td>
+                            <td>{{ bestellung.LieferantKontakt }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if bestellung.LieferantTelefon %}
+                        <tr>
+                            <td class="text-muted"><strong>Telefon:</strong></td>
+                            <td>{{ bestellung.LieferantTelefon }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if bestellung.LieferantEmail %}
+                        <tr>
+                            <td class="text-muted"><strong>Email:</strong></td>
+                            <td><a href="mailto:{{ bestellung.LieferantEmail }}">{{ bestellung.LieferantEmail }}</a></td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <table class="table table-sm table-borderless mb-0">
+                    <tbody>
+                        <tr>
+                            <td class="text-muted" style="width: 150px;"><strong>Status:</strong></td>
+                            <td>
+                                {% if bestellung.Status == 'Erstellt' %}
+                                <span class="badge bg-secondary">Erstellt</span>
+                                {% elif bestellung.Status == 'Zur Freigabe' %}
+                                <span class="badge bg-warning">Zur Freigabe</span>
+                                {% elif bestellung.Status == 'Freigegeben' %}
+                                <span class="badge bg-info">Freigegeben</span>
+                                {% elif bestellung.Status == 'Bestellt' %}
+                                <span class="badge bg-primary">Bestellt</span>
+                                {% elif bestellung.Status == 'Teilweise erhalten' %}
+                                <span class="badge bg-warning text-dark">Teilweise erhalten</span>
+                                {% elif bestellung.Status == 'Erhalten' %}
+                                <span class="badge bg-success">Erhalten</span>
+                                {% elif bestellung.Status == 'Erledigt' %}
+                                <span class="badge bg-dark">Erledigt</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ bestellung.Status }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Erstellt am:</strong></td>
+                            <td>{{ bestellung.ErstelltAm[:16] if bestellung.ErstelltAm else '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Erstellt von:</strong></td>
+                            <td>{{ bestellung.ErstelltVon or '-' }}</td>
+                        </tr>
+                        {% if bestellung.FreigegebenAm %}
+                        <tr>
+                            <td class="text-muted"><strong>Freigegeben am:</strong></td>
+                            <td>{{ bestellung.FreigegebenAm[:16] }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Freigegeben von:</strong></td>
+                            <td>{{ bestellung.FreigegebenVon or '-' }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if bestellung.BestelltAm %}
+                        <tr>
+                            <td class="text-muted"><strong>Bestellt am:</strong></td>
+                            <td>{{ bestellung.BestelltAm[:16] }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Bestellt von:</strong></td>
+                            <td>{{ bestellung.BestelltVon or '-' }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <td class="text-muted"><strong>Abteilung:</strong></td>
+                            <td>{{ bestellung.Abteilung or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Gesamtsumme:</strong></td>
+                            <td>
+                                <strong class="fs-5">{{ "%.2f"|format(gesamtbetrag) }} {{ waehrung }}</strong>
+                            </td>
+                        </tr>
+                        {% if bestellung.Bemerkung %}
+                        <tr>
+                            <td class="text-muted"><strong>Bemerkung:</strong></td>
+                            <td>{{ bestellung.Bemerkung }}</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Workflow-Aktionen -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-warning text-dark">
+        <h5 class="mb-0">⚙️ Aktionen</h5>
+    </div>
+    <div class="card-body">
+        <div class="d-flex flex-wrap gap-2">
+            {% if bestellung.Status == 'Erstellt' %}
+            <form method="POST" action="{{ url_for('ersatzteile.bestellung_zur_freigabe', bestellung_id=bestellung.ID) }}" class="d-inline">
+                <button type="submit" class="btn btn-warning">
+                    <i class="bi bi-check-circle"></i> Zur Freigabe markieren
+                </button>
+            </form>
+            {% endif %}
+            
+            {% if bestellung.Status == 'Zur Freigabe' and kann_freigeben %}
+            <form method="POST" action="{{ url_for('ersatzteile.bestellung_freigeben', bestellung_id=bestellung.ID) }}" class="d-inline">
+                <button type="submit" class="btn btn-success">
+                    <i class="bi bi-check-lg"></i> Freigeben
+                </button>
+            </form>
+            {% endif %}
+            
+            {% if bestellung.Status == 'Freigegeben' %}
+            <a href="{{ url_for('ersatzteile.bestellung_pdf_export', bestellung_id=bestellung.ID) }}" class="btn btn-danger" target="_blank">
+                <i class="bi bi-file-pdf"></i> PDF generieren
+            </a>
+            <form method="POST" action="{{ url_for('ersatzteile.bestellung_als_bestellt', bestellung_id=bestellung.ID) }}" class="d-inline">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-circle"></i> Als bestellt markieren
+                </button>
+            </form>
+            {% endif %}
+            
+            {% if bestellung.Status == 'Bestellt' and kann_buchen %}
+            <a href="{{ url_for('ersatzteile.wareneingang_bestellung', bestellung_id=bestellung.ID) }}" class="btn btn-success">
+                <i class="bi bi-box-arrow-in-down"></i> Wareneingang buchen
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Positionen -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Positionen</h5>
+        {% if bestellung.Status in ['Erstellt', 'Zur Freigabe'] %}
+        <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#addPositionCollapse">
+            <i class="bi bi-plus-circle"></i> Position hinzufügen
+        </button>
+        {% endif %}
+    </div>
+    {% if bestellung.Status in ['Erstellt', 'Zur Freigabe'] %}
+    <div class="collapse" id="addPositionCollapse">
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('ersatzteile.bestellung_position_hinzufuegen', bestellung_id=bestellung.ID) }}">
+                <div class="row g-3">
+                    <div class="col-md-2">
+                        <label class="form-label">ErsatzteilID:</label>
+                        <div class="input-group">
+                            <input type="number" name="ersatzteil_id" class="form-control ersatzteil-id-input" placeholder="Optional">
+                            <button type="button" class="btn btn-outline-secondary btn-lookup" onclick="lookupErsatzteilDetail(this)">
+                                <i class="bi bi-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Bestellnummer:</label>
+                        <input type="text" name="bestellnummer" class="form-control bestellnummer-display" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Bezeichnung:</label>
+                        <input type="text" name="bezeichnung" class="form-control bezeichnung-display" required>
+                    </div>
+                    <div class="col-md-1">
+                        <label class="form-label">Menge:</label>
+                        <input type="number" name="menge" class="form-control" value="1" min="1" required>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Preis:</label>
+                        <input type="number" name="preis" class="form-control" step="0.01" min="0" placeholder="0.00">
+                    </div>
+                    <div class="col-md-1">
+                        <label class="form-label">Währung:</label>
+                        <select name="waehrung" class="form-select">
+                            <option value="EUR">EUR</option>
+                            <option value="USD">USD</option>
+                            <option value="CHF">CHF</option>
+                        </select>
+                    </div>
+                    <div class="col-md-1">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-plus"></i>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+    <div class="card-body">
+        {% if positionen %}
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Artikelnummer</th>
+                        <th>Bestellnummer</th>
+                        <th>Bezeichnung</th>
+                        <th>Menge</th>
+                        <th>Erhalten</th>
+                        <th>Preis</th>
+                        <th>Gesamt</th>
+                        <th>Bemerkung</th>
+                        {% if bestellung.Status in ['Erstellt', 'Zur Freigabe'] %}
+                        <th>Aktionen</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in positionen %}
+                    <tr>
+                        <td>
+                            {% if p.ErsatzteilID %}
+                            <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=p.ErsatzteilID) }}" class="text-decoration-none">
+                                {{ p.ErsatzteilID }}
+                            </a>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>{{ p.Bestellnummer or '-' }}</td>
+                        <td>{{ p.Bezeichnung or '-' }}</td>
+                        <td>{{ p.Menge }}</td>
+                        <td>
+                            {% if p.ErhalteneMenge > 0 %}
+                            <span class="badge {% if p.ErhalteneMenge < p.Menge %}bg-warning{% else %}bg-success{% endif %}">
+                                {{ p.ErhalteneMenge }} von {{ p.Menge }}
+                            </span>
+                            {% else %}
+                            <span class="badge bg-secondary">0 von {{ p.Menge }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if p.Preis %}
+                            {{ "%.2f"|format(p.Preis) }} {{ p.Waehrung or 'EUR' }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if p.Preis %}
+                            {{ "%.2f"|format(p.Preis * p.Menge) }} {{ p.Waehrung or 'EUR' }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>{{ p.Bemerkung or '-' }}</td>
+                        {% if bestellung.Status in ['Erstellt', 'Zur Freigabe'] %}
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick="openEditPositionModal({{ p.ID }}, '{{ p.Bestellnummer|replace("'", "\\'") or '' }}', '{{ p.Bezeichnung|replace("'", "\\'") or '' }}', {{ p.Menge }}, {{ p.Preis or 0 }}, '{{ p.Waehrung or 'EUR' }}', '{{ p.Bemerkung|replace("'", "\\'") or '' }}')">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <form method="POST" action="{{ url_for('ersatzteile.bestellung_position_loeschen', bestellung_id=bestellung.ID, position_id=p.ID) }}" 
+                                  onsubmit="return confirm('Position wirklich löschen?');" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Keine Positionen vorhanden.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- PDF-Dateien -->
+{% if dateien %}
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">📄 Bestellungs-PDFs</h5>
+        <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#pdfUploadCollapse">
+            <i class="bi bi-plus-circle"></i> PDF hochladen
+        </button>
+    </div>
+    <div class="collapse" id="pdfUploadCollapse">
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('ersatzteile.bestellung_datei_upload', bestellung_id=bestellung.ID) }}" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label class="form-label">PDF-Datei:</label>
+                    <input type="file" name="file" class="form-control" accept=".pdf" required>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-upload"></i> Hochladen
+                </button>
+            </form>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="list-group">
+            {% for datei in dateien %}
+            <a href="{{ url_for('ersatzteile.bestellung_datei_anzeigen', filepath=datei.path) }}" target="_blank" class="list-group-item list-group-item-action">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">{{ datei.name }}</h6>
+                    <small>{{ datei.size // 1024 }} KB</small>
+                </div>
+                <small>{{ datei.modified.strftime('%d.%m.%Y %H:%M') if datei.modified else '' }}</small>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="mb-3">
+    <a href="{{ url_for('ersatzteile.bestellung_liste') }}" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Zurück zur Liste
+    </a>
+    {% if bestellung.Status in ['Freigegeben', 'Bestellt'] %}
+    <a href="{{ url_for('ersatzteile.bestellung_pdf_export', bestellung_id=bestellung.ID) }}" class="btn btn-primary" target="_blank">
+        <i class="bi bi-file-pdf"></i> Als PDF exportieren
+    </a>
+    {% endif %}
+</div>
+
+<!-- Modal für Position bearbeiten -->
+<div class="modal fade" id="editPositionModal" tabindex="-1" aria-labelledby="editPositionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editPositionModalLabel">Position bearbeiten</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" id="editPositionForm" action="">
+                <div class="modal-body">
+                    <input type="hidden" id="edit_position_id" name="position_id">
+                    <div class="mb-3">
+                        <label class="form-label">Bestellnummer: <span class="text-danger">*</span></label>
+                        <input type="text" id="edit_bestellnummer" name="bestellnummer" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Bezeichnung: <span class="text-danger">*</span></label>
+                        <input type="text" id="edit_bezeichnung" name="bezeichnung" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Menge: <span class="text-danger">*</span></label>
+                        <input type="number" id="edit_menge" name="menge" class="form-control" min="1" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Preis:</label>
+                        <input type="number" id="edit_preis" name="preis" class="form-control" step="0.01" min="0">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Währung:</label>
+                        <select id="edit_waehrung" name="waehrung" class="form-select">
+                            <option value="EUR">EUR</option>
+                            <option value="USD">USD</option>
+                            <option value="CHF">CHF</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Bemerkung:</label>
+                        <input type="text" id="edit_bemerkung" name="bemerkung" class="form-control">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary">Speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal für Sichtbarkeit -->
+<div class="modal fade" id="sichtbarkeitModal" tabindex="-1" aria-labelledby="sichtbarkeitModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="sichtbarkeitModalLabel">
+                    <i class="bi bi-eye"></i> Sichtbarkeit bearbeiten
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="sichtbarkeitForm" method="POST" action="">
+                <div class="modal-body">
+                    <div id="sichtbarkeitCheckboxen">
+                        <div class="text-center">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">Lädt...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-lg"></i> Abbrechen
+                    </button>
+                    <button type="button" class="btn btn-primary" onclick="saveSichtbarkeit()">
+                        <i class="bi bi-check-lg"></i> Speichern
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Lookup-Funktion für Detail-Seite
+function lookupErsatzteilDetail(button) {
+    const form = button.closest('form');
+    const ersatzteilInput = form.querySelector('.ersatzteil-id-input');
+    const bestellnummerDisplay = form.querySelector('.bestellnummer-display');
+    const bezeichnungDisplay = form.querySelector('.bezeichnung-display');
+    
+    const ersatzteilId = ersatzteilInput.value.trim();
+    
+    // Wenn keine ID eingegeben, Modal öffnen
+    if (!ersatzteilId) {
+        // LieferantID aus Bestellung ermitteln
+        const lieferantId = {{ bestellung.LieferantID }};
+        
+        if (!lieferantId) {
+            alert('Kein Lieferant zugeordnet.');
+            return;
+        }
+        
+        // Modal öffnen und Ersatzteile laden
+        openErsatzteilModalDetail(lieferantId, form);
+        return;
+    }
+    
+    // Button deaktivieren während der Suche
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    
+    // AJAX-Anfrage
+    fetch(`{{ url_for('ersatzteile.api_ersatzteil_info', ersatzteil_id=0) }}`.replace('/0', `/${ersatzteilId}`))
+        .then(response => response.json())
+        .then(data => {
+            button.disabled = false;
+            button.innerHTML = '<i class="bi bi-arrow-right"></i>';
+            
+            if (data.success) {
+                bestellnummerDisplay.value = data.bestellnummer;
+                bezeichnungDisplay.value = data.bezeichnung;
+                // Preis und Währung übernehmen, falls vorhanden
+                const form = button.closest('form');
+                const preisInput = form.querySelector('input[name="preis"]');
+                const waehrungSelect = form.querySelector('select[name="waehrung"]');
+                if (preisInput && data.preis) {
+                    preisInput.value = data.preis;
+                }
+                if (waehrungSelect && data.waehrung) {
+                    waehrungSelect.value = data.waehrung;
+                }
+                bestellnummerDisplay.classList.remove('is-invalid');
+                bezeichnungDisplay.classList.remove('is-invalid');
+                ersatzteilInput.classList.remove('is-invalid');
+            } else {
+                bestellnummerDisplay.value = '';
+                bezeichnungDisplay.value = '';
+                bestellnummerDisplay.classList.add('is-invalid');
+                bezeichnungDisplay.classList.add('is-invalid');
+                ersatzteilInput.classList.add('is-invalid');
+                alert(data.message || 'Ersatzteil nicht gefunden.');
+            }
+        })
+        .catch(error => {
+            button.disabled = false;
+            button.innerHTML = '<i class="bi bi-arrow-right"></i>';
+            console.error('Fehler:', error);
+            alert('Fehler beim Laden der Ersatzteil-Daten.');
+        });
+}
+
+function openErsatzteilModalDetail(lieferantId, targetForm) {
+    const modal = new bootstrap.Modal(document.getElementById('ersatzteilModalDetail'));
+    const modalBody = document.getElementById('ersatzteilModalListDetail');
+    
+    // Modal-Body leeren und Ladeanzeige anzeigen
+    modalBody.innerHTML = '<div class="text-center p-4"><div class="spinner-border" role="status"><span class="visually-hidden">Lädt...</span></div></div>';
+    
+    // Suchfeld leeren
+    const searchInput = document.getElementById('ersatzteilSearchDetail');
+    if (searchInput) {
+        searchInput.value = '';
+    }
+    
+    // Modal öffnen
+    modal.show();
+    
+    // Ersatzteile laden
+    const apiUrl = `{{ url_for('ersatzteile.api_ersatzteile_lieferant', lieferant_id=0) }}`.replace('/0', `/${lieferantId}`);
+    console.log('Lade Ersatzteile von:', apiUrl);
+    
+    fetch(apiUrl)
+        .then(response => {
+            console.log('API Response Status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('API Response Data:', data);
+            if (data.success && data.ersatzteile && data.ersatzteile.length > 0) {
+                // Speichere die ursprüngliche Liste für Filterung
+                window.ersatzteilListDetail = data.ersatzteile;
+                
+                // Rendere die Liste
+                renderErsatzteilListDetail(data.ersatzteile);
+                
+                // Suchfeld-Event-Listener hinzufügen
+                const searchInput = document.getElementById('ersatzteilSearchDetail');
+                if (searchInput) {
+                    searchInput.addEventListener('input', function() {
+                        filterErsatzteilListDetail(this.value);
+                    });
+                    // Fokus auf Suchfeld setzen
+                    searchInput.focus();
+                }
+            } else {
+                modalBody.innerHTML = '<div class="alert alert-info">Keine Ersatzteile für diesen Lieferanten gefunden.</div>';
+            }
+        })
+        .catch(error => {
+            console.error('Fehler beim Laden der Ersatzteile:', error);
+            console.error('Error details:', {
+                message: error.message,
+                stack: error.stack,
+                name: error.name
+            });
+            modalBody.innerHTML = `<div class="alert alert-danger">
+                <strong>Fehler beim Laden der Ersatzteile:</strong><br>
+                ${error.message || 'Unbekannter Fehler'}
+            </div>`;
+        });
+}
+
+// Funktion zum Rendern der Ersatzteil-Liste
+function renderErsatzteilListDetail(ersatzteile) {
+    const modalBody = document.getElementById('ersatzteilModalListDetail');
+    if (!modalBody) return;
+    
+    if (ersatzteile.length === 0) {
+        modalBody.innerHTML = '<div class="alert alert-info">Keine Ersatzteile gefunden.</div>';
+        return;
+    }
+    
+    let html = '<div class="list-group">';
+    ersatzteile.forEach(ersatzteil => {
+        const preisText = ersatzteil.preis ? `${ersatzteil.preis.toFixed(2)} ${ersatzteil.waehrung}` : 'Kein Preis';
+        // Sicherstellen, dass alle Werte korrekt escaped sind
+        const preisValue = (ersatzteil.preis != null && ersatzteil.preis !== undefined) ? ersatzteil.preis : 'null';
+        const waehrungValue = (ersatzteil.waehrung || 'EUR').replace(/'/g, "\\'");
+        const bestellnummerEscaped = (ersatzteil.bestellnummer || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        const bezeichnungEscaped = (ersatzteil.bezeichnung || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        html += `
+            <a href="#" class="list-group-item list-group-item-action" onclick="selectErsatzteilDetail(${ersatzteil.id}, '${bestellnummerEscaped}', '${bezeichnungEscaped}', ${preisValue}, '${waehrungValue}', event)">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">${ersatzteil.bestellnummer || 'Keine Bestellnummer'}</h6>
+                    <small>${preisText}</small>
+                </div>
+                <p class="mb-1">${ersatzteil.bezeichnung || 'Keine Bezeichnung'}</p>
+                <small>ID: ${ersatzteil.id}</small>
+            </a>
+        `;
+    });
+    html += '</div>';
+    modalBody.innerHTML = html;
+}
+
+// Funktion zum Filtern der Ersatzteil-Liste
+function filterErsatzteilListDetail(searchTerm) {
+    if (!window.ersatzteilListDetail) return;
+    
+    const term = searchTerm.toLowerCase().trim();
+    
+    if (term === '') {
+        // Wenn leer, alle anzeigen
+        renderErsatzteilListDetail(window.ersatzteilListDetail);
+        return;
+    }
+    
+    // Filtere die Liste
+    const filtered = window.ersatzteilListDetail.filter(ersatzteil => {
+        const bestellnummer = (ersatzteil.bestellnummer || '').toLowerCase();
+        const bezeichnung = (ersatzteil.bezeichnung || '').toLowerCase();
+        const id = ersatzteil.id.toString();
+        
+        return bestellnummer.includes(term) || 
+               bezeichnung.includes(term) || 
+               id.includes(term);
+    });
+    
+    renderErsatzteilListDetail(filtered);
+}
+
+function selectErsatzteilDetail(id, bestellnummer, bezeichnung, preis, waehrung, event) {
+    try {
+        console.log('selectErsatzteilDetail aufgerufen:', {id, bestellnummer, bezeichnung, preis, waehrung});
+        
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        
+        const modalElement = document.getElementById('ersatzteilModalDetail');
+        if (!modalElement) {
+            console.error('Modal-Element nicht gefunden!');
+            alert('Fehler: Modal-Element nicht gefunden.');
+            return;
+        }
+        
+        const modal = bootstrap.Modal.getInstance(modalElement);
+        if (!modal) {
+            console.error('Modal-Instanz nicht gefunden!');
+            alert('Fehler: Modal-Instanz nicht gefunden.');
+            return;
+        }
+        
+        const form = document.querySelector('#addPositionCollapse form');
+        if (!form) {
+            console.error('Formular nicht gefunden!');
+            alert('Fehler: Formular nicht gefunden.');
+            modal.hide();
+            return;
+        }
+        
+        const ersatzteilInput = form.querySelector('.ersatzteil-id-input');
+        const bestellnummerDisplay = form.querySelector('.bestellnummer-display');
+        const bezeichnungDisplay = form.querySelector('.bezeichnung-display');
+        const preisInput = form.querySelector('input[name="preis"]');
+        const waehrungSelect = form.querySelector('select[name="waehrung"]');
+        
+        console.log('Gefundene Inputs:', {
+            ersatzteilInput: !!ersatzteilInput,
+            bestellnummerDisplay: !!bestellnummerDisplay,
+            bezeichnungDisplay: !!bezeichnungDisplay,
+            preisInput: !!preisInput,
+            waehrungSelect: !!waehrungSelect
+        });
+        
+        if (ersatzteilInput) ersatzteilInput.value = id || '';
+        if (bestellnummerDisplay) bestellnummerDisplay.value = bestellnummer || '';
+        if (bezeichnungDisplay) bezeichnungDisplay.value = bezeichnung || '';
+        if (preisInput && preis !== null && preis !== undefined && preis !== 'null') {
+            preisInput.value = preis;
+        }
+        if (waehrungSelect && waehrung) {
+            waehrungSelect.value = waehrung;
+        }
+        
+        // Validierung entfernen
+        if (bestellnummerDisplay) bestellnummerDisplay.classList.remove('is-invalid');
+        if (bezeichnungDisplay) bezeichnungDisplay.classList.remove('is-invalid');
+        if (ersatzteilInput) ersatzteilInput.classList.remove('is-invalid');
+        
+        console.log('Werte gesetzt, Modal wird geschlossen...');
+        modal.hide();
+        console.log('Modal geschlossen.');
+    } catch (error) {
+        console.error('Fehler in selectErsatzteilDetail:', error);
+        alert('Fehler beim Auswählen des Artikels: ' + error.message);
+    }
+}
+
+// Position bearbeiten Modal öffnen
+function openEditPositionModal(positionId, bestellnummer, bezeichnung, menge, preis, waehrung, bemerkung) {
+    document.getElementById('edit_position_id').value = positionId;
+    document.getElementById('edit_bestellnummer').value = bestellnummer || '';
+    document.getElementById('edit_bezeichnung').value = bezeichnung || '';
+    document.getElementById('edit_menge').value = menge || 1;
+    document.getElementById('edit_preis').value = preis || '';
+    document.getElementById('edit_waehrung').value = waehrung || 'EUR';
+    document.getElementById('edit_bemerkung').value = bemerkung || '';
+    
+    // Action URL setzen
+    const form = document.getElementById('editPositionForm');
+    form.action = `/ersatzteile/bestellungen/{{ bestellung.ID }}/position/${positionId}/bearbeiten`;
+    
+    const modal = new bootstrap.Modal(document.getElementById('editPositionModal'));
+    modal.show();
+}
+
+// Sichtbarkeits-Modal JavaScript
+let currentSichtbarkeitBestellungId = null;
+
+async function openSichtbarkeitModal(bestellungId) {
+    currentSichtbarkeitBestellungId = bestellungId;
+    const modal = new bootstrap.Modal(document.getElementById('sichtbarkeitModal'));
+    const container = document.getElementById('sichtbarkeitCheckboxen');
+    
+    // Loading-Spinner anzeigen
+    container.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                <span class="visually-hidden">Lädt...</span>
+            </div>
+        </div>
+    `;
+    
+    modal.show();
+    
+    try {
+        const response = await fetch(`/ersatzteile/bestellungen/${bestellungId}/sichtbarkeit`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            container.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Daten.</div>';
+            return;
+        }
+        
+        // Checkboxen generieren
+        let html = '';
+        
+        // Auswählbare Abteilungen
+        data.auswaehlbare.forEach(gruppe => {
+            html += '<div class="mb-3">';
+            
+            // Parent-Abteilung
+            const isChecked = gruppe.parent.is_current ? 'checked' : '';
+            const label = gruppe.parent.is_primaer ? '(Primärabteilung)' : '(zusätzliche Abteilung)';
+            
+            html += `
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" 
+                           name="sichtbare_abteilungen" 
+                           value="${gruppe.parent.id}" 
+                           id="modal_abt_${gruppe.parent.id}" 
+                           ${isChecked}>
+                    <label class="form-check-label fw-bold" for="modal_abt_${gruppe.parent.id}">
+                        ${gruppe.parent.name}
+                    </label>
+                    <small class="text-muted">${label}</small>
+                </div>
+            `;
+            
+            // Untergeordnete Abteilungen
+            if (gruppe.children && gruppe.children.length > 0) {
+                html += '<div class="ms-4 mt-2">';
+                gruppe.children.forEach(child => {
+                    const childChecked = child.is_current ? 'checked' : '';
+                    html += `
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" 
+                                   name="sichtbare_abteilungen" 
+                                   value="${child.id}" 
+                                   id="modal_abt_${child.id}" 
+                                   ${childChecked}>
+                            <label class="form-check-label" for="modal_abt_${child.id}">
+                                ↳ ${child.name}
+                            </label>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+            
+            html += '</div>';
+        });
+        
+        // Zusätzliche aktuelle Abteilungen
+        if (data.zusaetzliche && data.zusaetzliche.length > 0) {
+            html += '<hr class="my-3">';
+            html += '<div class="alert alert-info small mb-3">';
+            html += '<strong>Weitere zugewiesene Abteilungen:</strong><br>';
+            html += 'Diese Abteilungen sind aktuell zugewiesen, können aber nicht bearbeitet werden.';
+            html += '</div>';
+            
+            data.zusaetzliche.forEach(abt => {
+                const parentLabel = abt.parent ? ` (${abt.parent.name})` : '';
+                html += `
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" 
+                               name="sichtbare_abteilungen" 
+                               value="${abt.id}" 
+                               id="modal_abt_${abt.id}" 
+                               checked disabled>
+                        <label class="form-check-label text-muted" for="modal_abt_${abt.id}">
+                            ${abt.name}${parentLabel}
+                        </label>
+                        <small class="text-muted">(geschützt)</small>
+                    </div>
+                `;
+            });
+        }
+        
+        container.innerHTML = html;
+        
+        // Form-Action setzen
+        document.getElementById('sichtbarkeitForm').action = `/ersatzteile/bestellungen/${bestellungId}/sichtbarkeit`;
+        
+    } catch (error) {
+        console.error('Fehler beim Laden der Sichtbarkeiten:', error);
+        container.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Daten.</div>';
+    }
+}
+
+async function saveSichtbarkeit() {
+    const form = document.getElementById('sichtbarkeitForm');
+    const bestellungId = currentSichtbarkeitBestellungId;
+    const saveButton = document.querySelector('#sichtbarkeitModal .btn-primary');
+    
+    // Alle Checkboxen sammeln (auch disabled!)
+    const allCheckboxes = form.querySelectorAll('input[name="sichtbare_abteilungen"]');
+    const selectedIds = [];
+    
+    allCheckboxes.forEach(checkbox => {
+        if (checkbox.checked) {
+            selectedIds.push(checkbox.value);
+        }
+    });
+    
+    // FormData manuell erstellen (auch wenn keine ausgewählt - Route verwendet dann Primärabteilung)
+    const formData = new FormData();
+    selectedIds.forEach(id => {
+        formData.append('sichtbare_abteilungen', id);
+    });
+    
+    // Button deaktivieren
+    saveButton.disabled = true;
+    saveButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Speichern...';
+    
+    try {
+        const response = await fetch(form.action, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Modal schließen
+            const modal = bootstrap.Modal.getInstance(document.getElementById('sichtbarkeitModal'));
+            modal.hide();
+            
+            // Erfolgs-Toast anzeigen
+            showToast(data.message || 'Sichtbarkeit erfolgreich aktualisiert.', 'success');
+        } else {
+            alert(data.message || 'Fehler beim Speichern.');
+            saveButton.disabled = false;
+            saveButton.innerHTML = '<i class="bi bi-check-lg"></i> Speichern';
+        }
+    } catch (error) {
+        console.error('Fehler:', error);
+        alert('Fehler beim Speichern.');
+        saveButton.disabled = false;
+        saveButton.innerHTML = '<i class="bi bi-check-lg"></i> Speichern';
+    }
+}
+
+function showToast(message, type = 'info') {
+    let toastContainer = document.getElementById('toastContainer');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toastContainer';
+        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
+    }
+    
+    const toastId = 'toast-' + Date.now();
+    const toastHtml = `
+        <div id="${toastId}" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header bg-${type === 'success' ? 'success' : type === 'danger' ? 'danger' : 'info'} text-white">
+                <strong class="me-auto">
+                    ${type === 'success' ? '✓ Erfolg' : type === 'danger' ? '✗ Fehler' : 'ℹ Info'}
+                </strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+        </div>
+    `;
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+    
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement, {
+        autohide: true,
+        delay: 5000
+    });
+    toast.show();
+    
+    toastElement.addEventListener('hidden.bs.toast', function() {
+        toastElement.remove();
+    });
+}
+
+// Enter-Taste für Detail-Seite
+document.addEventListener('DOMContentLoaded', function() {
+    const detailErsatzteilInput = document.querySelector('#addPositionCollapse .ersatzteil-id-input');
+    if (detailErsatzteilInput) {
+        detailErsatzteilInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const button = this.closest('form').querySelector('.btn-lookup');
+                if (button) {
+                    lookupErsatzteilDetail(button);
+                }
+            }
+        });
+    }
+});
+</script>
+
+<!-- Modal für Ersatzteil-Auswahl (Detail-Seite) -->
+<div class="modal fade" id="ersatzteilModalDetail" tabindex="-1" aria-labelledby="ersatzteilModalDetailLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ersatzteilModalDetailLabel">Ersatzteil auswählen</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Suchfeld -->
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="ersatzteilSearchDetail" placeholder="🔍 Suchen nach Bestellnummer, Bezeichnung oder ID..." autocomplete="off">
+                </div>
+                <div id="ersatzteilModalListDetail">
+                    <div class="text-center p-4">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Lädt...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

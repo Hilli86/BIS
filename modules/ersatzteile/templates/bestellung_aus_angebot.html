@@ -1,0 +1,156 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<h1 class="mb-4">🛒 Bestellung aus Angebot erstellen</h1>
+
+<form method="post" id="bestellungForm">
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Angebotsanfrage #{{ anfrage.ID }}</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <table class="table table-sm table-borderless mb-0">
+                        <tbody>
+                            <tr>
+                                <td class="text-muted" style="width: 150px;"><strong>Lieferant:</strong></td>
+                                <td>{{ anfrage.LieferantName or '-' }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted"><strong>Erstellt am:</strong></td>
+                                <td>{{ anfrage.ErstelltAm[:16] if anfrage.ErstelltAm else '-' }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0">Positionen auswählen</h5>
+        </div>
+        <div class="card-body">
+            {% if positionen %}
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th style="width: 40px;">Auswählen</th>
+                            <th>Artikelnummer</th>
+                            <th>Bestellnummer</th>
+                            <th>Bezeichnung</th>
+                            <th>Menge</th>
+                            <th>Preis</th>
+                            <th>Währung</th>
+                            <th>Bemerkung</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in positionen %}
+                        <tr>
+                            <td>
+                                <input type="checkbox" name="position_id" value="{{ p.ID }}" class="form-check-input" checked>
+                            </td>
+                            <td>
+                                {% if p.ErsatzteilID %}
+                                <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=p.ErsatzteilID) }}" class="text-decoration-none">
+                                    {{ p.ErsatzteilID }}
+                                </a>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>{{ p.Bestellnummer or '-' }}</td>
+                            <td>{{ p.Bezeichnung or '-' }}</td>
+                            <td>{{ p.Menge }}</td>
+                            <td>
+                                {% if p.Preis %}
+                                {{ "%.2f"|format(p.Preis) }}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>{{ p.Waehrung or 'EUR' }}</td>
+                            <td>{{ p.Bemerkung or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i> Keine Positionen vorhanden.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Grunddaten</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-12">
+                    <label class="form-label"><strong>Bemerkung:</strong></label>
+                    <textarea name="bemerkung" class="form-control" rows="2" placeholder="Optionale Bemerkung zur Bestellung"></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0">👁️ Sichtbarkeit (optional)</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted mb-3">Wählen Sie optional die Abteilungen aus, die diese Bestellung sehen können. Wenn keine Abteilung ausgewählt wird, wird automatisch Ihre Primärabteilung verwendet:</p>
+            {% for gruppe in auswaehlbare_abteilungen %}
+            <div class="mb-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" 
+                           name="sichtbare_abteilungen" 
+                           value="{{ gruppe.parent.ID }}" 
+                           id="abt_{{ gruppe.parent.ID }}"
+                           {% if gruppe.parent.is_primaer %}checked{% endif %}>
+                    <label class="form-check-label fw-bold" for="abt_{{ gruppe.parent.ID }}">
+                        {{ gruppe.parent.Bezeichnung }}
+                    </label>
+                    {% if gruppe.parent.is_primaer %}
+                    <small class="text-muted">(Primärabteilung)</small>
+                    {% endif %}
+                </div>
+                {% if gruppe.children %}
+                <div class="ms-4 mt-2">
+                    {% for child in gruppe.children %}
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" 
+                               name="sichtbare_abteilungen" 
+                               value="{{ child.ID }}" 
+                               id="abt_{{ child.ID }}">
+                        <label class="form-check-label" for="abt_{{ child.ID }}">
+                            ↳ {{ child.Bezeichnung }}
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg"></i> Bestellung erstellen
+        </button>
+        <a href="{{ url_for('ersatzteile.angebotsanfrage_detail', angebotsanfrage_id=anfrage.ID) }}" class="btn btn-secondary">
+            <i class="bi bi-x-lg"></i> Abbrechen
+        </a>
+    </div>
+</form>
+{% endblock %}
+

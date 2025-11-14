@@ -289,7 +289,7 @@ def api_dashboard():
                 FROM Ersatzteil e
                 LEFT JOIN ErsatzteilKategorie k ON e.KategorieID = k.ID
                 {ersatzteil_where}
-                AND e.AktuellerBestand <= e.Mindestbestand 
+                AND e.AktuellerBestand < e.Mindestbestand 
                 AND e.Mindestbestand > 0 
                 AND e.EndOfLife = 0
                 ORDER BY e.AktuellerBestand ASC, e.Bezeichnung ASC

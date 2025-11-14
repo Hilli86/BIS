@@ -24,23 +24,23 @@
                 </thead>
                 <tbody>
                     {% for l in lieferanten %}
-                    <tr>
+                    <tr style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.lieferant_detail', lieferant_id=l.ID) }}'">
                         <td>
-                            <a href="{{ url_for('ersatzteile.lieferant_detail', lieferant_id=l.ID) }}" class="text-decoration-none">
+                            <a href="{{ url_for('ersatzteile.lieferant_detail', lieferant_id=l.ID) }}" class="text-decoration-none" onclick="event.stopPropagation();">
                                 <strong>{{ l.Name }}</strong>
                             </a>
                         </td>
                         <td>{{ l.Kontaktperson or '-' }}</td>
                         <td>
                             {% if l.Telefon %}
-                            <a href="tel:{{ l.Telefon }}" class="text-decoration-none">{{ l.Telefon }}</a>
+                            <a href="tel:{{ l.Telefon }}" class="text-decoration-none" onclick="event.stopPropagation();">{{ l.Telefon }}</a>
                             {% else %}
                             -
                             {% endif %}
                         </td>
                         <td>
                             {% if l.Email %}
-                            <a href="mailto:{{ l.Email }}" class="text-decoration-none">{{ l.Email }}</a>
+                            <a href="mailto:{{ l.Email }}" class="text-decoration-none" onclick="event.stopPropagation();">{{ l.Email }}</a>
                             {% else %}
                             -
                             {% endif %}
@@ -58,10 +58,7 @@
                             <span class="badge bg-secondary">Inaktiv</span>
                             {% endif %}
                         </td>
-                        <td>
-                            <a href="{{ url_for('ersatzteile.lieferant_detail', lieferant_id=l.ID) }}" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-eye"></i>
-                            </a>
+                        <td onclick="event.stopPropagation();">
                         </td>
                     </tr>
                     {% endfor %}

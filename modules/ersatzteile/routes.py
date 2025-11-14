@@ -132,7 +132,7 @@ def ersatzteil_liste():
             params.append(lieferant_filter)
         
         if bestandswarnung:
-            query += ' AND e.AktuellerBestand <= e.Mindestbestand AND e.Mindestbestand > 0 AND e.EndOfLife = 0'
+            query += ' AND e.AktuellerBestand < e.Mindestbestand AND e.Mindestbestand > 0 AND e.EndOfLife = 0'
         
         if q_filter:
             query += ' AND (e.Bestellnummer LIKE ? OR e.Bezeichnung LIKE ? OR e.Beschreibung LIKE ?)'
@@ -684,6 +684,9 @@ def ersatzteil_bearbeiten(ersatzteil_id):
     mitarbeiter_id = session.get('user_id')
     is_admin = 'admin' in session.get('user_berechtigungen', [])
     
+    # Next-Parameter lesen (für Redirect nach Speichern)
+    next_url = request.args.get('next') or request.form.get('next')
+    
     with get_db_connection() as conn:
         # Berechtigung prüfen
         if not is_admin and not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
@@ -768,6 +771,9 @@ def ersatzteil_bearbeiten(ersatzteil_id):
                 
                 conn.commit()
                 flash('Ersatzteil erfolgreich aktualisiert.', 'success')
+                # Zurück zur Artikelliste, wenn man von dort kam, sonst zur Detail-Seite
+                if next_url:
+                    return redirect(next_url)
                 return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
                 
             except Exception as e:
@@ -796,7 +802,8 @@ def ersatzteil_bearbeiten(ersatzteil_id):
         abteilungen=abteilungen,
         lagerorte=lagerorte,
         lagerplaetze=lagerplaetze,
-        zugriff_ids=zugriff_ids
+        zugriff_ids=zugriff_ids,
+        next_url=next_url
     )
 
 
@@ -1111,10 +1118,18 @@ def inventurliste():
     """Inventurliste - Gruppiert nach Lagerort + Lagerplatz, sortiert nach Artikel-ID"""
     mitarbeiter_id = session.get('user_id')
     
+    # Filterparameter aus der URL lesen
+    lagerort_filter = request.args.get('lagerort')
+    lagerplatz_filter = request.args.get('lagerplatz')
+    
     with get_db_connection() as conn:
         # Berechtigte Abteilungen ermitteln
         sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
         is_admin = 'admin' in session.get('user_berechtigungen', [])
+        
+        # Verfügbare Lagerorte und Lagerplätze für Filter laden
+        lagerorte = conn.execute('SELECT ID, Bezeichnung FROM Lagerort ORDER BY Bezeichnung').fetchall()
+        lagerplaetze = conn.execute('SELECT ID, Bezeichnung FROM Lagerplatz ORDER BY Bezeichnung').fetchall()
         
         # Query für Inventurliste: Gruppiert nach Lagerort + Lagerplatz, sortiert nach Artikel-ID
         query = '''
@@ -1170,6 +1185,16 @@ def inventurliste():
                 query += ' AND e.ErstelltVonID = ?'
                 params.append(mitarbeiter_id)
         
+        # Lagerort-Filter
+        if lagerort_filter:
+            query += ' AND lo.ID = ?'
+            params.append(lagerort_filter)
+        
+        # Lagerplatz-Filter
+        if lagerplatz_filter:
+            query += ' AND lp.ID = ?'
+            params.append(lagerplatz_filter)
+        
         # Sortierung: Erst nach Lagerort, dann Lagerplatz, dann Artikel-ID
         query += '''
             ORDER BY 
@@ -1194,7 +1219,12 @@ def inventurliste():
             
             inventur_gruppiert[lagerort_key][lagerplatz_key].append(ersatzteil)
     
-    return render_template('inventurliste.html', inventur_gruppiert=inventur_gruppiert)
+    return render_template('inventurliste.html', 
+                         inventur_gruppiert=inventur_gruppiert,
+                         lagerorte=lagerorte,
+                         lagerplaetze=lagerplaetze,
+                         lagerort_filter=lagerort_filter,
+                         lagerplatz_filter=lagerplatz_filter)
 
 
 @ersatzteile_bp.route('/inventurliste/buchung', methods=['POST'])
@@ -1276,7 +1306,7 @@ def api_ersatzteil_info(ersatzteil_id):
             
             # Ersatzteil laden
             query = '''
-                SELECT e.ID, e.Bestellnummer, e.Bezeichnung
+                SELECT e.ID, e.Bestellnummer, e.Bezeichnung, e.Preis, e.Waehrung
                 FROM Ersatzteil e
                 WHERE e.ID = ? AND e.Gelöscht = 0
             '''
@@ -1308,7 +1338,9 @@ def api_ersatzteil_info(ersatzteil_id):
                     'success': True,
                     'id': ersatzteil['ID'],
                     'bestellnummer': ersatzteil['Bestellnummer'],
-                    'bezeichnung': ersatzteil['Bezeichnung']
+                    'bezeichnung': ersatzteil['Bezeichnung'],
+                    'preis': float(ersatzteil['Preis']) if ersatzteil['Preis'] else None,
+                    'waehrung': ersatzteil['Waehrung'] or 'EUR'
                 })
             else:
                 return jsonify({
@@ -1381,9 +1413,14 @@ def api_ersatzteile_lieferant(lieferant_id):
                 'ersatzteile': result
             })
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"Fehler in api_ersatzteile_lieferant: {e}")
+        print(error_trace)
         return jsonify({
             'success': False,
-            'message': f'Fehler: {str(e)}'
+            'message': f'Fehler: {str(e)}',
+            'trace': error_trace
         }), 500
 
 
@@ -1773,6 +1810,31 @@ def datei_anzeigen(filepath):
 
 
 # ========== Angebotsanfragen ==========
+
+def get_bestellung_dateien(bestellung_id):
+    """Lädt alle PDF-Dateien für eine Bestellung"""
+    dateien = []
+    try:
+        bestellung_folder = os.path.join(current_app.config['ANGEBOTE_UPLOAD_FOLDER'], 'Bestellungen', str(bestellung_id))
+        if os.path.exists(bestellung_folder):
+            for filename in os.listdir(bestellung_folder):
+                filepath = os.path.join(bestellung_folder, filename)
+                if os.path.isfile(filepath) and filename.lower().endswith('.pdf'):
+                    stat = os.stat(filepath)
+                    # Pfad immer mit Forward-Slash für URL-Kompatibilität
+                    path_for_url = f'Bestellungen/{bestellung_id}/{filename}'
+                    dateien.append({
+                        'name': filename,
+                        'path': path_for_url,
+                        'size': stat.st_size,
+                        'modified': datetime.fromtimestamp(stat.st_mtime)
+                    })
+            # Sortiere nach Änderungsdatum (neueste zuerst)
+            dateien.sort(key=lambda x: x['modified'], reverse=True)
+    except Exception as e:
+        print(f"Fehler beim Laden der Bestellungs-Dateien: {e}")
+    return dateien
+
 
 def get_angebotsanfrage_dateien(angebotsanfrage_id):
     """Hilfsfunktion: Scannt Ordner nach PDF-Dateien für eine Angebotsanfrage"""
@@ -2628,6 +2690,42 @@ def angebotsanfrage_datei_upload(angebotsanfrage_id):
     return redirect(url_for('ersatzteile.angebotsanfrage_detail', angebotsanfrage_id=angebotsanfrage_id))
 
 
+@ersatzteile_bp.route('/bestellungen/datei/<path:filepath>')
+@login_required
+def bestellung_datei_anzeigen(filepath):
+    """PDF-Datei für Bestellung anzeigen/herunterladen"""
+    mitarbeiter_id = session.get('user_id')
+    
+    # Normalisiere den Pfad: Backslashes zu Forward-Slashes (für Windows-Kompatibilität)
+    filepath = filepath.replace('\\', '/')
+    
+    # Sicherheitsprüfung: Dateipfad muss mit Bestellungen beginnen
+    if not filepath.startswith('Bestellungen/'):
+        flash('Ungültiger Dateipfad.', 'danger')
+        return redirect(url_for('ersatzteile.bestellung_liste'))
+    
+    try:
+        # Vollständigen Pfad erstellen
+        full_path = os.path.join(current_app.config['ANGEBOTE_UPLOAD_FOLDER'], filepath)
+        
+        # Sicherheitsprüfung: Datei muss existieren und im erlaubten Ordner sein
+        if not os.path.exists(full_path) or not os.path.abspath(full_path).startswith(os.path.abspath(current_app.config['ANGEBOTE_UPLOAD_FOLDER'])):
+            flash('Datei nicht gefunden.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_liste'))
+        
+        # Dateiname extrahieren
+        filename = os.path.basename(filepath)
+        
+        # Verzeichnis und Dateiname für send_from_directory
+        directory = os.path.dirname(full_path)
+        return send_from_directory(directory, filename, as_attachment=False)
+        
+    except Exception as e:
+        flash(f'Fehler beim Laden der Datei: {str(e)}', 'danger')
+        print(f"Datei anzeigen Fehler: {e}")
+        return redirect(url_for('ersatzteile.bestellung_liste'))
+
+
 @ersatzteile_bp.route('/angebotsanfragen/datei/<path:filepath>')
 @login_required
 def angebotsanfrage_datei_anzeigen(filepath):
@@ -2962,3 +3060,1310 @@ def angebotsanfrage_pdf_export(angebotsanfrage_id):
         import traceback
         traceback.print_exc()
         return redirect(url_for('ersatzteile.angebotsanfrage_detail', angebotsanfrage_id=angebotsanfrage_id))
+
+
+# ========== Bestellungen ==========
+
+def get_bestellung_dateien(bestellung_id):
+    """Hilfsfunktion: Scannt Ordner nach PDF-Dateien für eine Bestellung"""
+    bestellung_folder = os.path.join(current_app.config['ANGEBOTE_UPLOAD_FOLDER'], 'Bestellungen', str(bestellung_id))
+    dateien = []
+    
+    if os.path.exists(bestellung_folder):
+        try:
+            for filename in os.listdir(bestellung_folder):
+                if filename.lower().endswith('.pdf'):
+                    filepath = os.path.join(bestellung_folder, filename)
+                    if os.path.isfile(filepath):
+                        stat = os.stat(filepath)
+                        # Pfad immer mit Forward-Slash für URL-Kompatibilität
+                        path_for_url = f'Bestellungen/{bestellung_id}/{filename}'
+                        dateien.append({
+                            'name': filename,
+                            'path': path_for_url,
+                            'size': stat.st_size,
+                            'modified': datetime.fromtimestamp(stat.st_mtime)
+                        })
+            # Sortiere nach Änderungsdatum (neueste zuerst)
+            dateien.sort(key=lambda x: x['modified'], reverse=True)
+        except Exception as e:
+            print(f"Fehler beim Scannen des Bestellung-Ordners: {e}")
+    
+    return dateien
+
+
+def get_lieferschein_dateien(bestellung_id):
+    """Hilfsfunktion: Scannt Ordner nach Lieferschein-Dateien (PDF, JPEG, JPG, PNG) für eine Bestellung"""
+    lieferschein_folder = os.path.join(current_app.config['ANGEBOTE_UPLOAD_FOLDER'], 'Lieferscheine', str(bestellung_id))
+    dateien = []
+    
+    if os.path.exists(lieferschein_folder):
+        try:
+            for filename in os.listdir(lieferschein_folder):
+                file_ext = filename.lower()
+                if file_ext.endswith(('.pdf', '.jpeg', '.jpg', '.png')):
+                    filepath = os.path.join(lieferschein_folder, filename)
+                    if os.path.isfile(filepath):
+                        stat = os.stat(filepath)
+                        # Pfad immer mit Forward-Slash für URL-Kompatibilität
+                        path_for_url = f'Lieferscheine/{bestellung_id}/{filename}'
+                        # Dateityp bestimmen
+                        if file_ext.endswith('.pdf'):
+                            file_type = 'pdf'
+                        elif file_ext.endswith(('.jpeg', '.jpg', '.png')):
+                            file_type = 'image'
+                        else:
+                            file_type = 'unknown'
+                        
+                        dateien.append({
+                            'name': filename,
+                            'path': path_for_url,
+                            'size': stat.st_size,
+                            'type': file_type,
+                            'modified': datetime.fromtimestamp(stat.st_mtime)
+                        })
+            # Sortiere nach Änderungsdatum (neueste zuerst)
+            dateien.sort(key=lambda x: x['modified'], reverse=True)
+        except Exception as e:
+            print(f"Fehler beim Scannen des Lieferschein-Ordners: {e}")
+    
+    return dateien
+
+
+@ersatzteile_bp.route('/bestellungen')
+@login_required
+def bestellung_liste():
+    """Liste aller Bestellungen mit Filter"""
+    mitarbeiter_id = session.get('user_id')
+    
+    # Filterparameter - mehrere Status möglich
+    status_filter_list = request.args.getlist('status')
+    lieferant_filter = request.args.get('lieferant')
+    abteilung_filter = request.args.get('abteilung')
+    
+    with get_db_connection() as conn:
+        # Sichtbare Abteilungen für den Mitarbeiter ermitteln
+        sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+        is_admin = 'admin' in session.get('user_berechtigungen', [])
+        
+        # Basis-Query
+        query = '''
+            SELECT 
+                b.ID,
+                b.Status,
+                b.ErstelltAm,
+                b.FreigegebenAm,
+                b.BestelltAm,
+                l.Name AS LieferantName,
+                m1.Vorname || ' ' || m1.Nachname AS ErstelltVon,
+                m2.Vorname || ' ' || m2.Nachname AS FreigegebenVon,
+                m3.Vorname || ' ' || m3.Nachname AS BestelltVon,
+                abt.Bezeichnung AS Abteilung,
+                COALESCE(SUM(bp.Menge * COALESCE(bp.Preis, 0)), 0) AS Gesamtbetrag
+            FROM Bestellung b
+            LEFT JOIN Lieferant l ON b.LieferantID = l.ID
+            LEFT JOIN Mitarbeiter m1 ON b.ErstelltVonID = m1.ID
+            LEFT JOIN Mitarbeiter m2 ON b.FreigegebenVonID = m2.ID
+            LEFT JOIN Mitarbeiter m3 ON b.BestelltVonID = m3.ID
+            LEFT JOIN Abteilung abt ON b.ErstellerAbteilungID = abt.ID
+            LEFT JOIN BestellungPosition bp ON b.ID = bp.BestellungID
+            WHERE 1=1
+        '''
+        params = []
+        
+        # Sichtbarkeitsfilter: Nur Bestellungen mit Sichtbarkeit für sichtbare Abteilungen
+        if not is_admin and sichtbare_abteilungen:
+            placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+            query += f'''
+                AND EXISTS (
+                    SELECT 1 FROM BestellungSichtbarkeit bs
+                    WHERE bs.BestellungID = b.ID 
+                    AND bs.AbteilungID IN ({placeholders})
+                )
+            '''
+            params.extend(sichtbare_abteilungen)
+        elif not is_admin:
+            # Keine Berechtigung - keine Bestellungen anzeigen
+            query += ' AND 1=0'
+        
+        # Status-Filter (mehrere Status möglich)
+        if status_filter_list:
+            placeholders = ','.join(['?'] * len(status_filter_list))
+            query += f' AND b.Status IN ({placeholders})'
+            params.extend(status_filter_list)
+        else:
+            # Standard: Erledigt ausschließen
+            query += " AND b.Status != 'Erledigt'"
+        
+        # Lieferant-Filter
+        if lieferant_filter:
+            query += ' AND b.LieferantID = ?'
+            params.append(lieferant_filter)
+        
+        # Abteilung-Filter
+        if abteilung_filter:
+            query += ' AND b.ErstellerAbteilungID = ?'
+            params.append(abteilung_filter)
+        
+        query += ' GROUP BY b.ID ORDER BY b.ErstelltAm DESC'
+        
+        bestellungen = conn.execute(query, params).fetchall()
+        
+        # Lieferanten für Filter laden
+        lieferanten = conn.execute('SELECT ID, Name FROM Lieferant WHERE Aktiv = 1 AND Gelöscht = 0 ORDER BY Name').fetchall()
+        
+        # Abteilungen für Filter laden
+        abteilungen = conn.execute('SELECT ID, Bezeichnung FROM Abteilung ORDER BY Sortierung, Bezeichnung').fetchall()
+    
+    return render_template(
+        'bestellung_liste.html',
+        bestellungen=bestellungen,
+        status_filter_list=status_filter_list,
+        lieferant_filter=lieferant_filter,
+        abteilung_filter=abteilung_filter,
+        lieferanten=lieferanten,
+        abteilungen=abteilungen
+    )
+
+
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>')
+@login_required
+def bestellung_detail(bestellung_id):
+    """Detailansicht einer Bestellung"""
+    mitarbeiter_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        # Bestellung laden
+        bestellung = conn.execute('''
+            SELECT 
+                b.*,
+                l.Name AS LieferantName,
+                l.Kontaktperson AS LieferantKontakt,
+                l.Telefon AS LieferantTelefon,
+                l.Email AS LieferantEmail,
+                m1.Vorname || ' ' || m1.Nachname AS ErstelltVon,
+                m2.Vorname || ' ' || m2.Nachname AS FreigegebenVon,
+                m3.Vorname || ' ' || m3.Nachname AS BestelltVon,
+                abt.Bezeichnung AS Abteilung
+            FROM Bestellung b
+            LEFT JOIN Lieferant l ON b.LieferantID = l.ID
+            LEFT JOIN Mitarbeiter m1 ON b.ErstelltVonID = m1.ID
+            LEFT JOIN Mitarbeiter m2 ON b.FreigegebenVonID = m2.ID
+            LEFT JOIN Mitarbeiter m3 ON b.BestelltVonID = m3.ID
+            LEFT JOIN Abteilung abt ON b.ErstellerAbteilungID = abt.ID
+            WHERE b.ID = ?
+        ''', (bestellung_id,)).fetchone()
+        
+        if not bestellung:
+            flash('Bestellung nicht gefunden.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_liste'))
+        
+        # Berechtigungsprüfung: Nur Bestellungen mit Sichtbarkeit für sichtbare Abteilungen
+        is_admin = 'admin' in session.get('user_berechtigungen', [])
+        if not is_admin:
+            sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+            sichtbarkeiten = conn.execute('SELECT AbteilungID FROM BestellungSichtbarkeit WHERE BestellungID = ?', (bestellung_id,)).fetchall()
+            sichtbarkeits_ids = [s['AbteilungID'] for s in sichtbarkeiten]
+            
+            if not any(abt in sichtbare_abteilungen for abt in sichtbarkeits_ids):
+                flash('Sie haben keine Berechtigung, diese Bestellung zu sehen.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_liste'))
+        
+        # Positionen laden
+        positionen = conn.execute('''
+            SELECT 
+                p.*,
+                e.ID AS ErsatzteilID,
+                COALESCE(p.Bestellnummer, e.Bestellnummer) AS Bestellnummer,
+                COALESCE(p.Bezeichnung, e.Bezeichnung) AS Bezeichnung
+            FROM BestellungPosition p
+            LEFT JOIN Ersatzteil e ON p.ErsatzteilID = e.ID
+            WHERE p.BestellungID = ?
+            ORDER BY p.ID
+        ''', (bestellung_id,)).fetchall()
+        
+        # Gesamtsumme berechnen
+        gesamtbetrag = 0
+        waehrung = 'EUR'
+        for pos in positionen:
+            preis = pos['Preis'] or 0
+            menge = pos['Menge'] or 0
+            gesamtbetrag += preis * menge
+            if pos['Waehrung']:
+                waehrung = pos['Waehrung']
+        
+        # PDF-Dateien aus Ordner laden
+        dateien = get_bestellung_dateien(bestellung_id)
+        
+        # Berechtigungen prüfen (Admin hat alle Rechte)
+        is_admin = 'admin' in session.get('user_berechtigungen', [])
+        kann_freigeben = is_admin or 'bestellungen_freigeben' in session.get('user_berechtigungen', [])
+        kann_buchen = is_admin or 'artikel_buchen' in session.get('user_berechtigungen', [])
+    
+    return render_template(
+        'bestellung_detail.html',
+        bestellung=bestellung,
+        positionen=positionen,
+        dateien=dateien,
+        kann_freigeben=kann_freigeben,
+        kann_buchen=kann_buchen,
+        gesamtbetrag=gesamtbetrag,
+        waehrung=waehrung
+    )
+
+
+@ersatzteile_bp.route('/bestellungen/neu', methods=['GET', 'POST'])
+@login_required
+@permission_required('bestellungen_erstellen')
+def bestellung_neu():
+    """Neue Bestellung manuell erstellen"""
+    mitarbeiter_id = session.get('user_id')
+    
+    if request.method == 'POST':
+        lieferant_id = request.form.get('lieferant_id', type=int)
+        bemerkung = request.form.get('bemerkung', '').strip()
+        sichtbare_abteilungen = request.form.getlist('sichtbare_abteilungen')
+        
+        # Ersatzteil-Positionen aus Formular
+        ersatzteil_ids = request.form.getlist('ersatzteil_id[]')
+        mengen = request.form.getlist('menge[]')
+        bestellnummern = request.form.getlist('bestellnummer[]')
+        bezeichnungen = request.form.getlist('bezeichnung[]')
+        preise = request.form.getlist('preis[]')
+        waehrungen = request.form.getlist('waehrung[]')
+        positionen_bemerkungen = request.form.getlist('position_bemerkung[]')
+        
+        if not lieferant_id:
+            flash('Bitte wählen Sie einen Lieferanten aus.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_neu'))
+        
+        # Mindestens eine Position muss vorhanden sein
+        has_positions = False
+        for i in range(max(len(ersatzteil_ids), len(bestellnummern))):
+            ersatzteil_id_str = ersatzteil_ids[i] if i < len(ersatzteil_ids) else ''
+            bestellnummer = bestellnummern[i].strip() if i < len(bestellnummern) and bestellnummern[i] else ''
+            if (ersatzteil_id_str and ersatzteil_id_str.strip()) or bestellnummer:
+                has_positions = True
+                break
+        
+        if not has_positions:
+            flash('Bitte fügen Sie mindestens eine Position hinzu.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_neu'))
+        
+        try:
+            with get_db_connection() as conn:
+                # Primärabteilung des Mitarbeiters ermitteln
+                mitarbeiter = conn.execute(
+                    'SELECT PrimaerAbteilungID FROM Mitarbeiter WHERE ID = ?',
+                    (mitarbeiter_id,)
+                ).fetchone()
+                abteilung_id = mitarbeiter['PrimaerAbteilungID'] if mitarbeiter else None
+                
+                # Bestellung erstellen
+                cursor = conn.execute('''
+                    INSERT INTO Bestellung (LieferantID, ErstelltVonID, ErstellerAbteilungID, Status, Bemerkung)
+                    VALUES (?, ?, ?, 'Erstellt', ?)
+                ''', (lieferant_id, mitarbeiter_id, abteilung_id, bemerkung))
+                bestellung_id = cursor.lastrowid
+                
+                # Positionen hinzufügen
+                for i, ersatzteil_id_str in enumerate(ersatzteil_ids):
+                    if not ersatzteil_id_str and (i >= len(bestellnummern) or not bestellnummern[i] or not bestellnummern[i].strip()):
+                        continue
+                    
+                    try:
+                        ersatzteil_id = int(ersatzteil_id_str) if ersatzteil_id_str and ersatzteil_id_str.strip() else None
+                        menge = int(mengen[i]) if i < len(mengen) and mengen[i] else 1
+                        bestellnummer = bestellnummern[i].strip() if i < len(bestellnummern) and bestellnummern[i] else None
+                        bezeichnung = bezeichnungen[i].strip() if i < len(bezeichnungen) and bezeichnungen[i] else None
+                        preis_str = preise[i].strip() if i < len(preise) and preise[i] else None
+                        preis = float(preis_str) if preis_str else None
+                        waehrung = waehrungen[i].strip() if i < len(waehrungen) and waehrungen[i] else 'EUR'
+                        pos_bemerkung = positionen_bemerkungen[i].strip() if i < len(positionen_bemerkungen) and positionen_bemerkungen[i] else None
+                        
+                        # Wenn ErsatzteilID vorhanden, aber Bestellnummer/Bezeichnung fehlen, aus Ersatzteil laden
+                        if ersatzteil_id and (not bestellnummer or not bezeichnung):
+                            ersatzteil = conn.execute('SELECT Bestellnummer, Bezeichnung FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
+                            if ersatzteil:
+                                if not bestellnummer:
+                                    bestellnummer = ersatzteil['Bestellnummer']
+                                if not bezeichnung:
+                                    bezeichnung = ersatzteil['Bezeichnung']
+                        
+                        conn.execute('''
+                            INSERT INTO BestellungPosition (BestellungID, ErsatzteilID, Menge, Bestellnummer, Bezeichnung, Bemerkung, Preis, Waehrung)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (bestellung_id, ersatzteil_id, menge, bestellnummer, bezeichnung, pos_bemerkung, preis, waehrung))
+                    except (ValueError, IndexError):
+                        continue
+                
+                # Sichtbarkeiten setzen (optional - wenn keine ausgewählt, wird Primärabteilung verwendet)
+                if sichtbare_abteilungen:
+                    for abt_id in sichtbare_abteilungen:
+                        try:
+                            conn.execute('''
+                                INSERT INTO BestellungSichtbarkeit (BestellungID, AbteilungID)
+                                VALUES (?, ?)
+                            ''', (bestellung_id, abt_id))
+                        except:
+                            pass
+                elif abteilung_id:
+                    # Wenn keine Abteilungen ausgewählt, Primärabteilung verwenden
+                    try:
+                        conn.execute('''
+                            INSERT INTO BestellungSichtbarkeit (BestellungID, AbteilungID)
+                            VALUES (?, ?)
+                        ''', (bestellung_id, abteilung_id))
+                    except:
+                        pass
+                
+                conn.commit()
+                flash('Bestellung erfolgreich erstellt.', 'success')
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+                
+        except Exception as e:
+            flash(f'Fehler beim Erstellen: {str(e)}', 'danger')
+            print(f"Bestellung neu Fehler: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    # GET: Formular anzeigen
+    with get_db_connection() as conn:
+        lieferanten = conn.execute('SELECT ID, Name FROM Lieferant WHERE Aktiv = 1 AND Gelöscht = 0 ORDER BY Name').fetchall()
+        
+        # Auswählbare Abteilungen für Sichtbarkeit
+        from utils import get_auswaehlbare_abteilungen_fuer_neues_thema
+        auswaehlbare_abteilungen = get_auswaehlbare_abteilungen_fuer_neues_thema(mitarbeiter_id, conn)
+    
+    return render_template(
+        'bestellung_neu.html',
+        lieferanten=lieferanten,
+        auswaehlbare_abteilungen=auswaehlbare_abteilungen
+    )
+
+
+@ersatzteile_bp.route('/bestellungen/aus-angebot/<int:angebotsanfrage_id>', methods=['GET', 'POST'])
+@login_required
+@permission_required('bestellungen_erstellen')
+def bestellung_aus_angebot(angebotsanfrage_id):
+    """Bestellung aus Angebot erstellen"""
+    mitarbeiter_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        # Angebotsanfrage laden
+        anfrage = conn.execute('''
+            SELECT a.*, l.Name AS LieferantName
+            FROM Angebotsanfrage a
+            LEFT JOIN Lieferant l ON a.LieferantID = l.ID
+            WHERE a.ID = ? AND a.Status = 'Angebot erhalten'
+        ''', (angebotsanfrage_id,)).fetchone()
+        
+        if not anfrage:
+            flash('Angebotsanfrage nicht gefunden oder Status nicht "Angebot erhalten".', 'danger')
+            return redirect(url_for('ersatzteile.angebotsanfrage_detail', angebotsanfrage_id=angebotsanfrage_id))
+        
+        # Positionen laden
+        positionen = conn.execute('''
+            SELECT 
+                p.*,
+                e.ID AS ErsatzteilID,
+                COALESCE(p.Bestellnummer, e.Bestellnummer) AS Bestellnummer,
+                COALESCE(p.Bezeichnung, e.Bezeichnung) AS Bezeichnung,
+                COALESCE(p.Angebotspreis, e.Preis) AS Preis,
+                COALESCE(p.Angebotswaehrung, e.Waehrung, 'EUR') AS Waehrung
+            FROM AngebotsanfragePosition p
+            LEFT JOIN Ersatzteil e ON p.ErsatzteilID = e.ID
+            WHERE p.AngebotsanfrageID = ?
+            ORDER BY p.ID
+        ''', (angebotsanfrage_id,)).fetchall()
+        
+        if not positionen:
+            flash('Angebotsanfrage hat keine Positionen.', 'danger')
+            return redirect(url_for('ersatzteile.angebotsanfrage_detail', angebotsanfrage_id=angebotsanfrage_id))
+    
+    if request.method == 'POST':
+        bemerkung = request.form.get('bemerkung', '').strip()
+        sichtbare_abteilungen = request.form.getlist('sichtbare_abteilungen')
+        ausgewaehlte_positionen = request.form.getlist('position_id')
+        
+        if not ausgewaehlte_positionen:
+            flash('Bitte wählen Sie mindestens eine Position aus.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_aus_angebot', angebotsanfrage_id=angebotsanfrage_id))
+        
+        try:
+            with get_db_connection() as conn:
+                # Primärabteilung des Mitarbeiters ermitteln
+                mitarbeiter = conn.execute(
+                    'SELECT PrimaerAbteilungID FROM Mitarbeiter WHERE ID = ?',
+                    (mitarbeiter_id,)
+                ).fetchone()
+                abteilung_id = mitarbeiter['PrimaerAbteilungID'] if mitarbeiter else None
+                
+                # Bestellung erstellen
+                cursor = conn.execute('''
+                    INSERT INTO Bestellung (AngebotsanfrageID, LieferantID, ErstelltVonID, ErstellerAbteilungID, Status, Bemerkung)
+                    VALUES (?, ?, ?, ?, 'Erstellt', ?)
+                ''', (angebotsanfrage_id, anfrage['LieferantID'], mitarbeiter_id, abteilung_id, bemerkung))
+                bestellung_id = cursor.lastrowid
+                
+                # Ausgewählte Positionen hinzufügen
+                for pos_id in ausgewaehlte_positionen:
+                    pos = next((p for p in positionen if str(p['ID']) == pos_id), None)
+                    if not pos:
+                        continue
+                    
+                    conn.execute('''
+                        INSERT INTO BestellungPosition (BestellungID, AngebotsanfragePositionID, ErsatzteilID, Menge, Bestellnummer, Bezeichnung, Bemerkung, Preis, Waehrung)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (bestellung_id, pos['ID'], pos['ErsatzteilID'], pos['Menge'], pos['Bestellnummer'], pos['Bezeichnung'], pos['Bemerkung'], pos['Preis'], pos['Waehrung']))
+                
+                # Sichtbarkeiten setzen (optional - wenn keine ausgewählt, wird Primärabteilung verwendet)
+                if sichtbare_abteilungen:
+                    for abt_id in sichtbare_abteilungen:
+                        try:
+                            conn.execute('''
+                                INSERT INTO BestellungSichtbarkeit (BestellungID, AbteilungID)
+                                VALUES (?, ?)
+                            ''', (bestellung_id, abt_id))
+                        except:
+                            pass
+                elif abteilung_id:
+                    # Wenn keine Abteilungen ausgewählt, Primärabteilung verwenden
+                    try:
+                        conn.execute('''
+                            INSERT INTO BestellungSichtbarkeit (BestellungID, AbteilungID)
+                            VALUES (?, ?)
+                        ''', (bestellung_id, abteilung_id))
+                    except:
+                        pass
+                
+                conn.commit()
+                flash('Bestellung erfolgreich aus Angebot erstellt.', 'success')
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+                
+        except Exception as e:
+            flash(f'Fehler beim Erstellen: {str(e)}', 'danger')
+            print(f"Bestellung aus Angebot Fehler: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    # GET: Formular anzeigen
+    with get_db_connection() as conn:
+        from utils import get_auswaehlbare_abteilungen_fuer_neues_thema
+        auswaehlbare_abteilungen = get_auswaehlbare_abteilungen_fuer_neues_thema(mitarbeiter_id, conn)
+    
+    return render_template(
+        'bestellung_aus_angebot.html',
+        anfrage=anfrage,
+        positionen=positionen,
+        auswaehlbare_abteilungen=auswaehlbare_abteilungen
+    )
+
+
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/zur-freigabe', methods=['POST'])
+@login_required
+def bestellung_zur_freigabe(bestellung_id):
+    """Bestellung zur Freigabe markieren"""
+    with get_db_connection() as conn:
+        bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ?', (bestellung_id,)).fetchone()
+        if not bestellung:
+            flash('Bestellung nicht gefunden.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_liste'))
+        
+        if bestellung['Status'] not in ['Erstellt']:
+            flash('Bestellung kann nur im Status "Erstellt" zur Freigabe markiert werden.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+        
+        conn.execute('UPDATE Bestellung SET Status = ? WHERE ID = ?', ('Zur Freigabe', bestellung_id))
+        conn.commit()
+        flash('Bestellung wurde zur Freigabe markiert.', 'success')
+    
+    return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/freigeben', methods=['POST'])
+@login_required
+@permission_required('bestellungen_freigeben')
+def bestellung_freigeben(bestellung_id):
+    """Bestellung freigeben"""
+    mitarbeiter_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ?', (bestellung_id,)).fetchone()
+        if not bestellung:
+            flash('Bestellung nicht gefunden.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_liste'))
+        
+        if bestellung['Status'] != 'Zur Freigabe':
+            flash('Bestellung kann nur im Status "Zur Freigabe" freigegeben werden.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+        
+        conn.execute('''
+            UPDATE Bestellung 
+            SET Status = ?, FreigegebenAm = datetime('now'), FreigegebenVonID = ?
+            WHERE ID = ?
+        ''', ('Freigegeben', mitarbeiter_id, bestellung_id))
+        conn.commit()
+        flash('Bestellung wurde freigegeben.', 'success')
+    
+    return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/als-bestellt', methods=['POST'])
+@login_required
+def bestellung_als_bestellt(bestellung_id):
+    """Bestellung als bestellt markieren"""
+    mitarbeiter_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ?', (bestellung_id,)).fetchone()
+        if not bestellung:
+            flash('Bestellung nicht gefunden.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_liste'))
+        
+        if bestellung['Status'] != 'Freigegeben':
+            flash('Bestellung kann nur im Status "Freigegeben" als bestellt markiert werden.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+        
+        conn.execute('''
+            UPDATE Bestellung 
+            SET Status = ?, BestelltAm = datetime('now'), BestelltVonID = ?
+            WHERE ID = ?
+        ''', ('Bestellt', mitarbeiter_id, bestellung_id))
+        conn.commit()
+        flash('Bestellung wurde als bestellt markiert.', 'success')
+    
+    return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/position-hinzufuegen', methods=['POST'])
+@login_required
+def bestellung_position_hinzufuegen(bestellung_id):
+    """Position zu bestehender Bestellung hinzufügen"""
+    mitarbeiter_id = session.get('user_id')
+    
+    ersatzteil_id_str = request.form.get('ersatzteil_id', '').strip()
+    ersatzteil_id = int(ersatzteil_id_str) if ersatzteil_id_str else None
+    menge = request.form.get('menge', type=int) or 1
+    bestellnummer = request.form.get('bestellnummer', '').strip() or None
+    bezeichnung = request.form.get('bezeichnung', '').strip() or None
+    preis_str = request.form.get('preis', '').strip()
+    preis = float(preis_str) if preis_str else None
+    waehrung = request.form.get('waehrung', 'EUR').strip()
+    bemerkung = request.form.get('bemerkung', '').strip() or None
+    
+    if not ersatzteil_id and not bestellnummer:
+        flash('Bitte geben Sie entweder eine ErsatzteilID oder eine Bestellnummer ein.', 'danger')
+        return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+    
+    try:
+        with get_db_connection() as conn:
+            # Prüfe ob Bestellung existiert und Status erlaubt Bearbeitung
+            bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ?', (bestellung_id,)).fetchone()
+            if not bestellung:
+                flash('Bestellung nicht gefunden.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_liste'))
+            
+            if bestellung['Status'] not in ['Erstellt', 'Zur Freigabe']:
+                flash('Positionen können nur bei Bestellungen im Status "Erstellt" oder "Zur Freigabe" hinzugefügt werden.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+            
+            # Falls ErsatzteilID vorhanden und Bestellnummer/Bezeichnung nicht angegeben, aus Ersatzteil laden
+            if ersatzteil_id and (not bestellnummer or not bezeichnung):
+                ersatzteil = conn.execute('SELECT Bestellnummer, Bezeichnung FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
+                if ersatzteil:
+                    if not bestellnummer:
+                        bestellnummer = ersatzteil['Bestellnummer']
+                    if not bezeichnung:
+                        bezeichnung = ersatzteil['Bezeichnung']
+            
+            # Position hinzufügen
+            conn.execute('''
+                INSERT INTO BestellungPosition (BestellungID, ErsatzteilID, Menge, Bestellnummer, Bezeichnung, Bemerkung, Preis, Waehrung)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (bestellung_id, ersatzteil_id, menge, bestellnummer, bezeichnung, bemerkung, preis, waehrung))
+            conn.commit()
+            flash('Position erfolgreich hinzugefügt.', 'success')
+            
+    except Exception as e:
+        flash(f'Fehler beim Hinzufügen: {str(e)}', 'danger')
+        print(f"Position hinzufügen Fehler: {e}")
+    
+    return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/position/<int:position_id>/bearbeiten', methods=['POST'])
+@login_required
+def bestellung_position_bearbeiten(bestellung_id, position_id):
+    """Position einer Bestellung bearbeiten"""
+    menge = request.form.get('menge', type=int)
+    bestellnummer = request.form.get('bestellnummer', '').strip() or None
+    bezeichnung = request.form.get('bezeichnung', '').strip() or None
+    preis_str = request.form.get('preis', '').strip()
+    preis = float(preis_str) if preis_str else None
+    waehrung = request.form.get('waehrung', 'EUR').strip()
+    bemerkung = request.form.get('bemerkung', '').strip() or None
+    
+    try:
+        with get_db_connection() as conn:
+            # Prüfe ob Bestellung existiert und Status erlaubt Bearbeitung
+            bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ?', (bestellung_id,)).fetchone()
+            if not bestellung:
+                flash('Bestellung nicht gefunden.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_liste'))
+            
+            if bestellung['Status'] not in ['Erstellt', 'Zur Freigabe']:
+                flash('Positionen können nur bei Bestellungen im Status "Erstellt" oder "Zur Freigabe" bearbeitet werden.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+            
+            # Position aktualisieren
+            conn.execute('''
+                UPDATE BestellungPosition 
+                SET Menge = ?, Bestellnummer = ?, Bezeichnung = ?, Bemerkung = ?, Preis = ?, Waehrung = ?
+                WHERE ID = ? AND BestellungID = ?
+            ''', (menge, bestellnummer, bezeichnung, bemerkung, preis, waehrung, position_id, bestellung_id))
+            conn.commit()
+            flash('Position erfolgreich aktualisiert.', 'success')
+            
+    except Exception as e:
+        flash(f'Fehler beim Aktualisieren: {str(e)}', 'danger')
+        print(f"Position bearbeiten Fehler: {e}")
+    
+    return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/position/<int:position_id>/loeschen', methods=['POST'])
+@login_required
+def bestellung_position_loeschen(bestellung_id, position_id):
+    """Position einer Bestellung löschen"""
+    try:
+        with get_db_connection() as conn:
+            # Prüfe ob Bestellung existiert und Status erlaubt Bearbeitung
+            bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ?', (bestellung_id,)).fetchone()
+            if not bestellung:
+                flash('Bestellung nicht gefunden.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_liste'))
+            
+            if bestellung['Status'] not in ['Erstellt', 'Zur Freigabe']:
+                flash('Positionen können nur bei Bestellungen im Status "Erstellt" oder "Zur Freigabe" gelöscht werden.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+            
+            # Position löschen
+            conn.execute('DELETE FROM BestellungPosition WHERE ID = ? AND BestellungID = ?', (position_id, bestellung_id))
+            conn.commit()
+            flash('Position erfolgreich gelöscht.', 'success')
+            
+    except Exception as e:
+        flash(f'Fehler beim Löschen: {str(e)}', 'danger')
+        print(f"Position löschen Fehler: {e}")
+    
+    return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/sichtbarkeit', methods=['GET'])
+@login_required
+def get_bestellung_sichtbarkeit(bestellung_id):
+    """AJAX: Sichtbarkeiten einer Bestellung laden"""
+    mitarbeiter_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        # Primärabteilung des Mitarbeiters
+        mitarbeiter = conn.execute(
+            'SELECT PrimaerAbteilungID FROM Mitarbeiter WHERE ID = ?',
+            (mitarbeiter_id,)
+        ).fetchone()
+        primaer_abteilung_id = mitarbeiter['PrimaerAbteilungID'] if mitarbeiter else None
+        
+        # Auswählbare Abteilungen
+        from utils import get_auswaehlbare_abteilungen_fuer_mitarbeiter, get_mitarbeiter_abteilungen
+        auswaehlbare = get_auswaehlbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+        eigene_abteilungen_ids = get_mitarbeiter_abteilungen(mitarbeiter_id, conn)
+        
+        # Aktuell ausgewählte Sichtbarkeiten
+        aktuelle = conn.execute('''
+            SELECT sv.AbteilungID, a.Bezeichnung, a.ParentAbteilungID, a.Sortierung
+            FROM BestellungSichtbarkeit sv
+            JOIN Abteilung a ON sv.AbteilungID = a.ID
+            WHERE sv.BestellungID = ?
+            ORDER BY a.Sortierung, a.Bezeichnung
+        ''', (bestellung_id,)).fetchall()
+        aktuelle_ids = [a['AbteilungID'] for a in aktuelle]
+        
+        # Alle eigenen Abteilungen mit allen Unterabteilungen
+        from utils import get_untergeordnete_abteilungen
+        alle_eigene_mit_unter = set()
+        for abt_id in eigene_abteilungen_ids:
+            alle_eigene_mit_unter.update(get_untergeordnete_abteilungen(abt_id, conn))
+        
+        # Zusätzliche aktuelle Abteilungen
+        zusaetzliche_aktuelle = []
+        for akt in aktuelle:
+            if akt['AbteilungID'] not in alle_eigene_mit_unter:
+                parent_info = None
+                if akt['ParentAbteilungID']:
+                    parent = conn.execute(
+                        'SELECT ID, Bezeichnung FROM Abteilung WHERE ID = ?',
+                        (akt['ParentAbteilungID'],)
+                    ).fetchone()
+                    if parent:
+                        parent_info = {'id': parent['ID'], 'name': parent['Bezeichnung']}
+                
+                zusaetzliche_aktuelle.append({
+                    'id': akt['AbteilungID'],
+                    'name': akt['Bezeichnung'],
+                    'parent': parent_info,
+                    'is_own': False
+                })
+        
+        # In JSON-Format umwandeln
+        auswaehlbare_json = []
+        for gruppe in auswaehlbare:
+            children_json = []
+            for c in gruppe['children']:
+                is_current = c['ID'] in aktuelle_ids
+                children_json.append({
+                    'id': c['ID'], 
+                    'name': c['Bezeichnung'],
+                    'is_current': is_current
+                })
+            
+            is_current_parent = gruppe['parent']['ID'] in aktuelle_ids
+            auswaehlbare_json.append({
+                'parent': {
+                    'id': gruppe['parent']['ID'],
+                    'name': gruppe['parent']['Bezeichnung'],
+                    'is_primaer': gruppe['parent']['ID'] == primaer_abteilung_id,
+                    'is_current': is_current_parent
+                },
+                'children': children_json
+            })
+        
+        return jsonify({
+            'success': True,
+            'bestellung_id': bestellung_id,
+            'auswaehlbare': auswaehlbare_json,
+            'zusaetzliche': zusaetzliche_aktuelle,
+            'aktuelle': aktuelle_ids
+        })
+
+
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/sichtbarkeit', methods=['POST'])
+@login_required
+def update_bestellung_sichtbarkeit(bestellung_id):
+    """AJAX: Sichtbarkeiten einer Bestellung aktualisieren"""
+    sichtbare_abteilungen = request.form.getlist('sichtbare_abteilungen')
+    mitarbeiter_id = session.get('user_id')
+    
+    try:
+        with get_db_connection() as conn:
+            # Primärabteilung des Mitarbeiters ermitteln
+            mitarbeiter = conn.execute(
+                'SELECT PrimaerAbteilungID FROM Mitarbeiter WHERE ID = ?',
+                (mitarbeiter_id,)
+            ).fetchone()
+            abteilung_id = mitarbeiter['PrimaerAbteilungID'] if mitarbeiter else None
+            
+            # Alte Sichtbarkeiten löschen
+            conn.execute('DELETE FROM BestellungSichtbarkeit WHERE BestellungID = ?', (bestellung_id,))
+            
+            # Neue Sichtbarkeiten einfügen (optional - wenn keine ausgewählt, wird Primärabteilung verwendet)
+            if sichtbare_abteilungen:
+                for abt_id in sichtbare_abteilungen:
+                    try:
+                        conn.execute('''
+                            INSERT INTO BestellungSichtbarkeit (BestellungID, AbteilungID)
+                            VALUES (?, ?)
+                        ''', (bestellung_id, abt_id))
+                    except:
+                        pass
+            elif abteilung_id:
+                # Wenn keine Abteilungen ausgewählt, Primärabteilung verwenden
+                try:
+                    conn.execute('''
+                        INSERT INTO BestellungSichtbarkeit (BestellungID, AbteilungID)
+                        VALUES (?, ?)
+                    ''', (bestellung_id, abteilung_id))
+                except:
+                    pass
+            
+            conn.commit()
+        
+        return jsonify({'success': True, 'message': 'Sichtbarkeit erfolgreich aktualisiert.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Fehler: {str(e)}'}), 500
+
+
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/pdf')
+@login_required
+def bestellung_pdf_export(bestellung_id):
+    """PDF-Export für eine Bestellung"""
+    mitarbeiter_id = session.get('user_id')
+    
+    try:
+        with get_db_connection() as conn:
+            # Bestellung laden
+            bestellung = conn.execute("""
+                SELECT 
+                    b.*,
+                    l.Name AS LieferantName,
+                    l.Strasse AS LieferantStrasse,
+                    l.PLZ AS LieferantPLZ,
+                    l.Ort AS LieferantOrt,
+                    l.Telefon AS LieferantTelefon,
+                    l.Email AS LieferantEmail,
+                    m1.Vorname || ' ' || m1.Nachname AS ErstelltVon,
+                    m2.Vorname || ' ' || m2.Nachname AS FreigegebenVon,
+                    m3.Vorname || ' ' || m3.Nachname AS BestelltVon
+                FROM Bestellung b
+                LEFT JOIN Lieferant l ON b.LieferantID = l.ID
+                LEFT JOIN Mitarbeiter m1 ON b.ErstelltVonID = m1.ID
+                LEFT JOIN Mitarbeiter m2 ON b.FreigegebenVonID = m2.ID
+                LEFT JOIN Mitarbeiter m3 ON b.BestelltVonID = m3.ID
+                WHERE b.ID = ?
+            """, (bestellung_id,)).fetchone()
+            
+            if not bestellung:
+                flash('Bestellung nicht gefunden.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_liste'))
+            
+            if bestellung['Status'] not in ['Freigegeben', 'Bestellt']:
+                flash('PDF kann nur für freigegebene oder bestellte Bestellungen generiert werden.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+            
+            # Positionen laden
+            positionen = conn.execute("""
+                SELECT 
+                    p.*,
+                    e.ID AS ErsatzteilID,
+                    COALESCE(p.Bestellnummer, e.Bestellnummer) AS Bestellnummer,
+                    COALESCE(p.Bezeichnung, e.Bezeichnung) AS Bezeichnung
+                FROM BestellungPosition p
+                LEFT JOIN Ersatzteil e ON p.ErsatzteilID = e.ID
+                WHERE p.BestellungID = ?
+                ORDER BY p.ID
+            """, (bestellung_id,)).fetchall()
+            
+            # Firmendaten laden
+            firmendaten = get_firmendaten()
+            
+            # PDF erstellen (analog zu Angebotsanfrage)
+            buffer = BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=A4,
+                                    rightMargin=2*cm, leftMargin=2*cm,
+                                    topMargin=2*cm, bottomMargin=2*cm)
+            
+            story = []
+            styles = getSampleStyleSheet()
+            
+            # Text-Styles
+            normal_style = ParagraphStyle('Normal', parent=styles['Normal'], fontSize=10, leading=14)
+            small_style = ParagraphStyle('Small', parent=styles['Normal'], fontSize=8, leading=10)
+            bold_style = ParagraphStyle('Bold', parent=styles['Normal'], fontSize=10, fontName='Helvetica-Bold')
+            
+            # Header: Logo
+            if firmendaten and firmendaten['LogoPfad'] and os.path.exists(firmendaten['LogoPfad']):
+                try:
+                    logo = Image(firmendaten['LogoPfad'], width=5*cm, height=2.5*cm)
+                    logo.hAlign = 'RIGHT'
+                    story.append(logo)
+                except:
+                    pass
+            story.append(Spacer(1, 0.3*cm))
+            
+            # Firmendaten und Lieferant
+            firmen_text = []
+            if firmendaten:
+                if firmendaten['Firmenname']:
+                    firmen_text.append(Paragraph(f"<b>{firmendaten['Firmenname']}</b>", small_style))
+                if firmendaten['Strasse']:
+                    firmen_text.append(Paragraph(firmendaten['Strasse'], small_style))
+                if firmendaten['PLZ'] and firmendaten['Ort']:
+                    firmen_text.append(Paragraph(f"{firmendaten['PLZ']} {firmendaten['Ort']}", small_style))
+            
+            lieferant_text = []
+            if bestellung['LieferantName']:
+                lieferant_text.append(Paragraph(f"<b>{bestellung['LieferantName']}</b>", small_style))
+            if bestellung['LieferantStrasse']:
+                lieferant_text.append(Paragraph(bestellung['LieferantStrasse'], small_style))
+            if bestellung['LieferantPLZ'] and bestellung['LieferantOrt']:
+                lieferant_text.append(Paragraph(f"{bestellung['LieferantPLZ']} {bestellung['LieferantOrt']}", small_style))
+            
+            # Zwei-Spalten-Layout
+            from reportlab.platypus import Table as PDFTable
+            header_data = [
+                [lieferant_text, firmen_text]
+            ]
+            header_table = PDFTable(header_data, colWidths=[8*cm, 8*cm])
+            header_table.setStyle(TableStyle([
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+                ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+            ]))
+            story.append(header_table)
+            story.append(Spacer(1, 0.5*cm))
+            
+            # Titel
+            story.append(Paragraph(f"<b>BESTELLUNG #{bestellung_id}</b>", bold_style))
+            story.append(Spacer(1, 0.3*cm))
+            
+            # Positionen-Tabelle
+            table_data = [['Pos', 'Bestellnummer', 'Bezeichnung', 'Menge', 'Preis', 'Gesamt']]
+            gesamtbetrag = 0
+            waehrung = 'EUR'
+            
+            for idx, pos in enumerate(positionen, 1):
+                preis = pos['Preis'] or 0
+                menge = pos['Menge'] or 0
+                gesamt = preis * menge
+                gesamtbetrag += gesamt
+                if pos['Waehrung']:
+                    waehrung = pos['Waehrung']
+                
+                table_data.append([
+                    str(idx),
+                    pos['Bestellnummer'] or '-',
+                    pos['Bezeichnung'] or '-',
+                    str(menge),
+                    f"{preis:.2f} {waehrung}",
+                    f"{gesamt:.2f} {waehrung}"
+                ])
+            
+            # Gesamtzeile
+            table_data.append(['', '', '', '', '<b>Gesamt:</b>', f"<b>{gesamtbetrag:.2f} {waehrung}</b>"])
+            
+            pos_table = PDFTable(table_data, colWidths=[1*cm, 3*cm, 6*cm, 1.5*cm, 2.5*cm, 2.5*cm])
+            pos_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('ALIGN', (3, 1), (3, -2), 'RIGHT'),
+                ('ALIGN', (4, 1), (-1, -1), 'RIGHT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ]))
+            story.append(pos_table)
+            
+            # Footer
+            story.append(Spacer(1, 0.5*cm))
+            if bestellung['Bemerkung']:
+                story.append(Paragraph(f"<b>Bemerkung:</b> {bestellung['Bemerkung']}", normal_style))
+            
+            # PDF generieren
+            doc.build(story)
+            
+            # PDF als Download senden
+            filename = f"Bestellung_{bestellung_id}_{datetime.now().strftime('%Y%m%d')}.pdf"
+            response = make_response(buffer.getvalue())
+            response.headers['Content-Type'] = 'application/pdf'
+            response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+            
+            return response
+            
+    except Exception as e:
+        flash(f'Fehler beim Erstellen des PDFs: {str(e)}', 'danger')
+        print(f"PDF-Export Fehler: {e}")
+        import traceback
+        traceback.print_exc()
+        return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/datei/upload', methods=['POST'])
+@login_required
+def bestellung_datei_upload(bestellung_id):
+    """Datei-Upload für Bestellung"""
+    if 'file' not in request.files:
+        flash('Keine Datei ausgewählt.', 'danger')
+        return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+    
+    file = request.files['file']
+    if file.filename == '':
+        flash('Keine Datei ausgewählt.', 'danger')
+        return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+    
+    if file and file.filename.lower().endswith('.pdf'):
+        try:
+            # Ordner erstellen
+            bestellung_folder = os.path.join(current_app.config['ANGEBOTE_UPLOAD_FOLDER'], 'Bestellungen', str(bestellung_id))
+            os.makedirs(bestellung_folder, exist_ok=True)
+            
+            # Datei speichern
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(bestellung_folder, filename)
+            file.save(filepath)
+            
+            flash('Datei erfolgreich hochgeladen.', 'success')
+        except Exception as e:
+            flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
+            print(f"Datei-Upload Fehler: {e}")
+    else:
+        flash('Nur PDF-Dateien sind erlaubt.', 'danger')
+    
+    return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+
+@ersatzteile_bp.route('/wareneingang')
+@login_required
+@permission_required('artikel_buchen')
+def wareneingang():
+    """Übersichtsseite für Wareneingang - Liste aller bestellten Bestellungen"""
+    mitarbeiter_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        # Sichtbare Abteilungen für den Mitarbeiter ermitteln
+        sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+        is_admin = 'admin' in session.get('user_berechtigungen', [])
+        
+        # Nur Bestellungen mit Status "Bestellt" oder "Teilweise erhalten"
+        query = '''
+            SELECT 
+                b.ID,
+                b.Status,
+                b.BestelltAm,
+                l.Name AS LieferantName,
+                abt.Bezeichnung AS Abteilung
+            FROM Bestellung b
+            LEFT JOIN Lieferant l ON b.LieferantID = l.ID
+            LEFT JOIN Abteilung abt ON b.ErstellerAbteilungID = abt.ID
+            WHERE b.Status IN ('Bestellt', 'Teilweise erhalten')
+        '''
+        params = []
+        
+        # Sichtbarkeitsfilter
+        if not is_admin and sichtbare_abteilungen:
+            placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+            query += f'''
+                AND EXISTS (
+                    SELECT 1 FROM BestellungSichtbarkeit bs
+                    WHERE bs.BestellungID = b.ID 
+                    AND bs.AbteilungID IN ({placeholders})
+                )
+            '''
+            params.extend(sichtbare_abteilungen)
+        elif not is_admin:
+            query += ' AND 1=0'
+        
+        query += ' ORDER BY b.BestelltAm DESC'
+        
+        bestellungen = conn.execute(query, params).fetchall()
+    
+    return render_template('wareneingang.html', bestellungen=bestellungen)
+
+
+@ersatzteile_bp.route('/wareneingang/bestellung/<int:bestellung_id>', methods=['GET', 'POST'])
+@login_required
+@permission_required('artikel_buchen')
+def wareneingang_bestellung(bestellung_id):
+    """Wareneingang für eine spezifische Bestellung"""
+    mitarbeiter_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        # Bestellung laden
+        bestellung = conn.execute('''
+            SELECT b.*, l.Name AS LieferantName
+            FROM Bestellung b
+            LEFT JOIN Lieferant l ON b.LieferantID = l.ID
+            WHERE b.ID = ? AND b.Status IN ('Bestellt', 'Teilweise erhalten')
+        ''', (bestellung_id,)).fetchone()
+        
+        if not bestellung:
+            flash('Bestellung nicht gefunden oder nicht für Wareneingang verfügbar.', 'danger')
+            return redirect(url_for('ersatzteile.wareneingang'))
+        
+        # Positionen laden
+        positionen = conn.execute('''
+            SELECT 
+                p.*,
+                e.ID AS ErsatzteilID,
+                COALESCE(p.Bestellnummer, e.Bestellnummer) AS Bestellnummer,
+                COALESCE(p.Bezeichnung, e.Bezeichnung) AS Bezeichnung,
+                e.Einheit
+            FROM BestellungPosition p
+            LEFT JOIN Ersatzteil e ON p.ErsatzteilID = e.ID
+            WHERE p.BestellungID = ?
+            ORDER BY p.ID
+        ''', (bestellung_id,)).fetchall()
+        
+        if not positionen:
+            flash('Bestellung hat keine Positionen.', 'danger')
+            return redirect(url_for('ersatzteile.wareneingang'))
+    
+    if request.method == 'POST':
+        # Erhaltene Mengen pro Position
+        position_ids = request.form.getlist('position_id[]')
+        erhaltene_mengen = request.form.getlist('erhaltene_menge[]')
+        
+        try:
+            with get_db_connection() as conn:
+                alle_vollstaendig = True
+                mindestens_eine_teilweise = False
+                
+                for i, pos_id in enumerate(position_ids):
+                    if i >= len(erhaltene_mengen):
+                        continue
+                    
+                    try:
+                        pos_id_int = int(pos_id)
+                        erhaltene_menge = int(erhaltene_mengen[i]) if erhaltene_mengen[i] else 0
+                        
+                        # Position laden
+                        pos = conn.execute('SELECT Menge, ErhalteneMenge, ErsatzteilID FROM BestellungPosition WHERE ID = ?', (pos_id_int,)).fetchone()
+                        if not pos:
+                            continue
+                        
+                        # Neue ErhalteneMenge berechnen (erhöhen, nicht überschreiben)
+                        neue_erhaltene_menge = pos['ErhalteneMenge'] + erhaltene_menge
+                        
+                        # Validierung: ErhalteneMenge darf nicht größer als Menge sein
+                        if neue_erhaltene_menge > pos['Menge']:
+                            flash(f'Position {pos_id}: Erhaltene Menge ({neue_erhaltene_menge}) darf nicht größer als bestellte Menge ({pos["Menge"]}) sein.', 'danger')
+                            return redirect(url_for('ersatzteile.wareneingang_bestellung', bestellung_id=bestellung_id))
+                        
+                        # ErhalteneMenge aktualisieren
+                        conn.execute('''
+                            UPDATE BestellungPosition 
+                            SET ErhalteneMenge = ?
+                            WHERE ID = ?
+                        ''', (neue_erhaltene_menge, pos_id_int))
+                        
+                        # Lagerbuchung erstellen (wenn ErsatzteilID vorhanden)
+                        if pos['ErsatzteilID'] and erhaltene_menge > 0:
+                            # Aktueller Bestand ermitteln
+                            ersatzteil = conn.execute('SELECT AktuellerBestand FROM Ersatzteil WHERE ID = ?', (pos['ErsatzteilID'],)).fetchone()
+                            neuer_bestand = (ersatzteil['AktuellerBestand'] if ersatzteil else 0) + erhaltene_menge
+                            
+                            # Bestand aktualisieren
+                            conn.execute('UPDATE Ersatzteil SET AktuellerBestand = ? WHERE ID = ?', (neuer_bestand, pos['ErsatzteilID']))
+                            
+                            # Lagerbuchung erstellen
+                            conn.execute('''
+                                INSERT INTO Lagerbuchung (ErsatzteilID, Typ, Menge, VerwendetVonID, Buchungsdatum, Grund, BestellungID)
+                                VALUES (?, 'Eingang', ?, ?, datetime('now'), 'Wareneingang Bestellung', ?)
+                            ''', (pos['ErsatzteilID'], erhaltene_menge, mitarbeiter_id, bestellung_id))
+                        
+                        # Status prüfen
+                        if neue_erhaltene_menge < pos['Menge']:
+                            alle_vollstaendig = False
+                            mindestens_eine_teilweise = True
+                        elif neue_erhaltene_menge == pos['Menge']:
+                            # Position vollständig, aber prüfe ob alle vollständig sind
+                            pass
+                    
+                    except (ValueError, IndexError):
+                        continue
+                
+                # Status der Bestellung aktualisieren
+                if alle_vollstaendig:
+                    # Alle Positionen vollständig erhalten
+                    conn.execute('UPDATE Bestellung SET Status = ? WHERE ID = ?', ('Erhalten', bestellung_id))
+                    # Status auf "Erledigt" setzen
+                    conn.execute('UPDATE Bestellung SET Status = ? WHERE ID = ?', ('Erledigt', bestellung_id))
+                elif mindestens_eine_teilweise:
+                    # Mindestens eine Position teilweise erhalten
+                    conn.execute('UPDATE Bestellung SET Status = ? WHERE ID = ?', ('Teilweise erhalten', bestellung_id))
+                
+                conn.commit()
+                flash('Wareneingang erfolgreich gebucht.', 'success')
+                return redirect(url_for('ersatzteile.wareneingang'))
+                
+        except Exception as e:
+            flash(f'Fehler beim Buchen: {str(e)}', 'danger')
+            print(f"Wareneingang Fehler: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    # Lieferschein-Dateien laden
+    lieferschein_dateien = get_lieferschein_dateien(bestellung_id)
+    
+    return render_template('wareneingang_bestellung.html', bestellung=bestellung, positionen=positionen, lieferschein_dateien=lieferschein_dateien)
+
+
+@ersatzteile_bp.route('/lieferschein/<int:bestellung_id>/upload', methods=['POST'])
+@login_required
+@permission_required('artikel_buchen')
+def lieferschein_upload(bestellung_id):
+    """Lieferschein-Upload für Wareneingang (PDF, JPEG, JPG, PNG)"""
+    if 'file' not in request.files:
+        flash('Keine Datei ausgewählt.', 'danger')
+        return redirect(url_for('ersatzteile.wareneingang_bestellung', bestellung_id=bestellung_id))
+    
+    file = request.files['file']
+    if file.filename == '':
+        flash('Keine Datei ausgewählt.', 'danger')
+        return redirect(url_for('ersatzteile.wareneingang_bestellung', bestellung_id=bestellung_id))
+    
+    # Erlaubte Dateitypen: PDF, JPEG, JPG, PNG
+    allowed_extensions = ['.pdf', '.jpeg', '.jpg', '.png']
+    file_ext = os.path.splitext(file.filename)[1].lower()
+    
+    if file and file_ext in allowed_extensions:
+        try:
+            # Ordner erstellen
+            lieferschein_folder = os.path.join(current_app.config['ANGEBOTE_UPLOAD_FOLDER'], 'Lieferscheine', str(bestellung_id))
+            os.makedirs(lieferschein_folder, exist_ok=True)
+            
+            # Datei speichern
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(lieferschein_folder, filename)
+            file.save(filepath)
+            
+            flash('Lieferschein erfolgreich hochgeladen.', 'success')
+        except Exception as e:
+            flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
+            print(f"Lieferschein-Upload Fehler: {e}")
+            import traceback
+            traceback.print_exc()
+    else:
+        flash('Nur PDF-, JPEG-, JPG- oder PNG-Dateien sind erlaubt.', 'danger')
+    
+    return redirect(url_for('ersatzteile.wareneingang_bestellung', bestellung_id=bestellung_id))
+
+
+@ersatzteile_bp.route('/lieferschein/<path:filepath>')
+@login_required
+@permission_required('artikel_buchen')
+def lieferschein_anzeigen(filepath):
+    """Lieferschein-Datei anzeigen/herunterladen (PDF oder Bild)"""
+    mitarbeiter_id = session.get('user_id')
+    
+    # Normalisiere den Pfad: Backslashes zu Forward-Slashes (für Windows-Kompatibilität)
+    filepath = filepath.replace('\\', '/')
+    
+    # Sicherheitsprüfung: Dateipfad muss mit Lieferscheine beginnen
+    if not filepath.startswith('Lieferscheine/'):
+        flash('Ungültiger Dateipfad.', 'danger')
+        return redirect(url_for('ersatzteile.wareneingang'))
+    
+    try:
+        # Vollständigen Pfad erstellen
+        full_path = os.path.join(current_app.config['ANGEBOTE_UPLOAD_FOLDER'], filepath)
+        
+        # Sicherheitsprüfung: Datei muss existieren und im erlaubten Ordner sein
+        if not os.path.exists(full_path) or not os.path.abspath(full_path).startswith(os.path.abspath(current_app.config['ANGEBOTE_UPLOAD_FOLDER'])):
+            flash('Datei nicht gefunden.', 'danger')
+            return redirect(url_for('ersatzteile.wareneingang'))
+        
+        # Dateityp bestimmen
+        file_ext = os.path.splitext(full_path)[1].lower()
+        if file_ext == '.pdf':
+            mimetype = 'application/pdf'
+        elif file_ext in ['.jpeg', '.jpg']:
+            mimetype = 'image/jpeg'
+        elif file_ext == '.png':
+            mimetype = 'image/png'
+        else:
+            mimetype = 'application/octet-stream'
+        
+        return send_from_directory(
+            os.path.dirname(full_path),
+            os.path.basename(full_path),
+            mimetype=mimetype,
+            as_attachment=False  # Im Browser anzeigen
+        )
+    except Exception as e:
+        flash(f'Fehler beim Laden der Datei: {str(e)}', 'danger')
+        print(f"Lieferschein anzeigen Fehler: {e}")
+        return redirect(url_for('ersatzteile.wareneingang'))

@@ -132,7 +132,10 @@ def get_required_tables():
         'LoginLog',
         'Firmendaten',
         'Angebotsanfrage',
-        'AngebotsanfragePosition'
+        'AngebotsanfragePosition',
+        'Bestellung',
+        'BestellungPosition',
+        'BestellungSichtbarkeit'
     ]
 
 
@@ -677,9 +680,13 @@ def init_database_schema(db_path, verbose=False):
             # Prüfe auf fehlende Spalten (Migration 009)
             create_column_if_not_exists(conn, 'Lagerbuchung', 'Preis', 'ALTER TABLE Lagerbuchung ADD COLUMN Preis REAL NULL')
             create_column_if_not_exists(conn, 'Lagerbuchung', 'Waehrung', 'ALTER TABLE Lagerbuchung ADD COLUMN Waehrung TEXT NULL')
+            # BestellungID für Wareneingang
+            if create_column_if_not_exists(conn, 'Lagerbuchung', 'BestellungID', 'ALTER TABLE Lagerbuchung ADD COLUMN BestellungID INTEGER NULL'):
+                print("[INFO] Spalte 'BestellungID' zu 'Lagerbuchung' hinzugefügt")
             # Prüfe auf fehlende Indexes
             create_index_if_not_exists(conn, 'idx_lagerbuchung_verwendet_von', 'CREATE INDEX idx_lagerbuchung_verwendet_von ON Lagerbuchung(VerwendetVonID)')
             create_index_if_not_exists(conn, 'idx_lagerbuchung_buchungsdatum', 'CREATE INDEX idx_lagerbuchung_buchungsdatum ON Lagerbuchung(Buchungsdatum)')
+            create_index_if_not_exists(conn, 'idx_lagerbuchung_bestellung', 'CREATE INDEX idx_lagerbuchung_bestellung ON Lagerbuchung(BestellungID)')
         
         # ========== 21. ErsatzteilAbteilungZugriff ==========
         create_table_if_not_exists(conn, 'ErsatzteilAbteilungZugriff', '''
@@ -817,7 +824,86 @@ def init_database_schema(db_path, verbose=False):
             create_column_if_not_exists(conn, 'AngebotsanfragePosition', 'Bestellnummer', 'ALTER TABLE AngebotsanfragePosition ADD COLUMN Bestellnummer TEXT NULL')
             create_column_if_not_exists(conn, 'AngebotsanfragePosition', 'Bezeichnung', 'ALTER TABLE AngebotsanfragePosition ADD COLUMN Bezeichnung TEXT NULL')
         
-        # ========== 26. Berechtigung ==========
+        # ========== 26. Bestellung ==========
+        created = create_table_if_not_exists(conn, 'Bestellung', '''
+            CREATE TABLE Bestellung (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                AngebotsanfrageID INTEGER NULL,
+                LieferantID INTEGER NOT NULL,
+                ErstelltVonID INTEGER NOT NULL,
+                ErstellerAbteilungID INTEGER NULL,
+                Status TEXT NOT NULL DEFAULT 'Erstellt',
+                ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FreigegebenAm DATETIME NULL,
+                FreigegebenVonID INTEGER NULL,
+                BestelltAm DATETIME NULL,
+                BestelltVonID INTEGER NULL,
+                Bemerkung TEXT NULL,
+                FOREIGN KEY (AngebotsanfrageID) REFERENCES Angebotsanfrage(ID),
+                FOREIGN KEY (LieferantID) REFERENCES Lieferant(ID),
+                FOREIGN KEY (ErstelltVonID) REFERENCES Mitarbeiter(ID),
+                FOREIGN KEY (ErstellerAbteilungID) REFERENCES Abteilung(ID),
+                FOREIGN KEY (FreigegebenVonID) REFERENCES Mitarbeiter(ID),
+                FOREIGN KEY (BestelltVonID) REFERENCES Mitarbeiter(ID)
+            )
+        ''', [
+            'CREATE INDEX idx_bestellung_angebotsanfrage ON Bestellung(AngebotsanfrageID)',
+            'CREATE INDEX idx_bestellung_lieferant ON Bestellung(LieferantID)',
+            'CREATE INDEX idx_bestellung_status ON Bestellung(Status)',
+            'CREATE INDEX idx_bestellung_erstellt_von ON Bestellung(ErstelltVonID)',
+            'CREATE INDEX idx_bestellung_abteilung ON Bestellung(ErstellerAbteilungID)',
+            'CREATE INDEX idx_bestellung_erstellt_am ON Bestellung(ErstelltAm)'
+        ])
+        
+        # ========== 27. BestellungPosition ==========
+        created = create_table_if_not_exists(conn, 'BestellungPosition', '''
+            CREATE TABLE BestellungPosition (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                BestellungID INTEGER NOT NULL,
+                AngebotsanfragePositionID INTEGER NULL,
+                ErsatzteilID INTEGER NULL,
+                Menge INTEGER NOT NULL,
+                ErhalteneMenge INTEGER NOT NULL DEFAULT 0,
+                Bestellnummer TEXT NULL,
+                Bezeichnung TEXT NULL,
+                Bemerkung TEXT NULL,
+                Preis REAL NULL,
+                Waehrung TEXT NULL,
+                FOREIGN KEY (BestellungID) REFERENCES Bestellung(ID) ON DELETE CASCADE,
+                FOREIGN KEY (AngebotsanfragePositionID) REFERENCES AngebotsanfragePosition(ID),
+                FOREIGN KEY (ErsatzteilID) REFERENCES Ersatzteil(ID)
+            )
+        ''', [
+            'CREATE INDEX idx_bestellung_position_bestellung ON BestellungPosition(BestellungID)',
+            'CREATE INDEX idx_bestellung_position_ersatzteil ON BestellungPosition(ErsatzteilID)',
+            'CREATE INDEX idx_bestellung_position_angebotsanfrage ON BestellungPosition(AngebotsanfragePositionID)'
+        ])
+        if not created:
+            # Prüfe auf fehlende Spalte ErhalteneMenge
+            if create_column_if_not_exists(conn, 'BestellungPosition', 'ErhalteneMenge', 'ALTER TABLE BestellungPosition ADD COLUMN ErhalteneMenge INTEGER NOT NULL DEFAULT 0'):
+                print("[INFO] Spalte 'ErhalteneMenge' zu 'BestellungPosition' hinzugefügt")
+        
+        # ========== 28. BestellungSichtbarkeit ==========
+        created = create_table_if_not_exists(conn, 'BestellungSichtbarkeit', '''
+            CREATE TABLE BestellungSichtbarkeit (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                BestellungID INTEGER NOT NULL,
+                AbteilungID INTEGER NOT NULL,
+                ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (BestellungID) REFERENCES Bestellung(ID) ON DELETE CASCADE,
+                FOREIGN KEY (AbteilungID) REFERENCES Abteilung(ID) ON DELETE CASCADE,
+                UNIQUE(BestellungID, AbteilungID)
+            )
+        ''', [
+            'CREATE INDEX idx_bestellung_sichtbarkeit_bestellung ON BestellungSichtbarkeit(BestellungID)',
+            'CREATE INDEX idx_bestellung_sichtbarkeit_abteilung ON BestellungSichtbarkeit(AbteilungID)'
+        ])
+        if not created:
+            # Prüfe auf fehlende Spalte ErstelltAm
+            if create_column_if_not_exists(conn, 'BestellungSichtbarkeit', 'ErstelltAm', 'ALTER TABLE BestellungSichtbarkeit ADD COLUMN ErstelltAm DATETIME'):
+                conn.execute('UPDATE BestellungSichtbarkeit SET ErstelltAm = datetime(\'now\') WHERE ErstelltAm IS NULL')
+        
+        # ========== 29. Berechtigung ==========
         created = create_table_if_not_exists(conn, 'Berechtigung', '''
             CREATE TABLE Berechtigung (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -844,7 +930,7 @@ def init_database_schema(db_path, verbose=False):
                     VALUES (?, ?, ?, 1)
                 ''', (schluessel, bezeichnung, beschreibung))
         
-        # ========== 27. MitarbeiterBerechtigung ==========
+        # ========== 30. MitarbeiterBerechtigung ==========
         created = create_table_if_not_exists(conn, 'MitarbeiterBerechtigung', '''
             CREATE TABLE MitarbeiterBerechtigung (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,

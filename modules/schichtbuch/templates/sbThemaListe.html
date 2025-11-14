@@ -48,6 +48,30 @@
     margin-bottom: 4px;
   }
 
+  /* Hover-Effekt nur für Themen-Zeilen, nicht für Bemerkungen */
+  .table tbody tr.thema-row:hover > td {
+    background-color: #dee2e6 !important;
+  }
+
+  /* Bemerkungs- und Collapse-Zeilen sollen niemals einen Hover-Effekt haben */
+  .table tbody tr.bemerkung-row:hover,
+  .table tbody tr.collapse-row:hover,
+  .table tbody tr.bemerkung-row:hover > td,
+  .table tbody tr.collapse-row:hover > td {
+    background-color: #ffffff !important;
+  }
+
+  /* Alle inneren Elemente in Bemerkungszeilen sollen auch bei Hover weiß bleiben */
+  .table tbody tr.bemerkung-row:hover td *,
+  .table tbody tr.collapse-row:hover td * {
+    background-color: transparent !important;
+  }
+
+  .table tbody tr.bemerkung-row:hover .list-group-item,
+  .table tbody tr.bemerkung-row:hover .list-group-item:hover {
+    background-color: #ffffff !important;
+  }
+
   /* Action-Buttons in kleiner Ansicht - alle gleich breit */
   @media (max-width: 575.98px) {
     .d-flex.flex-column > button,
@@ -71,7 +95,7 @@
 </div>
 
 <!-- 🔹 Filter (einklappbar) -->
-<div class="card mb-3">
+<div class="card mb-4 shadow-sm">
   <div class="card-header d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#filterCollapse" aria-expanded="false" aria-controls="filterCollapse">
     <strong>Filter</strong>
     <span class="btn btn-sm btn-outline-primary">Anzeigen / Ausblenden</span>
@@ -134,21 +158,26 @@
   </div>
 </div>
 
-<table class="table align-middle">
-  <thead class="table-dark">
-    <tr>
-      <th>ID</th>
-      <th>Bereich – Gewerk</th>
-      <th>Status</th>
-      <th>Aktionen</th>
-    </tr>
-  </thead>
-  <tbody>
+<!-- Themen-Liste -->
+<div class="card shadow-sm">
+    <div class="card-body">
+        {% if themen %}
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Bereich – Gewerk</th>
+                        <th>Status</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody>
     {% for thema in themen %}
     <!-- 🔸 Themen-Zeile -->
-    <tr class="thema-row" style="color: {{ thema.Farbe or 'inherit' }};">
+    <tr class="thema-row" style="color: {{ thema.Farbe or 'inherit' }}; cursor: pointer;" onclick="window.location.href='{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}'">
       <td>
-        <a href="{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}" class="text-decoration-none">
+        <a href="{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}" class="text-decoration-none" onclick="event.stopPropagation();">
           #{{ thema.ID }}
         </a>
       </td>
@@ -158,7 +187,7 @@
           {{ thema.Status }}
         </span>
       </td>
-      <td class="text-center">
+      <td class="text-center" onclick="event.stopPropagation();">
         <div class="d-flex flex-column flex-sm-row justify-content-center gap-1">
           <!-- 🔸 Neue Bemerkung Button -->
           <button class="btn btn-sm btn-outline-success" type="button"
@@ -174,13 +203,6 @@
             <i class="bi bi-paperclip"></i>
           </button>
           
-          <!-- 🔸 Sichtbarkeit bearbeiten Button -->
-          <button class="btn btn-sm btn-outline-info" type="button"
-                  onclick="openSichtbarkeitModal({{ thema.ID }})"
-                  title="Sichtbarkeit bearbeiten">
-            <i class="bi bi-eye"></i>
-          </button>
-          
           <!-- 🔸 Löschen Button -->
           <form action="{{ url_for('schichtbuch.delete_thema', thema_id=thema.ID) }}" method="post" class="m-0 p-0">
             <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Thema wirklich löschen?');"
@@ -194,7 +216,7 @@
 
     <!-- 🔹 Bemerkungen -->
     <tr class="bemerkung-row">
-      <td colspan="5">
+      <td colspan="4">
         {% if bemerk_dict.get(thema.ID) %}
           <ul class="list-group list-group-flush bemerkung-list">
             {% for b in bemerk_dict[thema.ID] %}
@@ -219,7 +241,7 @@
 
     <!-- 🔸 Eingeklappter Bereich -->
     <tr class="collapse collapse-row" id="newBemerkung{{ thema.ID }}">
-      <td colspan="5">
+      <td colspan="4">
         <form action="{{ url_for('schichtbuch.add_bemerkung') }}" method="post" class="mt-2">
           <input type="hidden" name="thema_id" value="{{ thema.ID }}">
           <input type="hidden" name="next" value="{{ request.full_path }}">
@@ -271,8 +293,16 @@
       </td>
     </tr>
     {% endfor %}
-  </tbody>
-</table>
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Keine Themen gefunden.
+        </div>
+        {% endif %}
+    </div>
+</div>
 
 <!-- Loading Indicator -->
 <div id="loadingIndicator" class="text-center my-4" style="display: none;">
@@ -405,9 +435,12 @@ async function loadMoreThemen() {
         const themaRow = document.createElement('tr');
         themaRow.className = 'thema-row';
         themaRow.style.color = thema.Farbe || 'inherit';
+        themaRow.style.cursor = 'pointer';
+        const detailUrl = `/schichtbuch/thema/${thema.ID}?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+        themaRow.onclick = () => { window.location.href = detailUrl; };
         themaRow.innerHTML = `
           <td>
-            <a href="/thema/${thema.ID}?next=${encodeURIComponent(window.location.pathname + window.location.search)}" class="text-decoration-none">
+            <a href="${detailUrl}" class="text-decoration-none" onclick="event.stopPropagation();">
               #${thema.ID}
             </a>
           </td>
@@ -417,7 +450,7 @@ async function loadMoreThemen() {
               ${thema.Status}
             </span>
           </td>
-          <td class="text-center">
+          <td class="text-center" onclick="event.stopPropagation();">
             <div class="d-flex flex-column flex-sm-row justify-content-center gap-1">
               <button class="btn btn-sm btn-outline-success" type="button"
                       data-bs-toggle="collapse" data-bs-target="#newBemerkung${thema.ID}" aria-expanded="false"
@@ -428,11 +461,6 @@ async function loadMoreThemen() {
                       onclick="openDateienModal(${thema.ID})"
                       title="Dateien & Bilder">
                 <i class="bi bi-paperclip"></i>
-              </button>
-              <button class="btn btn-sm btn-outline-info" type="button"
-                      onclick="openSichtbarkeitModal(${thema.ID})"
-                      title="Sichtbarkeit bearbeiten">
-                <i class="bi bi-eye"></i>
               </button>
               <form action="/schichtbuch/delete_thema/${thema.ID}" method="post" class="m-0 p-0">
                 <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Thema wirklich löschen?');"
@@ -464,9 +492,9 @@ async function loadMoreThemen() {
             `;
           });
           bemerkHtml += '</ul>';
-          bemerkungRow.innerHTML = `<td colspan="5">${bemerkHtml}</td>`;
+          bemerkungRow.innerHTML = `<td colspan="4">${bemerkHtml}</td>`;
         } else {
-          bemerkungRow.innerHTML = '<td colspan="5"><p class="text-muted fst-italic mb-0">Keine Bemerkungen vorhanden.</p></td>';
+          bemerkungRow.innerHTML = '<td colspan="4"><p class="text-muted fst-italic mb-0">Keine Bemerkungen vorhanden.</p></td>';
         }
 
         // Collapse-Zeile
@@ -474,7 +502,7 @@ async function loadMoreThemen() {
         collapseRow.className = 'collapse collapse-row';
         collapseRow.id = `newBemerkung${thema.ID}`;
         collapseRow.innerHTML = `
-          <td colspan="5">
+          <td colspan="4">
             <form action="/schichtbuch/themaliste/add" method="post" class="mt-2">
               <input type="hidden" name="thema_id" value="${thema.ID}">
               <input type="hidden" name="next" value="${window.location.pathname}${window.location.search}">

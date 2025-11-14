@@ -264,7 +264,23 @@ python app.py
 
 ## 📝 Changelog
 
-### Version 1.5 (Aktuell)
+### Version 1.6 (Aktuell)
+- ✅ **UI-Verbesserungen Tabellen** - Einheitliches Design für alle Tabellen
+  - Themen-Tabelle: Card-Wrapper, table-responsive, table-hover hinzugefügt
+  - Hover-Effekt bei Bemerkungszeilen entfernt
+  - Themenzeile klickbar gemacht
+- ✅ **Auge-Button entfernt** - Redundante "Details anzeigen"-Buttons entfernt
+  - Entfernt aus: Themen, Angebotsanfragen, Bestellungen, Wareneingang, Ersatzteile, Lieferanten
+  - Zeilen sind jetzt klickbar und führen direkt zur Detailseite
+- ✅ **Lieferanten-Verbesserungen**
+  - Lieferanten-Zeilen klickbar gemacht
+  - In Lieferanten-Detail: ErsatzteilID-Spalte am Anfang hinzugefügt und verlinkt
+- ✅ **Inventurliste Filter** - Filter für Lagerort und Lagerplatz hinzugefügt
+  - Einklappbarer Filter-Bereich
+  - Kombinierbare Filter
+  - Zurücksetzen-Button
+
+### Version 1.5
 - ✅ **Berechtigungssystem** - Flexibles, tabellen-basiertes Rechtesystem
   - Admin-Berechtigung für vollständigen Zugriff
   - Artikel-Buchungs-Berechtigung für Lagerbewegungen

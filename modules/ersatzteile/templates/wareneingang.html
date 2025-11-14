@@ -1,0 +1,50 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<h1 class="mb-4">📦 Wareneingang buchen</h1>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        {% if bestellungen %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Nr.</th>
+                        <th>Lieferant</th>
+                        <th>Status</th>
+                        <th>Bestellt am</th>
+                        <th>Abteilung</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for b in bestellungen %}
+                    <tr style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.wareneingang_bestellung', bestellung_id=b.ID) }}';">
+                        <td><strong>{{ b.ID }}</strong></td>
+                        <td>{{ b.LieferantName or '-' }}</td>
+                        <td>
+                            {% if b.Status == 'Bestellt' %}
+                            <span class="badge bg-primary">Bestellt</span>
+                            {% elif b.Status == 'Teilweise erhalten' %}
+                            <span class="badge bg-warning text-dark">Teilweise erhalten</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ b.BestelltAm[:16] if b.BestelltAm else '-' }}</td>
+                        <td>{{ b.Abteilung or '-' }}</td>
+                        <td onclick="event.stopPropagation();">
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Keine Bestellungen für Wareneingang verfügbar.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

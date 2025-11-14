@@ -86,16 +86,21 @@
             <table class="table table-sm">
                 <thead>
                     <tr>
+                        <th>ID</th>
                         <th>Bestellnummer</th>
                         <th>Bezeichnung</th>
                         <th>Kategorie</th>
                         <th>Bestand</th>
-                        <th>Aktionen</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for e in ersatzteile %}
-                    <tr {% if e.Mindestbestand > 0 and e.AktuellerBestand <= e.Mindestbestand %}class="table-warning"{% endif %}>
+                    <tr {% if e.Mindestbestand > 0 and e.AktuellerBestand < e.Mindestbestand %}class="table-warning"{% endif %}>
+                        <td>
+                            <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none fw-bold">
+                                {{ e.ID }}
+                            </a>
+                        </td>
                         <td><strong>{{ e.Bestellnummer }}</strong></td>
                         <td>
                             <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none">
@@ -104,17 +109,12 @@
                         </td>
                         <td>{{ e.Kategorie or '-' }}</td>
                         <td>
-                            <span class="badge {% if e.Mindestbestand > 0 and e.AktuellerBestand <= e.Mindestbestand %}bg-warning{% elif e.AktuellerBestand > 0 %}bg-success{% else %}bg-secondary{% endif %}">
+                            <span class="badge {% if e.Mindestbestand > 0 and e.AktuellerBestand < e.Mindestbestand %}bg-warning{% elif e.AktuellerBestand > 0 %}bg-success{% else %}bg-secondary{% endif %}">
                                 {{ e.AktuellerBestand }} {{ e.Einheit }}
                             </span>
                             {% if e.Mindestbestand > 0 %}
                             <br><small class="text-muted">Min: {{ e.Mindestbestand }}</small>
                             {% endif %}
-                        </td>
-                        <td>
-                            <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-eye"></i>
-                            </a>
                         </td>
                     </tr>
                     {% endfor %}

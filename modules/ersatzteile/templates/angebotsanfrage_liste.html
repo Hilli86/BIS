@@ -86,9 +86,6 @@
                         <td>{{ a.Abteilung or '-' }}</td>
                         <td>{{ a.PositionenAnzahl }}</td>
                         <td onclick="event.stopPropagation();">
-                            <a href="{{ url_for('ersatzteile.angebotsanfrage_detail', angebotsanfrage_id=a.ID) }}" class="btn btn-sm btn-outline-primary" title="Details anzeigen">
-                                <i class="bi bi-eye"></i>
-                            </a>
                             <a href="{{ url_for('ersatzteile.angebotsanfrage_pdf_export', angebotsanfrage_id=a.ID) }}" class="btn btn-sm btn-outline-danger" title="Als PDF exportieren">
                                 <i class="bi bi-file-pdf"></i>
                             </a>

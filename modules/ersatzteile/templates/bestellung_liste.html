@@ -1,0 +1,155 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<h1 class="mb-4">🛒 Bestellungen</h1>
+
+{% if 'admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', []) %}
+<div class="mb-3">
+    <a href="{{ url_for('ersatzteile.bestellung_neu') }}" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Neue Bestellung
+    </a>
+</div>
+{% endif %}
+
+<!-- Filter -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#filterCollapse" aria-expanded="false" aria-controls="filterCollapse">
+        <strong>Filter</strong>
+        <span class="btn btn-sm btn-outline-primary">
+            Anzeigen / Ausblenden
+        </span>
+    </div>
+    <div class="collapse" id="filterCollapse">
+        <div class="card-body">
+            <form method="get" id="filterForm">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label"><strong>Status</strong> (mehrere wählbar)</label>
+                        <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto; background-color: #f8f9fa;">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="status" value="Erstellt" id="status_erstellt" {% if 'Erstellt' in status_filter_list %}checked{% endif %}>
+                                <label class="form-check-label" for="status_erstellt">Erstellt</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="status" value="Zur Freigabe" id="status_zur_freigabe" {% if 'Zur Freigabe' in status_filter_list %}checked{% endif %}>
+                                <label class="form-check-label" for="status_zur_freigabe">Zur Freigabe</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="status" value="Freigegeben" id="status_freigegeben" {% if 'Freigegeben' in status_filter_list %}checked{% endif %}>
+                                <label class="form-check-label" for="status_freigegeben">Freigegeben</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="status" value="Bestellt" id="status_bestellt" {% if 'Bestellt' in status_filter_list %}checked{% endif %}>
+                                <label class="form-check-label" for="status_bestellt">Bestellt</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="status" value="Teilweise erhalten" id="status_teilweise" {% if 'Teilweise erhalten' in status_filter_list %}checked{% endif %}>
+                                <label class="form-check-label" for="status_teilweise">Teilweise erhalten</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="status" value="Erhalten" id="status_erhalten" {% if 'Erhalten' in status_filter_list %}checked{% endif %}>
+                                <label class="form-check-label" for="status_erhalten">Erhalten</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="status" value="Erledigt" id="status_erledigt" {% if 'Erledigt' in status_filter_list %}checked{% endif %}>
+                                <label class="form-check-label" for="status_erledigt">Erledigt</label>
+                            </div>
+                        </div>
+                        <small class="text-muted">Wenn keine Status ausgewählt, werden alle außer "Erledigt" angezeigt.</small>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Lieferant</label>
+                        <select name="lieferant" class="form-select">
+                            <option value="">-- Alle Lieferanten --</option>
+                            {% for l in lieferanten %}
+                            <option value="{{ l.ID }}" {% if l.ID|string == lieferant_filter %}selected{% endif %}>{{ l.Name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Abteilung</label>
+                        <select name="abteilung" class="form-select">
+                            <option value="">-- Alle Abteilungen --</option>
+                            {% for a in abteilungen %}
+                            <option value="{{ a.ID }}" {% if a.ID|string == abteilung_filter %}selected{% endif %}>{{ a.Bezeichnung }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-12">
+                        <button type="submit" class="btn btn-primary">Filter anwenden</button>
+                        <a href="{{ url_for('ersatzteile.bestellung_liste') }}" class="btn btn-secondary">Zurücksetzen</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Bestellungen-Liste -->
+<div class="card shadow-sm">
+    <div class="card-body">
+        {% if bestellungen %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Nr.</th>
+                        <th>Lieferant</th>
+                        <th>Status</th>
+                        <th>Erstellt am</th>
+                        <th>Freigegeben am</th>
+                        <th>Freigegeben von</th>
+                        <th>Bestellt am</th>
+                        <th>Bestellt von</th>
+                        <th>Abteilung</th>
+                        <th>Gesamtbetrag</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for b in bestellungen %}
+                    <tr style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.bestellung_detail', bestellung_id=b.ID) }}';">
+                        <td><strong>{{ b.ID }}</strong></td>
+                        <td>{{ b.LieferantName or '-' }}</td>
+                        <td>
+                            {% if b.Status == 'Erstellt' %}
+                            <span class="badge bg-secondary">Erstellt</span>
+                            {% elif b.Status == 'Zur Freigabe' %}
+                            <span class="badge bg-warning">Zur Freigabe</span>
+                            {% elif b.Status == 'Freigegeben' %}
+                            <span class="badge bg-info">Freigegeben</span>
+                            {% elif b.Status == 'Bestellt' %}
+                            <span class="badge bg-primary">Bestellt</span>
+                            {% elif b.Status == 'Teilweise erhalten' %}
+                            <span class="badge bg-warning text-dark">Teilweise erhalten</span>
+                            {% elif b.Status == 'Erhalten' %}
+                            <span class="badge bg-success">Erhalten</span>
+                            {% elif b.Status == 'Erledigt' %}
+                            <span class="badge bg-dark">Erledigt</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ b.Status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ b.ErstelltAm[:16] if b.ErstelltAm else '-' }}</td>
+                        <td>{{ b.FreigegebenAm[:16] if b.FreigegebenAm else '-' }}</td>
+                        <td>{{ b.FreigegebenVon or '-' }}</td>
+                        <td>{{ b.BestelltAm[:16] if b.BestelltAm else '-' }}</td>
+                        <td>{{ b.BestelltVon or '-' }}</td>
+                        <td>{{ b.Abteilung or '-' }}</td>
+                        <td>{{ "%.2f"|format(b.Gesamtbetrag) }} EUR</td>
+                        <td onclick="event.stopPropagation();">
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Keine Bestellungen gefunden.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

@@ -369,6 +369,25 @@
         </form>
     </div>
 </div>
+
+<!-- Als Bestellung übernehmen (nur wenn Status "Angebot erhalten") -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">🛒 Als Bestellung übernehmen</h5>
+    </div>
+    <div class="card-body">
+        <p class="mb-3">Erstellen Sie eine Bestellung aus diesem Angebot. Sie können auswählen, welche Positionen übernommen werden sollen.</p>
+        {% if 'admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', []) %}
+        <a href="{{ url_for('ersatzteile.bestellung_aus_angebot', angebotsanfrage_id=anfrage.ID) }}" class="btn btn-primary">
+            <i class="bi bi-cart-plus"></i> Als Bestellung übernehmen
+        </a>
+        {% else %}
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle"></i> Sie haben keine Berechtigung, Bestellungen zu erstellen.
+        </div>
+        {% endif %}
+    </div>
+</div>
 {% endif %}
 
 <div class="mb-3">
@@ -486,38 +505,107 @@ function openErsatzteilModalDetail(lieferantId, targetForm) {
     // Modal-Body leeren und Ladeanzeige anzeigen
     modalBody.innerHTML = '<div class="text-center p-4"><div class="spinner-border" role="status"><span class="visually-hidden">Lädt...</span></div></div>';
     
+    // Suchfeld leeren
+    const searchInput = document.getElementById('ersatzteilSearchDetail');
+    if (searchInput) {
+        searchInput.value = '';
+    }
+    
     // Modal öffnen
     modal.show();
     
     // Ersatzteile laden
-    fetch(`{{ url_for('ersatzteile.api_ersatzteile_lieferant', lieferant_id=0) }}`.replace('/0', `/${lieferantId}`))
-        .then(response => response.json())
+    const apiUrl = `{{ url_for('ersatzteile.api_ersatzteile_lieferant', lieferant_id=0) }}`.replace('/0', `/${lieferantId}`);
+    fetch(apiUrl)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
-            if (data.success && data.ersatzteile.length > 0) {
-                let html = '<div class="list-group">';
-                data.ersatzteile.forEach(ersatzteil => {
-                    const preisText = ersatzteil.preis ? `${ersatzteil.preis.toFixed(2)} ${ersatzteil.waehrung}` : 'Kein Preis';
-                    html += `
-                        <a href="#" class="list-group-item list-group-item-action" onclick="selectErsatzteilDetail(${ersatzteil.id}, '${ersatzteil.bestellnummer}', '${ersatzteil.bezeichnung.replace(/'/g, "\\'")}', event)">
-                            <div class="d-flex w-100 justify-content-between">
-                                <h6 class="mb-1">${ersatzteil.bestellnummer || 'Keine Bestellnummer'}</h6>
-                                <small>${preisText}</small>
-                            </div>
-                            <p class="mb-1">${ersatzteil.bezeichnung || 'Keine Bezeichnung'}</p>
-                            <small>ID: ${ersatzteil.id}</small>
-                        </a>
-                    `;
-                });
-                html += '</div>';
-                modalBody.innerHTML = html;
+            if (data.success && data.ersatzteile && data.ersatzteile.length > 0) {
+                // Speichere die ursprüngliche Liste für Filterung
+                window.ersatzteilListDetailAngebot = data.ersatzteile;
+                
+                // Rendere die Liste
+                renderErsatzteilListDetailAngebot(data.ersatzteile);
+                
+                // Suchfeld-Event-Listener hinzufügen
+                if (searchInput) {
+                    searchInput.addEventListener('input', function() {
+                        filterErsatzteilListDetailAngebot(this.value);
+                    });
+                    // Fokus auf Suchfeld setzen
+                    searchInput.focus();
+                }
             } else {
                 modalBody.innerHTML = '<div class="alert alert-info">Keine Ersatzteile für diesen Lieferanten gefunden.</div>';
             }
         })
         .catch(error => {
-            console.error('Fehler:', error);
-            modalBody.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Ersatzteile.</div>';
+            console.error('Fehler beim Laden der Ersatzteile:', error);
+            modalBody.innerHTML = `<div class="alert alert-danger">
+                <strong>Fehler beim Laden der Ersatzteile:</strong><br>
+                ${error.message || 'Unbekannter Fehler'}
+            </div>`;
         });
+}
+
+// Funktion zum Rendern der Ersatzteil-Liste (Angebot Detail)
+function renderErsatzteilListDetailAngebot(ersatzteile) {
+    const modalBody = document.getElementById('ersatzteilModalListDetail');
+    if (!modalBody) return;
+    
+    if (ersatzteile.length === 0) {
+        modalBody.innerHTML = '<div class="alert alert-info">Keine Ersatzteile gefunden.</div>';
+        return;
+    }
+    
+    let html = '<div class="list-group">';
+    ersatzteile.forEach(ersatzteil => {
+        const preisText = ersatzteil.preis ? `${ersatzteil.preis.toFixed(2)} ${ersatzteil.waehrung}` : 'Kein Preis';
+        const bestellnummerEscaped = (ersatzteil.bestellnummer || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        const bezeichnungEscaped = (ersatzteil.bezeichnung || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        html += `
+            <a href="#" class="list-group-item list-group-item-action" onclick="selectErsatzteilDetail(${ersatzteil.id}, '${bestellnummerEscaped}', '${bezeichnungEscaped}', event)">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">${ersatzteil.bestellnummer || 'Keine Bestellnummer'}</h6>
+                    <small>${preisText}</small>
+                </div>
+                <p class="mb-1">${ersatzteil.bezeichnung || 'Keine Bezeichnung'}</p>
+                <small>ID: ${ersatzteil.id}</small>
+            </a>
+        `;
+    });
+    html += '</div>';
+    modalBody.innerHTML = html;
+}
+
+// Funktion zum Filtern der Ersatzteil-Liste (Angebot Detail)
+function filterErsatzteilListDetailAngebot(searchTerm) {
+    if (!window.ersatzteilListDetailAngebot) return;
+    
+    const term = searchTerm.toLowerCase().trim();
+    
+    if (term === '') {
+        // Wenn leer, alle anzeigen
+        renderErsatzteilListDetailAngebot(window.ersatzteilListDetailAngebot);
+        return;
+    }
+    
+    // Filtere die Liste
+    const filtered = window.ersatzteilListDetailAngebot.filter(ersatzteil => {
+        const bestellnummer = (ersatzteil.bestellnummer || '').toLowerCase();
+        const bezeichnung = (ersatzteil.bezeichnung || '').toLowerCase();
+        const id = ersatzteil.id.toString();
+        
+        return bestellnummer.includes(term) || 
+               bezeichnung.includes(term) || 
+               id.includes(term);
+    });
+    
+    renderErsatzteilListDetailAngebot(filtered);
 }
 
 function selectErsatzteilDetail(id, bestellnummer, bezeichnung, event) {
@@ -587,6 +675,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
+                <!-- Suchfeld -->
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="ersatzteilSearchDetail" placeholder="🔍 Suchen nach Bestellnummer, Bezeichnung oder ID..." autocomplete="off">
+                </div>
                 <div id="ersatzteilModalListDetail">
                     <div class="text-center p-4">
                         <div class="spinner-border" role="status">

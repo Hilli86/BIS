@@ -3,6 +3,46 @@
 {% block content %}
 <h1 class="mb-4">📋 Inventurliste</h1>
 
+<!-- Filter -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#filterCollapse" aria-expanded="false" aria-controls="filterCollapse">
+        <strong>Filter</strong>
+        <span class="btn btn-sm btn-outline-primary">
+            Anzeigen / Ausblenden
+        </span>
+    </div>
+    <div class="collapse" id="filterCollapse">
+        <div class="card-body">
+            <form method="get" id="filterForm">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Lagerort</label>
+                        <select name="lagerort" class="form-select">
+                            <option value="">-- Alle Lagerorte --</option>
+                            {% for lo in lagerorte %}
+                            <option value="{{ lo.ID }}" {% if lo.ID|string == lagerort_filter %}selected{% endif %}>{{ lo.Bezeichnung }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Lagerplatz</label>
+                        <select name="lagerplatz" class="form-select">
+                            <option value="">-- Alle Lagerplätze --</option>
+                            {% for lp in lagerplaetze %}
+                            <option value="{{ lp.ID }}" {% if lp.ID|string == lagerplatz_filter %}selected{% endif %}>{{ lp.Bezeichnung }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-12">
+                        <button type="submit" class="btn btn-primary">Filter anwenden</button>
+                        <a href="{{ url_for('ersatzteile.inventurliste') }}" class="btn btn-secondary">Zurücksetzen</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <div class="card shadow-sm mb-4">
     <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0">Ersatzteile nach Lagerort und Lagerplatz</h5>
@@ -40,7 +80,7 @@
                                 </thead>
                                 <tbody>
                                     {% for e in ersatzteile %}
-                                    <tr {% if not e.EndOfLife and e.Mindestbestand > 0 and e.AktuellerBestand <= e.Mindestbestand %}class="table-warning"{% elif e.EndOfLife %}class="table-secondary"{% endif %}>
+                                    <tr {% if not e.EndOfLife and e.Mindestbestand > 0 and e.AktuellerBestand < e.Mindestbestand %}class="table-warning"{% elif e.EndOfLife %}class="table-secondary"{% endif %}>
                                         <td><strong>{{ e.ID }}</strong></td>
                                         <td><strong>{{ e.Bestellnummer }}</strong></td>
                                         <td>{{ e.Bezeichnung }}</td>

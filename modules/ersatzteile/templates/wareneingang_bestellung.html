@@ -1,0 +1,183 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<h1 class="mb-4">📦 Wareneingang - Bestellung #{{ bestellung.ID }}</h1>
+
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Bestellungsinformationen</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <table class="table table-sm table-borderless mb-0">
+                    <tbody>
+                        <tr>
+                            <td class="text-muted" style="width: 150px;"><strong>Lieferant:</strong></td>
+                            <td>{{ bestellung.LieferantName or '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Status:</strong></td>
+                            <td>
+                                {% if bestellung.Status == 'Bestellt' %}
+                                <span class="badge bg-primary">Bestellt</span>
+                                {% elif bestellung.Status == 'Teilweise erhalten' %}
+                                <span class="badge bg-warning text-dark">Teilweise erhalten</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted"><strong>Bestellt am:</strong></td>
+                            <td>{{ bestellung.BestelltAm[:16] if bestellung.BestelltAm else '-' }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<form method="POST" id="wareneingangForm">
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">Positionen - Erhaltene Mengen eingeben</h5>
+        </div>
+        <div class="card-body">
+            {% if positionen %}
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Artikelnummer</th>
+                            <th>Bestellnummer</th>
+                            <th>Bezeichnung</th>
+                            <th>Bestellte Menge</th>
+                            <th>Bereits erhalten</th>
+                            <th>Offen</th>
+                            <th>Erhaltene Menge</th>
+                            <th>Einheit</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in positionen %}
+                        <tr>
+                            <td>
+                                {% if p.ErsatzteilID %}
+                                <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=p.ErsatzteilID) }}" class="text-decoration-none">
+                                    {{ p.ErsatzteilID }}
+                                </a>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>{{ p.Bestellnummer or '-' }}</td>
+                            <td>{{ p.Bezeichnung or '-' }}</td>
+                            <td><strong>{{ p.Menge }}</strong></td>
+                            <td>
+                                {% if p.ErhalteneMenge > 0 %}
+                                <span class="badge bg-info">{{ p.ErhalteneMenge }}</span>
+                                {% else %}
+                                <span class="badge bg-secondary">0</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% set offen = p.Menge - p.ErhalteneMenge %}
+                                {% if offen > 0 %}
+                                <span class="badge bg-warning text-dark">{{ offen }}</span>
+                                {% else %}
+                                <span class="badge bg-success">0</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <input type="hidden" name="position_id[]" value="{{ p.ID }}">
+                                <input type="number" 
+                                       name="erhaltene_menge[]" 
+                                       class="form-control form-control-sm" 
+                                       min="0" 
+                                       max="{{ p.Menge - p.ErhalteneMenge }}"
+                                       value="0"
+                                       required>
+                                <small class="text-muted">Max: {{ p.Menge - p.ErhalteneMenge }}</small>
+                            </td>
+                            <td>{{ p.Einheit or 'Stk' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="alert alert-info mt-3">
+                <i class="bi bi-info-circle"></i> <strong>Hinweis:</strong> Geben Sie die erhaltene Menge für diese Lieferung ein. Die Menge wird zu den bereits erhaltenen Mengen addiert. Vollständig gebuchte Bestellungen werden automatisch als "Erledigt" markiert.
+            </div>
+            {% else %}
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i> Keine Positionen vorhanden.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <button type="submit" class="btn btn-success">
+            <i class="bi bi-check-lg"></i> Wareneingang buchen
+        </button>
+        <a href="{{ url_for('ersatzteile.wareneingang') }}" class="btn btn-secondary">
+            <i class="bi bi-x-lg"></i> Abbrechen
+        </a>
+    </div>
+</form>
+
+<!-- Lieferscheine -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">📄 Lieferscheine</h5>
+        <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#lieferscheinUploadCollapse">
+            <i class="bi bi-plus-circle"></i> Lieferschein hochladen
+        </button>
+    </div>
+    <div class="collapse" id="lieferscheinUploadCollapse">
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('ersatzteile.lieferschein_upload', bestellung_id=bestellung.ID) }}" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label class="form-label">Lieferschein-Datei (PDF, JPEG, JPG oder PNG):</label>
+                    <input type="file" name="file" class="form-control" accept=".pdf,.jpeg,.jpg,.png" required>
+                    <small class="text-muted">Erlaubte Formate: PDF, JPEG, JPG, PNG</small>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-upload"></i> Hochladen
+                </button>
+            </form>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if lieferschein_dateien %}
+        <div class="list-group">
+            {% for datei in lieferschein_dateien %}
+            <a href="{{ url_for('ersatzteile.lieferschein_anzeigen', filepath=datei.path) }}" target="_blank" class="list-group-item list-group-item-action">
+                <div class="d-flex w-100 justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1">
+                            {% if datei.type == 'pdf' %}
+                            <i class="bi bi-file-pdf text-danger"></i>
+                            {% elif datei.type == 'image' %}
+                            <i class="bi bi-file-image text-primary"></i>
+                            {% else %}
+                            <i class="bi bi-file"></i>
+                            {% endif %}
+                            {{ datei.name }}
+                        </h6>
+                        <small class="text-muted">{{ datei.modified.strftime('%d.%m.%Y %H:%M') if datei.modified else '' }}</small>
+                    </div>
+                    <small>{{ (datei.size / 1024)|round(1) }} KB</small>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-info mb-0">
+            <i class="bi bi-info-circle"></i> Noch keine Lieferscheine hochgeladen.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
