@@ -13,17 +13,6 @@
                    target="_blank">
                     <i class="bi bi-file-pdf"></i> <span class="d-none d-sm-inline">PDF</span>
                 </a>
-                <button class="btn btn-sm btn-light position-relative" type="button"
-                        onclick="openDateienModal({{ thema.ID }})"
-                        title="Dateien & Bilder anzeigen">
-                    <i class="bi bi-paperclip"></i> <span class="d-none d-sm-inline">Dateien</span>
-                    {% if datei_anzahl > 0 %}
-                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                        {{ datei_anzahl }}
-                        <span class="visually-hidden">Dateien</span>
-                    </span>
-                    {% endif %}
-                </button>
                 <button class="btn btn-sm btn-light" type="button"
                         onclick="openSichtbarkeitModal({{ thema.ID }})"
                         title="Sichtbarkeit bearbeiten">
@@ -262,6 +251,80 @@
     </div>
     {% endif %}
 
+    <!-- Dateien-Bereich -->
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">📄 Dateien & Bilder</h5>
+            <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#dateienUploadCollapse">
+                <i class="bi bi-plus-circle"></i> Datei hochladen
+            </button>
+        </div>
+        <div class="collapse" id="dateienUploadCollapse">
+            <div class="card-body">
+                <!-- Tab-Auswahl -->
+                <ul class="nav nav-tabs mb-3" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="thema-upload-tab" data-bs-toggle="tab" data-bs-target="#thema-upload-pane" type="button">
+                            <i class="bi bi-cloud-upload"></i> Hochladen
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="thema-import-tab" data-bs-toggle="tab" data-bs-target="#thema-import-pane" type="button" onclick="ladeImportDateienThema()">
+                            <i class="bi bi-folder"></i> Aus Import-Ordner
+                        </button>
+                    </li>
+                </ul>
+                
+                <div class="tab-content">
+                    <!-- Upload-Tab -->
+                    <div class="tab-pane fade show active" id="thema-upload-pane" role="tabpanel">
+                        <form id="uploadForm" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <input type="file" class="form-control" id="fileInput" name="files" 
+                                       accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" multiple>
+                                <div class="form-text">
+                                    Max. 16 MB pro Datei - Mehrfachauswahl möglich - Erlaubt: Bilder, PDF, Word, Excel, Text
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm" id="uploadButton">
+                                <i class="bi bi-upload"></i> Hochladen
+                            </button>
+                        </form>
+                        <div id="uploadProgress" class="mt-2 d-none">
+                            <div class="progress">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                            </div>
+                        </div>
+                        <div id="uploadMessage" class="mt-2"></div>
+                    </div>
+                    
+                    <!-- Import-Tab -->
+                    <div class="tab-pane fade" id="thema-import-pane" role="tabpanel">
+                        <div id="thema-import-dateien-liste">
+                            <div class="text-center">
+                                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                    <span class="visually-hidden">Lädt...</span>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-primary mt-2" onclick="ladeImportDateienThema()">
+                            <i class="bi bi-arrow-clockwise"></i> Aktualisieren
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div id="dateienListe">
+                <div class="text-center">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">Lädt...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="card mt-4 shadow-sm">
         <div class="card-header bg-success text-white">
             <h5 class="mb-0">💬 Neue Bemerkung hinzufügen / Status ändern</h5>
@@ -351,60 +414,6 @@
         </div>
     </div>
 
-    <!-- Modal: Dateien & Bilder anzeigen -->
-    <div class="modal fade" id="dateienModal" tabindex="-1" aria-labelledby="dateienModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header bg-info text-white">
-                    <h5 class="modal-title" id="dateienModalLabel">
-                        <i class="bi bi-paperclip"></i> Dateien & Bilder - Thema #<span id="dateienThemaId"></span>
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Schließen"></button>
-                </div>
-                <div class="modal-body">
-                    <!-- Upload-Bereich -->
-                    <div class="card mb-3 bg-light">
-                        <div class="card-body">
-                            <h6 class="card-title"><i class="bi bi-cloud-upload"></i> Datei hochladen</h6>
-                            <form id="uploadForm" enctype="multipart/form-data">
-                                <div class="mb-2">
-                                    <input type="file" class="form-control" id="fileInput" name="files" 
-                                           accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" multiple>
-                                    <div class="form-text">
-                                        Max. 16 MB pro Datei - Mehrfachauswahl möglich - Erlaubt: Bilder, PDF, Word, Excel, Text
-                                    </div>
-                                </div>
-                                <button type="submit" class="btn btn-primary btn-sm" id="uploadButton">
-                                    <i class="bi bi-upload"></i> Hochladen
-                                </button>
-                            </form>
-                            <div id="uploadProgress" class="mt-2 d-none">
-                                <div class="progress">
-                                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
-                                </div>
-                            </div>
-                            <div id="uploadMessage" class="mt-2"></div>
-                        </div>
-                    </div>
-                    
-                    <!-- Dateiliste -->
-                    <h6><i class="bi bi-folder"></i> Gespeicherte Dateien</h6>
-                    <div id="dateienListe">
-                        <div class="text-center">
-                            <div class="spinner-border spinner-border-sm text-primary" role="status">
-                                <span class="visually-hidden">Lädt...</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                        <i class="bi bi-x-lg"></i> Schließen
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Modal: QR-Code anzeigen -->
     <div class="modal fade" id="qrCodeModal" tabindex="-1" aria-labelledby="qrCodeModalLabel" aria-hidden="true">
@@ -779,9 +788,14 @@ function copyQRCodeUrl() {
 }
 </script>
 
-<!-- Dateien Modal JavaScript -->
+<!-- Dateien JavaScript -->
 <script>
-let currentThemaId = null;
+let currentThemaId = {{ thema.ID }};
+
+// Dateien beim Laden der Seite anzeigen
+document.addEventListener('DOMContentLoaded', function() {
+    loadDateienListe(currentThemaId);
+});
 
 async function loadDateienListe(themaId) {
     const dateienListe = document.getElementById('dateienListe');
@@ -879,26 +893,6 @@ async function loadDateienListe(themaId) {
     }
 }
 
-window.openDateienModal = function(themaId) {
-    currentThemaId = themaId;
-    
-    // Thema-ID im Modal anzeigen
-    document.getElementById('dateienThemaId').textContent = themaId;
-    
-    // Modal öffnen
-    const modalElement = document.getElementById('dateienModal');
-    const modal = new bootstrap.Modal(modalElement);
-    modal.show();
-    
-    // Upload-Form zurücksetzen
-    document.getElementById('uploadForm').reset();
-    document.getElementById('uploadMessage').innerHTML = '';
-    document.getElementById('uploadProgress').classList.add('d-none');
-    
-    // Dateien laden
-    loadDateienListe(themaId);
-};
-
 // Upload-Formular Handler
 document.addEventListener('DOMContentLoaded', function() {
     const uploadForm = document.getElementById('uploadForm');
@@ -980,6 +974,97 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    
+    // Collapse-Event: Dateien neu laden wenn Upload-Bereich geöffnet wird
+    const dateienCollapse = document.getElementById('dateienUploadCollapse');
+    if (dateienCollapse) {
+        dateienCollapse.addEventListener('show.bs.collapse', function() {
+            // Dateien neu laden wenn Upload-Bereich geöffnet wird
+            loadDateienListe(currentThemaId);
+        });
+    }
 });
+
+// Import-Funktionalität für Themen
+async function ladeImportDateienThema() {
+    const liste = document.getElementById('thema-import-dateien-liste');
+    if (!liste) return;
+    
+    liste.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
+    
+    try {
+        const response = await fetch('/api/import/dateien');
+        const data = await response.json();
+        
+        if (!data.success || data.dateien.length === 0) {
+            liste.innerHTML = '<div class="alert alert-info">Keine Dateien im Import-Ordner vorhanden.</div>';
+            return;
+        }
+        
+        // Alle erlaubten Dateitypen für Themen
+        const erlaubteEndungen = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp', '.doc', '.docx', '.xls', '.xlsx', '.txt'];
+        const gefilterteDateien = data.dateien.filter(datei => {
+            const ext = '.' + datei.name.split('.').pop().toLowerCase();
+            return erlaubteEndungen.includes(ext);
+        });
+        
+        if (gefilterteDateien.length === 0) {
+            liste.innerHTML = '<div class="alert alert-warning">Keine passenden Dateien im Import-Ordner vorhanden.</div>';
+            return;
+        }
+        
+        let html = '<div class="list-group">';
+        gefilterteDateien.forEach(datei => {
+            html += `
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>${datei.name}</strong>
+                        <br><small class="text-muted">${datei.size}</small>
+                    </div>
+                    <button class="btn btn-sm btn-primary" onclick="verschiebeAusImportThema('${datei.name.replace(/'/g, "\\'")}')">
+                        <i class="bi bi-arrow-right"></i> Verwenden
+                    </button>
+                </div>
+            `;
+        });
+        html += '</div>';
+        liste.innerHTML = html;
+    } catch (error) {
+        console.error('Fehler beim Laden der Dateien:', error);
+        liste.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Dateien.</div>';
+    }
+}
+
+async function verschiebeAusImportThema(filename) {
+    const themaId = {{ thema.ID }};
+    const zielOrdner = `Schichtbuch/Themen/${themaId}`;
+    
+    if (!confirm(`Möchten Sie die Datei "${filename}" aus dem Import-Ordner verwenden? Die Datei wird verschoben.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/import/verschieben', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({filename: filename, ziel_ordner: zielOrdner})
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Datei erfolgreich verschoben!');
+            // Dateiliste neu laden
+            loadDateienListe(themaId);
+            // Import-Liste aktualisieren
+            ladeImportDateienThema();
+        } else {
+            alert('Fehler: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Fehler beim Verschieben:', error);
+        alert('Fehler beim Verschieben der Datei.');
+    }
+}
 </script>
 {% endblock %}
