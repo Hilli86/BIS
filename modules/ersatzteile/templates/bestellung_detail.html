@@ -51,9 +51,12 @@
                         {% endif %}
                         {% if bestellung.Unterschrift %}
                         <tr>
-                            <td class="text-muted"><strong>Unterschrift:</strong></td>
-                            <td>
-                                <img src="{{ bestellung.Unterschrift }}" alt="Unterschrift" style="max-width: 300px; border: 1px solid #ddd; padding: 5px; background: white;">
+                            <td class="text-muted d-none d-md-table-cell" style="width: 150px;"><strong>Unterschrift:</strong></td>
+                            <td class="d-md-none" colspan="2">
+                                <img src="{{ bestellung.Unterschrift }}" alt="Unterschrift" style="max-width: 100%; max-width: 300px; border: 1px solid #ddd; padding: 5px; background: white;">
+                            </td>
+                            <td class="d-none d-md-table-cell">
+                                <img src="{{ bestellung.Unterschrift }}" alt="Unterschrift" style="max-width: 100%; max-width: 300px; border: 1px solid #ddd; padding: 5px; background: white;">
                             </td>
                         </tr>
                         {% endif %}
