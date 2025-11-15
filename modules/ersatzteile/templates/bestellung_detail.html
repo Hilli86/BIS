@@ -183,9 +183,9 @@
             {% endif %}
             
             {% if bestellung.Status == 'Freigegeben' %}
-            <a href="{{ url_for('ersatzteile.bestellung_pdf_export', bestellung_id=bestellung.ID) }}" class="btn btn-danger" target="_blank">
+            <button type="button" class="btn btn-danger" onclick="exportBestellungPDF({{ bestellung.ID }})">
                 <i class="bi bi-file-pdf"></i> PDF generieren
-            </a>
+            </button>
             <form method="POST" action="{{ url_for('ersatzteile.bestellung_als_bestellt', bestellung_id=bestellung.ID) }}" class="d-inline">
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-check-circle"></i> Als bestellt markieren
@@ -356,15 +356,48 @@
     </div>
     <div class="collapse" id="pdfUploadCollapse">
         <div class="card-body">
-            <form method="POST" action="{{ url_for('ersatzteile.bestellung_datei_upload', bestellung_id=bestellung.ID) }}" enctype="multipart/form-data">
-                <div class="mb-3">
-                    <label class="form-label">PDF-Datei:</label>
-                    <input type="file" name="file" class="form-control" accept=".pdf" required>
+            <!-- Tab-Auswahl -->
+            <ul class="nav nav-tabs mb-3" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="pdf-upload-tab" data-bs-toggle="tab" data-bs-target="#pdf-upload-pane" type="button">
+                        <i class="bi bi-cloud-upload"></i> Hochladen
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="pdf-import-tab" data-bs-toggle="tab" data-bs-target="#pdf-import-pane" type="button" onclick="ladeImportDateien('pdf')">
+                        <i class="bi bi-folder"></i> Aus Import-Ordner
+                    </button>
+                </li>
+            </ul>
+            
+            <div class="tab-content">
+                <!-- Upload-Tab -->
+                <div class="tab-pane fade show active" id="pdf-upload-pane" role="tabpanel">
+                    <form method="POST" action="{{ url_for('ersatzteile.bestellung_datei_upload', bestellung_id=bestellung.ID) }}" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label class="form-label">PDF-Datei:</label>
+                            <input type="file" name="file" class="form-control" accept=".pdf" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-upload"></i> Hochladen
+                        </button>
+                    </form>
                 </div>
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-upload"></i> Hochladen
-                </button>
-            </form>
+                
+                <!-- Import-Tab -->
+                <div class="tab-pane fade" id="pdf-import-pane" role="tabpanel">
+                    <div id="pdf-import-dateien-liste">
+                        <div class="text-center">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">Lädt...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-primary mt-2" onclick="ladeImportDateien('pdf')">
+                        <i class="bi bi-arrow-clockwise"></i> Aktualisieren
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
     <div class="card-body">
@@ -394,15 +427,48 @@
     </div>
     <div class="collapse" id="auftragsbestätigungUploadCollapse">
         <div class="card-body">
-            <form method="POST" action="{{ url_for('ersatzteile.bestellung_auftragsbestätigung_upload', bestellung_id=bestellung.ID) }}" enctype="multipart/form-data">
-                <div class="mb-3">
-                    <label class="form-label">Datei (PDF, JPEG, PNG):</label>
-                    <input type="file" name="file" class="form-control" accept=".pdf,.jpeg,.jpg,.png" required>
+            <!-- Tab-Auswahl -->
+            <ul class="nav nav-tabs mb-3" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="ab-upload-tab" data-bs-toggle="tab" data-bs-target="#ab-upload-pane" type="button">
+                        <i class="bi bi-cloud-upload"></i> Hochladen
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="ab-import-tab" data-bs-toggle="tab" data-bs-target="#ab-import-pane" type="button" onclick="ladeImportDateien('ab')">
+                        <i class="bi bi-folder"></i> Aus Import-Ordner
+                    </button>
+                </li>
+            </ul>
+            
+            <div class="tab-content">
+                <!-- Upload-Tab -->
+                <div class="tab-pane fade show active" id="ab-upload-pane" role="tabpanel">
+                    <form method="POST" action="{{ url_for('ersatzteile.bestellung_auftragsbestätigung_upload', bestellung_id=bestellung.ID) }}" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label class="form-label">Datei (PDF, JPEG, PNG):</label>
+                            <input type="file" name="file" class="form-control" accept=".pdf,.jpeg,.jpg,.png" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-upload"></i> Hochladen
+                        </button>
+                    </form>
                 </div>
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-upload"></i> Hochladen
-                </button>
-            </form>
+                
+                <!-- Import-Tab -->
+                <div class="tab-pane fade" id="ab-import-pane" role="tabpanel">
+                    <div id="ab-import-dateien-liste">
+                        <div class="text-center">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">Lädt...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-primary mt-2" onclick="ladeImportDateien('ab')">
+                        <i class="bi bi-arrow-clockwise"></i> Aktualisieren
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
     <div class="card-body">
@@ -467,9 +533,9 @@
         <i class="bi bi-arrow-left"></i> Zurück zur Liste
     </a>
     {% if bestellung.Status in ['Freigegeben', 'Bestellt'] %}
-    <a href="{{ url_for('ersatzteile.bestellung_pdf_export', bestellung_id=bestellung.ID) }}" class="btn btn-primary" target="_blank">
+    <button type="button" class="btn btn-primary" onclick="exportBestellungPDF({{ bestellung.ID }})">
         <i class="bi bi-file-pdf"></i> Als PDF exportieren
-    </a>
+    </button>
     {% endif %}
 </div>
 
@@ -1246,6 +1312,173 @@ document.addEventListener('DOMContentLoaded', function() {
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+<!-- Import-Funktionalität JavaScript -->
+<script>
+async function ladeImportDateien(typ) {
+    const listeId = typ === 'pdf' ? 'pdf-import-dateien-liste' : 'ab-import-dateien-liste';
+    const liste = document.getElementById(listeId);
+    
+    if (!liste) return;
+    
+    liste.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
+    
+    try {
+        const response = await fetch('/api/import/dateien');
+        const data = await response.json();
+        
+        if (!data.success || data.dateien.length === 0) {
+            liste.innerHTML = '<div class="alert alert-info">Keine Dateien im Import-Ordner vorhanden.</div>';
+            return;
+        }
+        
+        // Filtere nach Dateityp
+        let erlaubteEndungen = [];
+        if (typ === 'pdf') {
+            erlaubteEndungen = ['.pdf'];
+        } else if (typ === 'ab') {
+            erlaubteEndungen = ['.pdf', '.jpeg', '.jpg', '.png'];
+        }
+        
+        const gefilterteDateien = data.dateien.filter(datei => {
+            const ext = '.' + datei.name.split('.').pop().toLowerCase();
+            return erlaubteEndungen.some(e => ext === e);
+        });
+        
+        if (gefilterteDateien.length === 0) {
+            liste.innerHTML = '<div class="alert alert-warning">Keine passenden Dateien im Import-Ordner (erlaubt: ' + erlaubteEndungen.join(', ') + ').</div>';
+            return;
+        }
+        
+        let html = '<div class="list-group">';
+        gefilterteDateien.forEach(datei => {
+            html += `
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>${datei.name}</strong>
+                        <br><small class="text-muted">${datei.size}</small>
+                    </div>
+                    <button class="btn btn-sm btn-primary" onclick="verschiebeAusImport('${datei.name.replace(/'/g, "\\'")}', '${typ}', {{ bestellung.ID }})">
+                        <i class="bi bi-arrow-right"></i> Verwenden
+                    </button>
+                </div>
+            `;
+        });
+        html += '</div>';
+        liste.innerHTML = html;
+    } catch (error) {
+        console.error('Fehler beim Laden der Dateien:', error);
+        liste.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Dateien.</div>';
+    }
+}
+
+async function verschiebeAusImport(filename, typ, bestellungId) {
+    let zielOrdner = '';
+    if (typ === 'pdf') {
+        // ANGEBOTE_UPLOAD_FOLDER ist bereits "Angebote", daher nur "Bestellungen/{id}"
+        zielOrdner = `Angebote/Bestellungen/${bestellungId}`;
+    } else if (typ === 'ab') {
+        zielOrdner = `Bestellwesen/Auftragsbestätigungen/${bestellungId}`;
+    }
+    
+    if (!zielOrdner) {
+        alert('Ungültiger Typ');
+        return;
+    }
+    
+    if (!confirm(`Möchten Sie die Datei "${filename}" aus dem Import-Ordner verwenden? Die Datei wird verschoben.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/import/verschieben', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({filename: filename, ziel_ordner: zielOrdner})
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Datei erfolgreich verschoben!');
+            location.reload();
+        } else {
+            alert('Fehler: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Fehler beim Verschieben:', error);
+        alert('Fehler beim Verschieben der Datei.');
+    }
+}
+
+// PDF-Export mit Ladeanzeige
+async function exportBestellungPDF(bestellungId) {
+    // Modal öffnen
+    const modal = new bootstrap.Modal(document.getElementById('pdfExportModal'));
+    modal.show();
+    
+    try {
+        const url = '{{ url_for("ersatzteile.bestellung_pdf_export", bestellung_id=0) }}'.replace('/0', `/${bestellungId}`);
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        // Blob aus Response erstellen
+        const blob = await response.blob();
+        
+        // Dateiname aus Content-Disposition Header extrahieren oder generieren
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = `Bestellung_${bestellungId}_${new Date().toISOString().split('T')[0]}.pdf`;
+        if (contentDisposition) {
+            // Regex für filename="..." oder filename=...
+            const filenameMatch = contentDisposition.match(/filename[*]?=['"]?([^'";]+)['"]?/i);
+            if (filenameMatch && filenameMatch[1]) {
+                filename = filenameMatch[1].trim();
+            }
+        }
+        
+        // Download starten
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+        
+        // Modal schließen
+        modal.hide();
+        
+        // Erfolgs-Toast anzeigen (falls vorhanden)
+        if (typeof showToast === 'function') {
+            showToast('PDF erfolgreich erstellt und heruntergeladen.', 'success');
+        }
+    } catch (error) {
+        console.error('Fehler beim PDF-Export:', error);
+        modal.hide();
+        alert('Fehler beim Erstellen des PDFs. Bitte versuchen Sie es erneut.');
+    }
+}
+</script>
+
+<!-- Modal für PDF-Export -->
+<div class="modal fade" id="pdfExportModal" tabindex="-1" aria-labelledby="pdfExportModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                    <span class="visually-hidden">Lädt...</span>
+                </div>
+                <h5 class="mb-2">PDF wird erstellt...</h5>
+                <p class="text-muted mb-0">Bitte warten Sie, während der Bericht generiert wird.</p>
+            </div>
         </div>
     </div>
 </div>

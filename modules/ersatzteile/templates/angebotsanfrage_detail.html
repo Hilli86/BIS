@@ -248,13 +248,46 @@
     </div>
     <div class="collapse" id="pdfUploadCollapse">
         <div class="card-body">
-            <form method="POST" action="{{ url_for('ersatzteile.angebotsanfrage_datei_upload', angebotsanfrage_id=anfrage.ID) }}" enctype="multipart/form-data">
-                <div class="mb-3">
-                    <input type="file" name="file" class="form-control" accept=".pdf" required>
-                    <small class="text-muted">Nur PDF-Dateien erlaubt</small>
+            <!-- Tab-Auswahl -->
+            <ul class="nav nav-tabs mb-3" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="aa-upload-tab" data-bs-toggle="tab" data-bs-target="#aa-upload-pane" type="button">
+                        <i class="bi bi-cloud-upload"></i> Hochladen
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="aa-import-tab" data-bs-toggle="tab" data-bs-target="#aa-import-pane" type="button" onclick="ladeImportDateienAngebotsanfrage()">
+                        <i class="bi bi-folder"></i> Aus Import-Ordner
+                    </button>
+                </li>
+            </ul>
+            
+            <div class="tab-content">
+                <!-- Upload-Tab -->
+                <div class="tab-pane fade show active" id="aa-upload-pane" role="tabpanel">
+                    <form method="POST" action="{{ url_for('ersatzteile.angebotsanfrage_datei_upload', angebotsanfrage_id=anfrage.ID) }}" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <input type="file" name="file" class="form-control" accept=".pdf" required>
+                            <small class="text-muted">Nur PDF-Dateien erlaubt</small>
+                        </div>
+                        <button type="submit" class="btn btn-success">Hochladen</button>
+                    </form>
                 </div>
-                <button type="submit" class="btn btn-success">Hochladen</button>
-            </form>
+                
+                <!-- Import-Tab -->
+                <div class="tab-pane fade" id="aa-import-pane" role="tabpanel">
+                    <div id="aa-import-dateien-liste">
+                        <div class="text-center">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">Lädt...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-success mt-2" onclick="ladeImportDateienAngebotsanfrage()">
+                        <i class="bi bi-arrow-clockwise"></i> Aktualisieren
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
     <div class="card-body">
@@ -394,9 +427,9 @@
     <a href="{{ url_for('ersatzteile.angebotsanfrage_liste') }}" class="btn btn-secondary">
         <i class="bi bi-arrow-left"></i> Zurück zur Liste
     </a>
-    <a href="{{ url_for('ersatzteile.angebotsanfrage_pdf_export', angebotsanfrage_id=anfrage.ID) }}" class="btn btn-primary">
+    <button type="button" class="btn btn-primary" onclick="exportAngebotsanfragePDF({{ anfrage.ID }})">
         <i class="bi bi-file-pdf"></i> Als PDF exportieren
-    </a>
+    </button>
 </div>
 
 <!-- Modal für Position bearbeiten -->
@@ -689,6 +722,154 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import-Funktionalität für Angebotsanfragen -->
+<script>
+async function ladeImportDateienAngebotsanfrage() {
+    const liste = document.getElementById('aa-import-dateien-liste');
+    if (!liste) return;
+    
+    liste.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
+    
+    try {
+        const response = await fetch('/api/import/dateien');
+        const data = await response.json();
+        
+        if (!data.success || data.dateien.length === 0) {
+            liste.innerHTML = '<div class="alert alert-info">Keine Dateien im Import-Ordner vorhanden.</div>';
+            return;
+        }
+        
+        // Nur PDF-Dateien für Angebotsanfragen
+        const gefilterteDateien = data.dateien.filter(datei => {
+            const ext = '.' + datei.name.split('.').pop().toLowerCase();
+            return ext === '.pdf';
+        });
+        
+        if (gefilterteDateien.length === 0) {
+            liste.innerHTML = '<div class="alert alert-warning">Keine PDF-Dateien im Import-Ordner vorhanden.</div>';
+            return;
+        }
+        
+        let html = '<div class="list-group">';
+        gefilterteDateien.forEach(datei => {
+            html += `
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>${datei.name}</strong>
+                        <br><small class="text-muted">${datei.size}</small>
+                    </div>
+                    <button class="btn btn-sm btn-success" onclick="verschiebeAusImportAngebotsanfrage('${datei.name.replace(/'/g, "\\'")}')">
+                        <i class="bi bi-arrow-right"></i> Verwenden
+                    </button>
+                </div>
+            `;
+        });
+        html += '</div>';
+        liste.innerHTML = html;
+    } catch (error) {
+        console.error('Fehler beim Laden der Dateien:', error);
+        liste.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Dateien.</div>';
+    }
+}
+
+async function verschiebeAusImportAngebotsanfrage(filename) {
+    const angebotsanfrageId = {{ anfrage.ID }};
+    const zielOrdner = `Bestellwesen/Angebote/${angebotsanfrageId}`;
+    
+    if (!confirm(`Möchten Sie die Datei "${filename}" aus dem Import-Ordner verwenden? Die Datei wird verschoben.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/import/verschieben', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({filename: filename, ziel_ordner: zielOrdner})
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Datei erfolgreich verschoben!');
+            location.reload();
+        } else {
+            alert('Fehler: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Fehler beim Verschieben:', error);
+        alert('Fehler beim Verschieben der Datei.');
+    }
+}
+
+// PDF-Export mit Ladeanzeige
+async function exportAngebotsanfragePDF(angebotsanfrageId) {
+    // Modal öffnen
+    const modal = new bootstrap.Modal(document.getElementById('pdfExportModal'));
+    modal.show();
+    
+    try {
+        const url = '{{ url_for("ersatzteile.angebotsanfrage_pdf_export", angebotsanfrage_id=0) }}'.replace('/0', `/${angebotsanfrageId}`);
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        // Blob aus Response erstellen
+        const blob = await response.blob();
+        
+        // Dateiname aus Content-Disposition Header extrahieren oder generieren
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = `Angebotsanfrage_${angebotsanfrageId}_${new Date().toISOString().split('T')[0]}.pdf`;
+        if (contentDisposition) {
+            // Regex für filename="..." oder filename=...
+            const filenameMatch = contentDisposition.match(/filename[*]?=['"]?([^'";]+)['"]?/i);
+            if (filenameMatch && filenameMatch[1]) {
+                filename = filenameMatch[1].trim();
+            }
+        }
+        
+        // Download starten
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+        
+        // Modal schließen
+        modal.hide();
+        
+        // Erfolgs-Toast anzeigen (falls vorhanden)
+        if (typeof showToast === 'function') {
+            showToast('PDF erfolgreich erstellt und heruntergeladen.', 'success');
+        }
+    } catch (error) {
+        console.error('Fehler beim PDF-Export:', error);
+        modal.hide();
+        alert('Fehler beim Erstellen des PDFs. Bitte versuchen Sie es erneut.');
+    }
+}
+</script>
+
+<!-- Modal für PDF-Export -->
+<div class="modal fade" id="pdfExportModal" tabindex="-1" aria-labelledby="pdfExportModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                    <span class="visually-hidden">Lädt...</span>
+                </div>
+                <h5 class="mb-2">PDF wird erstellt...</h5>
+                <p class="text-muted mb-0">Bitte warten Sie, während der Bericht generiert wird.</p>
             </div>
         </div>
     </div>

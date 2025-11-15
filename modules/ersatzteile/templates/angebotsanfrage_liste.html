@@ -86,9 +86,9 @@
                         <td>{{ a.Abteilung or '-' }}</td>
                         <td>{{ a.PositionenAnzahl }}</td>
                         <td onclick="event.stopPropagation();">
-                            <a href="{{ url_for('ersatzteile.angebotsanfrage_pdf_export', angebotsanfrage_id=a.ID) }}" class="btn btn-sm btn-outline-danger" title="Als PDF exportieren">
+                            <button type="button" class="btn btn-sm btn-outline-danger" title="Als PDF exportieren" onclick="event.stopPropagation(); exportAngebotsanfragePDF({{ a.ID }});">
                                 <i class="bi bi-file-pdf"></i>
-                            </a>
+                            </button>
                         </td>
                     </tr>
                     {% endfor %}
@@ -100,6 +100,76 @@
             <i class="bi bi-info-circle"></i> Keine Angebotsanfragen gefunden.
         </div>
         {% endif %}
+    </div>
+</div>
+
+<script>
+// PDF-Export mit Ladeanzeige
+async function exportAngebotsanfragePDF(angebotsanfrageId) {
+    // Modal öffnen
+    const modal = new bootstrap.Modal(document.getElementById('pdfExportModal'));
+    modal.show();
+    
+    try {
+        const url = '{{ url_for("ersatzteile.angebotsanfrage_pdf_export", angebotsanfrage_id=0) }}'.replace('/0', `/${angebotsanfrageId}`);
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        // Blob aus Response erstellen
+        const blob = await response.blob();
+        
+        // Dateiname aus Content-Disposition Header extrahieren oder generieren
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = `Angebotsanfrage_${angebotsanfrageId}_${new Date().toISOString().split('T')[0]}.pdf`;
+        if (contentDisposition) {
+            // Regex für filename="..." oder filename=...
+            const filenameMatch = contentDisposition.match(/filename[*]?=['"]?([^'";]+)['"]?/i);
+            if (filenameMatch && filenameMatch[1]) {
+                filename = filenameMatch[1].trim();
+            }
+        }
+        
+        // Download starten
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+        
+        // Modal schließen
+        modal.hide();
+        
+        // Erfolgs-Toast anzeigen (falls vorhanden)
+        if (typeof showToast === 'function') {
+            showToast('PDF erfolgreich erstellt und heruntergeladen.', 'success');
+        }
+    } catch (error) {
+        console.error('Fehler beim PDF-Export:', error);
+        modal.hide();
+        alert('Fehler beim Erstellen des PDFs. Bitte versuchen Sie es erneut.');
+    }
+}
+</script>
+
+<!-- Modal für PDF-Export -->
+<div class="modal fade" id="pdfExportModal" tabindex="-1" aria-labelledby="pdfExportModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                    <span class="visually-hidden">Lädt...</span>
+                </div>
+                <h5 class="mb-2">PDF wird erstellt...</h5>
+                <p class="text-muted mb-0">Bitte warten Sie, während der Bericht generiert wird.</p>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

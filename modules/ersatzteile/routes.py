@@ -5,6 +5,8 @@ Ersatzteile Routes - Ersatzteilverwaltung, Lagerbuchungen, Verknüpfungen
 from flask import render_template, request, redirect, url_for, session, jsonify, flash, send_from_directory, current_app, make_response
 from datetime import datetime
 import os
+import base64
+import tempfile
 from io import BytesIO
 from werkzeug.utils import secure_filename
 from . import ersatzteile_bp
@@ -16,6 +18,38 @@ from reportlab.lib.units import cm
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
+from docxtpl import DocxTemplate
+try:
+    from docx2pdf import convert
+    DOCX2PDF_AVAILABLE = True
+    # COM-Initialisierung für Windows
+    import sys
+    if sys.platform == 'win32':
+        try:
+            import pythoncom
+            COM_INITIALIZED = False
+        except ImportError:
+            COM_INITIALIZED = False
+    else:
+        COM_INITIALIZED = True
+except ImportError:
+    DOCX2PDF_AVAILABLE = False
+    COM_INITIALIZED = False
+
+
+def safe_get(row, key, default=None):
+    """Sichere Zugriff auf sqlite3.Row oder dict Objekte"""
+    if row is None:
+        return default
+    if hasattr(row, 'get'):
+        return row.get(key, default)
+    else:
+        # sqlite3.Row - prüfe ob Key existiert und Wert nicht None ist
+        try:
+            value = row[key]
+            return value if value is not None else default
+        except (KeyError, IndexError):
+            return default
 
 
 def hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
@@ -1838,7 +1872,7 @@ def get_bestellung_dateien(bestellung_id):
 
 def get_angebotsanfrage_dateien(angebotsanfrage_id):
     """Hilfsfunktion: Scannt Ordner nach PDF-Dateien für eine Angebotsanfrage"""
-    angebote_folder = os.path.join(current_app.config['ANGEBOTE_UPLOAD_FOLDER'], str(angebotsanfrage_id))
+    angebote_folder = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], 'Bestellwesen', 'Angebote', str(angebotsanfrage_id))
     dateien = []
     
     if os.path.exists(angebote_folder):
@@ -1849,7 +1883,7 @@ def get_angebotsanfrage_dateien(angebotsanfrage_id):
                     if os.path.isfile(filepath):
                         stat = os.stat(filepath)
                         # Pfad immer mit Forward-Slash für URL-Kompatibilität
-                        path_for_url = f'Angebote/{angebotsanfrage_id}/{filename}'
+                        path_for_url = f'Bestellwesen/Angebote/{angebotsanfrage_id}/{filename}'
                         dateien.append({
                             'name': filename,
                             'path': path_for_url,
@@ -2669,7 +2703,7 @@ def angebotsanfrage_datei_upload(angebotsanfrage_id):
                 return redirect(url_for('ersatzteile.angebotsanfrage_liste'))
             
             # Ordner erstellen
-            upload_folder = os.path.join(current_app.config['ANGEBOTE_UPLOAD_FOLDER'], str(angebotsanfrage_id))
+            upload_folder = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], 'Bestellwesen', 'Angebote', str(angebotsanfrage_id))
             os.makedirs(upload_folder, exist_ok=True)
             
             # Datei speichern
@@ -2735,8 +2769,8 @@ def angebotsanfrage_datei_anzeigen(filepath):
     # Normalisiere den Pfad: Backslashes zu Forward-Slashes (für Windows-Kompatibilität)
     filepath = filepath.replace('\\', '/')
     
-    # Sicherheitsprüfung: Dateipfad muss mit Angebote beginnen
-    if not filepath.startswith('Angebote/'):
+    # Sicherheitsprüfung: Dateipfad muss mit Bestellwesen/Angebote beginnen
+    if not filepath.startswith('Bestellwesen/Angebote/'):
         flash('Ungültiger Dateipfad.', 'danger')
         return redirect(url_for('ersatzteile.angebotsanfrage_liste'))
     
@@ -2748,10 +2782,10 @@ def angebotsanfrage_datei_anzeigen(filepath):
         flash('Datei nicht gefunden.', 'danger')
         return redirect(url_for('ersatzteile.angebotsanfrage_liste'))
     
-    # Angebotsanfrage-ID aus Pfad extrahieren
+    # Angebotsanfrage-ID aus Pfad extrahieren (Bestellwesen/Angebote/{id}/...)
     parts = filepath.split('/')
-    if len(parts) >= 2:
-        angebotsanfrage_id = parts[1]
+    if len(parts) >= 3:
+        angebotsanfrage_id = parts[2]
         try:
             angebotsanfrage_id = int(angebotsanfrage_id)
             with get_db_connection() as conn:
@@ -2773,7 +2807,7 @@ def angebotsanfrage_datei_anzeigen(filepath):
 @ersatzteile_bp.route('/angebotsanfragen/<int:angebotsanfrage_id>/pdf')
 @login_required
 def angebotsanfrage_pdf_export(angebotsanfrage_id):
-    """PDF-Export für eine Angebotsanfrage"""
+    """PDF-Export für eine Angebotsanfrage mit docx-Vorlage"""
     mitarbeiter_id = session.get('user_id')
     
     try:
@@ -2790,10 +2824,12 @@ def angebotsanfrage_pdf_export(angebotsanfrage_id):
                     l.Email AS LieferantEmail,
                     m.Vorname || ' ' || m.Nachname AS ErstelltVon,
                     m.Email AS ErstelltVonEmail,
-                    m.Handynummer AS ErstelltVonHandy
+                    m.Handynummer AS ErstelltVonHandy,
+                    abt.Bezeichnung AS ErstelltVonAbteilung
                 FROM Angebotsanfrage a
                 LEFT JOIN Lieferant l ON a.LieferantID = l.ID
                 LEFT JOIN Mitarbeiter m ON a.ErstelltVonID = m.ID
+                LEFT JOIN Abteilung abt ON a.ErstellerAbteilungID = abt.ID
                 WHERE a.ID = ?
             """, (angebotsanfrage_id,)).fetchone()
             
@@ -2808,6 +2844,7 @@ def angebotsanfrage_pdf_export(angebotsanfrage_id):
                     e.ID AS ErsatzteilID,
                     COALESCE(p.Bestellnummer, e.Bestellnummer) AS Bestellnummer,
                     COALESCE(p.Bezeichnung, e.Bezeichnung) AS Bezeichnung,
+                    COALESCE(e.Einheit, 'Stück') AS Einheit,
                     e.Preis AS AktuellerPreis,
                     e.Waehrung AS AktuelleWaehrung
                 FROM AngebotsanfragePosition p
@@ -2819,244 +2856,232 @@ def angebotsanfrage_pdf_export(angebotsanfrage_id):
             # Firmendaten laden
             firmendaten = get_firmendaten()
             
-            # PDF erstellen
-            buffer = BytesIO()
-            doc = SimpleDocTemplate(buffer, pagesize=A4,
-                                    rightMargin=2*cm, leftMargin=2*cm,
-                                    topMargin=2*cm, bottomMargin=2*cm)
+            # Template-Pfad
+            template_path = os.path.join(current_app.root_path, 'templates', 'reports', 'angebot_template.docx')
+            if not os.path.exists(template_path):
+                flash('Angebotsvorlage nicht gefunden. Bitte wenden Sie sich an den Administrator.', 'danger')
+                return redirect(url_for('ersatzteile.angebotsanfrage_detail', angebotsanfrage_id=angebotsanfrage_id))
             
-            story = []
-            styles = getSampleStyleSheet()
+            # Template laden
+            doc = DocxTemplate(template_path)
             
-            # Text-Styles
-            normal_style = ParagraphStyle('Normal', parent=styles['Normal'], fontSize=10, leading=14)
-            small_style = ParagraphStyle('Small', parent=styles['Normal'], fontSize=8, leading=10)
-            bold_style = ParagraphStyle('Bold', parent=styles['Normal'], fontSize=10, fontName='Helvetica-Bold')
-            
-            # ========== HEADER: Logo rechts oben ==========
-            if firmendaten and firmendaten['LogoPfad'] and os.path.exists(firmendaten['LogoPfad']):
-                try:
-                    logo = Image(firmendaten['LogoPfad'], width=5*cm, height=2.5*cm)
-                    logo.hAlign = 'RIGHT'
-                    story.append(logo)
-                except:
-                    pass
-            story.append(Spacer(1, 0.3*cm))
-            
-            # ========== Firmendaten rechts, Lieferant links ==========
-            # Firmendaten rechts
-            firmen_text = []
-            if firmendaten:
-                if firmendaten['Firmenname']:
-                    firmen_text.append(Paragraph(f"<b>{firmendaten['Firmenname']}</b>", small_style))
-                if firmendaten['Strasse']:
-                    firmen_text.append(Paragraph(firmendaten['Strasse'], small_style))
-                if firmendaten['PLZ'] and firmendaten['Ort']:
-                    firmen_text.append(Paragraph(f"{firmendaten['PLZ']} {firmendaten['Ort']}", small_style))
-                
-                # Lieferanschrift (falls abweichend)
-                if firmendaten['LieferStrasse'] or firmendaten['LieferPLZ'] or firmendaten['LieferOrt']:
-                    firmen_text.append(Spacer(1, 0.15*cm))
-                    firmen_text.append(Paragraph('<b>Lieferanschrift:</b>', small_style))
-                    if firmendaten['LieferStrasse']:
-                        firmen_text.append(Paragraph(firmendaten['LieferStrasse'], small_style))
-                    if firmendaten['LieferPLZ'] and firmendaten['LieferOrt']:
-                        firmen_text.append(Paragraph(f"{firmendaten['LieferPLZ']} {firmendaten['LieferOrt']}", small_style))
-                
-                firmen_text.append(Spacer(1, 0.1*cm))
-                if firmendaten['Telefon']:
-                    firmen_text.append(Paragraph(f"Tel: {firmendaten['Telefon']}", small_style))
-                if firmendaten['Website']:
-                    firmen_text.append(Paragraph(f"Internet: {firmendaten['Website']}", small_style))
-                if firmendaten['Email']:
-                    firmen_text.append(Paragraph(f"E-Mail: {firmendaten['Email']}", small_style))
-            
-            # Lieferantendaten links
-            lieferant_text = []
-            if anfrage['LieferantName']:
-                lieferant_text.append(Paragraph(f"<b>{anfrage['LieferantName']}</b>", normal_style))
-                if anfrage['LieferantStrasse']:
-                    lieferant_text.append(Paragraph(anfrage['LieferantStrasse'], normal_style))
-                if anfrage['LieferantPLZ'] and anfrage['LieferantOrt']:
-                    lieferant_text.append(Paragraph(f"{anfrage['LieferantPLZ']} {anfrage['LieferantOrt']}", normal_style))
-            
-            # Tabelle für Lieferant links, Firmendaten rechts
-            left_col = [[p] for p in lieferant_text] if lieferant_text else [[Paragraph('', normal_style)]]
-            right_col = [[p] for p in firmen_text] if firmen_text else [[Paragraph('', normal_style)]]
-            
-            left_table = Table(left_col, colWidths=[9*cm])
-            right_table = Table(right_col, colWidths=[8*cm])
-            
-            top_table = Table([[left_table, right_table]], colWidths=[9*cm, 8*cm])
-            top_table.setStyle(TableStyle([
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
-            ]))
-            story.append(top_table)
-            story.append(Spacer(1, 1.5*cm))
-            
-            # ========== ANGEBOTSANFRAGE Titel ==========
-            angebot_data = [[
-                Paragraph(f'<font size="22"><b>ANGEBOTSANFRAGE</b></font>', bold_style),
-                Paragraph(f'<font size="18"><b>{anfrage["ID"]}</b></font>', bold_style)
-            ]]
-            angebot_table = Table(angebot_data, colWidths=[12*cm, 5*cm])
-            angebot_table.setStyle(TableStyle([
-                ('ALIGN', (0, 0), (0, 0), 'LEFT'),
-                ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
-                ('VALIGN', (0, 0), (-1, -1), 'BOTTOM'),
-            ]))
-            story.append(angebot_table)
-            
-            # Trennlinie unter Titel
-            story.append(Table([['']], colWidths=[17*cm], style=TableStyle([
-                ('LINEBELOW', (0, 0), (0, 0), 1, colors.black),
-                ('TOPPADDING', (0, 0), (0, 0), 0),
-                ('BOTTOMPADDING', (0, 0), (0, 0), 0),
-            ])))
-            story.append(Spacer(1, 0.5*cm))
-            
-            # ========== Datum und weitere Infos ==========
-            info_data = []
+            # Datum formatieren
+            datum = ''
             if anfrage['ErstelltAm']:
-                datum = datetime.strptime(anfrage['ErstelltAm'], '%Y-%m-%d %H:%M:%S').strftime('%d.%m.%Y')
-                info_data.append([Paragraph('<b>Datum:</b>', small_style), Paragraph(datum, small_style)])
+                try:
+                    datum = datetime.strptime(anfrage['ErstelltAm'], '%Y-%m-%d %H:%M:%S').strftime('%d.%m.%Y')
+                except:
+                    datum = anfrage['ErstelltAm'][:10] if anfrage['ErstelltAm'] else ''
             
-            if anfrage['ErstelltVon']:
-                angefragt_text = anfrage['ErstelltVon']
-                kontakt_details = []
-                if anfrage['ErstelltVonEmail']:
-                    kontakt_details.append(f"E-Mail: {anfrage['ErstelltVonEmail']}")
-                if anfrage['ErstelltVonHandy']:
-                    kontakt_details.append(f"Tel: {anfrage['ErstelltVonHandy']}")
+            # Kontaktdaten des Erstellers zusammenstellen
+            kontakt_details = []
+            if anfrage['ErstelltVonEmail']:
+                kontakt_details.append(f"E-Mail: {anfrage['ErstelltVonEmail']}")
+            if anfrage['ErstelltVonHandy']:
+                kontakt_details.append(f"Tel: {anfrage['ErstelltVonHandy']}")
+            kontakt_text = ' | '.join(kontakt_details) if kontakt_details else ''
+            
+            # Positionen für Template vorbereiten
+            # docxtpl unterstützt sowohl Mustache-Syntax {{#positionen}} als auch Jinja2-Syntax {% for %}
+            positionen_liste = []
+            for idx, pos in enumerate(positionen, 1):
+                artikel_nr = pos['Bestellnummer'] or str(pos['ErsatzteilID']) if pos['ErsatzteilID'] else '-'
+                bezeichnung = pos['Bezeichnung'] or '-'
+                menge_val = pos['Menge'] if pos['Menge'] else 1.0
+                einheit = safe_get(pos, 'Einheit', 'Stück')
+                # Menge formatieren: Ganze Zahlen ohne Kommastellen, sonst ohne unnötige Nullen
+                if menge_val == int(menge_val):
+                    menge_text = f"{int(menge_val)} {einheit}"
+                else:
+                    menge_text = f"{menge_val} {einheit}"
                 
-                if kontakt_details:
-                    angefragt_text += f"<br/><font size='7' color='gray'>{' | '.join(kontakt_details)}</font>"
-                
-                info_data.append([Paragraph('<b>Angefragt von:</b>', small_style), Paragraph(angefragt_text, small_style)])
+                positionen_liste.append({
+                    'position': idx,
+                    'artikelnummer': artikel_nr,
+                    'bezeichnung': bezeichnung,
+                    'menge': menge_text,
+                    'bemerkung': pos['Bemerkung'] or ''
+                })
             
-            if info_data:
-                info_table = Table(info_data, colWidths=[3*cm, 14*cm])
-                info_table.setStyle(TableStyle([
-                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ]))
-                story.append(info_table)
-            
-            story.append(Spacer(1, 0.8*cm))
-            
-            # ========== Anrede und Einleitung ==========
-            greeting = "Sehr geehrte Damen und Herren,<br/><br/>Ich bitte um Preis- und Lieferauskunft für folgende Ersatzteile:"
-            story.append(Paragraph(greeting, normal_style))
-            story.append(Spacer(1, 0.6*cm))
-            
-            # Bemerkung (falls vorhanden)
-            if anfrage['Bemerkung']:
-                story.append(Paragraph(anfrage['Bemerkung'], normal_style))
-                story.append(Spacer(1, 0.6*cm))
-            
-            # ========== Positionstabelle ==========
-            if positionen:
-                pos_data = []
-                # Header
-                pos_data.append([
-                    Paragraph('<b>Pos</b>', small_style),
-                    Paragraph('<b>Artikel-Nr.</b>', small_style),
-                    Paragraph('<b>Bezeichnung</b>', small_style),
-                    Paragraph('<b>Menge</b>', small_style)
-                ])
-                
-                # Positionen
-                for idx, pos in enumerate(positionen, 1):
-                    artikel_nr = pos['Bestellnummer'] or str(pos['ErsatzteilID']) if pos['ErsatzteilID'] else '-'
-                    bezeichnung = pos['Bezeichnung'] or '-'
-                    menge_val = pos['Menge'] if pos['Menge'] else 1.0
-                    menge_text = f"{menge_val:.2f} Stück"
-                    
-                    # Bemerkung als Sub-Position
-                    bez_text = bezeichnung
-                    if pos['Bemerkung']:
-                        bez_text += f"<br/><font size='7' color='gray'>{pos['Bemerkung']}</font>"
-                    
-                    pos_data.append([
-                        Paragraph(str(idx), small_style),
-                        Paragraph(f"<b>{artikel_nr}</b>", small_style),
-                        Paragraph(bez_text, normal_style),
-                        Paragraph(menge_text, small_style)
-                    ])
-                
-                pos_table = Table(pos_data, colWidths=[1*cm, 2.5*cm, 10.5*cm, 3*cm])
-                pos_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, 0), 8),
-                    ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-                    ('TOPPADDING', (0, 0), (-1, 0), 8),
-                    ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                    ('LEFTPADDING', (0, 0), (-1, -1), 5),
-                    ('RIGHTPADDING', (0, 0), (-1, -1), 5),
-                ]))
-                story.append(pos_table)
-                story.append(Spacer(1, 0.3*cm))
-                
-                # MwSt-Hinweis
-                #story.append(Paragraph('<i>alle Preise verstehen sich zzgl. der gesetzl. MwSt.</i>', 
-                #                     ParagraphStyle('Hinweis', parent=small_style, fontSize=8)))
-            
-            story.append(Spacer(1, 1*cm))
-            
-            # ========== Zahlungs- und Lieferbedingungen ==========
-            # bedingungen = []
-            # bedingungen.append([Paragraph('<b>Zahlungsbedingung:</b>', small_style), 
-            #                   Paragraph('Zahlbar netto Kasse nach Erhalt der Rechnung.', small_style)])
-            
-            # bed_table = Table(bedingungen, colWidths=[4*cm, 13*cm])
-            # bed_table.setStyle(TableStyle([
-            #     ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            # ]))
-            # story.append(bed_table)
-            # story.append(Spacer(1, 1*cm))
-            
-            # ========== Footer mit rechtlichen Infos ==========
+            # Footer-Informationen zusammenstellen
             footer_lines = []
             if firmendaten:
-                if firmendaten['Geschaeftsfuehrer']:
+                if safe_get(firmendaten, 'Geschaeftsfuehrer'):
                     footer_lines.append(f"Geschäftsführer: {firmendaten['Geschaeftsfuehrer']}")
-                if firmendaten['UStIdNr']:
+                if safe_get(firmendaten, 'UStIdNr'):
                     footer_lines.append(f"UStIdNr.: {firmendaten['UStIdNr']}")
-                if firmendaten['Steuernummer']:
+                if safe_get(firmendaten, 'Steuernummer'):
                     footer_lines.append(f"Steuernr.: {firmendaten['Steuernummer']}")
-                if firmendaten['Telefon']:
+                if safe_get(firmendaten, 'Telefon'):
                     footer_lines.append(f"Telefon: {firmendaten['Telefon']}")
-                if firmendaten['BankName'] and firmendaten['IBAN']:
+                bank_name = safe_get(firmendaten, 'BankName')
+                iban = safe_get(firmendaten, 'IBAN')
+                if bank_name and iban:
                     footer_lines.append(f"Bankverbindung: {firmendaten['BankName']}")
                     footer_lines.append(f"IBAN: {firmendaten['IBAN']}")
-                    if firmendaten['BIC']:
+                    bic = safe_get(firmendaten, 'BIC')
+                    if bic:
                         footer_lines.append(f"BIC: {firmendaten['BIC']}")
+            footer_text = ' | '.join(footer_lines) if footer_lines else ''
             
-            if footer_lines:
-                # Footer-Text mit Pipe-Trennzeichen
-                footer_text = ' | '.join(footer_lines)
-                footer_para = Paragraph(footer_text, ParagraphStyle('Footer', parent=small_style, fontSize=7, alignment=TA_CENTER))
-                story.append(Spacer(1, 1*cm))
-                story.append(footer_para)
+            # Lieferanschrift zusammenstellen (falls abweichend)
+            lieferanschrift = []
+            if firmendaten:
+                liefer_strasse = safe_get(firmendaten, 'LieferStrasse')
+                if liefer_strasse:
+                    lieferanschrift.append(firmendaten['LieferStrasse'])
+                liefer_plz = safe_get(firmendaten, 'LieferPLZ')
+                liefer_ort = safe_get(firmendaten, 'LieferOrt')
+                if liefer_plz and liefer_ort:
+                    lieferanschrift.append(f"{firmendaten['LieferPLZ']} {firmendaten['LieferOrt']}")
+            lieferanschrift_text = '\n'.join(lieferanschrift) if lieferanschrift else ''
             
-            # PDF generieren
-            doc.build(story)
+            # Kontext für Template
+            context = {
+                # Angebotsanfrage-Daten
+                'angebotsanfrage_id': anfrage['ID'],
+                'datum': datum,
+                'erstellt_von': anfrage['ErstelltVon'] or '',
+                'erstellt_von_abteilung': safe_get(anfrage, 'ErstelltVonAbteilung', ''),
+                'erstellt_von_kontakt': kontakt_text,
+                'bemerkung': anfrage['Bemerkung'] or '',
+                
+                # Lieferant-Daten
+                'lieferant_name': anfrage['LieferantName'] or '',
+                'lieferant_strasse': anfrage['LieferantStrasse'] or '',
+                'lieferant_plz': anfrage['LieferantPLZ'] or '',
+                'lieferant_ort': anfrage['LieferantOrt'] or '',
+                'lieferant_plz_ort': f"{anfrage['LieferantPLZ'] or ''} {anfrage['LieferantOrt'] or ''}".strip(),
+                'lieferant_telefon': anfrage['LieferantTelefon'] or '',
+                'lieferant_email': anfrage['LieferantEmail'] or '',
+                
+                # Firmendaten
+                'firmenname': safe_get(firmendaten, 'Firmenname', '') if firmendaten else '',
+                'firmenstrasse': safe_get(firmendaten, 'Strasse', '') if firmendaten else '',
+                'firmenplz': safe_get(firmendaten, 'PLZ', '') if firmendaten else '',
+                'firmenort': safe_get(firmendaten, 'Ort', '') if firmendaten else '',
+                'firmenplz_ort': f"{safe_get(firmendaten, 'PLZ', '')} {safe_get(firmendaten, 'Ort', '')}".strip() if firmendaten else '',
+                'firmen_telefon': safe_get(firmendaten, 'Telefon', '') if firmendaten else '',
+                'firmen_website': safe_get(firmendaten, 'Website', '') if firmendaten else '',
+                'firmen_email': safe_get(firmendaten, 'Email', '') if firmendaten else '',
+                'firma_lieferstraße': safe_get(firmendaten, 'LieferStrasse', '') if firmendaten else '',
+                'firma_lieferPLZ': safe_get(firmendaten, 'LieferPLZ', '') if firmendaten else '',
+                'firma_lieferOrt': safe_get(firmendaten, 'LieferOrt', '') if firmendaten else '',
+                'lieferanschrift': lieferanschrift_text,
+                'footer': footer_text,
+                
+                # Positionen
+                'positionen': positionen_liste,
+                'hat_positionen': len(positionen_liste) > 0,
+            }
             
-            # PDF als Download senden
-            filename = f"Angebotsanfrage_{angebotsanfrage_id}_{datetime.now().strftime('%Y%m%d')}.pdf"
+            # Template rendern
+            doc.render(context)
+            
+            # Als PDF konvertieren oder DOCX zurückgeben
+            # Hinweis: PDF-Konvertierung auf Windows benötigt Microsoft Word
+            # Falls nicht verfügbar, wird DOCX zurückgegeben (kann im Browser zu PDF konvertiert werden)
+            if DOCX2PDF_AVAILABLE:
+                # PDF-Konvertierung versuchen
+                buffer = BytesIO()
+                doc.save(buffer)
+                buffer.seek(0)
+                
+                # Temporäre DOCX-Datei erstellen
+                with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as tmp_docx:
+                    tmp_docx.write(buffer.getvalue())
+                    tmp_docx_path = tmp_docx.name
+                
+                # PDF erstellen
+                with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp_pdf:
+                    tmp_pdf_path = tmp_pdf.name
+                
+                try:
+                    # COM-Initialisierung für Windows
+                    import sys
+                    if sys.platform == 'win32':
+                        try:
+                            import pythoncom
+                            pythoncom.CoInitialize()
+                        except ImportError:
+                            pass  # pythoncom nicht verfügbar
+                    
+                    convert(tmp_docx_path, tmp_pdf_path)
+                    
+                    # PDF lesen
+                    with open(tmp_pdf_path, 'rb') as f:
+                        pdf_content = f.read()
+                    
+                    # Temporäre Dateien löschen
+                    os.unlink(tmp_docx_path)
+                    os.unlink(tmp_pdf_path)
+                    
+                    # COM aufräumen (Windows)
+                    if sys.platform == 'win32':
+                        try:
+                            import pythoncom
+                            pythoncom.CoUninitialize()
+                        except:
+                            pass
+                    
+                    # PDF als Download senden
+                    filename = f"Angebotsanfrage_{angebotsanfrage_id}_{datetime.now().strftime('%Y%m%d')}.pdf"
+                    response = make_response(pdf_content)
+                    response.headers['Content-Type'] = 'application/pdf'
+                    response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+                    return response
+                except Exception as e:
+                    # Falls PDF-Konvertierung fehlschlägt, DOCX zurückgeben
+                    # (z.B. wenn Word nicht installiert ist oder COM-Fehler auftritt)
+                    # Fehler nur im Debug-Modus loggen
+                    if current_app.config.get('DEBUG'):
+                        print(f"PDF-Konvertierung nicht verfügbar, DOCX wird zurückgegeben: {e}")
+                    
+                    # Temporäre Dateien aufräumen
+                    if os.path.exists(tmp_docx_path):
+                        try:
+                            os.unlink(tmp_docx_path)
+                        except:
+                            pass
+                    if os.path.exists(tmp_pdf_path):
+                        try:
+                            os.unlink(tmp_pdf_path)
+                        except:
+                            pass
+                    
+                    # COM aufräumen (Windows)
+                    import sys
+                    if sys.platform == 'win32':
+                        try:
+                            import pythoncom
+                            pythoncom.CoUninitialize()
+                        except:
+                            pass
+                    
+                    # Fallback: DOCX zurückgeben
+                    buffer = BytesIO()
+                    doc.save(buffer)
+                    buffer.seek(0)
+                    filename = f"Angebotsanfrage_{angebotsanfrage_id}_{datetime.now().strftime('%Y%m%d')}.docx"
+                    response = make_response(buffer.getvalue())
+                    response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                    response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+                    return response
+            
+            # Keine PDF-Konvertierung verfügbar, DOCX zurückgeben
+            # DOCX kann im Browser geöffnet und zu PDF konvertiert werden
+            buffer = BytesIO()
+            doc.save(buffer)
+            buffer.seek(0)
+            filename = f"Angebotsanfrage_{angebotsanfrage_id}_{datetime.now().strftime('%Y%m%d')}.docx"
             response = make_response(buffer.getvalue())
-            response.headers['Content-Type'] = 'application/pdf'
+            response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
-            
             return response
             
     except Exception as e:
-        flash(f'Fehler beim Erstellen des PDFs: {str(e)}', 'danger')
-        print(f"PDF-Export Fehler: {e}")
+        flash(f'Fehler beim Erstellen des Berichts: {str(e)}', 'danger')
+        print(f"Angebots-Export Fehler: {e}")
         import traceback
         traceback.print_exc()
         return redirect(url_for('ersatzteile.angebotsanfrage_detail', angebotsanfrage_id=angebotsanfrage_id))
@@ -3092,9 +3117,38 @@ def get_bestellung_dateien(bestellung_id):
     return dateien
 
 
+def get_auftragsbestätigung_dateien(bestellung_id):
+    """Hilfsfunktion: Scannt Ordner nach Auftragsbestätigungs-Dateien (PDF, JPEG, JPG, PNG) für eine Bestellung"""
+    auftragsbestätigung_folder = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], 'Bestellwesen', 'Auftragsbestätigungen', str(bestellung_id))
+    dateien = []
+    
+    if os.path.exists(auftragsbestätigung_folder):
+        try:
+            for filename in os.listdir(auftragsbestätigung_folder):
+                file_ext = filename.lower()
+                if file_ext.endswith(('.pdf', '.jpeg', '.jpg', '.png')):
+                    filepath = os.path.join(auftragsbestätigung_folder, filename)
+                    if os.path.isfile(filepath):
+                        stat = os.stat(filepath)
+                        # Pfad immer mit Forward-Slash für URL-Kompatibilität
+                        path_for_url = f'Bestellwesen/Auftragsbestätigungen/{bestellung_id}/{filename}'
+                        dateien.append({
+                            'name': filename,
+                            'path': path_for_url,
+                            'size': stat.st_size,
+                            'modified': datetime.fromtimestamp(stat.st_mtime)
+                        })
+            # Sortiere nach Änderungsdatum (neueste zuerst)
+            dateien.sort(key=lambda x: x['modified'], reverse=True)
+        except Exception as e:
+            print(f"Fehler beim Scannen des Auftragsbestätigung-Ordners: {e}")
+    
+    return dateien
+
+
 def get_lieferschein_dateien(bestellung_id):
     """Hilfsfunktion: Scannt Ordner nach Lieferschein-Dateien (PDF, JPEG, JPG, PNG) für eine Bestellung"""
-    lieferschein_folder = os.path.join(current_app.config['ANGEBOTE_UPLOAD_FOLDER'], 'Lieferscheine', str(bestellung_id))
+    lieferschein_folder = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], 'Bestellwesen', 'Lieferscheine', str(bestellung_id))
     dateien = []
     
     if os.path.exists(lieferschein_folder):
@@ -3106,7 +3160,7 @@ def get_lieferschein_dateien(bestellung_id):
                     if os.path.isfile(filepath):
                         stat = os.stat(filepath)
                         # Pfad immer mit Forward-Slash für URL-Kompatibilität
-                        path_for_url = f'Lieferscheine/{bestellung_id}/{filename}'
+                        path_for_url = f'Bestellwesen/Lieferscheine/{bestellung_id}/{filename}'
                         # Dateityp bestimmen
                         if file_ext.endswith('.pdf'):
                             file_type = 'pdf'
@@ -3295,6 +3349,14 @@ def bestellung_detail(bestellung_id):
         # PDF-Dateien aus Ordner laden
         dateien = get_bestellung_dateien(bestellung_id)
         
+        # Auftragsbestätigungen laden (nur wenn Status "Bestellt" oder später)
+        auftragsbestätigungen = []
+        lieferscheine = []
+        if bestellung['Status'] in ['Bestellt', 'Teilweise erhalten', 'Erhalten', 'Erledigt']:
+            auftragsbestätigungen = get_auftragsbestätigung_dateien(bestellung_id)
+            # Lieferscheine auch laden, wenn Auftragsbestätigungen angezeigt werden
+            lieferscheine = get_lieferschein_dateien(bestellung_id)
+        
         # Berechtigungen prüfen (Admin hat alle Rechte)
         is_admin = 'admin' in session.get('user_berechtigungen', [])
         kann_freigeben = is_admin or 'bestellungen_freigeben' in session.get('user_berechtigungen', [])
@@ -3305,6 +3367,8 @@ def bestellung_detail(bestellung_id):
         bestellung=bestellung,
         positionen=positionen,
         dateien=dateien,
+        auftragsbestätigungen=auftragsbestätigungen,
+        lieferscheine=lieferscheine,
         kann_freigeben=kann_freigeben,
         kann_buchen=kann_buchen,
         gesamtbetrag=gesamtbetrag,
@@ -3564,6 +3628,8 @@ def bestellung_aus_angebot(angebotsanfrage_id):
 @login_required
 def bestellung_zur_freigabe(bestellung_id):
     """Bestellung zur Freigabe markieren"""
+    freigabe_bemerkung = request.form.get('freigabe_bemerkung', '').strip()
+    
     with get_db_connection() as conn:
         bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ?', (bestellung_id,)).fetchone()
         if not bestellung:
@@ -3574,7 +3640,8 @@ def bestellung_zur_freigabe(bestellung_id):
             flash('Bestellung kann nur im Status "Erstellt" zur Freigabe markiert werden.', 'danger')
             return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
         
-        conn.execute('UPDATE Bestellung SET Status = ? WHERE ID = ?', ('Zur Freigabe', bestellung_id))
+        conn.execute('UPDATE Bestellung SET Status = ?, FreigabeBemerkung = ? WHERE ID = ?', 
+                    ('Zur Freigabe', freigabe_bemerkung if freigabe_bemerkung else None, bestellung_id))
         conn.commit()
         flash('Bestellung wurde zur Freigabe markiert.', 'success')
     
@@ -3585,8 +3652,14 @@ def bestellung_zur_freigabe(bestellung_id):
 @login_required
 @permission_required('bestellungen_freigeben')
 def bestellung_freigeben(bestellung_id):
-    """Bestellung freigeben"""
+    """Bestellung freigeben mit Unterschrift"""
     mitarbeiter_id = session.get('user_id')
+    unterschrift = request.form.get('unterschrift', '').strip()
+    
+    # Validierung: Unterschrift ist erforderlich
+    if not unterschrift:
+        flash('Bitte unterschreiben Sie die Bestellung.', 'danger')
+        return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
     
     with get_db_connection() as conn:
         bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ?', (bestellung_id,)).fetchone()
@@ -3598,11 +3671,12 @@ def bestellung_freigeben(bestellung_id):
             flash('Bestellung kann nur im Status "Zur Freigabe" freigegeben werden.', 'danger')
             return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
         
+        # Unterschrift und Freigabe speichern
         conn.execute('''
             UPDATE Bestellung 
-            SET Status = ?, FreigegebenAm = datetime('now'), FreigegebenVonID = ?
+            SET Status = ?, FreigegebenAm = datetime('now'), FreigegebenVonID = ?, Unterschrift = ?
             WHERE ID = ?
-        ''', ('Freigegeben', mitarbeiter_id, bestellung_id))
+        ''', ('Freigegeben', mitarbeiter_id, unterschrift, bestellung_id))
         conn.commit()
         flash('Bestellung wurde freigegeben.', 'success')
     
@@ -3896,7 +3970,7 @@ def update_bestellung_sichtbarkeit(bestellung_id):
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/pdf')
 @login_required
 def bestellung_pdf_export(bestellung_id):
-    """PDF-Export für eine Bestellung"""
+    """PDF-Export für eine Bestellung mit docx-Vorlage"""
     mitarbeiter_id = session.get('user_id')
     
     try:
@@ -3912,13 +3986,17 @@ def bestellung_pdf_export(bestellung_id):
                     l.Telefon AS LieferantTelefon,
                     l.Email AS LieferantEmail,
                     m1.Vorname || ' ' || m1.Nachname AS ErstelltVon,
+                    m1.Email AS ErstelltVonEmail,
+                    m1.Handynummer AS ErstelltVonHandy,
                     m2.Vorname || ' ' || m2.Nachname AS FreigegebenVon,
-                    m3.Vorname || ' ' || m3.Nachname AS BestelltVon
+                    m3.Vorname || ' ' || m3.Nachname AS BestelltVon,
+                    abt.Bezeichnung AS FreigegebenVonAbteilung
                 FROM Bestellung b
                 LEFT JOIN Lieferant l ON b.LieferantID = l.ID
                 LEFT JOIN Mitarbeiter m1 ON b.ErstelltVonID = m1.ID
                 LEFT JOIN Mitarbeiter m2 ON b.FreigegebenVonID = m2.ID
                 LEFT JOIN Mitarbeiter m3 ON b.BestelltVonID = m3.ID
+                LEFT JOIN Abteilung abt ON m2.PrimaerAbteilungID = abt.ID
                 WHERE b.ID = ?
             """, (bestellung_id,)).fetchone()
             
@@ -3936,7 +4014,8 @@ def bestellung_pdf_export(bestellung_id):
                     p.*,
                     e.ID AS ErsatzteilID,
                     COALESCE(p.Bestellnummer, e.Bestellnummer) AS Bestellnummer,
-                    COALESCE(p.Bezeichnung, e.Bezeichnung) AS Bezeichnung
+                    COALESCE(p.Bezeichnung, e.Bezeichnung) AS Bezeichnung,
+                    COALESCE(e.Einheit, 'Stück') AS Einheit
                 FROM BestellungPosition p
                 LEFT JOIN Ersatzteil e ON p.ErsatzteilID = e.ID
                 WHERE p.BestellungID = ?
@@ -3946,126 +4025,318 @@ def bestellung_pdf_export(bestellung_id):
             # Firmendaten laden
             firmendaten = get_firmendaten()
             
-            # PDF erstellen (analog zu Angebotsanfrage)
-            buffer = BytesIO()
-            doc = SimpleDocTemplate(buffer, pagesize=A4,
-                                    rightMargin=2*cm, leftMargin=2*cm,
-                                    topMargin=2*cm, bottomMargin=2*cm)
+            # Template-Pfad
+            template_path = os.path.join(current_app.root_path, 'templates', 'reports', 'bestellung_template.docx')
+            if not os.path.exists(template_path):
+                flash('Bestellungsvorlage nicht gefunden. Bitte wenden Sie sich an den Administrator.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
             
-            story = []
-            styles = getSampleStyleSheet()
+            # Template laden
+            doc = DocxTemplate(template_path)
             
-            # Text-Styles
-            normal_style = ParagraphStyle('Normal', parent=styles['Normal'], fontSize=10, leading=14)
-            small_style = ParagraphStyle('Small', parent=styles['Normal'], fontSize=8, leading=10)
-            bold_style = ParagraphStyle('Bold', parent=styles['Normal'], fontSize=10, fontName='Helvetica-Bold')
-            
-            # Header: Logo
-            if firmendaten and firmendaten['LogoPfad'] and os.path.exists(firmendaten['LogoPfad']):
+            # Datum formatieren
+            datum = ''
+            if bestellung['ErstelltAm']:
                 try:
-                    logo = Image(firmendaten['LogoPfad'], width=5*cm, height=2.5*cm)
-                    logo.hAlign = 'RIGHT'
-                    story.append(logo)
+                    datum = datetime.strptime(bestellung['ErstelltAm'], '%Y-%m-%d %H:%M:%S').strftime('%d.%m.%Y')
                 except:
-                    pass
-            story.append(Spacer(1, 0.3*cm))
+                    datum = bestellung['ErstelltAm'][:10] if bestellung['ErstelltAm'] else ''
             
-            # Firmendaten und Lieferant
-            firmen_text = []
-            if firmendaten:
-                if firmendaten['Firmenname']:
-                    firmen_text.append(Paragraph(f"<b>{firmendaten['Firmenname']}</b>", small_style))
-                if firmendaten['Strasse']:
-                    firmen_text.append(Paragraph(firmendaten['Strasse'], small_style))
-                if firmendaten['PLZ'] and firmendaten['Ort']:
-                    firmen_text.append(Paragraph(f"{firmendaten['PLZ']} {firmendaten['Ort']}", small_style))
+            freigabe_datum = ''
+            freigegeben_am = safe_get(bestellung, 'FreigegebenAm')
+            if freigegeben_am:
+                try:
+                    freigabe_datum = datetime.strptime(freigegeben_am, '%Y-%m-%d %H:%M:%S').strftime('%d.%m.%Y %H:%M')
+                except:
+                    freigabe_datum = freigegeben_am[:16] if freigegeben_am else ''
             
-            lieferant_text = []
-            if bestellung['LieferantName']:
-                lieferant_text.append(Paragraph(f"<b>{bestellung['LieferantName']}</b>", small_style))
-            if bestellung['LieferantStrasse']:
-                lieferant_text.append(Paragraph(bestellung['LieferantStrasse'], small_style))
-            if bestellung['LieferantPLZ'] and bestellung['LieferantOrt']:
-                lieferant_text.append(Paragraph(f"{bestellung['LieferantPLZ']} {bestellung['LieferantOrt']}", small_style))
+            # Kontaktdaten des Erstellers zusammenstellen
+            kontakt_details = []
+            erstellt_von_email = safe_get(bestellung, 'ErstelltVonEmail')
+            erstellt_von_handy = safe_get(bestellung, 'ErstelltVonHandy')
+            if erstellt_von_email:
+                kontakt_details.append(f"E-Mail: {erstellt_von_email}")
+            if erstellt_von_handy:
+                kontakt_details.append(f"Tel: {erstellt_von_handy}")
+            kontakt_text = ' | '.join(kontakt_details) if kontakt_details else ''
             
-            # Zwei-Spalten-Layout
-            from reportlab.platypus import Table as PDFTable
-            header_data = [
-                [lieferant_text, firmen_text]
-            ]
-            header_table = PDFTable(header_data, colWidths=[8*cm, 8*cm])
-            header_table.setStyle(TableStyle([
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ('ALIGN', (0, 0), (0, 0), 'LEFT'),
-                ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
-            ]))
-            story.append(header_table)
-            story.append(Spacer(1, 0.5*cm))
-            
-            # Titel
-            story.append(Paragraph(f"<b>BESTELLUNG #{bestellung_id}</b>", bold_style))
-            story.append(Spacer(1, 0.3*cm))
-            
-            # Positionen-Tabelle
-            table_data = [['Pos', 'Bestellnummer', 'Bezeichnung', 'Menge', 'Preis', 'Gesamt']]
+            # Positionen für Template vorbereiten mit Gesamtpreis
+            positionen_liste = []
             gesamtbetrag = 0
             waehrung = 'EUR'
             
             for idx, pos in enumerate(positionen, 1):
-                preis = pos['Preis'] or 0
-                menge = pos['Menge'] or 0
-                gesamt = preis * menge
-                gesamtbetrag += gesamt
-                if pos['Waehrung']:
-                    waehrung = pos['Waehrung']
+                artikel_nr = pos['Bestellnummer'] or '-'
+                bezeichnung = pos['Bezeichnung'] or '-'
+                menge_val = pos['Menge'] if pos['Menge'] else 0
+                preis_val = pos['Preis'] if pos['Preis'] else 0
+                gesamt_preis = menge_val * preis_val
+                gesamtbetrag += gesamt_preis
                 
-                table_data.append([
-                    str(idx),
-                    pos['Bestellnummer'] or '-',
-                    pos['Bezeichnung'] or '-',
-                    str(menge),
-                    f"{preis:.2f} {waehrung}",
-                    f"{gesamt:.2f} {waehrung}"
-                ])
+                pos_waehrung = safe_get(pos, 'Waehrung')
+                if pos_waehrung:
+                    waehrung = pos_waehrung
+                
+                einheit = safe_get(pos, 'Einheit', 'Stück')
+                # Menge formatieren: Ganze Zahlen ohne Kommastellen, mit Einheit
+                if menge_val == int(menge_val):
+                    menge_text = f"{int(menge_val)} {einheit}"
+                else:
+                    menge_text = f"{menge_val} {einheit}"
+                
+                positionen_liste.append({
+                    'position': idx,
+                    'artikelnummer': artikel_nr,
+                    'bezeichnung': bezeichnung,
+                    'menge': menge_text,
+                    'preis': f"{preis_val:.2f}",
+                    'gesamtpreis': f"{gesamt_preis:.2f}",
+                    'waehrung': waehrung
+                })
             
-            # Gesamtzeile
-            table_data.append(['', '', '', '', '<b>Gesamt:</b>', f"<b>{gesamtbetrag:.2f} {waehrung}</b>"])
+            # Unterschrift als Bild vorbereiten (falls vorhanden)
+            unterschrift_img = None
+            tmp_img_path = None
+            unterschrift_data_raw = safe_get(bestellung, 'Unterschrift')
+            if unterschrift_data_raw:
+                try:
+                    from docxtpl import InlineImage
+                    from docx.shared import Mm
+                    
+                    unterschrift_data = unterschrift_data_raw
+                    if unterschrift_data.startswith('data:image'):
+                        unterschrift_data = unterschrift_data.split(',')[1] if ',' in unterschrift_data else unterschrift_data
+                    
+                    img_data = base64.b64decode(unterschrift_data)
+                    
+                    # Temporäres Bild speichern für InlineImage
+                    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_img:
+                        tmp_img.write(img_data)
+                        tmp_img_path = os.path.abspath(tmp_img.name)  # Absoluten Pfad verwenden
+                    
+                    # Prüfen ob Datei existiert und lesbar ist
+                    if not os.path.exists(tmp_img_path):
+                        raise Exception(f"Temporäres Bild konnte nicht erstellt werden: {tmp_img_path}")
+                    
+                    # Dateigröße prüfen
+                    file_size = os.path.getsize(tmp_img_path)
+                    if file_size == 0:
+                        raise Exception(f"Temporäres Bild ist leer: {tmp_img_path}")
+                    
+                    # InlineImage erstellen (Breite in mm, Höhe wird automatisch angepasst)
+                    # Verwende Mm() für die Breite
+                    unterschrift_img = InlineImage(doc, tmp_img_path, width=Mm(80))  # 80mm Breite
+                    
+                    if current_app.config.get('DEBUG'):
+                        print(f"Unterschrift erfolgreich vorbereitet: {tmp_img_path}, Größe: {len(img_data)} bytes")
+                except Exception as e:
+                    print(f"Fehler beim Vorbereiten der Unterschrift: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    unterschrift_img = None
+                    # Temporäres Bild aufräumen bei Fehler
+                    if tmp_img_path and os.path.exists(tmp_img_path):
+                        try:
+                            os.unlink(tmp_img_path)
+                        except:
+                            pass
+                    tmp_img_path = None
             
-            pos_table = PDFTable(table_data, colWidths=[1*cm, 3*cm, 6*cm, 1.5*cm, 2.5*cm, 2.5*cm])
-            pos_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('ALIGN', (3, 1), (3, -2), 'RIGHT'),
-                ('ALIGN', (4, 1), (-1, -1), 'RIGHT'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 9),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('BACKGROUND', (0, 1), (-1, -2), colors.beige),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-            ]))
-            story.append(pos_table)
+            # Footer-Informationen zusammenstellen
+            footer_lines = []
+            if firmendaten:
+                if safe_get(firmendaten, 'Geschaeftsfuehrer'):
+                    footer_lines.append(f"Geschäftsführer: {firmendaten['Geschaeftsfuehrer']}")
+                if safe_get(firmendaten, 'UStIdNr'):
+                    footer_lines.append(f"UStIdNr.: {firmendaten['UStIdNr']}")
+                if safe_get(firmendaten, 'Steuernummer'):
+                    footer_lines.append(f"Steuernr.: {firmendaten['Steuernummer']}")
+                if safe_get(firmendaten, 'Telefon'):
+                    footer_lines.append(f"Telefon: {firmendaten['Telefon']}")
+                bank_name = safe_get(firmendaten, 'BankName')
+                iban = safe_get(firmendaten, 'IBAN')
+                if bank_name and iban:
+                    footer_lines.append(f"Bankverbindung: {firmendaten['BankName']}")
+                    footer_lines.append(f"IBAN: {firmendaten['IBAN']}")
+                    bic = safe_get(firmendaten, 'BIC')
+                    if bic:
+                        footer_lines.append(f"BIC: {firmendaten['BIC']}")
+            footer_text = ' | '.join(footer_lines) if footer_lines else ''
             
-            # Footer
-            story.append(Spacer(1, 0.5*cm))
-            if bestellung['Bemerkung']:
-                story.append(Paragraph(f"<b>Bemerkung:</b> {bestellung['Bemerkung']}", normal_style))
+            # Lieferanschrift zusammenstellen (falls abweichend)
+            lieferanschrift = []
+            if firmendaten:
+                liefer_strasse = safe_get(firmendaten, 'LieferStrasse')
+                if liefer_strasse:
+                    lieferanschrift.append(firmendaten['LieferStrasse'])
+                liefer_plz = safe_get(firmendaten, 'LieferPLZ')
+                liefer_ort = safe_get(firmendaten, 'LieferOrt')
+                if liefer_plz and liefer_ort:
+                    lieferanschrift.append(f"{firmendaten['LieferPLZ']} {firmendaten['LieferOrt']}")
+            lieferanschrift_text = '\n'.join(lieferanschrift) if lieferanschrift else ''
             
-            # PDF generieren
-            doc.build(story)
+            # Kontext für Template
+            context = {
+                # Bestellungs-Daten
+                'bestellung_id': bestellung['ID'],
+                'bestellnummer': safe_get(bestellung, 'Bestellnummer', ''),
+                'datum': datum,
+                'erstellt_von': safe_get(bestellung, 'ErstelltVon', ''),
+                'erstellt_von_kontakt': kontakt_text,
+                'status': safe_get(bestellung, 'Status', ''),
+                'bemerkung': safe_get(bestellung, 'Bemerkung', ''),
+                'freigabe_bemerkung': safe_get(bestellung, 'FreigabeBemerkung', ''),
+                
+                # Lieferant-Daten
+                'lieferant_name': bestellung['LieferantName'] or '',
+                'lieferant_strasse': bestellung['LieferantStrasse'] or '',
+                'lieferant_plz': bestellung['LieferantPLZ'] or '',
+                'lieferant_ort': bestellung['LieferantOrt'] or '',
+                'lieferant_plz_ort': f"{bestellung['LieferantPLZ'] or ''} {bestellung['LieferantOrt'] or ''}".strip(),
+                'lieferant_telefon': bestellung['LieferantTelefon'] or '',
+                'lieferant_email': bestellung['LieferantEmail'] or '',
+                
+                # Firmendaten
+                'firmenname': safe_get(firmendaten, 'Firmenname', '') if firmendaten else '',
+                'firmenstrasse': safe_get(firmendaten, 'Strasse', '') if firmendaten else '',
+                'firmenplz': safe_get(firmendaten, 'PLZ', '') if firmendaten else '',
+                'firmenort': safe_get(firmendaten, 'Ort', '') if firmendaten else '',
+                'firmenplz_ort': f"{safe_get(firmendaten, 'PLZ', '')} {safe_get(firmendaten, 'Ort', '')}".strip() if firmendaten else '',
+                'firmen_telefon': safe_get(firmendaten, 'Telefon', '') if firmendaten else '',
+                'firmen_website': safe_get(firmendaten, 'Website', '') if firmendaten else '',
+                'firmen_email': safe_get(firmendaten, 'Email', '') if firmendaten else '',
+                'firma_lieferstraße': safe_get(firmendaten, 'LieferStrasse', '') if firmendaten else '',
+                'firma_lieferPLZ': safe_get(firmendaten, 'LieferPLZ', '') if firmendaten else '',
+                'firma_lieferOrt': safe_get(firmendaten, 'LieferOrt', '') if firmendaten else '',
+                'lieferanschrift': lieferanschrift_text,
+                'footer': footer_text,
+                
+                # Positionen
+                'positionen': positionen_liste,
+                'hat_positionen': len(positionen_liste) > 0,
+                'gesamtbetrag': f"{gesamtbetrag:.2f}",
+                'waehrung': waehrung,
+                
+                # Freigabe-Daten
+                'freigegeben_von': safe_get(bestellung, 'FreigegebenVon', ''),
+                'freigegeben_von_abteilung': safe_get(bestellung, 'FreigegebenVonAbteilung', ''),
+                'freigegeben_am': freigabe_datum,
+                'hat_unterschrift': unterschrift_img is not None,
+                'unterschrift': unterschrift_img,
+            }
             
-            # PDF als Download senden
-            filename = f"Bestellung_{bestellung_id}_{datetime.now().strftime('%Y%m%d')}.pdf"
+            # Template rendern
+            doc.render(context)
+            
+            # WICHTIG: Temporäres Bild erst NACH dem Rendern löschen
+            # Das Bild wird während des Renderings benötigt
+            if tmp_img_path and os.path.exists(tmp_img_path):
+                try:
+                    os.unlink(tmp_img_path)
+                except:
+                    pass
+            
+            # Als PDF konvertieren oder DOCX zurückgeben
+            # Hinweis: PDF-Konvertierung auf Windows benötigt Microsoft Word
+            # Falls nicht verfügbar, wird DOCX zurückgegeben (kann im Browser zu PDF konvertiert werden)
+            if DOCX2PDF_AVAILABLE:
+                # PDF-Konvertierung versuchen
+                buffer = BytesIO()
+                doc.save(buffer)
+                buffer.seek(0)
+                
+                # Temporäre DOCX-Datei erstellen
+                with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as tmp_docx:
+                    tmp_docx.write(buffer.getvalue())
+                    tmp_docx_path = tmp_docx.name
+                
+                # PDF erstellen
+                with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp_pdf:
+                    tmp_pdf_path = tmp_pdf.name
+                
+                try:
+                    # COM-Initialisierung für Windows
+                    import sys
+                    if sys.platform == 'win32':
+                        try:
+                            import pythoncom
+                            pythoncom.CoInitialize()
+                        except ImportError:
+                            pass  # pythoncom nicht verfügbar
+                    
+                    convert(tmp_docx_path, tmp_pdf_path)
+                    
+                    # PDF lesen
+                    with open(tmp_pdf_path, 'rb') as f:
+                        pdf_content = f.read()
+                    
+                    # Temporäre Dateien löschen
+                    os.unlink(tmp_docx_path)
+                    os.unlink(tmp_pdf_path)
+                    
+                    # COM aufräumen (Windows)
+                    if sys.platform == 'win32':
+                        try:
+                            import pythoncom
+                            pythoncom.CoUninitialize()
+                        except:
+                            pass
+                    
+                    # PDF als Download senden
+                    filename = f"Bestellung_{bestellung_id}_{datetime.now().strftime('%Y%m%d')}.pdf"
+                    response = make_response(pdf_content)
+                    response.headers['Content-Type'] = 'application/pdf'
+                    response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+                    return response
+                except Exception as e:
+                    # Falls PDF-Konvertierung fehlschlägt, DOCX zurückgeben
+                    if current_app.config.get('DEBUG'):
+                        print(f"PDF-Konvertierung nicht verfügbar, DOCX wird zurückgegeben: {e}")
+                    
+                    # Temporäre Dateien aufräumen
+                    if os.path.exists(tmp_docx_path):
+                        try:
+                            os.unlink(tmp_docx_path)
+                        except:
+                            pass
+                    if os.path.exists(tmp_pdf_path):
+                        try:
+                            os.unlink(tmp_pdf_path)
+                        except:
+                            pass
+                    
+                    # COM aufräumen (Windows)
+                    import sys
+                    if sys.platform == 'win32':
+                        try:
+                            import pythoncom
+                            pythoncom.CoUninitialize()
+                        except:
+                            pass
+                    
+                    # Fallback: DOCX zurückgeben
+                    buffer = BytesIO()
+                    doc.save(buffer)
+                    buffer.seek(0)
+                    filename = f"Bestellung_{bestellung_id}_{datetime.now().strftime('%Y%m%d')}.docx"
+                    response = make_response(buffer.getvalue())
+                    response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                    response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+                    return response
+            
+            # Keine PDF-Konvertierung verfügbar, DOCX zurückgeben
+            buffer = BytesIO()
+            doc.save(buffer)
+            buffer.seek(0)
+            filename = f"Bestellung_{bestellung_id}_{datetime.now().strftime('%Y%m%d')}.docx"
             response = make_response(buffer.getvalue())
-            response.headers['Content-Type'] = 'application/pdf'
+            response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
-            
             return response
             
     except Exception as e:
-        flash(f'Fehler beim Erstellen des PDFs: {str(e)}', 'danger')
-        print(f"PDF-Export Fehler: {e}")
+        flash(f'Fehler beim Erstellen des Berichts: {str(e)}', 'danger')
+        print(f"Bestellungs-Export Fehler: {e}")
         import traceback
         traceback.print_exc()
         return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
@@ -4101,6 +4372,52 @@ def bestellung_datei_upload(bestellung_id):
             print(f"Datei-Upload Fehler: {e}")
     else:
         flash('Nur PDF-Dateien sind erlaubt.', 'danger')
+    
+    return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/auftragsbestätigung/upload', methods=['POST'])
+@login_required
+def bestellung_auftragsbestätigung_upload(bestellung_id):
+    """Auftragsbestätigung-Upload für Bestellung"""
+    # Prüfe ob Bestellung den Status "Bestellt" hat
+    with get_db_connection() as conn:
+        bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ?', (bestellung_id,)).fetchone()
+        if not bestellung:
+            flash('Bestellung nicht gefunden.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_liste'))
+        
+        if bestellung['Status'] not in ['Bestellt', 'Teilweise erhalten', 'Erhalten', 'Erledigt']:
+            flash('Auftragsbestätigung kann nur für bestellte Bestellungen hochgeladen werden.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+    
+    if 'file' not in request.files:
+        flash('Keine Datei ausgewählt.', 'danger')
+        return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+    
+    file = request.files['file']
+    if file.filename == '':
+        flash('Keine Datei ausgewählt.', 'danger')
+        return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+    
+    file_ext = file.filename.lower()
+    if file and (file_ext.endswith(('.pdf', '.jpeg', '.jpg', '.png'))):
+        try:
+            # Ordner erstellen
+            auftragsbestätigung_folder = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], 'Bestellwesen', 'Auftragsbestätigungen', str(bestellung_id))
+            os.makedirs(auftragsbestätigung_folder, exist_ok=True)
+            
+            # Datei speichern
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(auftragsbestätigung_folder, filename)
+            file.save(filepath)
+            
+            flash('Auftragsbestätigung erfolgreich hochgeladen.', 'success')
+        except Exception as e:
+            flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
+            print(f"Auftragsbestätigung-Upload Fehler: {e}")
+    else:
+        flash('Nur PDF-, JPEG- oder PNG-Dateien sind erlaubt.', 'danger')
     
     return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
 
@@ -4302,7 +4619,7 @@ def lieferschein_upload(bestellung_id):
     if file and file_ext in allowed_extensions:
         try:
             # Ordner erstellen
-            lieferschein_folder = os.path.join(current_app.config['ANGEBOTE_UPLOAD_FOLDER'], 'Lieferscheine', str(bestellung_id))
+            lieferschein_folder = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], 'Bestellwesen', 'Lieferscheine', str(bestellung_id))
             os.makedirs(lieferschein_folder, exist_ok=True)
             
             # Datei speichern
@@ -4324,25 +4641,24 @@ def lieferschein_upload(bestellung_id):
 
 @ersatzteile_bp.route('/lieferschein/<path:filepath>')
 @login_required
-@permission_required('artikel_buchen')
 def lieferschein_anzeigen(filepath):
-    """Lieferschein-Datei anzeigen/herunterladen (PDF oder Bild)"""
+    """Lieferschein-Datei anzeigen/herunterladen (PDF oder Bild) - für alle angemeldeten Benutzer"""
     mitarbeiter_id = session.get('user_id')
     
     # Normalisiere den Pfad: Backslashes zu Forward-Slashes (für Windows-Kompatibilität)
     filepath = filepath.replace('\\', '/')
     
-    # Sicherheitsprüfung: Dateipfad muss mit Lieferscheine beginnen
-    if not filepath.startswith('Lieferscheine/'):
+    # Sicherheitsprüfung: Dateipfad muss mit Bestellwesen/Lieferscheine beginnen
+    if not filepath.startswith('Bestellwesen/Lieferscheine/'):
         flash('Ungültiger Dateipfad.', 'danger')
         return redirect(url_for('ersatzteile.wareneingang'))
     
     try:
         # Vollständigen Pfad erstellen
-        full_path = os.path.join(current_app.config['ANGEBOTE_UPLOAD_FOLDER'], filepath)
+        full_path = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], filepath)
         
         # Sicherheitsprüfung: Datei muss existieren und im erlaubten Ordner sein
-        if not os.path.exists(full_path) or not os.path.abspath(full_path).startswith(os.path.abspath(current_app.config['ANGEBOTE_UPLOAD_FOLDER'])):
+        if not os.path.exists(full_path) or not os.path.abspath(full_path).startswith(os.path.abspath(current_app.config['UPLOAD_BASE_FOLDER'])):
             flash('Datei nicht gefunden.', 'danger')
             return redirect(url_for('ersatzteile.wareneingang'))
         
