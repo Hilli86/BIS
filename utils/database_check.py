@@ -135,7 +135,9 @@ def get_required_tables():
         'AngebotsanfragePosition',
         'Bestellung',
         'BestellungPosition',
-        'BestellungSichtbarkeit'
+        'BestellungSichtbarkeit',
+        'Berechtigung',
+        'MitarbeiterBerechtigung'
     ]
 
 
@@ -836,6 +838,7 @@ def init_database_schema(db_path, verbose=False):
                 ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FreigegebenAm DATETIME NULL,
                 FreigegebenVonID INTEGER NULL,
+                FreigabeBemerkung TEXT NULL,
                 BestelltAm DATETIME NULL,
                 BestelltVonID INTEGER NULL,
                 Bemerkung TEXT NULL,
@@ -854,6 +857,13 @@ def init_database_schema(db_path, verbose=False):
             'CREATE INDEX idx_bestellung_abteilung ON Bestellung(ErstellerAbteilungID)',
             'CREATE INDEX idx_bestellung_erstellt_am ON Bestellung(ErstelltAm)'
         ])
+        if not created:
+            # Prüfe auf fehlende Spalte FreigabeBemerkung
+            if create_column_if_not_exists(conn, 'Bestellung', 'FreigabeBemerkung', 'ALTER TABLE Bestellung ADD COLUMN FreigabeBemerkung TEXT NULL'):
+                print("[INFO] Spalte 'FreigabeBemerkung' zu 'Bestellung' hinzugefügt")
+            # Prüfe auf fehlende Spalte Unterschrift
+            if create_column_if_not_exists(conn, 'Bestellung', 'Unterschrift', 'ALTER TABLE Bestellung ADD COLUMN Unterschrift TEXT NULL'):
+                print("[INFO] Spalte 'Unterschrift' zu 'Bestellung' hinzugefügt")
         
         # ========== 27. BestellungPosition ==========
         created = create_table_if_not_exists(conn, 'BestellungPosition', '''
