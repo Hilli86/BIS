@@ -17,6 +17,16 @@
             <div class="col-md-6">
                 <table class="table table-sm table-borderless mb-0">
                     <tbody>
+                        {% if bestellung.AngebotsanfrageID %}
+                        <tr>
+                            <td class="text-muted" style="width: 150px;"><strong>AngebotsID:</strong></td>
+                            <td>
+                                <a href="{{ url_for('ersatzteile.angebotsanfrage_detail', angebotsanfrage_id=bestellung.AngebotsanfrageID) }}" class="text-decoration-none">
+                                    #{{ bestellung.AngebotsanfrageID }}
+                                </a>
+                            </td>
+                        </tr>
+                        {% endif %}
                         <tr>
                             <td class="text-muted" style="width: 150px;"><strong>Lieferant:</strong></td>
                             <td>{{ bestellung.LieferantName or '-' }}</td>
@@ -37,6 +47,14 @@
                         <tr>
                             <td class="text-muted"><strong>Email:</strong></td>
                             <td><a href="mailto:{{ bestellung.LieferantEmail }}">{{ bestellung.LieferantEmail }}</a></td>
+                        </tr>
+                        {% endif %}
+                        {% if bestellung.Unterschrift %}
+                        <tr>
+                            <td class="text-muted"><strong>Unterschrift:</strong></td>
+                            <td>
+                                <img src="{{ bestellung.Unterschrift }}" alt="Unterschrift" style="max-width: 300px; border: 1px solid #ddd; padding: 5px; background: white;">
+                            </td>
                         </tr>
                         {% endif %}
                     </tbody>
@@ -84,6 +102,12 @@
                             <td class="text-muted"><strong>Freigegeben von:</strong></td>
                             <td>{{ bestellung.FreigegebenVon or '-' }}</td>
                         </tr>
+                        {% if bestellung.FreigabeBemerkung %}
+                        <tr>
+                            <td class="text-muted"><strong>Freigabebemerkung:</strong></td>
+                            <td>{{ bestellung.FreigabeBemerkung }}</td>
+                        </tr>
+                        {% endif %}
                         {% endif %}
                         {% if bestellung.BestelltAm %}
                         <tr>
@@ -126,19 +150,33 @@
     <div class="card-body">
         <div class="d-flex flex-wrap gap-2">
             {% if bestellung.Status == 'Erstellt' %}
-            <form method="POST" action="{{ url_for('ersatzteile.bestellung_zur_freigabe', bestellung_id=bestellung.ID) }}" class="d-inline">
-                <button type="submit" class="btn btn-warning">
-                    <i class="bi bi-check-circle"></i> Zur Freigabe markieren
-                </button>
+            <form method="POST" action="{{ url_for('ersatzteile.bestellung_zur_freigabe', bestellung_id=bestellung.ID) }}" class="w-100">
+                <div class="row g-3">
+                    <div class="col-md-12">
+                        <label for="freigabe_bemerkung" class="form-label">Freigabebemerkung:</label>
+                        <input type="text" name="freigabe_bemerkung" id="freigabe_bemerkung" class="form-control" placeholder="Optional: Bemerkung zur Freigabe...">
+                    </div>
+                    <div class="col-md-12">
+                        <button type="submit" class="btn btn-warning">
+                            <i class="bi bi-check-circle"></i> Zur Freigabe markieren
+                        </button>
+                    </div>
+                </div>
             </form>
             {% endif %}
             
             {% if bestellung.Status == 'Zur Freigabe' and kann_freigeben %}
-            <form method="POST" action="{{ url_for('ersatzteile.bestellung_freigeben', bestellung_id=bestellung.ID) }}" class="d-inline">
-                <button type="submit" class="btn btn-success">
+            <div class="w-100">
+                {% if bestellung.FreigabeBemerkung %}
+                <div class="mb-3 p-3 bg-light border rounded">
+                    <strong>Freigabebemerkung:</strong>
+                    <p class="mb-0 mt-1">{{ bestellung.FreigabeBemerkung }}</p>
+                </div>
+                {% endif %}
+                <button type="button" class="btn btn-success" onclick="openUnterschriftModal({{ bestellung.ID }})">
                     <i class="bi bi-check-lg"></i> Freigeben
                 </button>
-            </form>
+            </div>
             {% endif %}
             
             {% if bestellung.Status == 'Freigegeben' %}
@@ -338,6 +376,85 @@
             </a>
             {% endfor %}
         </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Auftragsbestätigungen -->
+{% if bestellung.Status in ['Bestellt', 'Teilweise erhalten', 'Erhalten', 'Erledigt'] %}
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">📋 Auftragsbestätigungen</h5>
+        <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#auftragsbestätigungUploadCollapse">
+            <i class="bi bi-plus-circle"></i> Auftragsbestätigung hochladen
+        </button>
+    </div>
+    <div class="collapse" id="auftragsbestätigungUploadCollapse">
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('ersatzteile.bestellung_auftragsbestätigung_upload', bestellung_id=bestellung.ID) }}" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label class="form-label">Datei (PDF, JPEG, PNG):</label>
+                    <input type="file" name="file" class="form-control" accept=".pdf,.jpeg,.jpg,.png" required>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-upload"></i> Hochladen
+                </button>
+            </form>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if auftragsbestätigungen %}
+        <div class="list-group">
+            {% for datei in auftragsbestätigungen %}
+            <a href="{{ url_for('ersatzteile.bestellung_datei_anzeigen', filepath=datei.path) }}" target="_blank" class="list-group-item list-group-item-action">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">{{ datei.name }}</h6>
+                    <small>{{ datei.size // 1024 }} KB</small>
+                </div>
+                <small>{{ datei.modified.strftime('%d.%m.%Y %H:%M') if datei.modified else '' }}</small>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Keine Auftragsbestätigungen vorhanden.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Lieferscheine -->
+{% if bestellung.Status in ['Bestellt', 'Teilweise erhalten', 'Erhalten', 'Erledigt'] %}
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-secondary text-white">
+        <h5 class="mb-0">📦 Lieferscheine</h5>
+    </div>
+    <div class="card-body">
+        {% if lieferscheine %}
+        <div class="list-group">
+            {% for datei in lieferscheine %}
+            <a href="{{ url_for('ersatzteile.lieferschein_anzeigen', filepath=datei.path) }}" target="_blank" class="list-group-item list-group-item-action">
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">
+                        {% if datei.type == 'pdf' %}
+                        <i class="bi bi-file-pdf text-danger"></i>
+                        {% elif datei.type == 'image' %}
+                        <i class="bi bi-image text-primary"></i>
+                        {% endif %}
+                        {{ datei.name }}
+                    </h6>
+                    <small>{{ datei.size // 1024 }} KB</small>
+                </div>
+                <small>{{ datei.modified.strftime('%d.%m.%Y %H:%M') if datei.modified else '' }}</small>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Keine Lieferscheine vorhanden.
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endif %}
@@ -935,6 +1052,130 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// Unterschrifts-Modal JavaScript
+let signatureCanvas = null;
+let signatureCtx = null;
+let isDrawing = false;
+let currentBestellungId = null;
+let hasSignature = false;
+
+function openUnterschriftModal(bestellungId) {
+    currentBestellungId = bestellungId;
+    const modal = new bootstrap.Modal(document.getElementById('unterschriftModal'));
+    
+    // Canvas initialisieren
+    signatureCanvas = document.getElementById('signatureCanvas');
+    signatureCtx = signatureCanvas.getContext('2d');
+    
+    // Canvas leeren und konfigurieren
+    signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+    signatureCtx.strokeStyle = '#000000';
+    signatureCtx.lineWidth = 2;
+    signatureCtx.lineCap = 'round';
+    signatureCtx.lineJoin = 'round';
+    hasSignature = false;
+    
+    // Form-URL setzen
+    document.getElementById('unterschriftForm').action = `/ersatzteile/bestellungen/${bestellungId}/freigeben`;
+    document.getElementById('bestellungId').value = bestellungId;
+    document.getElementById('unterschriftData').value = '';
+    document.getElementById('submitUnterschriftBtn').disabled = true;
+    
+    // Event-Listener hinzufügen
+    signatureCanvas.removeEventListener('mousedown', startDrawing);
+    signatureCanvas.removeEventListener('mousemove', draw);
+    signatureCanvas.removeEventListener('mouseup', stopDrawing);
+    signatureCanvas.removeEventListener('mouseout', stopDrawing);
+    signatureCanvas.removeEventListener('touchstart', handleTouch);
+    signatureCanvas.removeEventListener('touchmove', handleTouch);
+    signatureCanvas.removeEventListener('touchend', stopDrawing);
+    
+    signatureCanvas.addEventListener('mousedown', startDrawing);
+    signatureCanvas.addEventListener('mousemove', draw);
+    signatureCanvas.addEventListener('mouseup', stopDrawing);
+    signatureCanvas.addEventListener('mouseout', stopDrawing);
+    
+    // Touch-Events für mobile Geräte
+    signatureCanvas.addEventListener('touchstart', handleTouch, { passive: false });
+    signatureCanvas.addEventListener('touchmove', handleTouch, { passive: false });
+    signatureCanvas.addEventListener('touchend', stopDrawing);
+    
+    modal.show();
+}
+
+function startDrawing(e) {
+    isDrawing = true;
+    const rect = signatureCanvas.getBoundingClientRect();
+    const scaleX = signatureCanvas.width / rect.width;
+    const scaleY = signatureCanvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+    signatureCtx.beginPath();
+    signatureCtx.moveTo(x, y);
+}
+
+function draw(e) {
+    if (!isDrawing) return;
+    e.preventDefault();
+    const rect = signatureCanvas.getBoundingClientRect();
+    const scaleX = signatureCanvas.width / rect.width;
+    const scaleY = signatureCanvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+    signatureCtx.lineTo(x, y);
+    signatureCtx.stroke();
+    hasSignature = true;
+    document.getElementById('submitUnterschriftBtn').disabled = false;
+}
+
+function stopDrawing() {
+    if (isDrawing) {
+        isDrawing = false;
+        // Submit-Button aktivieren, wenn gezeichnet wurde
+        if (hasSignature) {
+            document.getElementById('submitUnterschriftBtn').disabled = false;
+        }
+    }
+}
+
+function handleTouch(e) {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const rect = signatureCanvas.getBoundingClientRect();
+    const mouseEvent = new MouseEvent(
+        e.type === 'touchstart' ? 'mousedown' : 
+        e.type === 'touchmove' ? 'mousemove' : 'mouseup', {
+        clientX: touch.clientX,
+        clientY: touch.clientY,
+        bubbles: true,
+        cancelable: true
+    });
+    signatureCanvas.dispatchEvent(mouseEvent);
+}
+
+function clearSignature() {
+    signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+    document.getElementById('unterschriftData').value = '';
+    document.getElementById('submitUnterschriftBtn').disabled = true;
+    hasSignature = false;
+}
+
+// Form-Submit: Unterschrift als Base64 speichern
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('unterschriftForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            if (!hasSignature) {
+                e.preventDefault();
+                alert('Bitte unterschreiben Sie die Bestellung.');
+                return false;
+            }
+            const dataURL = signatureCanvas.toDataURL('image/png');
+            document.getElementById('unterschriftData').value = dataURL;
+        });
+    }
+});
 </script>
 
 <!-- Modal für Ersatzteil-Auswahl (Detail-Seite) -->
@@ -961,6 +1202,47 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal für Unterschrift -->
+<div class="modal fade" id="unterschriftModal" tabindex="-1" aria-labelledby="unterschriftModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="unterschriftModalLabel">
+                    <i class="bi bi-pen"></i> Bestellung freigeben - Unterschrift erforderlich
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="unterschriftForm" method="POST" action="">
+                <div class="modal-body">
+                    <p class="mb-3">Bitte unterschreiben Sie, um die Bestellung freizugeben:</p>
+                    
+                    <!-- Canvas für Unterschrift -->
+                    <div class="signature-container mb-3" style="border: 2px solid #ddd; border-radius: 4px; background-color: #fff; position: relative;">
+                        <canvas id="signatureCanvas" width="600" height="200" style="display: block; width: 100%; height: 200px; cursor: crosshair;"></canvas>
+                    </div>
+                    
+                    <!-- Buttons für Canvas -->
+                    <div class="d-flex gap-2 mb-3">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="clearSignature()">
+                            <i class="bi bi-arrow-counterclockwise"></i> Löschen
+                        </button>
+                        <small class="text-muted align-self-center ms-auto">Unterschrift mit Maus oder Touch zeichnen</small>
+                    </div>
+                    
+                    <input type="hidden" id="unterschriftData" name="unterschrift" value="">
+                    <input type="hidden" id="bestellungId" name="bestellung_id" value="">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="submit" class="btn btn-success" id="submitUnterschriftBtn" disabled>
+                        <i class="bi bi-check-lg"></i> Bestätigen und Freigeben
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
