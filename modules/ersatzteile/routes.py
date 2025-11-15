@@ -3213,7 +3213,8 @@ def bestellung_liste():
                 m2.Vorname || ' ' || m2.Nachname AS FreigegebenVon,
                 m3.Vorname || ' ' || m3.Nachname AS BestelltVon,
                 abt.Bezeichnung AS Abteilung,
-                COALESCE(SUM(bp.Menge * COALESCE(bp.Preis, 0)), 0) AS Gesamtbetrag
+                COALESCE(SUM(bp.Menge * COALESCE(bp.Preis, 0)), 0) AS Gesamtbetrag,
+                COUNT(bp.ID) AS PositionenAnzahl
             FROM Bestellung b
             LEFT JOIN Lieferant l ON b.LieferantID = l.ID
             LEFT JOIN Mitarbeiter m1 ON b.ErstelltVonID = m1.ID

@@ -96,6 +96,7 @@
                         <th>Nr.</th>
                         <th>Lieferant</th>
                         <th>Status</th>
+                        <th style="width: 80px;">Positionen</th>
                         <th>Erstellt am</th>
                         <th>Freigegeben am</th>
                         <th>Freigegeben von</th>
@@ -130,6 +131,7 @@
                             <span class="badge bg-secondary">{{ b.Status }}</span>
                             {% endif %}
                         </td>
+                        <td class="text-center">{{ b.PositionenAnzahl or 0 }}</td>
                         <td>{{ b.ErstelltAm[:16] if b.ErstelltAm else '-' }}</td>
                         <td>{{ b.FreigegebenAm[:16] if b.FreigegebenAm else '-' }}</td>
                         <td>{{ b.FreigegebenVon or '-' }}</td>
@@ -138,6 +140,11 @@
                         <td>{{ b.Abteilung or '-' }}</td>
                         <td>{{ "%.2f"|format(b.Gesamtbetrag) }} EUR</td>
                         <td onclick="event.stopPropagation();">
+                            {% if b.Status in ['Freigegeben', 'Bestellt'] %}
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="exportBestellungPDF({{ b.ID }})" title="Als PDF exportieren">
+                                <i class="bi bi-file-pdf"></i>
+                            </button>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -149,6 +156,71 @@
             <i class="bi bi-info-circle"></i> Keine Bestellungen gefunden.
         </div>
         {% endif %}
+    </div>
+</div>
+
+<script>
+// PDF-Export mit Ladeanzeige
+async function exportBestellungPDF(bestellungId) {
+    // Modal öffnen
+    const modal = new bootstrap.Modal(document.getElementById('pdfExportModal'));
+    modal.show();
+    
+    try {
+        const url = '{{ url_for("ersatzteile.bestellung_pdf_export", bestellung_id=0) }}'.replace('/0', `/${bestellungId}`);
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        // Blob aus Response erstellen
+        const blob = await response.blob();
+        
+        // Dateiname aus Content-Disposition Header extrahieren oder generieren
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = `Bestellung_${bestellungId}_${new Date().toISOString().split('T')[0]}.pdf`;
+        if (contentDisposition) {
+            // Regex für filename="..." oder filename=...
+            const filenameMatch = contentDisposition.match(/filename[*]?=['"]?([^'";]+)['"]?/i);
+            if (filenameMatch && filenameMatch[1]) {
+                filename = filenameMatch[1].trim();
+            }
+        }
+        
+        // Download starten
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+        
+        // Modal schließen
+        modal.hide();
+    } catch (error) {
+        console.error('Fehler beim PDF-Export:', error);
+        modal.hide();
+        alert('Fehler beim Erstellen des PDFs. Bitte versuchen Sie es erneut.');
+    }
+}
+</script>
+
+<!-- Modal für PDF-Export -->
+<div class="modal fade" id="pdfExportModal" tabindex="-1" aria-labelledby="pdfExportModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                    <span class="visually-hidden">Lädt...</span>
+                </div>
+                <h5 class="mb-2">PDF wird erstellt...</h5>
+                <p class="text-muted mb-0">Bitte warten Sie, während der Bericht generiert wird.</p>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

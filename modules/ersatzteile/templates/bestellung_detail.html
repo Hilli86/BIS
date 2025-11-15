@@ -532,11 +532,6 @@
     <a href="{{ url_for('ersatzteile.bestellung_liste') }}" class="btn btn-secondary">
         <i class="bi bi-arrow-left"></i> Zurück zur Liste
     </a>
-    {% if bestellung.Status in ['Freigegeben', 'Bestellt'] %}
-    <button type="button" class="btn btn-primary" onclick="exportBestellungPDF({{ bestellung.ID }})">
-        <i class="bi bi-file-pdf"></i> Als PDF exportieren
-    </button>
-    {% endif %}
 </div>
 
 <!-- Modal für Position bearbeiten -->
