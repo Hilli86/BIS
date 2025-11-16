@@ -132,6 +132,7 @@ def convert_docx_to_pdf(docx_path, pdf_path):
     
     # Temporäres User-Profil-Verzeichnis erstellen (im RAM/TMP für schnellere Zugriffe)
     import uuid
+    import time
     
     # Profil-Verzeichnis im /tmp erstellen (oft im RAM bei Linux)
     # Bei jedem Aufruf neues Profil für maximale Geschwindigkeit
@@ -139,6 +140,19 @@ def convert_docx_to_pdf(docx_path, pdf_path):
     try:
         profile_dir = os.path.join(tempfile.gettempdir(), f'lo_profile_{uuid.uuid4().hex[:8]}')
         os.makedirs(profile_dir, exist_ok=True)
+        
+        # User-Installation URL korrekt formatieren (file:// benötigt absolute Pfade)
+        # Linux/Unix: file:///path/to/dir
+        # Windows: file:///C:/path/to/dir
+        if sys.platform == 'win32':
+            # Windows: Pfad zu file:// URL konvertieren
+            profile_url = profile_dir.replace('\\', '/')
+            if not profile_url.startswith('/'):
+                profile_url = '/' + profile_url
+            profile_url = f'file://{profile_url}'
+        else:
+            # Linux/Unix: file:// mit 3 Slashes für absolute Pfade
+            profile_url = f'file://{profile_dir}'
         
         # LibreOffice im headless-Modus mit optimierten Optionen
         output_dir = os.path.dirname(pdf_path)
@@ -150,9 +164,8 @@ def convert_docx_to_pdf(docx_path, pdf_path):
             '--nolockcheck',           # Keine Lock-Prüfung
             '--nologo',                # Kein Logo beim Start
             '--norestore',             # Keine wiederherzustellenden Dokumente laden
-            '--safe-mode',             # Sicherheitsmodus ohne Add-ons (schnellerer Start)
-            f'--user-installation=file://{profile_dir}',  # User-Profil in temp-Verzeichnis
-            '--convert-to', 'pdf',
+            f'--user-installation={profile_url}',  # User-Profil in temp-Verzeichnis
+            '--convert-to', 'pdf:writer_pdf_Export',  # Expliziter PDF-Export-Filter
             '--outdir', output_dir,
             docx_path
         ]
@@ -164,6 +177,9 @@ def convert_docx_to_pdf(docx_path, pdf_path):
             timeout=30,  # Reduziert von 60 auf 30 Sekunden (sollte mit Optimierungen schneller sein)
             check=False
         )
+        
+        # Kurze Pause, damit LibreOffice die Datei vollständig schreiben kann
+        time.sleep(0.5)
         
         # LibreOffice erstellt PDF mit gleichem Namen wie DOCX
         docx_basename = os.path.splitext(os.path.basename(docx_path))[0]
@@ -191,15 +207,33 @@ def convert_docx_to_pdf(docx_path, pdf_path):
         
         # Wenn PDF gefunden wurde, verwenden
         if found_pdf and os.path.exists(found_pdf):
+            # Warte kurz, falls die Datei noch geschrieben wird
+            max_wait = 5
+            wait_count = 0
+            while wait_count < max_wait and os.path.getsize(found_pdf) == 0:
+                time.sleep(0.2)
+                wait_count += 1
+            
             if found_pdf != pdf_path:
                 shutil.move(found_pdf, pdf_path)
-            if os.path.getsize(pdf_path) > 0:
+            
+            # Prüfe Dateigröße nach dem Verschieben
+            if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
                 # Cleanup Profil-Verzeichnis vor erfolgreichem Return
                 if profile_dir and os.path.exists(profile_dir):
                     shutil.rmtree(profile_dir, ignore_errors=True)
                 return True
             else:
-                log_error(f"PDF wurde erstellt, ist aber leer: {pdf_path}")
+                # Zusätzliche Debug-Informationen
+                file_size = os.path.getsize(pdf_path) if os.path.exists(pdf_path) else 0
+                log_error(f"PDF wurde erstellt, ist aber leer: {pdf_path} (Größe: {file_size} bytes)")
+                log_error(f"LibreOffice Returncode: {result.returncode}")
+                if result.stderr:
+                    stderr_text = result.stderr.decode('utf-8', errors='ignore')
+                    log_error(f"LibreOffice stderr: {stderr_text[:500]}")
+                if result.stdout:
+                    stdout_text = result.stdout.decode('utf-8', errors='ignore')
+                    log_error(f"LibreOffice stdout: {stdout_text[:500]}")
         else:
             if result.returncode != 0:
                 stderr_text = result.stderr.decode('utf-8', errors='ignore') if result.stderr else ''
