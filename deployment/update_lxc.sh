@@ -112,10 +112,12 @@ CURRENT_BRANCH=$(su - "$BIS_USER" -c "cd $BIS_HOME && git rev-parse --abbrev-ref
 echo -e "${BLUE}  Aktueller Branch: ${CURRENT_BRANCH}${NC}"
 
 # Git Status prüfen (als bis-Benutzer)
-HAS_CHANGES=$(su - "$BIS_USER" -c "cd $BIS_HOME && git status --porcelain" | wc -l)
-if [ "$HAS_CHANGES" -gt 0 ]; then
+GIT_STATUS=$(su - "$BIS_USER" -c "cd $BIS_HOME && git status --porcelain" 2>/dev/null)
+if [ -n "$GIT_STATUS" ]; then
     echo -e "${YELLOW}⚠ Uncommitted Änderungen gefunden!${NC}"
     echo -e "${YELLOW}  Diese werden beim Pull möglicherweise überschrieben${NC}"
+    echo -e "${BLUE}  Änderungen:${NC}"
+    echo "$GIT_STATUS" | sed 's/^/    /'
     read -p "  Fortfahren? (j/N): " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Jj]$ ]]; then
