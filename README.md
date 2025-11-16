@@ -78,7 +78,6 @@ Bei einer **neuen Datenbank** wird automatisch ein Admin-Benutzer erstellt:
 - **Passwort:** a
 - **Name:** BIS-Admin
 
-**Hinweis:** Die Standardbenutzer 1001 und 1002 sind nur in der mitgelieferten Testdatenbank (`database_main.db`) vorhanden. Bei einer neuen Datenbank müssen Sie Benutzer über den Admin-Bereich anlegen.
 
 ## ⚙️ Konfiguration
 

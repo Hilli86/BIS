@@ -130,14 +130,28 @@ def convert_docx_to_pdf(docx_path, pdf_path):
         log_error("LibreOffice nicht gefunden. Bitte installieren Sie LibreOffice.")
         return False
     
+    # Temporäres User-Profil-Verzeichnis erstellen (im RAM/TMP für schnellere Zugriffe)
+    import uuid
+    
+    # Profil-Verzeichnis im /tmp erstellen (oft im RAM bei Linux)
+    # Bei jedem Aufruf neues Profil für maximale Geschwindigkeit
+    profile_dir = None
     try:
-        # LibreOffice im headless-Modus für Konvertierung
+        profile_dir = os.path.join(tempfile.gettempdir(), f'lo_profile_{uuid.uuid4().hex[:8]}')
+        os.makedirs(profile_dir, exist_ok=True)
+        
+        # LibreOffice im headless-Modus mit optimierten Optionen
         output_dir = os.path.dirname(pdf_path)
         cmd = [
             libreoffice_cmd,
-            '--headless',
-            '--nodefault',
-            '--nolockcheck',
+            '--headless',              # Kein GUI
+            '--invisible',             # Unsichtbar starten (schneller als nur headless)
+            '--nodefault',             # Keine Standard-Konfiguration laden
+            '--nolockcheck',           # Keine Lock-Prüfung
+            '--nologo',                # Kein Logo beim Start
+            '--norestore',             # Keine wiederherzustellenden Dokumente laden
+            '--safe-mode',             # Sicherheitsmodus ohne Add-ons (schnellerer Start)
+            f'--user-installation=file://{profile_dir}',  # User-Profil in temp-Verzeichnis
             '--convert-to', 'pdf',
             '--outdir', output_dir,
             docx_path
@@ -147,7 +161,7 @@ def convert_docx_to_pdf(docx_path, pdf_path):
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=60,
+            timeout=30,  # Reduziert von 60 auf 30 Sekunden (sollte mit Optimierungen schneller sein)
             check=False
         )
         
@@ -180,6 +194,9 @@ def convert_docx_to_pdf(docx_path, pdf_path):
             if found_pdf != pdf_path:
                 shutil.move(found_pdf, pdf_path)
             if os.path.getsize(pdf_path) > 0:
+                # Cleanup Profil-Verzeichnis vor erfolgreichem Return
+                if profile_dir and os.path.exists(profile_dir):
+                    shutil.rmtree(profile_dir, ignore_errors=True)
                 return True
             else:
                 log_error(f"PDF wurde erstellt, ist aber leer: {pdf_path}")
@@ -190,11 +207,18 @@ def convert_docx_to_pdf(docx_path, pdf_path):
             else:
                 log_error(f"PDF wurde nicht erstellt. Gesuchte Pfade: {generated_pdf}, {alternative_pdf}")
     except subprocess.TimeoutExpired:
-        log_error("LibreOffice Konvertierung: Timeout nach 60 Sekunden")
+        log_error("LibreOffice Konvertierung: Timeout nach 30 Sekunden")
     except Exception as e:
         log_error(f"LibreOffice Konvertierung fehlgeschlagen: {e}")
         import traceback
         traceback.print_exc()
+    finally:
+        # Cleanup Profil-Verzeichnis in jedem Fall
+        if profile_dir and os.path.exists(profile_dir):
+            try:
+                shutil.rmtree(profile_dir, ignore_errors=True)
+            except:
+                pass
     
     return False
 
