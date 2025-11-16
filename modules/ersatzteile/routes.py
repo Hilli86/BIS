@@ -10,6 +10,7 @@ import tempfile
 import subprocess
 import shutil
 import sys
+import logging
 from io import BytesIO
 from werkzeug.utils import secure_filename
 from . import ersatzteile_bp
@@ -39,14 +40,27 @@ except ImportError:
     COM_INITIALIZED = False
 
 
+def get_logger():
+    """Holt den Flask-Logger oder erstellt einen Standard-Logger"""
+    try:
+        return current_app.logger
+    except RuntimeError:
+        # Kein App-Context, verwende Standard-Logger
+        return logging.getLogger(__name__)
+
+
 def convert_docx_to_pdf(docx_path, pdf_path):
     """
     Konvertiert eine DOCX-Datei zu PDF.
     Versucht zuerst docx2pdf (Windows), dann LibreOffice (Linux/Cross-Platform).
     """
+    logger = get_logger()
+    logger.info(f"PDF-Konvertierung gestartet: {docx_path} -> {pdf_path}")
+    
     # Methode 1: docx2pdf (funktioniert auf Windows mit Word)
     if DOCX2PDF_AVAILABLE:
         try:
+            logger.info("Versuche docx2pdf Konvertierung")
             # COM-Initialisierung für Windows
             if sys.platform == 'win32':
                 try:
@@ -67,12 +81,16 @@ def convert_docx_to_pdf(docx_path, pdf_path):
             
             # Prüfen ob PDF erstellt wurde
             if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+                logger.info(f"PDF erfolgreich mit docx2pdf erstellt: {pdf_path} ({os.path.getsize(pdf_path)} Bytes)")
                 return True
+            else:
+                logger.warning("docx2pdf: PDF wurde nicht erstellt oder ist leer")
         except Exception as e:
-            print(f"docx2pdf fehlgeschlagen: {e}")
+            logger.warning(f"docx2pdf fehlgeschlagen: {e}")
             # Weiter zu LibreOffice
     
     # Methode 2: LibreOffice (funktioniert auf Linux und Windows)
+    logger.info("Versuche LibreOffice Konvertierung")
     libreoffice_cmd = None
     if sys.platform == 'win32':
         # Windows: Suche nach LibreOffice
@@ -88,47 +106,91 @@ def convert_docx_to_pdf(docx_path, pdf_path):
         # Linux/Unix: LibreOffice sollte im PATH sein
         libreoffice_cmd = shutil.which('libreoffice') or shutil.which('soffice')
     
-    if libreoffice_cmd:
-        try:
-            # LibreOffice im headless-Modus für Konvertierung
-            # --headless: Kein GUI
-            # --convert-to pdf: Konvertiere zu PDF
-            # --outdir: Ausgabe-Verzeichnis
-            output_dir = os.path.dirname(pdf_path)
-            cmd = [
-                libreoffice_cmd,
-                '--headless',
-                '--convert-to', 'pdf',
-                '--outdir', output_dir,
-                docx_path
-            ]
-            
-            result = subprocess.run(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=30,
-                check=False
-            )
-            
-            # LibreOffice erstellt PDF mit gleichem Namen wie DOCX
-            docx_basename = os.path.splitext(os.path.basename(docx_path))[0]
-            generated_pdf = os.path.join(output_dir, f"{docx_basename}.pdf")
-            
-            # Wenn PDF erstellt wurde, umbenennen falls nötig
-            if os.path.exists(generated_pdf):
-                if generated_pdf != pdf_path:
-                    shutil.move(generated_pdf, pdf_path)
-                if os.path.getsize(pdf_path) > 0:
-                    return True
-            
-            if result.returncode != 0:
-                print(f"LibreOffice Fehler: {result.stderr.decode('utf-8', errors='ignore')}")
-        except subprocess.TimeoutExpired:
-            print("LibreOffice Konvertierung: Timeout")
-        except Exception as e:
-            print(f"LibreOffice Konvertierung fehlgeschlagen: {e}")
+    if not libreoffice_cmd:
+        logger.error("LibreOffice nicht gefunden. Bitte installieren Sie LibreOffice oder stellen Sie sicher, dass es im PATH ist.")
+        return False
     
+    logger.info(f"LibreOffice gefunden: {libreoffice_cmd}")
+    
+    try:
+        # LibreOffice im headless-Modus für Konvertierung
+        # --headless: Kein GUI
+        # --nodefault: Keine Standard-Dokumente öffnen
+        # --nolockcheck: Keine Lock-Datei-Prüfung
+        # --convert-to pdf: Konvertiere zu PDF
+        # --outdir: Ausgabe-Verzeichnis
+        output_dir = os.path.dirname(pdf_path)
+        cmd = [
+            libreoffice_cmd,
+            '--headless',
+            '--nodefault',
+            '--nolockcheck',
+            '--convert-to', 'pdf',
+            '--outdir', output_dir,
+            docx_path
+        ]
+        
+        logger.info(f"Führe LibreOffice aus: {' '.join(cmd)}")
+        logger.info(f"Ausgabeverzeichnis: {output_dir}")
+        logger.info(f"DOCX-Datei existiert: {os.path.exists(docx_path)}")
+        if os.path.exists(docx_path):
+            logger.info(f"DOCX-Dateigröße: {os.path.getsize(docx_path)} Bytes")
+        
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=60,
+            check=False
+        )
+        
+        logger.info(f"LibreOffice Returncode: {result.returncode}")
+        if result.stdout:
+            stdout_text = result.stdout.decode('utf-8', errors='ignore')
+            if stdout_text.strip():
+                logger.info(f"LibreOffice stdout: {stdout_text}")
+        if result.stderr:
+            stderr_text = result.stderr.decode('utf-8', errors='ignore')
+            if stderr_text.strip():
+                logger.warning(f"LibreOffice stderr: {stderr_text}")
+        
+        # LibreOffice erstellt PDF mit gleichem Namen wie DOCX
+        docx_basename = os.path.splitext(os.path.basename(docx_path))[0]
+        generated_pdf = os.path.join(output_dir, f"{docx_basename}.pdf")
+        
+        logger.info(f"Erwartete PDF: {generated_pdf}")
+        logger.info(f"PDF existiert: {os.path.exists(generated_pdf)}")
+        
+        # Wenn PDF erstellt wurde, umbenennen falls nötig
+        if os.path.exists(generated_pdf):
+            logger.info(f"PDF gefunden: {generated_pdf} ({os.path.getsize(generated_pdf)} Bytes)")
+            if generated_pdf != pdf_path:
+                logger.info(f"Verschiebe PDF von {generated_pdf} nach {pdf_path}")
+                shutil.move(generated_pdf, pdf_path)
+            if os.path.getsize(pdf_path) > 0:
+                logger.info(f"PDF erfolgreich erstellt: {pdf_path} ({os.path.getsize(pdf_path)} Bytes)")
+                return True
+            else:
+                logger.error(f"PDF wurde erstellt, ist aber leer: {pdf_path}")
+        else:
+            logger.error(f"PDF wurde nicht erstellt. Gesuchter Pfad: {generated_pdf}")
+            # Prüfe, ob vielleicht eine PDF mit anderem Namen erstellt wurde
+            if os.path.exists(output_dir):
+                try:
+                    pdf_files = [f for f in os.listdir(output_dir) if f.endswith('.pdf')]
+                    if pdf_files:
+                        logger.info(f"Gefundene PDF-Dateien im Ausgabeverzeichnis: {pdf_files}")
+                except Exception as e:
+                    logger.error(f"Fehler beim Auflisten des Ausgabeverzeichnisses: {e}")
+        
+        if result.returncode != 0:
+            logger.error(f"LibreOffice Fehler (Returncode {result.returncode})")
+    except subprocess.TimeoutExpired:
+        logger.error("LibreOffice Konvertierung: Timeout nach 60 Sekunden")
+    except Exception as e:
+        logger.error(f"LibreOffice Konvertierung fehlgeschlagen: {e}", exc_info=True)
+    
+    logger.error("PDF-Konvertierung fehlgeschlagen - alle Methoden ausgeschöpft")
     return False
 
 
@@ -3115,7 +3177,8 @@ def angebotsanfrage_pdf_export(angebotsanfrage_id):
                     # Falls PDF-Konvertierung fehlschlägt, DOCX zurückgeben
                     # Dies ist ein erwartetes Verhalten, wenn PDF-Konvertierung nicht verfügbar ist
                     # (z.B. wenn LibreOffice oder docx2pdf nicht installiert/konfiguriert sind)
-                    print(f"INFO: PDF-Konvertierung nicht möglich, DOCX wird zurückgegeben: {e}")
+                    logger = get_logger()
+                    logger.info(f"PDF-Konvertierung nicht möglich, DOCX wird zurückgegeben: {e}")
                     
                     # Temporäre Dateien aufräumen
                     if os.path.exists(tmp_docx_path):
@@ -4359,7 +4422,8 @@ def bestellung_pdf_export(bestellung_id):
                     # Falls PDF-Konvertierung fehlschlägt, DOCX zurückgeben
                     # Dies ist ein erwartetes Verhalten, wenn PDF-Konvertierung nicht verfügbar ist
                     # (z.B. wenn LibreOffice oder docx2pdf nicht installiert/konfiguriert sind)
-                    print(f"INFO: PDF-Konvertierung nicht möglich, DOCX wird zurückgegeben: {e}")
+                    logger = get_logger()
+                    logger.info(f"PDF-Konvertierung nicht möglich, DOCX wird zurückgegeben: {e}")
                     
                     # Temporäre Dateien aufräumen
                     if os.path.exists(tmp_docx_path):
