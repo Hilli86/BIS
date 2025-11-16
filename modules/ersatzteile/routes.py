@@ -7,6 +7,9 @@ from datetime import datetime
 import os
 import base64
 import tempfile
+import subprocess
+import shutil
+import sys
 from io import BytesIO
 from werkzeug.utils import secure_filename
 from . import ersatzteile_bp
@@ -23,7 +26,6 @@ try:
     from docx2pdf import convert
     DOCX2PDF_AVAILABLE = True
     # COM-Initialisierung für Windows
-    import sys
     if sys.platform == 'win32':
         try:
             import pythoncom
@@ -35,6 +37,99 @@ try:
 except ImportError:
     DOCX2PDF_AVAILABLE = False
     COM_INITIALIZED = False
+
+
+def convert_docx_to_pdf(docx_path, pdf_path):
+    """
+    Konvertiert eine DOCX-Datei zu PDF.
+    Versucht zuerst docx2pdf (Windows), dann LibreOffice (Linux/Cross-Platform).
+    """
+    # Methode 1: docx2pdf (funktioniert auf Windows mit Word)
+    if DOCX2PDF_AVAILABLE:
+        try:
+            # COM-Initialisierung für Windows
+            if sys.platform == 'win32':
+                try:
+                    import pythoncom
+                    pythoncom.CoInitialize()
+                except ImportError:
+                    pass
+            
+            convert(docx_path, pdf_path)
+            
+            # COM aufräumen (Windows)
+            if sys.platform == 'win32':
+                try:
+                    import pythoncom
+                    pythoncom.CoUninitialize()
+                except:
+                    pass
+            
+            # Prüfen ob PDF erstellt wurde
+            if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+                return True
+        except Exception as e:
+            print(f"docx2pdf fehlgeschlagen: {e}")
+            # Weiter zu LibreOffice
+    
+    # Methode 2: LibreOffice (funktioniert auf Linux und Windows)
+    libreoffice_cmd = None
+    if sys.platform == 'win32':
+        # Windows: Suche nach LibreOffice
+        possible_paths = [
+            r'C:\Program Files\LibreOffice\program\soffice.exe',
+            r'C:\Program Files (x86)\LibreOffice\program\soffice.exe',
+        ]
+        for path in possible_paths:
+            if os.path.exists(path):
+                libreoffice_cmd = path
+                break
+    else:
+        # Linux/Unix: LibreOffice sollte im PATH sein
+        libreoffice_cmd = shutil.which('libreoffice') or shutil.which('soffice')
+    
+    if libreoffice_cmd:
+        try:
+            # LibreOffice im headless-Modus für Konvertierung
+            # --headless: Kein GUI
+            # --convert-to pdf: Konvertiere zu PDF
+            # --outdir: Ausgabe-Verzeichnis
+            output_dir = os.path.dirname(pdf_path)
+            cmd = [
+                libreoffice_cmd,
+                '--headless',
+                '--convert-to', 'pdf',
+                '--outdir', output_dir,
+                docx_path
+            ]
+            
+            result = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=30,
+                check=False
+            )
+            
+            # LibreOffice erstellt PDF mit gleichem Namen wie DOCX
+            docx_basename = os.path.splitext(os.path.basename(docx_path))[0]
+            generated_pdf = os.path.join(output_dir, f"{docx_basename}.pdf")
+            
+            # Wenn PDF erstellt wurde, umbenennen falls nötig
+            if os.path.exists(generated_pdf):
+                if generated_pdf != pdf_path:
+                    shutil.move(generated_pdf, pdf_path)
+                if os.path.getsize(pdf_path) > 0:
+                    return True
+            
+            if result.returncode != 0:
+                print(f"LibreOffice Fehler: {result.stderr.decode('utf-8', errors='ignore')}")
+        except subprocess.TimeoutExpired:
+            print("LibreOffice Konvertierung: Timeout")
+        except Exception as e:
+            print(f"LibreOffice Konvertierung fehlgeschlagen: {e}")
+    
+    return False
 
 
 def safe_get(row, key, default=None):
@@ -2997,16 +3092,9 @@ def angebotsanfrage_pdf_export(angebotsanfrage_id):
                     tmp_pdf_path = tmp_pdf.name
                 
                 try:
-                    # COM-Initialisierung für Windows
-                    import sys
-                    if sys.platform == 'win32':
-                        try:
-                            import pythoncom
-                            pythoncom.CoInitialize()
-                        except ImportError:
-                            pass  # pythoncom nicht verfügbar
-                    
-                    convert(tmp_docx_path, tmp_pdf_path)
+                    # PDF-Konvertierung (unterstützt Windows docx2pdf und Linux LibreOffice)
+                    if not convert_docx_to_pdf(tmp_docx_path, tmp_pdf_path):
+                        raise Exception("PDF-Konvertierung fehlgeschlagen")
                     
                     # PDF lesen
                     with open(tmp_pdf_path, 'rb') as f:
@@ -3015,14 +3103,6 @@ def angebotsanfrage_pdf_export(angebotsanfrage_id):
                     # Temporäre Dateien löschen
                     os.unlink(tmp_docx_path)
                     os.unlink(tmp_pdf_path)
-                    
-                    # COM aufräumen (Windows)
-                    if sys.platform == 'win32':
-                        try:
-                            import pythoncom
-                            pythoncom.CoUninitialize()
-                        except:
-                            pass
                     
                     # PDF als Download senden
                     filename = f"Angebotsanfrage_{angebotsanfrage_id}_{datetime.now().strftime('%Y%m%d')}.pdf"
@@ -4257,16 +4337,9 @@ def bestellung_pdf_export(bestellung_id):
                     tmp_pdf_path = tmp_pdf.name
                 
                 try:
-                    # COM-Initialisierung für Windows
-                    import sys
-                    if sys.platform == 'win32':
-                        try:
-                            import pythoncom
-                            pythoncom.CoInitialize()
-                        except ImportError:
-                            pass  # pythoncom nicht verfügbar
-                    
-                    convert(tmp_docx_path, tmp_pdf_path)
+                    # PDF-Konvertierung (unterstützt Windows docx2pdf und Linux LibreOffice)
+                    if not convert_docx_to_pdf(tmp_docx_path, tmp_pdf_path):
+                        raise Exception("PDF-Konvertierung fehlgeschlagen")
                     
                     # PDF lesen
                     with open(tmp_pdf_path, 'rb') as f:
@@ -4275,14 +4348,6 @@ def bestellung_pdf_export(bestellung_id):
                     # Temporäre Dateien löschen
                     os.unlink(tmp_docx_path)
                     os.unlink(tmp_pdf_path)
-                    
-                    # COM aufräumen (Windows)
-                    if sys.platform == 'win32':
-                        try:
-                            import pythoncom
-                            pythoncom.CoUninitialize()
-                        except:
-                            pass
                     
                     # PDF als Download senden
                     filename = f"Bestellung_{bestellung_id}_{datetime.now().strftime('%Y%m%d')}.pdf"
