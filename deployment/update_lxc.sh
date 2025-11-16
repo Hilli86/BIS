@@ -83,10 +83,11 @@ fi
 
 # Backup der .env Datei falls vorhanden
 if [ -f "$BIS_HOME/.env" ]; then
-    cp "$BIS_HOME/.env" "$BIS_HOME/.env.backup_${TIMESTAMP}"
-    echo -e "${GREEN}✓ .env gesichert${NC}"
+    cp "$BIS_HOME/.env" "${BACKUP_DIR}/.env.backup_${TIMESTAMP}"
+    echo -e "${GREEN}✓ .env gesichert: ${BACKUP_DIR}/.env.backup_${TIMESTAMP}${NC}"
 fi
 
+,
 # ============================================
 # 2. Service stoppen
 # ============================================
