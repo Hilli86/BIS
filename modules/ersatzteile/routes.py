@@ -40,16 +40,19 @@ except ImportError:
 
 
 def log_info(message):
-    """Loggt eine Info-Nachricht (verwendet print() wie im Rest des Codes)"""
-    print(f"[INFO] {message}")
+    """Loggt eine Info-Nachricht direkt an stderr (für journalctl)"""
+    import sys
+    print(f"[INFO] {message}", file=sys.stderr, flush=True)
 
 def log_error(message):
-    """Loggt eine Fehlernachricht (verwendet print() wie im Rest des Codes)"""
-    print(f"[ERROR] {message}")
+    """Loggt eine Fehlernachricht direkt an stderr (für journalctl)"""
+    import sys
+    print(f"[ERROR] {message}", file=sys.stderr, flush=True)
 
 def log_warning(message):
-    """Loggt eine Warnung (verwendet print() wie im Rest des Codes)"""
-    print(f"[WARNING] {message}")
+    """Loggt eine Warnung direkt an stderr (für journalctl)"""
+    import sys
+    print(f"[WARNING] {message}", file=sys.stderr, flush=True)
 
 
 def convert_docx_to_pdf(docx_path, pdf_path):
@@ -2969,6 +2972,8 @@ def angebotsanfrage_datei_anzeigen(filepath):
 @login_required
 def angebotsanfrage_pdf_export(angebotsanfrage_id):
     """PDF-Export für eine Angebotsanfrage mit docx-Vorlage"""
+    import sys
+    print(f"[INFO] ===== angebotsanfrage_pdf_export aufgerufen für Angebotsanfrage ID: {angebotsanfrage_id} =====", file=sys.stderr, flush=True)
     log_info(f"angebotsanfrage_pdf_export aufgerufen für Angebotsanfrage ID: {angebotsanfrage_id}")
     mitarbeiter_id = session.get('user_id')
     
@@ -3160,8 +3165,10 @@ def angebotsanfrage_pdf_export(angebotsanfrage_id):
                 
                 try:
                     # PDF-Konvertierung (unterstützt Windows docx2pdf und Linux LibreOffice)
+                    log_info(f"Starte PDF-Konvertierung: DOCX={tmp_docx_path}, PDF={tmp_pdf_path}")
                     if not convert_docx_to_pdf(tmp_docx_path, tmp_pdf_path):
                         # PDF-Konvertierung fehlgeschlagen, Fallback zu DOCX
+                        log_error("convert_docx_to_pdf hat False zurückgegeben - werfe Exception")
                         raise Exception("PDF-Konvertierung fehlgeschlagen")
                     
                     # PDF lesen
@@ -4119,6 +4126,8 @@ def update_bestellung_sichtbarkeit(bestellung_id):
 @login_required
 def bestellung_pdf_export(bestellung_id):
     """PDF-Export für eine Bestellung mit docx-Vorlage"""
+    import sys
+    print(f"[INFO] ===== bestellung_pdf_export aufgerufen für Bestellung ID: {bestellung_id} =====", file=sys.stderr, flush=True)
     log_info(f"bestellung_pdf_export aufgerufen für Bestellung ID: {bestellung_id}")
     mitarbeiter_id = session.get('user_id')
     
@@ -4405,8 +4414,10 @@ def bestellung_pdf_export(bestellung_id):
                 
                 try:
                     # PDF-Konvertierung (unterstützt Windows docx2pdf und Linux LibreOffice)
+                    log_info(f"Starte PDF-Konvertierung: DOCX={tmp_docx_path}, PDF={tmp_pdf_path}")
                     if not convert_docx_to_pdf(tmp_docx_path, tmp_pdf_path):
                         # PDF-Konvertierung fehlgeschlagen, Fallback zu DOCX
+                        log_error("convert_docx_to_pdf hat False zurückgegeben - werfe Exception")
                         raise Exception("PDF-Konvertierung fehlgeschlagen")
                     
                     # PDF lesen
