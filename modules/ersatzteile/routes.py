@@ -130,32 +130,16 @@ def convert_docx_to_pdf(docx_path, pdf_path):
         log_error("LibreOffice nicht gefunden. Bitte installieren Sie LibreOffice.")
         return False
     
-    # Temporäres User-Profil-Verzeichnis erstellen (im RAM/TMP für schnellere Zugriffe)
-    import uuid
     import time
     
-    # Profil-Verzeichnis im /tmp erstellen (oft im RAM bei Linux)
-    # Bei jedem Aufruf neues Profil für maximale Geschwindigkeit
-    profile_dir = None
     try:
-        profile_dir = os.path.join(tempfile.gettempdir(), f'lo_profile_{uuid.uuid4().hex[:8]}')
-        os.makedirs(profile_dir, exist_ok=True)
-        
-        # User-Installation URL korrekt formatieren (file:// benötigt absolute Pfade)
-        # Linux/Unix: file:///path/to/dir
-        # Windows: file:///C:/path/to/dir
-        if sys.platform == 'win32':
-            # Windows: Pfad zu file:// URL konvertieren
-            profile_url = profile_dir.replace('\\', '/')
-            if not profile_url.startswith('/'):
-                profile_url = '/' + profile_url
-            profile_url = f'file://{profile_url}'
-        else:
-            # Linux/Unix: file:// mit 3 Slashes für absolute Pfade
-            profile_url = f'file://{profile_dir}'
-        
         # LibreOffice im headless-Modus mit optimierten Optionen
         output_dir = os.path.dirname(pdf_path)
+        
+        # Umgebungsvariable für headless-Modus setzen
+        env = os.environ.copy()
+        env['SAL_USE_VCLPLUGIN'] = 'gen'  # Generic VCL plugin (headless)
+        
         cmd = [
             libreoffice_cmd,
             '--headless',              # Kein GUI
@@ -164,7 +148,6 @@ def convert_docx_to_pdf(docx_path, pdf_path):
             '--nolockcheck',           # Keine Lock-Prüfung
             '--nologo',                # Kein Logo beim Start
             '--norestore',             # Keine wiederherzustellenden Dokumente laden
-            f'--user-installation={profile_url}',  # User-Profil in temp-Verzeichnis
             '--convert-to', 'pdf:writer_pdf_Export',  # Expliziter PDF-Export-Filter
             '--outdir', output_dir,
             docx_path
@@ -175,7 +158,8 @@ def convert_docx_to_pdf(docx_path, pdf_path):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             timeout=30,  # Reduziert von 60 auf 30 Sekunden (sollte mit Optimierungen schneller sein)
-            check=False
+            check=False,
+            env=env  # Umgebungsvariablen übergeben
         )
         
         # Kurze Pause, damit LibreOffice die Datei vollständig schreiben kann
@@ -219,9 +203,6 @@ def convert_docx_to_pdf(docx_path, pdf_path):
             
             # Prüfe Dateigröße nach dem Verschieben
             if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
-                # Cleanup Profil-Verzeichnis vor erfolgreichem Return
-                if profile_dir and os.path.exists(profile_dir):
-                    shutil.rmtree(profile_dir, ignore_errors=True)
                 return True
             else:
                 # Zusätzliche Debug-Informationen
@@ -246,13 +227,6 @@ def convert_docx_to_pdf(docx_path, pdf_path):
         log_error(f"LibreOffice Konvertierung fehlgeschlagen: {e}")
         import traceback
         traceback.print_exc()
-    finally:
-        # Cleanup Profil-Verzeichnis in jedem Fall
-        if profile_dir and os.path.exists(profile_dir):
-            try:
-                shutil.rmtree(profile_dir, ignore_errors=True)
-            except:
-                pass
     
     return False
 
