@@ -87,7 +87,6 @@ if [ -f "$BIS_HOME/.env" ]; then
     echo -e "${GREEN}✓ .env gesichert: ${BACKUP_DIR}/.env.backup_${TIMESTAMP}${NC}"
 fi
 
-,
 # ============================================
 # 2. Service stoppen
 # ============================================

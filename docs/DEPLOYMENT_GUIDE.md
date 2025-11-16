@@ -367,7 +367,7 @@ Type=notify
 User=bis
 Group=bis
 WorkingDirectory=/opt/bis
-Environment="PATH=/opt/bis/venv/bin"
+Environment="PATH=/opt/bis/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 EnvironmentFile=/opt/bis/.env
 ExecStart=/opt/bis/venv/bin/gunicorn -c gunicorn_config.py app:app
 ExecReload=/bin/kill -s HUP $MAINPID
