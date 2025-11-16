@@ -130,29 +130,15 @@ def convert_docx_to_pdf(docx_path, pdf_path):
         log_error("LibreOffice nicht gefunden. Bitte installieren Sie LibreOffice.")
         return False
     
-    import time
-    
     try:
-        # LibreOffice im headless-Modus mit optimierten Optionen
+        # LibreOffice im headless-Modus für Konvertierung
         output_dir = os.path.dirname(pdf_path)
-        
-        # Umgebungsvariablen für headless-Modus setzen (ohne X11)
-        env = os.environ.copy()
-        env['SAL_USE_VCLPLUGIN'] = 'gen'  # Generic VCL plugin (headless, kein X11)
-        # DISPLAY entfernen, damit LibreOffice keinen X11-Server benötigt
-        env.pop('DISPLAY', None)
-        # Weitere Umgebungsvariablen für headless-Modus
-        env['SAL_DISABLE_OPENCL'] = '1'  # OpenCL deaktivieren (kann X11 benötigen)
-        
         cmd = [
             libreoffice_cmd,
-            '--headless',              # Kein GUI
-            '--invisible',             # Unsichtbar starten (schneller als nur headless)
-            '--nodefault',             # Keine Standard-Konfiguration laden
-            '--nolockcheck',           # Keine Lock-Prüfung
-            '--nologo',                # Kein Logo beim Start
-            '--norestore',             # Keine wiederherzustellenden Dokumente laden
-            '--convert-to', 'pdf:writer_pdf_Export',  # Expliziter PDF-Export-Filter
+            '--headless',
+            '--nodefault',
+            '--nolockcheck',
+            '--convert-to', 'pdf',
             '--outdir', output_dir,
             docx_path
         ]
@@ -161,13 +147,9 @@ def convert_docx_to_pdf(docx_path, pdf_path):
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=30,  # Reduziert von 60 auf 30 Sekunden (sollte mit Optimierungen schneller sein)
-            check=False,
-            env=env  # Umgebungsvariablen übergeben
+            timeout=60,
+            check=False
         )
-        
-        # Kurze Pause, damit LibreOffice die Datei vollständig schreiben kann
-        time.sleep(0.5)
         
         # LibreOffice erstellt PDF mit gleichem Namen wie DOCX
         docx_basename = os.path.splitext(os.path.basename(docx_path))[0]
@@ -195,30 +177,12 @@ def convert_docx_to_pdf(docx_path, pdf_path):
         
         # Wenn PDF gefunden wurde, verwenden
         if found_pdf and os.path.exists(found_pdf):
-            # Warte kurz, falls die Datei noch geschrieben wird
-            max_wait = 5
-            wait_count = 0
-            while wait_count < max_wait and os.path.getsize(found_pdf) == 0:
-                time.sleep(0.2)
-                wait_count += 1
-            
             if found_pdf != pdf_path:
                 shutil.move(found_pdf, pdf_path)
-            
-            # Prüfe Dateigröße nach dem Verschieben
-            if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+            if os.path.getsize(pdf_path) > 0:
                 return True
             else:
-                # Zusätzliche Debug-Informationen
-                file_size = os.path.getsize(pdf_path) if os.path.exists(pdf_path) else 0
-                log_error(f"PDF wurde erstellt, ist aber leer: {pdf_path} (Größe: {file_size} bytes)")
-                log_error(f"LibreOffice Returncode: {result.returncode}")
-                if result.stderr:
-                    stderr_text = result.stderr.decode('utf-8', errors='ignore')
-                    log_error(f"LibreOffice stderr: {stderr_text[:500]}")
-                if result.stdout:
-                    stdout_text = result.stdout.decode('utf-8', errors='ignore')
-                    log_error(f"LibreOffice stdout: {stdout_text[:500]}")
+                log_error(f"PDF wurde erstellt, ist aber leer: {pdf_path}")
         else:
             if result.returncode != 0:
                 stderr_text = result.stderr.decode('utf-8', errors='ignore') if result.stderr else ''
@@ -226,7 +190,7 @@ def convert_docx_to_pdf(docx_path, pdf_path):
             else:
                 log_error(f"PDF wurde nicht erstellt. Gesuchte Pfade: {generated_pdf}, {alternative_pdf}")
     except subprocess.TimeoutExpired:
-        log_error("LibreOffice Konvertierung: Timeout nach 30 Sekunden")
+        log_error("LibreOffice Konvertierung: Timeout nach 60 Sekunden")
     except Exception as e:
         log_error(f"LibreOffice Konvertierung fehlgeschlagen: {e}")
         import traceback
