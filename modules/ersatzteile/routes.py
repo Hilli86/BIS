@@ -3032,10 +3032,11 @@ def angebotsanfrage_pdf_export(angebotsanfrage_id):
                     return response
                 except Exception as e:
                     # Falls PDF-Konvertierung fehlschlägt, DOCX zurückgeben
-                    # (z.B. wenn Word nicht installiert ist oder COM-Fehler auftritt)
-                    # Fehler nur im Debug-Modus loggen
-                    if current_app.config.get('DEBUG'):
-                        print(f"PDF-Konvertierung nicht verfügbar, DOCX wird zurückgegeben: {e}")
+                    # (z.B. wenn Word/LibreOffice nicht installiert ist oder COM-Fehler auftritt)
+                    # Fehler immer loggen (nicht nur im Debug-Modus)
+                    print(f"PDF-Konvertierung fehlgeschlagen, DOCX wird zurückgegeben: {e}")
+                    import traceback
+                    traceback.print_exc()
                     
                     # Temporäre Dateien aufräumen
                     if os.path.exists(tmp_docx_path):
@@ -4291,8 +4292,10 @@ def bestellung_pdf_export(bestellung_id):
                     return response
                 except Exception as e:
                     # Falls PDF-Konvertierung fehlschlägt, DOCX zurückgeben
-                    if current_app.config.get('DEBUG'):
-                        print(f"PDF-Konvertierung nicht verfügbar, DOCX wird zurückgegeben: {e}")
+                    # Fehler immer loggen (nicht nur im Debug-Modus)
+                    print(f"PDF-Konvertierung fehlgeschlagen, DOCX wird zurückgegeben: {e}")
+                    import traceback
+                    traceback.print_exc()
                     
                     # Temporäre Dateien aufräumen
                     if os.path.exists(tmp_docx_path):
