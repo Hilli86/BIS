@@ -103,14 +103,17 @@ fi
 # 3. Git Pull
 # ============================================
 echo -e "\n${YELLOW}[3/7] Code aktualisieren (Git Pull)...${NC}"
-cd "$BIS_HOME"
 
-# Aktuellen Branch anzeigen
-CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+# Git safe.directory konfigurieren (für bis-Benutzer)
+su - "$BIS_USER" -c "cd $BIS_HOME && git config --global --add safe.directory $BIS_HOME" 2>/dev/null || true
+
+# Aktuellen Branch ermitteln (als bis-Benutzer)
+CURRENT_BRANCH=$(su - "$BIS_USER" -c "cd $BIS_HOME && git rev-parse --abbrev-ref HEAD")
 echo -e "${BLUE}  Aktueller Branch: ${CURRENT_BRANCH}${NC}"
 
-# Git Status prüfen
-if [ -n "$(git status --porcelain)" ]; then
+# Git Status prüfen (als bis-Benutzer)
+HAS_CHANGES=$(su - "$BIS_USER" -c "cd $BIS_HOME && git status --porcelain" | wc -l)
+if [ "$HAS_CHANGES" -gt 0 ]; then
     echo -e "${YELLOW}⚠ Uncommitted Änderungen gefunden!${NC}"
     echo -e "${YELLOW}  Diese werden beim Pull möglicherweise überschrieben${NC}"
     read -p "  Fortfahren? (j/N): " -n 1 -r
@@ -122,10 +125,10 @@ if [ -n "$(git status --porcelain)" ]; then
     fi
 fi
 
-# Git Pull ausführen
-if git pull origin "$CURRENT_BRANCH"; then
+# Git Pull ausführen (als bis-Benutzer)
+if su - "$BIS_USER" -c "cd $BIS_HOME && git pull origin $CURRENT_BRANCH"; then
     echo -e "${GREEN}✓ Code aktualisiert${NC}"
-    LATEST_COMMIT=$(git rev-parse --short HEAD)
+    LATEST_COMMIT=$(su - "$BIS_USER" -c "cd $BIS_HOME && git rev-parse --short HEAD")
     echo -e "${BLUE}  Neuester Commit: ${LATEST_COMMIT}${NC}"
 else
     echo -e "${RED}✗ Git Pull fehlgeschlagen${NC}"
