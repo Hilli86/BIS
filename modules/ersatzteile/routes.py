@@ -60,12 +60,9 @@ def convert_docx_to_pdf(docx_path, pdf_path):
     Konvertiert eine DOCX-Datei zu PDF.
     Versucht zuerst docx2pdf (Windows), dann LibreOffice (Linux/Cross-Platform).
     """
-    log_info(f"PDF-Konvertierung gestartet: {docx_path} -> {pdf_path}")
-    
     # Methode 1: docx2pdf (funktioniert auf Windows mit Word)
     if DOCX2PDF_AVAILABLE:
         try:
-            log_info("Versuche docx2pdf Konvertierung")
             # COM-Initialisierung für Windows
             if sys.platform == 'win32':
                 try:
@@ -86,16 +83,12 @@ def convert_docx_to_pdf(docx_path, pdf_path):
             
             # Prüfen ob PDF erstellt wurde
             if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
-                log_info(f"PDF erfolgreich mit docx2pdf erstellt: {pdf_path} ({os.path.getsize(pdf_path)} Bytes)")
                 return True
-            else:
-                log_warning("docx2pdf: PDF wurde nicht erstellt oder ist leer")
         except Exception as e:
-            log_warning(f"docx2pdf fehlgeschlagen: {e}")
             # Weiter zu LibreOffice
+            pass
     
     # Methode 2: LibreOffice (funktioniert auf Linux und Windows)
-    log_info("Versuche LibreOffice Konvertierung")
     libreoffice_cmd = None
     if sys.platform == 'win32':
         # Windows: Suche nach LibreOffice
@@ -109,10 +102,7 @@ def convert_docx_to_pdf(docx_path, pdf_path):
                 break
     else:
         # Linux/Unix: Suche nach LibreOffice
-        # Zuerst im PATH suchen
         libreoffice_cmd = shutil.which('libreoffice') or shutil.which('soffice')
-        log_info(f"shutil.which('libreoffice'): {shutil.which('libreoffice')}")
-        log_info(f"shutil.which('soffice'): {shutil.which('soffice')}")
         
         # Falls nicht im PATH, bekannte Linux-Pfade prüfen
         if not libreoffice_cmd:
@@ -124,7 +114,6 @@ def convert_docx_to_pdf(docx_path, pdf_path):
                 '/snap/bin/libreoffice',
                 '/opt/libreoffice*/program/soffice',
             ]
-            log_info(f"Suche LibreOffice in bekannten Pfaden...")
             for path in possible_paths:
                 # Unterstützung für Wildcards
                 if '*' in path:
@@ -135,25 +124,14 @@ def convert_docx_to_pdf(docx_path, pdf_path):
                 
                 if os.path.exists(path) and os.access(path, os.X_OK):
                     libreoffice_cmd = path
-                    log_info(f"LibreOffice gefunden in: {path}")
                     break
-                else:
-                    log_info(f"Pfad existiert nicht oder nicht ausführbar: {path}")
     
     if not libreoffice_cmd:
-        log_error("LibreOffice nicht gefunden. Bitte installieren Sie LibreOffice oder stellen Sie sicher, dass es im PATH ist.")
-        log_error("Hinweis: Prüfen Sie mit 'which libreoffice' oder 'which soffice' ob LibreOffice installiert ist.")
+        log_error("LibreOffice nicht gefunden. Bitte installieren Sie LibreOffice.")
         return False
-    
-    log_info(f"LibreOffice gefunden: {libreoffice_cmd}")
     
     try:
         # LibreOffice im headless-Modus für Konvertierung
-        # --headless: Kein GUI
-        # --nodefault: Keine Standard-Dokumente öffnen
-        # --nolockcheck: Keine Lock-Datei-Prüfung
-        # --convert-to pdf: Konvertiere zu PDF
-        # --outdir: Ausgabe-Verzeichnis
         output_dir = os.path.dirname(pdf_path)
         cmd = [
             libreoffice_cmd,
@@ -165,12 +143,6 @@ def convert_docx_to_pdf(docx_path, pdf_path):
             docx_path
         ]
         
-        log_info(f"Führe LibreOffice aus: {' '.join(cmd)}")
-        log_info(f"Ausgabeverzeichnis: {output_dir}")
-        log_info(f"DOCX-Datei existiert: {os.path.exists(docx_path)}")
-        if os.path.exists(docx_path):
-            log_info(f"DOCX-Dateigröße: {os.path.getsize(docx_path)} Bytes")
-        
         result = subprocess.run(
             cmd,
             stdout=subprocess.PIPE,
@@ -179,67 +151,44 @@ def convert_docx_to_pdf(docx_path, pdf_path):
             check=False
         )
         
-        log_info(f"LibreOffice Returncode: {result.returncode}")
-        if result.stdout:
-            stdout_text = result.stdout.decode('utf-8', errors='ignore')
-            if stdout_text.strip():
-                log_info(f"LibreOffice stdout: {stdout_text}")
-        if result.stderr:
-            stderr_text = result.stderr.decode('utf-8', errors='ignore')
-            if stderr_text.strip():
-                log_warning(f"LibreOffice stderr: {stderr_text}")
-        
         # LibreOffice erstellt PDF mit gleichem Namen wie DOCX
         docx_basename = os.path.splitext(os.path.basename(docx_path))[0]
         generated_pdf = os.path.join(output_dir, f"{docx_basename}.pdf")
         
-        log_info(f"Erwartete PDF (basierend auf DOCX-Name): {generated_pdf}")
-        log_info(f"PDF existiert: {os.path.exists(generated_pdf)}")
-        
         # Prüfe auch, ob die PDF mit dem Namen der temporären PDF-Datei erstellt wurde
         pdf_basename = os.path.splitext(os.path.basename(pdf_path))[0]
         alternative_pdf = os.path.join(output_dir, f"{pdf_basename}.pdf")
-        log_info(f"Alternative PDF (basierend auf PDF-Name): {alternative_pdf}")
-        log_info(f"Alternative PDF existiert: {os.path.exists(alternative_pdf)}")
         
         # Suche nach erstellter PDF
         found_pdf = None
         if os.path.exists(generated_pdf):
             found_pdf = generated_pdf
-            log_info(f"PDF gefunden mit DOCX-Name: {found_pdf}")
         elif os.path.exists(alternative_pdf):
             found_pdf = alternative_pdf
-            log_info(f"PDF gefunden mit PDF-Name: {found_pdf}")
         else:
             # Prüfe, ob vielleicht eine PDF mit anderem Namen erstellt wurde
             if os.path.exists(output_dir):
                 try:
                     pdf_files = [f for f in os.listdir(output_dir) if f.endswith('.pdf')]
                     if pdf_files:
-                        log_info(f"Gefundene PDF-Dateien im Ausgabeverzeichnis: {pdf_files}")
-                        # Verwende die erste gefundene PDF (normalerweise sollte nur eine da sein)
-                        if pdf_files:
-                            found_pdf = os.path.join(output_dir, pdf_files[0])
-                            log_info(f"Verwende gefundene PDF: {found_pdf}")
+                        found_pdf = os.path.join(output_dir, pdf_files[0])
                 except Exception as e:
                     log_error(f"Fehler beim Auflisten des Ausgabeverzeichnisses: {e}")
         
         # Wenn PDF gefunden wurde, verwenden
         if found_pdf and os.path.exists(found_pdf):
-            log_info(f"PDF gefunden: {found_pdf} ({os.path.getsize(found_pdf)} Bytes)")
             if found_pdf != pdf_path:
-                log_info(f"Verschiebe PDF von {found_pdf} nach {pdf_path}")
                 shutil.move(found_pdf, pdf_path)
             if os.path.getsize(pdf_path) > 0:
-                log_info(f"PDF erfolgreich erstellt: {pdf_path} ({os.path.getsize(pdf_path)} Bytes)")
                 return True
             else:
                 log_error(f"PDF wurde erstellt, ist aber leer: {pdf_path}")
         else:
-            log_error(f"PDF wurde nicht erstellt. Gesuchte Pfade: {generated_pdf}, {alternative_pdf}")
-        
-        if result.returncode != 0:
-            log_error(f"LibreOffice Fehler (Returncode {result.returncode})")
+            if result.returncode != 0:
+                stderr_text = result.stderr.decode('utf-8', errors='ignore') if result.stderr else ''
+                log_error(f"LibreOffice Fehler (Returncode {result.returncode}): {stderr_text[:200]}")
+            else:
+                log_error(f"PDF wurde nicht erstellt. Gesuchte Pfade: {generated_pdf}, {alternative_pdf}")
     except subprocess.TimeoutExpired:
         log_error("LibreOffice Konvertierung: Timeout nach 60 Sekunden")
     except Exception as e:
@@ -247,7 +196,6 @@ def convert_docx_to_pdf(docx_path, pdf_path):
         import traceback
         traceback.print_exc()
     
-    log_error("PDF-Konvertierung fehlgeschlagen - alle Methoden ausgeschöpft")
     return False
 
 
@@ -3022,9 +2970,6 @@ def angebotsanfrage_datei_anzeigen(filepath):
 @login_required
 def angebotsanfrage_pdf_export(angebotsanfrage_id):
     """PDF-Export für eine Angebotsanfrage mit docx-Vorlage"""
-    import sys
-    print(f"[INFO] ===== angebotsanfrage_pdf_export aufgerufen für Angebotsanfrage ID: {angebotsanfrage_id} =====", file=sys.stderr, flush=True)
-    log_info(f"angebotsanfrage_pdf_export aufgerufen für Angebotsanfrage ID: {angebotsanfrage_id}")
     mitarbeiter_id = session.get('user_id')
     
     try:
@@ -3215,10 +3160,8 @@ def angebotsanfrage_pdf_export(angebotsanfrage_id):
                 
                 try:
                     # PDF-Konvertierung (unterstützt Windows docx2pdf und Linux LibreOffice)
-                    log_info(f"Starte PDF-Konvertierung: DOCX={tmp_docx_path}, PDF={tmp_pdf_path}")
                     if not convert_docx_to_pdf(tmp_docx_path, tmp_pdf_path):
                         # PDF-Konvertierung fehlgeschlagen, Fallback zu DOCX
-                        log_error("convert_docx_to_pdf hat False zurückgegeben - werfe Exception")
                         raise Exception("PDF-Konvertierung fehlgeschlagen")
                     
                     # PDF lesen
@@ -3239,7 +3182,7 @@ def angebotsanfrage_pdf_export(angebotsanfrage_id):
                     # Falls PDF-Konvertierung fehlschlägt, DOCX zurückgeben
                     # Dies ist ein erwartetes Verhalten, wenn PDF-Konvertierung nicht verfügbar ist
                     # (z.B. wenn LibreOffice oder docx2pdf nicht installiert/konfiguriert sind)
-                    log_info(f"PDF-Konvertierung nicht möglich, DOCX wird zurückgegeben: {e}")
+                    pass
                     
                     # Temporäre Dateien aufräumen
                     if os.path.exists(tmp_docx_path):
@@ -4176,9 +4119,6 @@ def update_bestellung_sichtbarkeit(bestellung_id):
 @login_required
 def bestellung_pdf_export(bestellung_id):
     """PDF-Export für eine Bestellung mit docx-Vorlage"""
-    import sys
-    print(f"[INFO] ===== bestellung_pdf_export aufgerufen für Bestellung ID: {bestellung_id} =====", file=sys.stderr, flush=True)
-    log_info(f"bestellung_pdf_export aufgerufen für Bestellung ID: {bestellung_id}")
     mitarbeiter_id = session.get('user_id')
     
     try:
@@ -4464,10 +4404,8 @@ def bestellung_pdf_export(bestellung_id):
                 
                 try:
                     # PDF-Konvertierung (unterstützt Windows docx2pdf und Linux LibreOffice)
-                    log_info(f"Starte PDF-Konvertierung: DOCX={tmp_docx_path}, PDF={tmp_pdf_path}")
                     if not convert_docx_to_pdf(tmp_docx_path, tmp_pdf_path):
                         # PDF-Konvertierung fehlgeschlagen, Fallback zu DOCX
-                        log_error("convert_docx_to_pdf hat False zurückgegeben - werfe Exception")
                         raise Exception("PDF-Konvertierung fehlgeschlagen")
                     
                     # PDF lesen
@@ -4488,7 +4426,7 @@ def bestellung_pdf_export(bestellung_id):
                     # Falls PDF-Konvertierung fehlschlägt, DOCX zurückgeben
                     # Dies ist ein erwartetes Verhalten, wenn PDF-Konvertierung nicht verfügbar ist
                     # (z.B. wenn LibreOffice oder docx2pdf nicht installiert/konfiguriert sind)
-                    log_info(f"PDF-Konvertierung nicht möglich, DOCX wird zurückgegeben: {e}")
+                    pass
                     
                     # Temporäre Dateien aufräumen
                     if os.path.exists(tmp_docx_path):
