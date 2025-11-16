@@ -41,12 +41,31 @@ except ImportError:
 
 
 def get_logger():
-    """Holt den Flask-Logger oder erstellt einen Standard-Logger"""
+    """Holt den Flask-Logger oder erstellt einen Standard-Logger, der an stderr schreibt"""
     try:
-        return current_app.logger
+        logger = current_app.logger
+        # Stelle sicher, dass der Logger an stderr schreibt (für gunicorn/journalctl)
+        if not logger.handlers:
+            handler = logging.StreamHandler(sys.stderr)
+            handler.setFormatter(logging.Formatter(
+                '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S'
+            ))
+            logger.addHandler(handler)
+            logger.setLevel(logging.INFO)
+        return logger
     except RuntimeError:
-        # Kein App-Context, verwende Standard-Logger
-        return logging.getLogger(__name__)
+        # Kein App-Context, verwende Standard-Logger mit stderr
+        logger = logging.getLogger(__name__)
+        if not logger.handlers:
+            handler = logging.StreamHandler(sys.stderr)
+            handler.setFormatter(logging.Formatter(
+                '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S'
+            ))
+            logger.addHandler(handler)
+            logger.setLevel(logging.INFO)
+        return logger
 
 
 def convert_docx_to_pdf(docx_path, pdf_path):
@@ -2965,6 +2984,8 @@ def angebotsanfrage_datei_anzeigen(filepath):
 @login_required
 def angebotsanfrage_pdf_export(angebotsanfrage_id):
     """PDF-Export für eine Angebotsanfrage mit docx-Vorlage"""
+    logger = get_logger()
+    logger.info(f"angebotsanfrage_pdf_export aufgerufen für Angebotsanfrage ID: {angebotsanfrage_id}")
     mitarbeiter_id = session.get('user_id')
     
     try:
@@ -4115,6 +4136,8 @@ def update_bestellung_sichtbarkeit(bestellung_id):
 @login_required
 def bestellung_pdf_export(bestellung_id):
     """PDF-Export für eine Bestellung mit docx-Vorlage"""
+    logger = get_logger()
+    logger.info(f"bestellung_pdf_export aufgerufen für Bestellung ID: {bestellung_id}")
     mitarbeiter_id = session.get('user_id')
     
     try:
