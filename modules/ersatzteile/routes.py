@@ -3094,6 +3094,7 @@ def angebotsanfrage_pdf_export(angebotsanfrage_id):
                 try:
                     # PDF-Konvertierung (unterstützt Windows docx2pdf und Linux LibreOffice)
                     if not convert_docx_to_pdf(tmp_docx_path, tmp_pdf_path):
+                        # PDF-Konvertierung fehlgeschlagen, Fallback zu DOCX
                         raise Exception("PDF-Konvertierung fehlgeschlagen")
                     
                     # PDF lesen
@@ -3112,11 +3113,9 @@ def angebotsanfrage_pdf_export(angebotsanfrage_id):
                     return response
                 except Exception as e:
                     # Falls PDF-Konvertierung fehlschlägt, DOCX zurückgeben
-                    # (z.B. wenn Word/LibreOffice nicht installiert ist oder COM-Fehler auftritt)
-                    # Fehler immer loggen (nicht nur im Debug-Modus)
-                    print(f"PDF-Konvertierung fehlgeschlagen, DOCX wird zurückgegeben: {e}")
-                    import traceback
-                    traceback.print_exc()
+                    # Dies ist ein erwartetes Verhalten, wenn PDF-Konvertierung nicht verfügbar ist
+                    # (z.B. wenn LibreOffice oder docx2pdf nicht installiert/konfiguriert sind)
+                    print(f"INFO: PDF-Konvertierung nicht möglich, DOCX wird zurückgegeben: {e}")
                     
                     # Temporäre Dateien aufräumen
                     if os.path.exists(tmp_docx_path):
@@ -4339,6 +4338,7 @@ def bestellung_pdf_export(bestellung_id):
                 try:
                     # PDF-Konvertierung (unterstützt Windows docx2pdf und Linux LibreOffice)
                     if not convert_docx_to_pdf(tmp_docx_path, tmp_pdf_path):
+                        # PDF-Konvertierung fehlgeschlagen, Fallback zu DOCX
                         raise Exception("PDF-Konvertierung fehlgeschlagen")
                     
                     # PDF lesen
@@ -4357,10 +4357,9 @@ def bestellung_pdf_export(bestellung_id):
                     return response
                 except Exception as e:
                     # Falls PDF-Konvertierung fehlschlägt, DOCX zurückgeben
-                    # Fehler immer loggen (nicht nur im Debug-Modus)
-                    print(f"PDF-Konvertierung fehlgeschlagen, DOCX wird zurückgegeben: {e}")
-                    import traceback
-                    traceback.print_exc()
+                    # Dies ist ein erwartetes Verhalten, wenn PDF-Konvertierung nicht verfügbar ist
+                    # (z.B. wenn LibreOffice oder docx2pdf nicht installiert/konfiguriert sind)
+                    print(f"INFO: PDF-Konvertierung nicht möglich, DOCX wird zurückgegeben: {e}")
                     
                     # Temporäre Dateien aufräumen
                     if os.path.exists(tmp_docx_path):
