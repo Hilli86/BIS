@@ -193,30 +193,50 @@ def convert_docx_to_pdf(docx_path, pdf_path):
         docx_basename = os.path.splitext(os.path.basename(docx_path))[0]
         generated_pdf = os.path.join(output_dir, f"{docx_basename}.pdf")
         
-        log_info(f"Erwartete PDF: {generated_pdf}")
+        log_info(f"Erwartete PDF (basierend auf DOCX-Name): {generated_pdf}")
         log_info(f"PDF existiert: {os.path.exists(generated_pdf)}")
         
-        # Wenn PDF erstellt wurde, umbenennen falls nötig
+        # Prüfe auch, ob die PDF mit dem Namen der temporären PDF-Datei erstellt wurde
+        pdf_basename = os.path.splitext(os.path.basename(pdf_path))[0]
+        alternative_pdf = os.path.join(output_dir, f"{pdf_basename}.pdf")
+        log_info(f"Alternative PDF (basierend auf PDF-Name): {alternative_pdf}")
+        log_info(f"Alternative PDF existiert: {os.path.exists(alternative_pdf)}")
+        
+        # Suche nach erstellter PDF
+        found_pdf = None
         if os.path.exists(generated_pdf):
-            log_info(f"PDF gefunden: {generated_pdf} ({os.path.getsize(generated_pdf)} Bytes)")
-            if generated_pdf != pdf_path:
-                log_info(f"Verschiebe PDF von {generated_pdf} nach {pdf_path}")
-                shutil.move(generated_pdf, pdf_path)
-            if os.path.getsize(pdf_path) > 0:
-                log_info(f"PDF erfolgreich erstellt: {pdf_path} ({os.path.getsize(pdf_path)} Bytes)")
-                return True
-            else:
-                log_error(f"PDF wurde erstellt, ist aber leer: {pdf_path}")
+            found_pdf = generated_pdf
+            log_info(f"PDF gefunden mit DOCX-Name: {found_pdf}")
+        elif os.path.exists(alternative_pdf):
+            found_pdf = alternative_pdf
+            log_info(f"PDF gefunden mit PDF-Name: {found_pdf}")
         else:
-            log_error(f"PDF wurde nicht erstellt. Gesuchter Pfad: {generated_pdf}")
             # Prüfe, ob vielleicht eine PDF mit anderem Namen erstellt wurde
             if os.path.exists(output_dir):
                 try:
                     pdf_files = [f for f in os.listdir(output_dir) if f.endswith('.pdf')]
                     if pdf_files:
                         log_info(f"Gefundene PDF-Dateien im Ausgabeverzeichnis: {pdf_files}")
+                        # Verwende die erste gefundene PDF (normalerweise sollte nur eine da sein)
+                        if pdf_files:
+                            found_pdf = os.path.join(output_dir, pdf_files[0])
+                            log_info(f"Verwende gefundene PDF: {found_pdf}")
                 except Exception as e:
                     log_error(f"Fehler beim Auflisten des Ausgabeverzeichnisses: {e}")
+        
+        # Wenn PDF gefunden wurde, verwenden
+        if found_pdf and os.path.exists(found_pdf):
+            log_info(f"PDF gefunden: {found_pdf} ({os.path.getsize(found_pdf)} Bytes)")
+            if found_pdf != pdf_path:
+                log_info(f"Verschiebe PDF von {found_pdf} nach {pdf_path}")
+                shutil.move(found_pdf, pdf_path)
+            if os.path.getsize(pdf_path) > 0:
+                log_info(f"PDF erfolgreich erstellt: {pdf_path} ({os.path.getsize(pdf_path)} Bytes)")
+                return True
+            else:
+                log_error(f"PDF wurde erstellt, ist aber leer: {pdf_path}")
+        else:
+            log_error(f"PDF wurde nicht erstellt. Gesuchte Pfade: {generated_pdf}, {alternative_pdf}")
         
         if result.returncode != 0:
             log_error(f"LibreOffice Fehler (Returncode {result.returncode})")
