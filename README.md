@@ -7,6 +7,10 @@ Ein Flask-basiertes Schichtbuch-System für die Verwaltung von Arbeitsaufträgen
 ### Voraussetzungen
 - Python 3.8+
 - pip
+- **LibreOffice** (für PDF-Export von Bestellungen und Angebotsanfragen)
+  - Linux: `sudo apt-get install libreoffice` oder `sudo yum install libreoffice`
+  - Windows: Download von [libreoffice.org](https://www.libreoffice.org/download/)
+  - macOS: `brew install --cask libreoffice`
 
 ### Installation
 
@@ -68,13 +72,13 @@ Die Anwendung ist dann unter `http://localhost:5000` erreichbar.
 
 ## 🔐 Standard-Login
 
-- **Personalnummer:** 1001
-- **Passwort:** pass123
+Bei einer **neuen Datenbank** wird automatisch ein Admin-Benutzer erstellt:
 
-oder
+- **Personalnummer:** 99999
+- **Passwort:** a
+- **Name:** BIS-Admin
 
-- **Personalnummer:** 1002  
-- **Passwort:** pass123
+**Hinweis:** Die Standardbenutzer 1001 und 1002 sind nur in der mitgelieferten Testdatenbank (`database_main.db`) vorhanden. Bei einer neuen Datenbank müssen Sie Benutzer über den Admin-Bereich anlegen.
 
 ## ⚙️ Konfiguration
 
@@ -166,11 +170,14 @@ BIS/
   - Anfragen an Lieferanten mit mehreren Positionen
   - Status-Verwaltung (Offen, Versendet, Angebot erhalten, Abgeschlossen)
   - Smart-Add-Funktion: Prüft auf bestehende offene Anfragen beim Lieferanten
-  - PDF-Export im professionellen Geschäftsdokument-Stil
+  - **PDF-Export** im professionellen Geschäftsdokument-Stil (benötigt LibreOffice)
   - Positionen bearbeitbar per Klick (bei offenen Anfragen)
   - Artikel direkt aus Position erstellen (wenn noch nicht vorhanden)
   - PDF-Upload für erhaltene Angebote
   - Preisübernahme aus Angebot mit automatischer Preisstand-Aktualisierung
+- **Bestellungen**:
+  - **PDF-Export** für Bestellungen (benötigt LibreOffice)
+  - Falls LibreOffice nicht verfügbar ist, wird automatisch DOCX zurückgegeben
 - **Modal-Auswahl**:
   - Ersatzteile vom Lieferanten per Modal auswählbar
   - Automatisches Befüllen von Bestellnummer und Bezeichnung
