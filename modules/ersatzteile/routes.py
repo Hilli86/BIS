@@ -108,11 +108,41 @@ def convert_docx_to_pdf(docx_path, pdf_path):
                 libreoffice_cmd = path
                 break
     else:
-        # Linux/Unix: LibreOffice sollte im PATH sein
+        # Linux/Unix: Suche nach LibreOffice
+        # Zuerst im PATH suchen
         libreoffice_cmd = shutil.which('libreoffice') or shutil.which('soffice')
+        log_info(f"shutil.which('libreoffice'): {shutil.which('libreoffice')}")
+        log_info(f"shutil.which('soffice'): {shutil.which('soffice')}")
+        
+        # Falls nicht im PATH, bekannte Linux-Pfade prüfen
+        if not libreoffice_cmd:
+            possible_paths = [
+                '/usr/bin/libreoffice',
+                '/usr/bin/soffice',
+                '/usr/local/bin/libreoffice',
+                '/usr/local/bin/soffice',
+                '/snap/bin/libreoffice',
+                '/opt/libreoffice*/program/soffice',
+            ]
+            log_info(f"Suche LibreOffice in bekannten Pfaden...")
+            for path in possible_paths:
+                # Unterstützung für Wildcards
+                if '*' in path:
+                    import glob
+                    matches = glob.glob(path)
+                    if matches:
+                        path = matches[0]
+                
+                if os.path.exists(path) and os.access(path, os.X_OK):
+                    libreoffice_cmd = path
+                    log_info(f"LibreOffice gefunden in: {path}")
+                    break
+                else:
+                    log_info(f"Pfad existiert nicht oder nicht ausführbar: {path}")
     
     if not libreoffice_cmd:
         log_error("LibreOffice nicht gefunden. Bitte installieren Sie LibreOffice oder stellen Sie sicher, dass es im PATH ist.")
+        log_error("Hinweis: Prüfen Sie mit 'which libreoffice' oder 'which soffice' ob LibreOffice installiert ist.")
         return False
     
     log_info(f"LibreOffice gefunden: {libreoffice_cmd}")
