@@ -136,9 +136,13 @@ def convert_docx_to_pdf(docx_path, pdf_path):
         # LibreOffice im headless-Modus mit optimierten Optionen
         output_dir = os.path.dirname(pdf_path)
         
-        # Umgebungsvariable für headless-Modus setzen
+        # Umgebungsvariablen für headless-Modus setzen (ohne X11)
         env = os.environ.copy()
-        env['SAL_USE_VCLPLUGIN'] = 'gen'  # Generic VCL plugin (headless)
+        env['SAL_USE_VCLPLUGIN'] = 'gen'  # Generic VCL plugin (headless, kein X11)
+        # DISPLAY entfernen, damit LibreOffice keinen X11-Server benötigt
+        env.pop('DISPLAY', None)
+        # Weitere Umgebungsvariablen für headless-Modus
+        env['SAL_DISABLE_OPENCL'] = '1'  # OpenCL deaktivieren (kann X11 benötigen)
         
         cmd = [
             libreoffice_cmd,
