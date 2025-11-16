@@ -136,16 +136,49 @@
     </div>
     <div class="collapse" id="lieferscheinUploadCollapse">
         <div class="card-body">
-            <form method="POST" action="{{ url_for('ersatzteile.lieferschein_upload', bestellung_id=bestellung.ID) }}" enctype="multipart/form-data">
-                <div class="mb-3">
-                    <label class="form-label">Lieferschein-Datei (PDF, JPEG, JPG oder PNG):</label>
-                    <input type="file" name="file" class="form-control" accept=".pdf,.jpeg,.jpg,.png" required>
-                    <small class="text-muted">Erlaubte Formate: PDF, JPEG, JPG, PNG</small>
+            <!-- Tab-Auswahl -->
+            <ul class="nav nav-tabs mb-3" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="ls-upload-tab" data-bs-toggle="tab" data-bs-target="#ls-upload-pane" type="button">
+                        <i class="bi bi-cloud-upload"></i> Hochladen
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="ls-import-tab" data-bs-toggle="tab" data-bs-target="#ls-import-pane" type="button" onclick="ladeImportDateienLieferschein()">
+                        <i class="bi bi-folder"></i> Aus Import-Ordner
+                    </button>
+                </li>
+            </ul>
+            
+            <div class="tab-content">
+                <!-- Upload-Tab -->
+                <div class="tab-pane fade show active" id="ls-upload-pane" role="tabpanel">
+                    <form method="POST" action="{{ url_for('ersatzteile.lieferschein_upload', bestellung_id=bestellung.ID) }}" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label class="form-label">Lieferschein-Datei (PDF, JPEG, JPG oder PNG):</label>
+                            <input type="file" name="file" class="form-control" accept=".pdf,.jpeg,.jpg,.png" required>
+                            <small class="text-muted">Erlaubte Formate: PDF, JPEG, JPG, PNG</small>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-upload"></i> Hochladen
+                        </button>
+                    </form>
                 </div>
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-upload"></i> Hochladen
-                </button>
-            </form>
+                
+                <!-- Import-Tab -->
+                <div class="tab-pane fade" id="ls-import-pane" role="tabpanel">
+                    <div id="ls-import-dateien-liste">
+                        <div class="text-center">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">Lädt...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-primary mt-2" onclick="ladeImportDateienLieferschein()">
+                        <i class="bi bi-arrow-clockwise"></i> Aktualisieren
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
     <div class="card-body">
@@ -179,5 +212,87 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Import-Funktionalität für Lieferscheine -->
+<script>
+async function ladeImportDateienLieferschein() {
+    const liste = document.getElementById('ls-import-dateien-liste');
+    if (!liste) return;
+    
+    liste.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
+    
+    try {
+        const response = await fetch('/api/import/dateien');
+        const data = await response.json();
+        
+        if (!data.success || data.dateien.length === 0) {
+            liste.innerHTML = '<div class="alert alert-info">Keine Dateien im Import-Ordner vorhanden.</div>';
+            return;
+        }
+        
+        // Erlaubte Dateitypen für Lieferscheine
+        const erlaubteEndungen = ['.pdf', '.jpeg', '.jpg', '.png'];
+        
+        const gefilterteDateien = data.dateien.filter(datei => {
+            const ext = '.' + datei.name.split('.').pop().toLowerCase();
+            return erlaubteEndungen.some(e => ext === e);
+        });
+        
+        if (gefilterteDateien.length === 0) {
+            liste.innerHTML = '<div class="alert alert-warning">Keine passenden Dateien im Import-Ordner (erlaubt: PDF, JPEG, JPG, PNG).</div>';
+            return;
+        }
+        
+        let html = '<div class="list-group">';
+        gefilterteDateien.forEach(datei => {
+            html += `
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>${datei.name}</strong>
+                        <br><small class="text-muted">${datei.size}</small>
+                    </div>
+                    <button class="btn btn-sm btn-primary" onclick="verschiebeAusImportLieferschein('${datei.name.replace(/'/g, "\\'")}')">
+                        <i class="bi bi-arrow-right"></i> Verwenden
+                    </button>
+                </div>
+            `;
+        });
+        html += '</div>';
+        liste.innerHTML = html;
+    } catch (error) {
+        console.error('Fehler beim Laden der Dateien:', error);
+        liste.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Dateien.</div>';
+    }
+}
+
+async function verschiebeAusImportLieferschein(filename) {
+    const bestellungId = {{ bestellung.ID }};
+    const zielOrdner = `Bestellwesen/Lieferscheine/${bestellungId}`;
+    
+    if (!confirm(`Möchten Sie die Datei "${filename}" aus dem Import-Ordner verwenden? Die Datei wird verschoben.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/import/verschieben', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({filename: filename, ziel_ordner: zielOrdner})
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Datei erfolgreich verschoben!');
+            location.reload();
+        } else {
+            alert('Fehler: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Fehler beim Verschieben:', error);
+        alert('Fehler beim Verschieben der Datei.');
+    }
+}
+</script>
 {% endblock %}
 

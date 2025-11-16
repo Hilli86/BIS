@@ -5,8 +5,10 @@ Modulare Flask-Anwendung mit Blueprints
 Hauptdatei - nur Initialisierung und Blueprint-Registrierung
 """
 
-from flask import Flask, render_template, session, redirect, url_for, request, jsonify
+from flask import Flask, render_template, session, redirect, url_for, request, jsonify, current_app
 import os
+import shutil
+from werkzeug.utils import secure_filename
 from config import config
 
 # Flask App initialisieren
@@ -25,6 +27,7 @@ with app.app_context():
 os.makedirs(app.config['SCHICHTBUCH_UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['ERSATZTEIL_UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['ANGEBOTE_UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(app.config['IMPORT_FOLDER'], exist_ok=True)
 
 # Blueprints registrieren
 from modules import auth_bp, schichtbuch_bp, admin_bp, ersatzteile_bp
@@ -47,6 +50,105 @@ def not_found_error(error):
 def internal_error(error):
     """500 Fehlerseite"""
     return render_template('errors/500.html'), 500
+
+
+# ========== Import-Funktionalität ==========
+
+@app.route('/api/import/dateien', methods=['GET'])
+def import_dateien_liste():
+    """Liste alle Dateien im Import-Ordner auf"""
+    from utils.decorators import login_required
+    
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Nicht angemeldet'}), 401
+    
+    import_folder = current_app.config['IMPORT_FOLDER']
+    
+    if not os.path.exists(import_folder):
+        return jsonify({'success': True, 'dateien': []})
+    
+    dateien = []
+    try:
+        for filename in os.listdir(import_folder):
+            filepath = os.path.join(import_folder, filename)
+            if os.path.isfile(filepath):
+                file_size = os.path.getsize(filepath)
+                file_size_str = f"{file_size / 1024:.1f} KB" if file_size < 1024*1024 else f"{file_size / (1024*1024):.1f} MB"
+                
+                dateien.append({
+                    'name': filename,
+                    'size': file_size_str,
+                    'size_bytes': file_size
+                })
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Fehler beim Lesen des Import-Ordners: {str(e)}'}), 500
+    
+    return jsonify({'success': True, 'dateien': dateien})
+
+
+@app.route('/api/import/verschieben', methods=['POST'])
+def import_datei_verschieben():
+    """Verschiebe eine Datei aus dem Import-Ordner zu einem Zielordner"""
+    from utils.decorators import login_required
+    
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Nicht angemeldet'}), 401
+    
+    data = request.get_json()
+    original_filename = data.get('filename')
+    ziel_ordner = data.get('ziel_ordner')  # Relativer Pfad zum Zielordner
+    
+    if not original_filename or not ziel_ordner:
+        return jsonify({'success': False, 'message': 'Fehlende Parameter'}), 400
+    
+    # Sicherheitsprüfung: Dateiname darf keine Pfad-Traversal enthalten
+    # Prüfe auf gefährliche Zeichen, aber behalte den Originalnamen für die Suche
+    if '..' in original_filename or '/' in original_filename or '\\' in original_filename:
+        return jsonify({'success': False, 'message': 'Ungültiger Dateiname'}), 400
+    
+    import_folder = current_app.config['IMPORT_FOLDER']
+    quelle = os.path.join(import_folder, original_filename)
+    
+    # Sicherheitsprüfung: Quelle muss im Import-Ordner sein (mit normalisiertem Pfad)
+    quelle_abs = os.path.abspath(quelle)
+    import_folder_abs = os.path.abspath(import_folder)
+    if not quelle_abs.startswith(import_folder_abs):
+        return jsonify({'success': False, 'message': 'Ungültiger Dateipfad'}), 403
+    
+    # Prüfen ob Datei existiert (mit Originalnamen)
+    if not os.path.exists(quelle):
+        return jsonify({'success': False, 'message': f'Datei nicht gefunden: {original_filename}'}), 404
+    
+    # Sicheren Dateinamen für Ziel erstellen (secure_filename entfernt Leerzeichen)
+    safe_filename = secure_filename(original_filename)
+    ziel = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], ziel_ordner, safe_filename)
+    
+    # Zielordner erstellen falls nicht vorhanden
+    os.makedirs(os.path.dirname(ziel), exist_ok=True)
+    
+    # Prüfen ob Datei bereits existiert
+    final_filename = safe_filename
+    if os.path.exists(ziel):
+        name, ext = os.path.splitext(safe_filename)
+        counter = 1
+        while os.path.exists(ziel):
+            final_filename = f"{name}_{counter}{ext}"
+            ziel = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], ziel_ordner, final_filename)
+            counter += 1
+    
+    try:
+        # Datei verschieben (nicht kopieren)
+        shutil.move(quelle, ziel)
+        return jsonify({
+            'success': True,
+            'message': f'Datei "{final_filename}" erfolgreich verschoben',
+            'filename': final_filename
+        })
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Fehler beim Verschieben: {error_details}")
+        return jsonify({'success': False, 'message': f'Fehler beim Verschieben: {str(e)}'}), 500
 
 
 # ========== Main Routes ==========

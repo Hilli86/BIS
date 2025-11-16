@@ -361,12 +361,45 @@
     </div>
     <div class="collapse" id="bildUploadCollapse">
         <div class="card-body">
-            <form method="POST" action="{{ url_for('ersatzteile.bild_upload', ersatzteil_id=ersatzteil.ID) }}" enctype="multipart/form-data">
-                <div class="mb-3">
-                    <input type="file" name="file" class="form-control" accept="image/*" required>
+            <!-- Tab-Auswahl -->
+            <ul class="nav nav-tabs mb-3" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="bild-upload-tab" data-bs-toggle="tab" data-bs-target="#bild-upload-pane" type="button">
+                        <i class="bi bi-cloud-upload"></i> Hochladen
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="bild-import-tab" data-bs-toggle="tab" data-bs-target="#bild-import-pane" type="button" onclick="ladeImportDateienErsatzteil('bild')">
+                        <i class="bi bi-folder"></i> Aus Import-Ordner
+                    </button>
+                </li>
+            </ul>
+            
+            <div class="tab-content">
+                <!-- Upload-Tab -->
+                <div class="tab-pane fade show active" id="bild-upload-pane" role="tabpanel">
+                    <form method="POST" action="{{ url_for('ersatzteile.bild_upload', ersatzteil_id=ersatzteil.ID) }}" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <input type="file" name="file" class="form-control" accept="image/*" required>
+                        </div>
+                        <button type="submit" class="btn btn-success">Hochladen</button>
+                    </form>
                 </div>
-                <button type="submit" class="btn btn-success">Hochladen</button>
-            </form>
+                
+                <!-- Import-Tab -->
+                <div class="tab-pane fade" id="bild-import-pane" role="tabpanel">
+                    <div id="bild-import-dateien-liste">
+                        <div class="text-center">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">Lädt...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-success mt-2" onclick="ladeImportDateienErsatzteil('bild')">
+                        <i class="bi bi-arrow-clockwise"></i> Aktualisieren
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
     <div class="card-body">
@@ -414,17 +447,50 @@
     </div>
     <div class="collapse" id="dokumentUploadCollapse">
         <div class="card-body">
-            <form method="POST" action="{{ url_for('ersatzteile.dokument_upload', ersatzteil_id=ersatzteil.ID) }}" enctype="multipart/form-data">
-                <div class="mb-3">
-                    <label class="form-label">Datei:</label>
-                    <input type="file" name="file" class="form-control" required>
+            <!-- Tab-Auswahl -->
+            <ul class="nav nav-tabs mb-3" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="dok-upload-tab" data-bs-toggle="tab" data-bs-target="#dok-upload-pane" type="button">
+                        <i class="bi bi-cloud-upload"></i> Hochladen
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="dok-import-tab" data-bs-toggle="tab" data-bs-target="#dok-import-pane" type="button" onclick="ladeImportDateienErsatzteil('dokument')">
+                        <i class="bi bi-folder"></i> Aus Import-Ordner
+                    </button>
+                </li>
+            </ul>
+            
+            <div class="tab-content">
+                <!-- Upload-Tab -->
+                <div class="tab-pane fade show active" id="dok-upload-pane" role="tabpanel">
+                    <form method="POST" action="{{ url_for('ersatzteile.dokument_upload', ersatzteil_id=ersatzteil.ID) }}" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label class="form-label">Datei:</label>
+                            <input type="file" name="file" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Typ (optional):</label>
+                            <input type="text" name="typ" class="form-control" placeholder="z.B. Datenblatt, Anleitung">
+                        </div>
+                        <button type="submit" class="btn btn-success">Hochladen</button>
+                    </form>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">Typ (optional):</label>
-                    <input type="text" name="typ" class="form-control" placeholder="z.B. Datenblatt, Anleitung">
+                
+                <!-- Import-Tab -->
+                <div class="tab-pane fade" id="dok-import-pane" role="tabpanel">
+                    <div id="dok-import-dateien-liste">
+                        <div class="text-center">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">Lädt...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-success mt-2" onclick="ladeImportDateienErsatzteil('dokument')">
+                        <i class="bi bi-arrow-clockwise"></i> Aktualisieren
+                    </button>
                 </div>
-                <button type="submit" class="btn btn-success">Hochladen</button>
-            </form>
+            </div>
         </div>
     </div>
     <div class="card-body">
@@ -695,6 +761,104 @@ function showToast(message, type = 'info') {
     toastElement.addEventListener('hidden.bs.toast', function() {
         toastElement.remove();
     });
+}
+</script>
+
+<!-- Import-Funktionalität für Ersatzteile -->
+<script>
+async function ladeImportDateienErsatzteil(typ) {
+    const listeId = typ === 'bild' ? 'bild-import-dateien-liste' : 'dok-import-dateien-liste';
+    const liste = document.getElementById(listeId);
+    
+    if (!liste) return;
+    
+    liste.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
+    
+    try {
+        const response = await fetch('/api/import/dateien');
+        const data = await response.json();
+        
+        if (!data.success || data.dateien.length === 0) {
+            liste.innerHTML = '<div class="alert alert-info">Keine Dateien im Import-Ordner vorhanden.</div>';
+            return;
+        }
+        
+        // Filtere nach Dateityp
+        let erlaubteEndungen = [];
+        if (typ === 'bild') {
+            erlaubteEndungen = ['.png', '.jpg', '.jpeg', '.gif'];
+        } else if (typ === 'dokument') {
+            erlaubteEndungen = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt'];
+        }
+        
+        const gefilterteDateien = data.dateien.filter(datei => {
+            const ext = '.' + datei.name.split('.').pop().toLowerCase();
+            return erlaubteEndungen.some(e => ext === e);
+        });
+        
+        if (gefilterteDateien.length === 0) {
+            liste.innerHTML = '<div class="alert alert-warning">Keine passenden Dateien im Import-Ordner.</div>';
+            return;
+        }
+        
+        let html = '<div class="list-group">';
+        gefilterteDateien.forEach(datei => {
+            html += `
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>${datei.name}</strong>
+                        <br><small class="text-muted">${datei.size}</small>
+                    </div>
+                    <button class="btn btn-sm btn-success" onclick="verschiebeAusImportErsatzteil('${datei.name.replace(/'/g, "\\'")}', '${typ}', {{ ersatzteil.ID }})">
+                        <i class="bi bi-arrow-right"></i> Verwenden
+                    </button>
+                </div>
+            `;
+        });
+        html += '</div>';
+        liste.innerHTML = html;
+    } catch (error) {
+        console.error('Fehler beim Laden der Dateien:', error);
+        liste.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Dateien.</div>';
+    }
+}
+
+async function verschiebeAusImportErsatzteil(filename, typ, ersatzteilId) {
+    let zielOrdner = '';
+    if (typ === 'bild') {
+        zielOrdner = `Ersatzteile/${ersatzteilId}/bilder`;
+    } else if (typ === 'dokument') {
+        zielOrdner = `Ersatzteile/${ersatzteilId}/dokumente`;
+    }
+    
+    if (!zielOrdner) {
+        alert('Ungültiger Typ');
+        return;
+    }
+    
+    if (!confirm(`Möchten Sie die Datei "${filename}" aus dem Import-Ordner verwenden? Die Datei wird verschoben.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/import/verschieben', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({filename: filename, ziel_ordner: zielOrdner})
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Datei erfolgreich verschoben!');
+            location.reload();
+        } else {
+            alert('Fehler: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Fehler beim Verschieben:', error);
+        alert('Fehler beim Verschieben der Datei.');
+    }
 }
 </script>
 {% endblock %}

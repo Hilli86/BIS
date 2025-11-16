@@ -807,24 +807,58 @@ async function saveSichtbarkeit() {
         <div class="card mb-3 bg-light">
           <div class="card-body">
             <h6 class="card-title"><i class="bi bi-cloud-upload"></i> Datei hochladen</h6>
-            <form id="uploadFormListe" enctype="multipart/form-data">
-              <div class="mb-2">
-                <input type="file" class="form-control" id="fileInputListe" name="files" 
-                       accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" multiple>
-                <div class="form-text">
-                  Max. 16 MB pro Datei - Mehrfachauswahl möglich - Erlaubt: Bilder, PDF, Word, Excel, Text
+            
+            <!-- Tab-Auswahl -->
+            <ul class="nav nav-tabs mb-3" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="sb-upload-tab" data-bs-toggle="tab" data-bs-target="#sb-upload-pane" type="button">
+                  <i class="bi bi-cloud-upload"></i> Hochladen
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="sb-import-tab" data-bs-toggle="tab" data-bs-target="#sb-import-pane" type="button" onclick="ladeImportDateienSchichtbuch()">
+                  <i class="bi bi-folder"></i> Aus Import-Ordner
+                </button>
+              </li>
+            </ul>
+            
+            <div class="tab-content">
+              <!-- Upload-Tab -->
+              <div class="tab-pane fade show active" id="sb-upload-pane" role="tabpanel">
+                <form id="uploadFormListe" enctype="multipart/form-data">
+                  <div class="mb-2">
+                    <input type="file" class="form-control" id="fileInputListe" name="files" 
+                           accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" multiple>
+                    <div class="form-text">
+                      Max. 16 MB pro Datei - Mehrfachauswahl möglich - Erlaubt: Bilder, PDF, Word, Excel, Text
+                    </div>
+                  </div>
+                  <button type="submit" class="btn btn-primary btn-sm" id="uploadButtonListe">
+                    <i class="bi bi-upload"></i> Hochladen
+                  </button>
+                </form>
+                <div id="uploadProgressListe" class="mt-2 d-none">
+                  <div class="progress">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                  </div>
                 </div>
+                <div id="uploadMessageListe" class="mt-2"></div>
               </div>
-              <button type="submit" class="btn btn-primary btn-sm" id="uploadButtonListe">
-                <i class="bi bi-upload"></i> Hochladen
-              </button>
-            </form>
-            <div id="uploadProgressListe" class="mt-2 d-none">
-              <div class="progress">
-                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+              
+              <!-- Import-Tab -->
+              <div class="tab-pane fade" id="sb-import-pane" role="tabpanel">
+                <div id="sb-import-dateien-liste">
+                  <div class="text-center">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                      <span class="visually-hidden">Lädt...</span>
+                    </div>
+                  </div>
+                </div>
+                <button type="button" class="btn btn-primary btn-sm mt-2" onclick="ladeImportDateienSchichtbuch()">
+                  <i class="bi bi-arrow-clockwise"></i> Aktualisieren
+                </button>
               </div>
             </div>
-            <div id="uploadMessageListe" class="mt-2"></div>
           </div>
         </div>
         
@@ -1088,6 +1122,93 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 });
+
+// Import-Funktionalität für Schichtbuch
+async function ladeImportDateienSchichtbuch() {
+  const liste = document.getElementById('sb-import-dateien-liste');
+  if (!liste || !currentThemaIdListe) return;
+  
+  liste.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
+  
+  try {
+    const response = await fetch('/api/import/dateien');
+    const data = await response.json();
+    
+    if (!data.success || data.dateien.length === 0) {
+      liste.innerHTML = '<div class="alert alert-info">Keine Dateien im Import-Ordner vorhanden.</div>';
+      return;
+    }
+    
+    // Erlaubte Dateitypen für Schichtbuch
+    const erlaubteEndungen = ['.png', '.jpg', '.jpeg', '.gif', '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt'];
+    
+    const gefilterteDateien = data.dateien.filter(datei => {
+      const ext = '.' + datei.name.split('.').pop().toLowerCase();
+      return erlaubteEndungen.some(e => ext === e);
+    });
+    
+    if (gefilterteDateien.length === 0) {
+      liste.innerHTML = '<div class="alert alert-warning">Keine passenden Dateien im Import-Ordner.</div>';
+      return;
+    }
+    
+    let html = '<div class="list-group">';
+    gefilterteDateien.forEach(datei => {
+      html += `
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <div>
+            <strong>${datei.name}</strong>
+            <br><small class="text-muted">${datei.size}</small>
+          </div>
+          <button class="btn btn-sm btn-primary" onclick="verschiebeAusImportSchichtbuch('${datei.name.replace(/'/g, "\\'")}')">
+            <i class="bi bi-arrow-right"></i> Verwenden
+          </button>
+        </div>
+      `;
+    });
+    html += '</div>';
+    liste.innerHTML = html;
+  } catch (error) {
+    console.error('Fehler beim Laden der Dateien:', error);
+    liste.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Dateien.</div>';
+  }
+}
+
+async function verschiebeAusImportSchichtbuch(filename) {
+  if (!currentThemaIdListe) {
+    alert('Kein Thema ausgewählt');
+    return;
+  }
+  
+  if (!confirm(`Möchten Sie die Datei "${filename}" aus dem Import-Ordner verwenden? Die Datei wird verschoben.`)) {
+    return;
+  }
+  
+  const zielOrdner = `Schichtbuch/Themen/${currentThemaIdListe}`;
+  
+  try {
+    const response = await fetch('/api/import/verschieben', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({filename: filename, ziel_ordner: zielOrdner})
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      alert('Datei erfolgreich verschoben!');
+      // Dateiliste neu laden
+      loadDateienListeInListe(currentThemaIdListe);
+      // Import-Liste aktualisieren
+      ladeImportDateienSchichtbuch();
+    } else {
+      alert('Fehler: ' + data.message);
+    }
+  } catch (error) {
+    console.error('Fehler beim Verschieben:', error);
+    alert('Fehler beim Verschieben der Datei.');
+  }
+}
 </script>
 
 {% endblock %}

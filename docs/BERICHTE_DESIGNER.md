@@ -307,3 +307,5 @@ Siehe `modules/ersatzteile/routes_template_example.py` für ein vollständiges B
 - **WeasyPrint**: https://weasyprint.org/
 - **Jinja2 Templates**: https://jinja.palletsprojects.com/
 
+
+
