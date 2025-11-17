@@ -1837,8 +1837,8 @@ def bild_upload(ersatzteil_id):
                 filepath = os.path.join(upload_folder, filename)
                 file.save(filepath)
                 
-                # Datenbankeintrag
-                relative_path = os.path.join('Ersatzteile', str(ersatzteil_id), 'bilder', filename)
+                # Datenbankeintrag - Pfad mit Forward-Slashes für URLs
+                relative_path = f'Ersatzteile/{ersatzteil_id}/bilder/{filename}'
                 conn.execute('''
                     INSERT INTO ErsatzteilBild (ErsatzteilID, Dateiname, Dateipfad)
                     VALUES (?, ?, ?)
@@ -1891,8 +1891,8 @@ def dokument_upload(ersatzteil_id):
                 filepath = os.path.join(upload_folder, filename)
                 file.save(filepath)
                 
-                # Datenbankeintrag
-                relative_path = os.path.join('Ersatzteile', str(ersatzteil_id), 'dokumente', filename)
+                # Datenbankeintrag - Pfad mit Forward-Slashes für URLs
+                relative_path = f'Ersatzteile/{ersatzteil_id}/dokumente/{filename}'
                 conn.execute('''
                     INSERT INTO ErsatzteilDokument (ErsatzteilID, Dateiname, Dateipfad, Typ)
                     VALUES (?, ?, ?, ?)
@@ -1975,12 +1975,17 @@ def datei_anzeigen(filepath):
     """Datei anzeigen/herunterladen"""
     mitarbeiter_id = session.get('user_id')
     
+    # Pfad normalisieren: Backslashes zu Forward-Slashes konvertieren (für Windows-Kompatibilität)
+    filepath = filepath.replace('\\', '/')
+    
     # Sicherheitsprüfung: Dateipfad muss mit Ersatzteile beginnen
     if not filepath.startswith('Ersatzteile/'):
         flash('Ungültiger Dateipfad.', 'danger')
         return redirect(url_for('ersatzteile.ersatzteil_liste'))
     
-    full_path = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], filepath)
+    # Für Dateisystem: Backslashes für Windows verwenden
+    filepath_fs = filepath.replace('/', os.sep)
+    full_path = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], filepath_fs)
     
     if not os.path.exists(full_path):
         flash('Datei nicht gefunden.', 'danger')
@@ -3748,6 +3753,13 @@ def bestellung_aus_angebot(angebotsanfrage_id):
                         ''', (bestellung_id, abteilung_id))
                     except:
                         pass
+                
+                # Angebotsanfrage als abgeschlossen markieren
+                conn.execute('''
+                    UPDATE Angebotsanfrage
+                    SET Status = 'Abgeschlossen'
+                    WHERE ID = ?
+                ''', (angebotsanfrage_id,))
                 
                 conn.commit()
                 flash('Bestellung erfolgreich aus Angebot erstellt.', 'success')
