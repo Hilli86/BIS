@@ -97,13 +97,13 @@
                         <th>Lieferant</th>
                         <th>Status</th>
                         <th style="width: 80px;">Positionen</th>
+                        <th>Gesamtbetrag</th>
                         <th>Erstellt am</th>
                         <th>Freigegeben am</th>
                         <th>Freigegeben von</th>
                         <th>Bestellt am</th>
                         <th>Bestellt von</th>
                         <th>Abteilung</th>
-                        <th>Gesamtbetrag</th>
                         <th>Aktionen</th>
                     </tr>
                 </thead>
@@ -132,13 +132,13 @@
                             {% endif %}
                         </td>
                         <td class="text-center">{{ b.PositionenAnzahl or 0 }}</td>
+                        <td>{{ "%.2f"|format(b.Gesamtbetrag) }} EUR</td>
                         <td>{{ b.ErstelltAm[:16] if b.ErstelltAm else '-' }}</td>
                         <td>{{ b.FreigegebenAm[:16] if b.FreigegebenAm else '-' }}</td>
                         <td>{{ b.FreigegebenVon or '-' }}</td>
                         <td>{{ b.BestelltAm[:16] if b.BestelltAm else '-' }}</td>
                         <td>{{ b.BestelltVon or '-' }}</td>
                         <td>{{ b.Abteilung or '-' }}</td>
-                        <td>{{ "%.2f"|format(b.Gesamtbetrag) }} EUR</td>
                         <td onclick="event.stopPropagation();">
                             {% if b.Status in ['Freigegeben', 'Bestellt'] %}
                             <button type="button" class="btn btn-sm btn-outline-danger" onclick="exportBestellungPDF({{ b.ID }})" title="Als PDF exportieren">
