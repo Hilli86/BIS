@@ -64,6 +64,31 @@
                             </div>
                         </div>
 
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="email" class="form-label">
+                                    <strong>E-Mail:</strong>
+                                </label>
+                                <input type="email" 
+                                       class="form-control" 
+                                       id="email" 
+                                       name="email" 
+                                       value="{{ user.Email or '' }}" 
+                                       placeholder="beispiel@firma.de">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="handynummer" class="form-label">
+                                    <strong>Handynummer:</strong>
+                                </label>
+                                <input type="tel" 
+                                       class="form-control" 
+                                       id="handynummer" 
+                                       name="handynummer" 
+                                       value="{{ user.Handynummer or '' }}" 
+                                       placeholder="+49 123 456789">
+                            </div>
+                        </div>
+
                         <div class="mb-3">
                             <label class="form-label">
                                 <strong>Primärabteilung:</strong>

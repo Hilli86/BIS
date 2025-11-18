@@ -864,6 +864,9 @@ def init_database_schema(db_path, verbose=False):
             # Prüfe auf fehlende Spalte Unterschrift
             if create_column_if_not_exists(conn, 'Bestellung', 'Unterschrift', 'ALTER TABLE Bestellung ADD COLUMN Unterschrift TEXT NULL'):
                 print("[INFO] Spalte 'Unterschrift' zu 'Bestellung' hinzugefügt")
+            # Prüfe auf fehlende Spalte Gelöscht
+            if create_column_if_not_exists(conn, 'Bestellung', 'Gelöscht', 'ALTER TABLE Bestellung ADD COLUMN Gelöscht INTEGER NOT NULL DEFAULT 0'):
+                print("[INFO] Spalte 'Gelöscht' zu 'Bestellung' hinzugefügt")
         
         # ========== 27. BestellungPosition ==========
         created = create_table_if_not_exists(conn, 'BestellungPosition', '''

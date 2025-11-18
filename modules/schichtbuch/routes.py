@@ -450,6 +450,92 @@ def themaneu():
                     # Duplikat ignorieren (falls INSERT OR IGNORE nicht funktioniert)
                     pass
 
+            # Ersatzteile verarbeiten und Lagerbuchungen erstellen
+            ersatzteil_ids = request.form.getlist('ersatzteil_id[]')
+            ersatzteil_mengen = request.form.getlist('ersatzteil_menge[]')
+            
+            if ersatzteil_ids:
+                from utils import get_sichtbare_abteilungen_fuer_mitarbeiter
+                is_admin = 'admin' in session.get('user_berechtigungen', [])
+                sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+                
+                for i, ersatzteil_id_str in enumerate(ersatzteil_ids):
+                    if not ersatzteil_id_str or not ersatzteil_id_str.strip():
+                        continue
+                    
+                    try:
+                        ersatzteil_id = int(ersatzteil_id_str)
+                        menge = int(ersatzteil_mengen[i]) if i < len(ersatzteil_mengen) and ersatzteil_mengen[i] else 1
+                        
+                        if menge <= 0:
+                            continue
+                        
+                        # Ersatzteil prüfen
+                        ersatzteil = conn.execute('''
+                            SELECT ID, AktuellerBestand, Preis, Waehrung, Bezeichnung
+                            FROM Ersatzteil
+                            WHERE ID = ? AND Gelöscht = 0 AND Aktiv = 1
+                        ''', (ersatzteil_id,)).fetchone()
+                        
+                        if not ersatzteil:
+                            continue
+                        
+                        # Berechtigung prüfen (nur für Admins oder wenn Ersatzteil sichtbar ist)
+                        if not is_admin:
+                            # Prüfe ob Ersatzteil für sichtbare Abteilungen zugänglich ist
+                            if sichtbare_abteilungen:
+                                placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+                                zugriff = conn.execute(f'''
+                                    SELECT 1 FROM ErsatzteilAbteilungZugriff
+                                    WHERE ErsatzteilID = ? AND AbteilungID IN ({placeholders})
+                                ''', [ersatzteil_id] + sichtbare_abteilungen).fetchone()
+                                if not zugriff:
+                                    continue
+                            else:
+                                # Keine Berechtigung
+                                continue
+                        
+                        # Bestand prüfen
+                        aktueller_bestand = ersatzteil['AktuellerBestand'] or 0
+                        if aktueller_bestand < menge:
+                            # Nicht genug Bestand - überspringen, aber Fehler protokollieren
+                            print(f"Warnung: Nicht genug Bestand für Ersatzteil {ersatzteil_id}. Verfügbar: {aktueller_bestand}, benötigt: {menge}")
+                            continue
+                        
+                        # Neuer Bestand berechnen
+                        neuer_bestand = aktueller_bestand - menge
+                        
+                        # Preis und Währung
+                        artikel_preis = ersatzteil['Preis']
+                        artikel_waehrung = ersatzteil['Waehrung'] or 'EUR'
+                        
+                        # Lagerbuchung erstellen (Ausgang)
+                        conn.execute('''
+                            INSERT INTO Lagerbuchung (
+                                ErsatzteilID, Typ, Menge, Grund, ThemaID,
+                                VerwendetVonID, Bemerkung, Preis, Waehrung, Buchungsdatum
+                            ) VALUES (?, 'Ausgang', ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                        ''', (
+                            ersatzteil_id, 
+                            menge, 
+                            f'Verwendung für Thema {thema_id}',
+                            thema_id,
+                            mitarbeiter_id,
+                            f'Automatische Buchung beim Erstellen des Themas {thema_id}',
+                            artikel_preis,
+                            artikel_waehrung
+                        ))
+                        
+                        # Bestand aktualisieren
+                        conn.execute('UPDATE Ersatzteil SET AktuellerBestand = ? WHERE ID = ?', (neuer_bestand, ersatzteil_id))
+                        
+                    except (ValueError, TypeError) as e:
+                        print(f"Fehler beim Verarbeiten von Ersatzteil {ersatzteil_id_str}: {e}")
+                        continue
+                    except Exception as e:
+                        print(f"Unerwarteter Fehler beim Verarbeiten von Ersatzteil {ersatzteil_id_str}: {e}")
+                        continue
+
             conn.commit()
 
             # Taetigkeit-Name holen

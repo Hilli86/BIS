@@ -192,6 +192,9 @@
                                 {% endif %}
                             </a>
                         </th>
+                        {% if is_admin %}
+                        <th class="text-center">Sichtbare Abteilungen</th>
+                        {% endif %}
                         <th>Aktionen</th>
                     </tr>
                 </thead>
@@ -222,6 +225,11 @@
                         </td>
                         <td><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none text-dark">{{ e.LagerortName or '-' }}</a></td>
                         <td><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none text-dark">{{ e.LagerplatzName or '-' }}</a></td>
+                        {% if is_admin %}
+                        <td class="text-center">
+                            <span class="badge bg-info">{{ e.AbteilungenAnzahl or 0 }}</span>
+                        </td>
+                        {% endif %}
                         <td onclick="event.stopPropagation();">
                             <div class="btn-group" role="group">
                                 <a href="{{ url_for('ersatzteile.ersatzteil_bearbeiten', ersatzteil_id=e.ID, next=url_for('ersatzteile.ersatzteil_liste', kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', q=q_filter or '', sort=sort_by, dir=sort_dir, bestandswarnung=1 if bestandswarnung else '')) }}" class="btn btn-sm btn-outline-warning" title="Artikel bearbeiten">

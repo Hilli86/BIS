@@ -271,7 +271,12 @@ def ersatzteil_liste():
         is_admin = 'admin' in session.get('user_berechtigungen', [])
         
         # Basis-Query
-        query = '''
+        # Anzahl sichtbarer Abteilungen für Admins hinzufügen
+        abteilungen_count_select = ''
+        if is_admin:
+            abteilungen_count_select = ', (SELECT COUNT(*) FROM ErsatzteilAbteilungZugriff WHERE ErsatzteilID = e.ID) AS AbteilungenAnzahl'
+        
+        query = f'''
             SELECT 
                 e.ID,
                 e.Bestellnummer,
@@ -289,6 +294,7 @@ def ersatzteil_liste():
                 lp.Bezeichnung AS LagerplatzName,
                 e.Aktiv,
                 e.Gelöscht
+                {abteilungen_count_select}
             FROM Ersatzteil e
             LEFT JOIN ErsatzteilKategorie k ON e.KategorieID = k.ID
             LEFT JOIN Lieferant l ON e.LieferantID = l.ID
@@ -372,7 +378,8 @@ def ersatzteil_liste():
         bestandswarnung=bestandswarnung,
         q_filter=q_filter,
         sort_by=sort_by,
-        sort_dir=sort_dir
+        sort_dir=sort_dir,
+        is_admin=is_admin
     )
 
 
@@ -674,8 +681,12 @@ def ersatzteil_neu():
     vorlage = None
     vorlage_abteilungen = []
     
-    if vorlage_id:
-        with get_db_connection() as conn:
+    # Eigene Abteilung des Benutzers ermitteln
+    with get_db_connection() as conn:
+        user_abteilung = conn.execute('SELECT PrimaerAbteilungID FROM Mitarbeiter WHERE ID = ?', (mitarbeiter_id,)).fetchone()
+        eigene_abteilung_id = user_abteilung['PrimaerAbteilungID'] if user_abteilung and user_abteilung['PrimaerAbteilungID'] else None
+        
+        if vorlage_id:
             vorlage = conn.execute('''
                 SELECT e.*, k.Bezeichnung as KategorieBezeichnung, l.Name as LieferantName
                 FROM Ersatzteil e
@@ -691,6 +702,13 @@ def ersatzteil_neu():
                     WHERE ErsatzteilID = ?
                 ''', (vorlage_id,)).fetchall()
                 vorlage_abteilungen = [row['AbteilungID'] for row in vorlage_abteilungen_rows]
+        
+        # Wenn keine Vorlage geladen wurde oder Vorlage keine Abteilungen hat, eigene Abteilung vorauswählen
+        if not vorlage_id and eigene_abteilung_id:
+            vorlage_abteilungen = [eigene_abteilung_id]
+        elif vorlage_id and not vorlage_abteilungen and eigene_abteilung_id:
+            # Vorlage hat keine Abteilungen, eigene Abteilung vorauswählen
+            vorlage_abteilungen = [eigene_abteilung_id]
     
     if request.method == 'POST':
         bestellnummer = request.form.get('bestellnummer', '').strip()
@@ -3374,7 +3392,7 @@ def bestellung_liste():
             LEFT JOIN Mitarbeiter m3 ON b.BestelltVonID = m3.ID
             LEFT JOIN Abteilung abt ON b.ErstellerAbteilungID = abt.ID
             LEFT JOIN BestellungPosition bp ON b.ID = bp.BestellungID
-            WHERE 1=1
+            WHERE b.Gelöscht = 0
         '''
         params = []
         
@@ -3433,6 +3451,56 @@ def bestellung_liste():
     )
 
 
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/loeschen', methods=['POST'])
+@login_required
+def bestellung_loeschen(bestellung_id):
+    """Bestellung löschen (nur wenn Status 'Erstellt' oder 'Zur Freigabe')"""
+    mitarbeiter_id = session.get('user_id')
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
+    has_bestellungen_erstellen = 'bestellungen_erstellen' in session.get('user_berechtigungen', [])
+    
+    if not (is_admin or has_bestellungen_erstellen):
+        flash('Sie haben keine Berechtigung, Bestellungen zu löschen.', 'danger')
+        return redirect(url_for('ersatzteile.bestellung_liste'))
+    
+    try:
+        with get_db_connection() as conn:
+            # Bestellung laden und prüfen
+            bestellung = conn.execute('SELECT Status, ErstelltVonID, ErstellerAbteilungID FROM Bestellung WHERE ID = ? AND Gelöscht = 0', (bestellung_id,)).fetchone()
+            
+            if not bestellung:
+                flash('Bestellung nicht gefunden.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_liste'))
+            
+            # Berechtigungsprüfung: Nur Bestellungen mit Sichtbarkeit für sichtbare Abteilungen
+            if not is_admin:
+                sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+                sichtbarkeiten = conn.execute('SELECT AbteilungID FROM BestellungSichtbarkeit WHERE BestellungID = ?', (bestellung_id,)).fetchall()
+                sichtbarkeits_ids = [s['AbteilungID'] for s in sichtbarkeiten]
+                
+                if not any(abt in sichtbare_abteilungen for abt in sichtbarkeits_ids):
+                    flash('Sie haben keine Berechtigung, diese Bestellung zu löschen.', 'danger')
+                    return redirect(url_for('ersatzteile.bestellung_liste'))
+            
+            # Nur Bestellungen mit Status 'Erstellt', 'Zur Freigabe' oder 'Freigegeben' können gelöscht werden
+            if bestellung['Status'] not in ['Erstellt', 'Zur Freigabe', 'Freigegeben']:
+                flash(f'Bestellungen mit Status "{bestellung["Status"]}" können nicht gelöscht werden. Nur Bestellungen mit Status "Erstellt", "Zur Freigabe" oder "Freigegeben" können gelöscht werden.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_liste'))
+            
+            # Bestellung als gelöscht markieren (soft delete)
+            conn.execute('UPDATE Bestellung SET Gelöscht = 1 WHERE ID = ?', (bestellung_id,))
+            conn.commit()
+            
+        flash('Bestellung erfolgreich gelöscht.', 'success')
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Fehler beim Löschen der Bestellung: {error_details}")
+        flash(f'Fehler beim Löschen: {str(e)}', 'danger')
+    
+    return redirect(url_for('ersatzteile.bestellung_liste'))
+
+
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>')
 @login_required
 def bestellung_detail(bestellung_id):
@@ -3458,7 +3526,7 @@ def bestellung_detail(bestellung_id):
             LEFT JOIN Mitarbeiter m2 ON b.FreigegebenVonID = m2.ID
             LEFT JOIN Mitarbeiter m3 ON b.BestelltVonID = m3.ID
             LEFT JOIN Abteilung abt ON b.ErstellerAbteilungID = abt.ID
-            WHERE b.ID = ?
+            WHERE b.ID = ? AND b.Gelöscht = 0
         ''', (bestellung_id,)).fetchone()
         
         if not bestellung:
@@ -3791,7 +3859,7 @@ def bestellung_zur_freigabe(bestellung_id):
     freigabe_bemerkung = request.form.get('freigabe_bemerkung', '').strip()
     
     with get_db_connection() as conn:
-        bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ?', (bestellung_id,)).fetchone()
+        bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ? AND Gelöscht = 0', (bestellung_id,)).fetchone()
         if not bestellung:
             flash('Bestellung nicht gefunden.', 'danger')
             return redirect(url_for('ersatzteile.bestellung_liste'))
@@ -3822,7 +3890,7 @@ def bestellung_freigeben(bestellung_id):
         return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
     
     with get_db_connection() as conn:
-        bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ?', (bestellung_id,)).fetchone()
+        bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ? AND Gelöscht = 0', (bestellung_id,)).fetchone()
         if not bestellung:
             flash('Bestellung nicht gefunden.', 'danger')
             return redirect(url_for('ersatzteile.bestellung_liste'))
@@ -3850,7 +3918,7 @@ def bestellung_als_bestellt(bestellung_id):
     mitarbeiter_id = session.get('user_id')
     
     with get_db_connection() as conn:
-        bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ?', (bestellung_id,)).fetchone()
+        bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ? AND Gelöscht = 0', (bestellung_id,)).fetchone()
         if not bestellung:
             flash('Bestellung nicht gefunden.', 'danger')
             return redirect(url_for('ersatzteile.bestellung_liste'))
@@ -3893,7 +3961,7 @@ def bestellung_position_hinzufuegen(bestellung_id):
     try:
         with get_db_connection() as conn:
             # Prüfe ob Bestellung existiert und Status erlaubt Bearbeitung
-            bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ?', (bestellung_id,)).fetchone()
+            bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ? AND Gelöscht = 0', (bestellung_id,)).fetchone()
             if not bestellung:
                 flash('Bestellung nicht gefunden.', 'danger')
                 return redirect(url_for('ersatzteile.bestellung_liste'))
@@ -3941,7 +4009,7 @@ def bestellung_position_bearbeiten(bestellung_id, position_id):
     try:
         with get_db_connection() as conn:
             # Prüfe ob Bestellung existiert und Status erlaubt Bearbeitung
-            bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ?', (bestellung_id,)).fetchone()
+            bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ? AND Gelöscht = 0', (bestellung_id,)).fetchone()
             if not bestellung:
                 flash('Bestellung nicht gefunden.', 'danger')
                 return redirect(url_for('ersatzteile.bestellung_liste'))
@@ -3973,7 +4041,7 @@ def bestellung_position_loeschen(bestellung_id, position_id):
     try:
         with get_db_connection() as conn:
             # Prüfe ob Bestellung existiert und Status erlaubt Bearbeitung
-            bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ?', (bestellung_id,)).fetchone()
+            bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ? AND Gelöscht = 0', (bestellung_id,)).fetchone()
             if not bestellung:
                 flash('Bestellung nicht gefunden.', 'danger')
                 return redirect(url_for('ersatzteile.bestellung_liste'))
@@ -4529,7 +4597,7 @@ def bestellung_auftragsbestätigung_upload(bestellung_id):
     """Auftragsbestätigung-Upload für Bestellung"""
     # Prüfe ob Bestellung den Status "Bestellt" hat
     with get_db_connection() as conn:
-        bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ?', (bestellung_id,)).fetchone()
+        bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ? AND Gelöscht = 0', (bestellung_id,)).fetchone()
         if not bestellung:
             flash('Bestellung nicht gefunden.', 'danger')
             return redirect(url_for('ersatzteile.bestellung_liste'))

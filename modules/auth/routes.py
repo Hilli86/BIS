@@ -205,18 +205,25 @@ def profil():
     if request.method == 'POST':
         vorname = request.form.get('vorname', '').strip()
         nachname = request.form.get('nachname', '').strip()
+        email = request.form.get('email', '').strip() or None
+        handynummer = request.form.get('handynummer', '').strip() or None
         
         # Validierung
         if not nachname:
             flash('Nachname ist erforderlich.', 'danger')
             return redirect(url_for('auth.profil'))
         
+        # Email-Validierung (optional, aber wenn vorhanden, sollte es gültig sein)
+        if email and '@' not in email:
+            flash('Bitte geben Sie eine gültige E-Mail-Adresse ein.', 'danger')
+            return redirect(url_for('auth.profil'))
+        
         try:
             with get_db_connection() as conn:
                 # Profil aktualisieren
                 conn.execute(
-                    'UPDATE Mitarbeiter SET Vorname = ?, Nachname = ? WHERE ID = ?',
-                    (vorname, nachname, user_id)
+                    'UPDATE Mitarbeiter SET Vorname = ?, Nachname = ?, Email = ?, Handynummer = ? WHERE ID = ?',
+                    (vorname, nachname, email, handynummer, user_id)
                 )
                 conn.commit()
                 
@@ -238,6 +245,8 @@ def profil():
                 m.Personalnummer,
                 m.Vorname,
                 m.Nachname,
+                m.Email,
+                m.Handynummer,
                 m.Aktiv,
                 a.Bezeichnung AS PrimaerAbteilung
             FROM Mitarbeiter m

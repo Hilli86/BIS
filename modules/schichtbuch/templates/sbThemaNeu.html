@@ -113,6 +113,29 @@
     </div>
     {% endif %}
 
+    <!-- Ersatzteile -->
+    <div class="mb-3">
+        <label class="form-label fw-bold">
+            <i class="bi bi-box-seam"></i> Ersatzteile (optional)
+        </label>
+        <div class="form-text text-muted mb-2">
+            Wählen Sie Ersatzteile aus, die für dieses Thema verwendet werden sollen. Diese werden automatisch als Ausgang gebucht.
+        </div>
+        <div class="card">
+            <div class="card-body">
+                <div id="ersatzteileContainer">
+                    <!-- Ersatzteile werden hier dynamisch hinzugefügt -->
+                </div>
+                <div id="ersatzteileEmptyMessage" class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> Keine Ersatzteile hinzugefügt. Klicken Sie auf "Ersatzteil hinzufügen" um eines hinzuzufügen.
+                </div>
+                <button type="button" class="btn btn-sm btn-success mt-2" onclick="addErsatzteil()">
+                    <i class="bi bi-plus-circle"></i> Ersatzteil hinzufügen
+                </button>
+            </div>
+        </div>
+    </div>
+
     <button type="submit" class="btn btn-success">
             <i class="bi bi-save"></i> Speichern
     </button>
@@ -175,6 +198,101 @@
             <td>${t.LetzteBemerkung ? t.LetzteBemerkung + '<br><small class="text-muted">' + t.LetzteBemerkungDatum + '</small>' : '-'}</td>
         `;
         return row;
+    }
+
+    // 🔸 Ersatzteil hinzufügen
+    let ersatzteilCounter = 0;
+    function addErsatzteil() {
+        const container = document.getElementById('ersatzteileContainer');
+        const emptyMessage = document.getElementById('ersatzteileEmptyMessage');
+        ersatzteilCounter++;
+        
+        const row = document.createElement('div');
+        row.className = 'row g-2 mb-2 ersatzteil-row';
+        row.setAttribute('data-row-id', ersatzteilCounter);
+        row.innerHTML = `
+            <div class="col-md-2">
+                <label class="form-label small">Ersatzteil-ID:</label>
+                <input type="number" name="ersatzteil_id[]" class="form-control form-control-sm ersatzteil-id-input" placeholder="ID" min="1">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small">Bestellnummer:</label>
+                <input type="text" name="ersatzteil_bestellnummer[]" class="form-control form-control-sm ersatzteil-bestellnummer" readonly>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Bezeichnung:</label>
+                <input type="text" name="ersatzteil_bezeichnung[]" class="form-control form-control-sm ersatzteil-bezeichnung" readonly>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Menge:</label>
+                <input type="number" name="ersatzteil_menge[]" class="form-control form-control-sm" value="1" min="1" required>
+            </div>
+            <div class="col-md-1">
+                <label class="form-label small">&nbsp;</label>
+                <button type="button" class="btn btn-sm btn-danger w-100" onclick="removeErsatzteil(this)">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        `;
+        
+        container.appendChild(row);
+        emptyMessage.style.display = 'none';
+        
+        // Event-Listener für Ersatzteil-ID-Input
+        const ersatzteilInput = row.querySelector('.ersatzteil-id-input');
+        ersatzteilInput.addEventListener('blur', function() {
+            if (this.value.trim()) {
+                lookupErsatzteilForThema(this);
+            }
+        });
+    }
+    
+    // 🔸 Ersatzteil entfernen
+    function removeErsatzteil(button) {
+        const row = button.closest('.ersatzteil-row');
+        row.remove();
+        
+        const container = document.getElementById('ersatzteileContainer');
+        if (container.children.length === 0) {
+            document.getElementById('ersatzteileEmptyMessage').style.display = 'block';
+        }
+    }
+    
+    // 🔸 Ersatzteil-Informationen laden
+    function lookupErsatzteilForThema(input) {
+        const row = input.closest('.ersatzteil-row');
+        const bestellnummerInput = row.querySelector('.ersatzteil-bestellnummer');
+        const bezeichnungInput = row.querySelector('.ersatzteil-bezeichnung');
+        const ersatzteilId = input.value.trim();
+        
+        if (!ersatzteilId) {
+            bestellnummerInput.value = '';
+            bezeichnungInput.value = '';
+            return;
+        }
+        
+        input.disabled = true;
+        
+        fetch(`/ersatzteile/api/ersatzteil/${ersatzteilId}`)
+            .then(response => response.json())
+            .then(data => {
+                input.disabled = false;
+                if (data.success) {
+                    bestellnummerInput.value = data.bestellnummer || '';
+                    bezeichnungInput.value = data.bezeichnung || '';
+                    input.classList.remove('is-invalid');
+                } else {
+                    bestellnummerInput.value = '';
+                    bezeichnungInput.value = '';
+                    input.classList.add('is-invalid');
+                    alert(data.message || 'Ersatzteil nicht gefunden.');
+                }
+            })
+            .catch(error => {
+                input.disabled = false;
+                console.error('Fehler:', error);
+                alert('Fehler beim Laden der Ersatzteil-Daten.');
+            });
     }
 
     // 🔸 Formular absenden
