@@ -761,7 +761,7 @@ function renderErsatzteilListDetail(ersatzteile) {
     
     let html = '<div class="list-group">';
     ersatzteile.forEach(ersatzteil => {
-        const preisText = ersatzteil.preis ? `${ersatzteil.preis.toFixed(2)} ${ersatzteil.waehrung}` : 'Kein Preis';
+        const bestandText = `${ersatzteil.bestand || 0} ${ersatzteil.einheit || ''}`.trim();
         // Sicherstellen, dass alle Werte korrekt escaped sind
         const preisValue = (ersatzteil.preis != null && ersatzteil.preis !== undefined) ? ersatzteil.preis : 'null';
         const waehrungValue = (ersatzteil.waehrung || 'EUR').replace(/'/g, "\\'");
@@ -771,7 +771,7 @@ function renderErsatzteilListDetail(ersatzteile) {
             <a href="#" class="list-group-item list-group-item-action" onclick="selectErsatzteilDetail(${ersatzteil.id}, '${bestellnummerEscaped}', '${bezeichnungEscaped}', ${preisValue}, '${waehrungValue}', event)">
                 <div class="d-flex w-100 justify-content-between">
                     <h6 class="mb-1">${ersatzteil.bestellnummer || 'Keine Bestellnummer'}</h6>
-                    <small>${preisText}</small>
+                    <small>${bestandText}</small>
                 </div>
                 <p class="mb-1">${ersatzteil.bezeichnung || 'Keine Bezeichnung'}</p>
                 <small>ID: ${ersatzteil.id}</small>
@@ -1165,6 +1165,19 @@ function openUnterschriftModal(bestellungId) {
     signatureCanvas.addEventListener('touchmove', handleTouch, { passive: false });
     signatureCanvas.addEventListener('touchend', stopDrawing);
     
+    // File-Input Event-Listener initialisieren
+    const fileInput = document.getElementById('signatureFileInput');
+    if (fileInput) {
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                loadSignatureFromFileInput(file);
+            }
+            // Input zurücksetzen, damit derselbe Datei wieder ausgewählt werden kann
+            e.target.value = '';
+        });
+    }
+    
     modal.show();
 }
 
@@ -1223,6 +1236,58 @@ function clearSignature() {
     document.getElementById('unterschriftData').value = '';
     document.getElementById('submitUnterschriftBtn').disabled = true;
     hasSignature = false;
+}
+
+// Unterschrift aus Datei laden
+function loadSignatureFromFile() {
+    const fileInput = document.getElementById('signatureFileInput');
+    if (fileInput) {
+        fileInput.click();
+    }
+}
+
+function loadSignatureFromFileInput(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+            // Canvas leeren
+            signatureCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+            
+            // Bild auf Canvas zeichnen (skaliert)
+            const scale = Math.min(
+                signatureCanvas.width / img.width,
+                signatureCanvas.height / img.height
+            );
+            const x = (signatureCanvas.width - img.width * scale) / 2;
+            const y = (signatureCanvas.height - img.height * scale) / 2;
+            
+            signatureCtx.drawImage(img, x, y, img.width * scale, img.height * scale);
+            hasSignature = true;
+            document.getElementById('submitUnterschriftBtn').disabled = false;
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+// Unterschrift in Dateisystem speichern
+function saveSignatureToFile() {
+    if (!hasSignature) {
+        alert('Keine Unterschrift vorhanden zum Speichern.');
+        return;
+    }
+    
+    // Canvas als Data URL exportieren
+    const dataURL = signatureCanvas.toDataURL('image/png');
+    
+    // Download-Link erstellen
+    const link = document.createElement('a');
+    link.download = `Unterschrift_${new Date().toISOString().split('T')[0]}.png`;
+    link.href = dataURL;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 
 // Form-Submit: Unterschrift als Base64 speichern
@@ -1287,12 +1352,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     <!-- Canvas für Unterschrift -->
                     <div class="signature-container mb-3" style="border: 2px solid #ddd; border-radius: 4px; background-color: #fff; position: relative;">
                         <canvas id="signatureCanvas" width="600" height="200" style="display: block; width: 100%; height: 200px; cursor: crosshair;"></canvas>
+                        <!-- Versteckter File-Input für Laden -->
+                        <input type="file" id="signatureFileInput" accept="image/png,image/jpeg" style="display: none;">
                     </div>
                     
                     <!-- Buttons für Canvas -->
-                    <div class="d-flex gap-2 mb-3">
+                    <div class="d-flex gap-2 mb-3 flex-wrap">
                         <button type="button" class="btn btn-secondary btn-sm" onclick="clearSignature()">
                             <i class="bi bi-arrow-counterclockwise"></i> Löschen
+                        </button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="loadSignatureFromFile()">
+                            <i class="bi bi-folder-open"></i>Unterschrift laden
+                        </button>
+                        <button type="button" class="btn btn-outline-success btn-sm" onclick="saveSignatureToFile()">
+                            <i class="bi bi-save"></i> Unterschrift speichern
                         </button>
                         <small class="text-muted align-self-center ms-auto">Unterschrift mit Maus oder Touch zeichnen</small>
                     </div>
