@@ -308,7 +308,7 @@ function renderErsatzteilList(ersatzteile) {
     
     let html = '<div class="list-group">';
     ersatzteile.forEach(ersatzteil => {
-        const preisText = ersatzteil.preis ? `${ersatzteil.preis.toFixed(2)} ${ersatzteil.waehrung}` : 'Kein Preis';
+        const bestandText = `${ersatzteil.bestand || 0} ${ersatzteil.einheit || ''}`.trim();
         // Sicherstellen, dass alle Werte korrekt escaped sind
         const preisValue = (ersatzteil.preis != null && ersatzteil.preis !== undefined) ? ersatzteil.preis : 'null';
         const waehrungValue = (ersatzteil.waehrung || 'EUR').replace(/'/g, "\\'");
@@ -318,7 +318,7 @@ function renderErsatzteilList(ersatzteile) {
             <a href="#" class="list-group-item list-group-item-action" onclick="selectErsatzteil(${ersatzteil.id}, '${bestellnummerEscaped}', '${bezeichnungEscaped}', ${preisValue}, '${waehrungValue}', event)">
                 <div class="d-flex w-100 justify-content-between">
                     <h6 class="mb-1">${ersatzteil.bestellnummer || 'Keine Bestellnummer'}</h6>
-                    <small>${preisText}</small>
+                    <small>${bestandText}</small>
                 </div>
                 <p class="mb-1">${ersatzteil.bezeichnung || 'Keine Bezeichnung'}</p>
                 <small>ID: ${ersatzteil.id}</small>

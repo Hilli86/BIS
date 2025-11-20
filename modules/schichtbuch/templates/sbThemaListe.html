@@ -62,9 +62,21 @@
   }
 
   /* Alle inneren Elemente in Bemerkungszeilen sollen auch bei Hover weiß bleiben */
-  .table tbody tr.bemerkung-row:hover td *,
-  .table tbody tr.collapse-row:hover td * {
+  .table tbody tr.bemerkung-row:hover td *:not(.btn),
+  .table tbody tr.collapse-row:hover td *:not(.btn) {
     background-color: transparent !important;
+  }
+
+  /* Buttons sollen ihre Bootstrap-Farben behalten */
+  .table tbody tr.bemerkung-row:hover td .btn-success,
+  .table tbody tr.collapse-row:hover td .btn-success {
+    background-color: #198754 !important;
+    border-color: #198754 !important;
+  }
+  .table tbody tr.bemerkung-row:hover td .btn-success:hover,
+  .table tbody tr.collapse-row:hover td .btn-success:hover {
+    background-color: #157347 !important;
+    border-color: #146c43 !important;
   }
 
   .table tbody tr.bemerkung-row:hover .list-group-item,

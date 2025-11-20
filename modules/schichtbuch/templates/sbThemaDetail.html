@@ -204,28 +204,31 @@
     {% endif %}
 
     <!-- Ersatzteil zuordnen -->
-    {% if verfuegbare_ersatzteile %}
     <div class="card mb-4 shadow-sm">
         <div class="card-header bg-info text-white">
             <h5 class="mb-0">🔧 Ersatzteil zuordnen</h5>
         </div>
         <div class="card-body">
-            <form method="POST" action="{{ url_for('ersatzteile.thema_verknuepfen', thema_id=thema.ID) }}">
+            <form method="POST" action="{{ url_for('ersatzteile.thema_verknuepfen', thema_id=thema.ID) }}" id="ersatzteilZuordnenForm">
                 <div class="row g-3">
                     <div class="col-md-4">
-                        <label class="form-label"><strong>Ersatzteil:</strong></label>
-                        <select name="ersatzteil_id" class="form-select" required>
-                            <option value="">-- Ersatzteil wählen --</option>
-                            {% for e in verfuegbare_ersatzteile %}
-                            <option value="{{ e.ID }}" data-bestand="{{ e.AktuellerBestand }}">
-                                {{ e.Bestellnummer }} - {{ e.Bezeichnung }} (Bestand: {{ e.AktuellerBestand }} {{ e.Einheit }})
-                            </option>
-                            {% endfor %}
-                        </select>
+                        <label class="form-label"><strong>Ersatzteil-ID:</strong></label>
+                        <div class="input-group">
+                            <input type="number" id="ersatzteil_id_detail" class="form-control ersatzteil-id-input-detail" placeholder="ID eingeben" min="1">
+                            <button type="button" class="btn btn-outline-secondary btn-lookup-detail" onclick="lookupErsatzteilForDetailButton(this)">
+                                <i class="bi bi-arrow-right"></i>
+                            </button>
+                        </div>
+                        <input type="hidden" name="ersatzteil_id" id="ersatzteil_id_hidden" required>
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <span id="ersatzteil_info_detail" class="text-muted"></span>
+                            </small>
+                        </div>
                     </div>
                     <div class="col-md-2">
                         <label class="form-label"><strong>Menge:</strong></label>
-                        <input type="number" name="menge" class="form-control" min="1" required>
+                        <input type="number" name="menge" class="form-control" min="1" required value="1">
                     </div>
                     <div class="col-md-3">
                         <label class="form-label"><strong>Kostenstelle:</strong></label>
@@ -249,7 +252,6 @@
             </form>
         </div>
     </div>
-    {% endif %}
 
     <!-- Dateien-Bereich -->
     <div class="card mb-4 shadow-sm">
@@ -1067,4 +1069,266 @@ async function verschiebeAusImportThema(filename) {
     }
 }
 </script>
+
+<!-- Ersatzteil-Lookup JavaScript für Detail-Seite -->
+<script>
+// 🔸 Ersatzteil-Informationen laden (von Button)
+function lookupErsatzteilForDetailButton(button) {
+    const ersatzteilInput = document.getElementById('ersatzteil_id_detail');
+    const ersatzteilId = ersatzteilInput.value.trim();
+    const infoSpan = document.getElementById('ersatzteil_info_detail');
+    
+    // Wenn keine ID eingegeben, Modal öffnen
+    if (!ersatzteilId) {
+        openErsatzteilModalDetail();
+        return;
+    }
+    
+    // Button deaktivieren während der Suche
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    ersatzteilInput.disabled = true;
+    
+    fetch(`/ersatzteile/api/ersatzteil/${ersatzteilId}`)
+        .then(response => response.json())
+        .then(data => {
+            button.disabled = false;
+            button.innerHTML = '<i class="bi bi-arrow-right"></i>';
+            ersatzteilInput.disabled = false;
+            
+            if (data.success) {
+                // Hidden-Feld setzen
+                document.getElementById('ersatzteil_id_hidden').value = data.id;
+                // Info anzeigen
+                infoSpan.innerHTML = `<strong>${data.bestellnummer || 'Keine Bestellnummer'}</strong> - ${data.bezeichnung || 'Keine Bezeichnung'}`;
+                infoSpan.className = 'text-success';
+                ersatzteilInput.classList.remove('is-invalid');
+            } else {
+                infoSpan.innerHTML = '';
+                ersatzteilInput.classList.add('is-invalid');
+                alert(data.message || 'Ersatzteil nicht gefunden.');
+            }
+        })
+        .catch(error => {
+            button.disabled = false;
+            button.innerHTML = '<i class="bi bi-arrow-right"></i>';
+            ersatzteilInput.disabled = false;
+            console.error('Fehler:', error);
+            alert('Fehler beim Laden der Ersatzteil-Daten.');
+        });
+}
+
+// 🔸 Modal für Ersatzteil-Auswahl öffnen (Detail)
+function openErsatzteilModalDetail() {
+    const modal = new bootstrap.Modal(document.getElementById('ersatzteilModalDetail'));
+    const modalBody = document.getElementById('ersatzteilModalListDetail');
+    
+    // Modal-Body leeren und Ladeanzeige anzeigen
+    modalBody.innerHTML = '<div class="text-center p-4"><div class="spinner-border" role="status"><span class="visually-hidden">Lädt...</span></div></div>';
+    
+    // Suchfeld leeren
+    const searchInput = document.getElementById('ersatzteilSearchDetail');
+    if (searchInput) {
+        searchInput.value = '';
+    }
+    
+    // Modal öffnen
+    modal.show();
+    
+    // Ersatzteile laden
+    fetch('/ersatzteile/api/ersatzteile/alle')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success && data.ersatzteile && data.ersatzteile.length > 0) {
+                // Speichere die ursprüngliche Liste für Filterung
+                window.ersatzteilListDetail = data.ersatzteile;
+                
+                // Rendere die Liste
+                renderErsatzteilListDetail(data.ersatzteile);
+                
+                // Fokus auf Suchfeld setzen
+                if (searchInput) {
+                    setTimeout(() => searchInput.focus(), 100);
+                }
+            } else {
+                modalBody.innerHTML = '<div class="alert alert-info">Keine Ersatzteile gefunden.</div>';
+            }
+        })
+        .catch(error => {
+            console.error('Fehler beim Laden der Ersatzteile:', error);
+            modalBody.innerHTML = `<div class="alert alert-danger">
+                <strong>Fehler beim Laden der Ersatzteile:</strong><br>
+                ${error.message || 'Unbekannter Fehler'}
+            </div>`;
+        });
+}
+
+// 🔸 Funktion zum Rendern der Ersatzteil-Liste (Detail)
+function renderErsatzteilListDetail(ersatzteile) {
+    const modalBody = document.getElementById('ersatzteilModalListDetail');
+    if (!modalBody) return;
+    
+    if (ersatzteile.length === 0) {
+        modalBody.innerHTML = '<div class="alert alert-info">Keine Ersatzteile gefunden.</div>';
+        return;
+    }
+    
+        let html = '<div class="list-group">';
+        ersatzteile.forEach(ersatzteil => {
+            const bestandText = `${ersatzteil.bestand || 0} ${ersatzteil.einheit || ''}`.trim();
+            const bestellnummerEscaped = (ersatzteil.bestellnummer || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            const bezeichnungEscaped = (ersatzteil.bezeichnung || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            html += `
+                <a href="#" class="list-group-item list-group-item-action" onclick="selectErsatzteilDetail(${ersatzteil.id}, '${bestellnummerEscaped}', '${bezeichnungEscaped}', event)">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">${ersatzteil.bestellnummer || 'Keine Bestellnummer'}</h6>
+                        <small>${bestandText}</small>
+                    </div>
+                    <p class="mb-1">${ersatzteil.bezeichnung || 'Keine Bezeichnung'}</p>
+                    <small>ID: ${ersatzteil.id}</small>
+                </a>
+            `;
+        });
+    html += '</div>';
+    modalBody.innerHTML = html;
+}
+
+// 🔸 Funktion zum Filtern der Ersatzteil-Liste (Detail)
+function filterErsatzteilListDetail(searchTerm) {
+    if (!window.ersatzteilListDetail) return;
+    
+    const term = searchTerm.toLowerCase().trim();
+    
+    if (term === '') {
+        // Wenn leer, alle anzeigen
+        renderErsatzteilListDetail(window.ersatzteilListDetail);
+        return;
+    }
+    
+    // Filtere die Liste
+    const filtered = window.ersatzteilListDetail.filter(ersatzteil => {
+        const bestellnummer = (ersatzteil.bestellnummer || '').toLowerCase();
+        const bezeichnung = (ersatzteil.bezeichnung || '').toLowerCase();
+        const id = ersatzteil.id.toString();
+        
+        return bestellnummer.includes(term) || 
+               bezeichnung.includes(term) || 
+               id.includes(term);
+    });
+    
+    renderErsatzteilListDetail(filtered);
+}
+
+// 🔸 Ersatzteil aus Modal auswählen (Detail)
+function selectErsatzteilDetail(id, bestellnummer, bezeichnung, event) {
+    event.preventDefault();
+    
+    const modal = bootstrap.Modal.getInstance(document.getElementById('ersatzteilModalDetail'));
+    const ersatzteilInput = document.getElementById('ersatzteil_id_detail');
+    const hiddenInput = document.getElementById('ersatzteil_id_hidden');
+    const infoSpan = document.getElementById('ersatzteil_info_detail');
+    
+    if (ersatzteilInput) ersatzteilInput.value = id;
+    if (hiddenInput) hiddenInput.value = id;
+    if (infoSpan) {
+        infoSpan.innerHTML = `<strong>${bestellnummer || 'Keine Bestellnummer'}</strong> - ${bezeichnung || 'Keine Bezeichnung'}`;
+        infoSpan.className = 'text-success';
+    }
+    
+    // Validierung entfernen
+    if (ersatzteilInput) ersatzteilInput.classList.remove('is-invalid');
+    
+    modal.hide();
+}
+
+// Event-Listener für Enter-Taste und Suchfeld
+document.addEventListener('DOMContentLoaded', function() {
+    // Enter-Taste im ID-Input
+    const ersatzteilInput = document.getElementById('ersatzteil_id_detail');
+    if (ersatzteilInput) {
+        ersatzteilInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const button = document.querySelector('.btn-lookup-detail');
+                if (button) {
+                    lookupErsatzteilForDetailButton(button);
+                }
+            }
+        });
+        
+        // Blur-Event für automatisches Laden
+        ersatzteilInput.addEventListener('blur', function() {
+            if (this.value.trim()) {
+                const button = document.querySelector('.btn-lookup-detail');
+                if (button) {
+                    lookupErsatzteilForDetailButton(button);
+                }
+            }
+        });
+    }
+    
+    // Event-Listener für Suchfeld im Modal
+    const searchInput = document.getElementById('ersatzteilSearchDetail');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            filterErsatzteilListDetail(this.value);
+        });
+    }
+    
+    // Form-Validierung: Hidden-Feld muss gesetzt sein
+    const form = document.getElementById('ersatzteilZuordnenForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const hiddenInput = document.getElementById('ersatzteil_id_hidden');
+            const ersatzteilInput = document.getElementById('ersatzteil_id_detail');
+            
+            // Wenn Input-Feld gefüllt, aber hidden nicht, dann hidden setzen
+            if (ersatzteilInput.value.trim() && !hiddenInput.value) {
+                hiddenInput.value = ersatzteilInput.value.trim();
+            }
+            
+            // Validierung: Mindestens eines muss gesetzt sein
+            if (!hiddenInput.value && !ersatzteilInput.value.trim()) {
+                e.preventDefault();
+                alert('Bitte wählen Sie ein Ersatzteil aus oder geben Sie eine ID ein.');
+                ersatzteilInput.focus();
+                return false;
+            }
+        });
+    }
+});
+</script>
+
+<!-- Modal für Ersatzteil-Auswahl (Detail) -->
+<div class="modal fade" id="ersatzteilModalDetail" tabindex="-1" aria-labelledby="ersatzteilModalDetailLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ersatzteilModalDetailLabel">Ersatzteil auswählen</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Suchfeld -->
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="ersatzteilSearchDetail" placeholder="🔍 Suchen nach Bestellnummer, Bezeichnung oder ID..." autocomplete="off">
+                </div>
+                <div id="ersatzteilModalListDetail">
+                    <div class="text-center p-4">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Lädt...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

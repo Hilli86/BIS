@@ -223,6 +223,17 @@
                             </form>
                             {% endif %}
                         </td>
+                        {% elif anfrage.Status == 'Versendet' %}
+                        <td onclick="event.stopPropagation();">
+                            {% if not p.ErsatzteilID and p.Bestellnummer and p.Bezeichnung %}
+                            <form method="POST" action="{{ url_for('ersatzteile.angebotsanfrage_position_artikel_erstellen', angebotsanfrage_id=anfrage.ID, position_id=p.ID) }}" 
+                                  onsubmit="return confirm('Artikel aus dieser Position erstellen?');" class="d-inline me-1">
+                                <button type="submit" class="btn btn-sm btn-outline-success" title="Artikel erstellen">
+                                    <i class="bi bi-plus-circle"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
                         {% endif %}
                     </tr>
                     {% endfor %}
@@ -430,6 +441,12 @@
     <button type="button" class="btn btn-primary" onclick="exportAngebotsanfragePDF({{ anfrage.ID }})">
         <i class="bi bi-file-pdf"></i> Als PDF exportieren
     </button>
+    <form method="POST" action="{{ url_for('ersatzteile.angebotsanfrage_loeschen', angebotsanfrage_id=anfrage.ID) }}" 
+          onsubmit="return confirm('Möchten Sie diese Angebotsanfrage wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.');" class="d-inline">
+        <button type="submit" class="btn btn-danger">
+            <i class="bi bi-trash"></i> Angebot löschen
+        </button>
+    </form>
 </div>
 
 <!-- Modal für Position bearbeiten -->
@@ -597,14 +614,14 @@ function renderErsatzteilListDetailAngebot(ersatzteile) {
     
     let html = '<div class="list-group">';
     ersatzteile.forEach(ersatzteil => {
-        const preisText = ersatzteil.preis ? `${ersatzteil.preis.toFixed(2)} ${ersatzteil.waehrung}` : 'Kein Preis';
+        const bestandText = `${ersatzteil.bestand || 0} ${ersatzteil.einheit || ''}`.trim();
         const bestellnummerEscaped = (ersatzteil.bestellnummer || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
         const bezeichnungEscaped = (ersatzteil.bezeichnung || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
         html += `
             <a href="#" class="list-group-item list-group-item-action" onclick="selectErsatzteilDetail(${ersatzteil.id}, '${bestellnummerEscaped}', '${bezeichnungEscaped}', event)">
                 <div class="d-flex w-100 justify-content-between">
                     <h6 class="mb-1">${ersatzteil.bestellnummer || 'Keine Bestellnummer'}</h6>
-                    <small>${preisText}</small>
+                    <small>${bestandText}</small>
                 </div>
                 <p class="mb-1">${ersatzteil.bezeichnung || 'Keine Bezeichnung'}</p>
                 <small>ID: ${ersatzteil.id}</small>

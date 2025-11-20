@@ -213,7 +213,12 @@
         row.innerHTML = `
             <div class="col-md-2">
                 <label class="form-label small">Ersatzteil-ID:</label>
-                <input type="number" name="ersatzteil_id[]" class="form-control form-control-sm ersatzteil-id-input" placeholder="ID" min="1">
+                <div class="input-group input-group-sm">
+                    <input type="number" name="ersatzteil_id[]" class="form-control form-control-sm ersatzteil-id-input" placeholder="ID" min="1">
+                    <button type="button" class="btn btn-outline-secondary btn-lookup" onclick="lookupErsatzteilForThemaButton(this)">
+                        <i class="bi bi-arrow-right"></i>
+                    </button>
+                </div>
             </div>
             <div class="col-md-4">
                 <label class="form-label small">Bestellnummer:</label>
@@ -245,6 +250,17 @@
                 lookupErsatzteilForThema(this);
             }
         });
+        
+        // Event-Listener für Enter-Taste
+        ersatzteilInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const button = row.querySelector('.btn-lookup');
+                if (button) {
+                    lookupErsatzteilForThemaButton(button);
+                }
+            }
+        });
     }
     
     // 🔸 Ersatzteil entfernen
@@ -258,7 +274,7 @@
         }
     }
     
-    // 🔸 Ersatzteil-Informationen laden
+    // 🔸 Ersatzteil-Informationen laden (von Input-Feld)
     function lookupErsatzteilForThema(input) {
         const row = input.closest('.ersatzteil-row');
         const bestellnummerInput = row.querySelector('.ersatzteil-bestellnummer');
@@ -293,6 +309,203 @@
                 console.error('Fehler:', error);
                 alert('Fehler beim Laden der Ersatzteil-Daten.');
             });
+    }
+    
+    // 🔸 Ersatzteil-Informationen laden (von Button)
+    function lookupErsatzteilForThemaButton(button) {
+        const row = button.closest('.ersatzteil-row');
+        const ersatzteilInput = row.querySelector('.ersatzteil-id-input');
+        const bestellnummerInput = row.querySelector('.ersatzteil-bestellnummer');
+        const bezeichnungInput = row.querySelector('.ersatzteil-bezeichnung');
+        const ersatzteilId = ersatzteilInput.value.trim();
+        
+        // Wenn keine ID eingegeben, Modal öffnen
+        if (!ersatzteilId) {
+            openErsatzteilModalThema(row);
+            return;
+        }
+        
+        // Button deaktivieren während der Suche
+        button.disabled = true;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        ersatzteilInput.disabled = true;
+        
+        fetch(`/ersatzteile/api/ersatzteil/${ersatzteilId}`)
+            .then(response => response.json())
+            .then(data => {
+                button.disabled = false;
+                button.innerHTML = '<i class="bi bi-arrow-right"></i>';
+                ersatzteilInput.disabled = false;
+                
+                if (data.success) {
+                    bestellnummerInput.value = data.bestellnummer || '';
+                    bezeichnungInput.value = data.bezeichnung || '';
+                    bestellnummerInput.classList.remove('is-invalid');
+                    bezeichnungInput.classList.remove('is-invalid');
+                    ersatzteilInput.classList.remove('is-invalid');
+                } else {
+                    bestellnummerInput.value = '';
+                    bezeichnungInput.value = '';
+                    bestellnummerInput.classList.add('is-invalid');
+                    bezeichnungInput.classList.add('is-invalid');
+                    ersatzteilInput.classList.add('is-invalid');
+                    alert(data.message || 'Ersatzteil nicht gefunden.');
+                }
+            })
+            .catch(error => {
+                button.disabled = false;
+                button.innerHTML = '<i class="bi bi-arrow-right"></i>';
+                ersatzteilInput.disabled = false;
+                console.error('Fehler:', error);
+                alert('Fehler beim Laden der Ersatzteil-Daten.');
+            });
+    }
+    
+    // 🔸 Modal für Ersatzteil-Auswahl öffnen
+    function openErsatzteilModalThema(targetRow) {
+        const modal = new bootstrap.Modal(document.getElementById('ersatzteilModalThema'));
+        const modalBody = document.getElementById('ersatzteilModalListThema');
+        const currentRow = targetRow;
+        
+        // Modal-Body leeren und Ladeanzeige anzeigen
+        modalBody.innerHTML = '<div class="text-center p-4"><div class="spinner-border" role="status"><span class="visually-hidden">Lädt...</span></div></div>';
+        
+        // Suchfeld leeren
+        const searchInput = document.getElementById('ersatzteilSearchThema');
+        if (searchInput) {
+            searchInput.value = '';
+        }
+        
+        // Modal öffnen
+        modal.show();
+        
+        // Ersatzteile laden
+        fetch('/ersatzteile/api/ersatzteile/alle')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success && data.ersatzteile && data.ersatzteile.length > 0) {
+                    // Speichere die ursprüngliche Liste für Filterung
+                    window.ersatzteilListThema = data.ersatzteile;
+                    
+                    // Rendere die Liste
+                    renderErsatzteilListThema(data.ersatzteile);
+                    
+                    // Fokus auf Suchfeld setzen
+                    if (searchInput) {
+                        setTimeout(() => searchInput.focus(), 100);
+                    }
+                } else {
+                    modalBody.innerHTML = '<div class="alert alert-info">Keine Ersatzteile gefunden.</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Fehler beim Laden der Ersatzteile:', error);
+                modalBody.innerHTML = `<div class="alert alert-danger">
+                    <strong>Fehler beim Laden der Ersatzteile:</strong><br>
+                    ${error.message || 'Unbekannter Fehler'}
+                </div>`;
+            });
+        
+        // Speichere die aktuelle Zeile für die Auswahl
+        document.getElementById('ersatzteilModalThema').setAttribute('data-target-row-id', '');
+        if (currentRow) {
+            document.getElementById('ersatzteilModalThema').setAttribute('data-target-row-id', currentRow.getAttribute('data-row-id') || '');
+        }
+    }
+    
+    // 🔸 Funktion zum Rendern der Ersatzteil-Liste (Thema Neu)
+    function renderErsatzteilListThema(ersatzteile) {
+        const modalBody = document.getElementById('ersatzteilModalListThema');
+        if (!modalBody) return;
+        
+        if (ersatzteile.length === 0) {
+            modalBody.innerHTML = '<div class="alert alert-info">Keine Ersatzteile gefunden.</div>';
+            return;
+        }
+        
+        let html = '<div class="list-group">';
+        ersatzteile.forEach(ersatzteil => {
+            const bestandText = `${ersatzteil.bestand || 0} ${ersatzteil.einheit || ''}`.trim();
+            const bestellnummerEscaped = (ersatzteil.bestellnummer || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            const bezeichnungEscaped = (ersatzteil.bezeichnung || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            html += `
+                <a href="#" class="list-group-item list-group-item-action" onclick="selectErsatzteilThema(${ersatzteil.id}, '${bestellnummerEscaped}', '${bezeichnungEscaped}', event)">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">${ersatzteil.bestellnummer || 'Keine Bestellnummer'}</h6>
+                        <small>${bestandText}</small>
+                    </div>
+                    <p class="mb-1">${ersatzteil.bezeichnung || 'Keine Bezeichnung'}</p>
+                    <small>ID: ${ersatzteil.id}</small>
+                </a>
+            `;
+        });
+        html += '</div>';
+        modalBody.innerHTML = html;
+    }
+    
+    // 🔸 Funktion zum Filtern der Ersatzteil-Liste (Thema Neu)
+    function filterErsatzteilListThema(searchTerm) {
+        if (!window.ersatzteilListThema) return;
+        
+        const term = searchTerm.toLowerCase().trim();
+        
+        if (term === '') {
+            // Wenn leer, alle anzeigen
+            renderErsatzteilListThema(window.ersatzteilListThema);
+            return;
+        }
+        
+        // Filtere die Liste
+        const filtered = window.ersatzteilListThema.filter(ersatzteil => {
+            const bestellnummer = (ersatzteil.bestellnummer || '').toLowerCase();
+            const bezeichnung = (ersatzteil.bezeichnung || '').toLowerCase();
+            const id = ersatzteil.id.toString();
+            
+            return bestellnummer.includes(term) || 
+                   bezeichnung.includes(term) || 
+                   id.includes(term);
+        });
+        
+        renderErsatzteilListThema(filtered);
+    }
+    
+    // 🔸 Ersatzteil aus Modal auswählen
+    function selectErsatzteilThema(id, bestellnummer, bezeichnung, event) {
+        event.preventDefault();
+        
+        const modal = bootstrap.Modal.getInstance(document.getElementById('ersatzteilModalThema'));
+        const targetRowId = document.getElementById('ersatzteilModalThema').getAttribute('data-target-row-id');
+        
+        // Finde die entsprechende Zeile
+        let targetRow = null;
+        if (targetRowId) {
+            targetRow = document.querySelector(`[data-row-id="${targetRowId}"]`);
+        } else {
+            // Fallback: nehme die erste Ersatzteil-Zeile
+            targetRow = document.querySelector('.ersatzteil-row');
+        }
+        
+        if (targetRow) {
+            const ersatzteilInput = targetRow.querySelector('.ersatzteil-id-input');
+            const bestellnummerDisplay = targetRow.querySelector('.ersatzteil-bestellnummer');
+            const bezeichnungDisplay = targetRow.querySelector('.ersatzteil-bezeichnung');
+            
+            if (ersatzteilInput) ersatzteilInput.value = id;
+            if (bestellnummerDisplay) bestellnummerDisplay.value = bestellnummer || '';
+            if (bezeichnungDisplay) bezeichnungDisplay.value = bezeichnung || '';
+            
+            // Validierung entfernen
+            if (bestellnummerDisplay) bestellnummerDisplay.classList.remove('is-invalid');
+            if (bezeichnungDisplay) bezeichnungDisplay.classList.remove('is-invalid');
+            if (ersatzteilInput) ersatzteilInput.classList.remove('is-invalid');
+        }
+        
+        modal.hide();
     }
 
     // 🔸 Formular absenden
@@ -368,10 +581,46 @@
                 });
             });
         });
+        
+        // Event-Listener für Suchfeld im Modal
+        const searchInput = document.getElementById('ersatzteilSearchThema');
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                filterErsatzteilListThema(this.value);
+            });
+        }
     });
 
     // 🔸 Beim Laden Tabelle einmal füllen
     window.addEventListener('load', ladeThemen);
 </script>
+
+<!-- Modal für Ersatzteil-Auswahl -->
+<div class="modal fade" id="ersatzteilModalThema" tabindex="-1" aria-labelledby="ersatzteilModalThemaLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ersatzteilModalThemaLabel">Ersatzteil auswählen</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Suchfeld -->
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="ersatzteilSearchThema" placeholder="🔍 Suchen nach Bestellnummer, Bezeichnung oder ID..." autocomplete="off">
+                </div>
+                <div id="ersatzteilModalListThema">
+                    <div class="text-center p-4">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Lädt...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 {% endblock %}
