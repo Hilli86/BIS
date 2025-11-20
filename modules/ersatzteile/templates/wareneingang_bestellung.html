@@ -37,161 +37,6 @@
     </div>
 </div>
 
-<form method="POST" id="wareneingangForm">
-    <div class="card mb-4 shadow-sm">
-        <div class="card-header bg-success text-white">
-            <h5 class="mb-0">Positionen - Erhaltene Mengen eingeben</h5>
-        </div>
-        <div class="card-body">
-            {% if positionen %}
-            <!-- Desktop-Version: Tabelle (nur auf md+ sichtbar) -->
-            <div class="table-responsive d-none d-md-block">
-                <table class="table table-sm">
-                    <thead>
-                        <tr>
-                            <th>Artikelnummer</th>
-                            <th>Bestellnummer</th>
-                            <th>Bezeichnung</th>
-                            <th>Bestellte Menge</th>
-                            <th>Bereits erhalten</th>
-                            <th>Offen</th>
-                            <th>Erhaltene Menge</th>
-                            <th>Einheit</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for p in positionen %}
-                        <tr>
-                            <td>
-                                {% if p.ErsatzteilID %}
-                                <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=p.ErsatzteilID) }}" class="text-decoration-none">
-                                    {{ p.ErsatzteilID }}
-                                </a>
-                                {% else %}
-                                -
-                                {% endif %}
-                            </td>
-                            <td>{{ p.Bestellnummer or '-' }}</td>
-                            <td>{{ p.Bezeichnung or '-' }}</td>
-                            <td><strong>{{ p.Menge }}</strong></td>
-                            <td>
-                                {% if p.ErhalteneMenge > 0 %}
-                                <span class="badge bg-info">{{ p.ErhalteneMenge }}</span>
-                                {% else %}
-                                <span class="badge bg-secondary">0</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% set offen = p.Menge - p.ErhalteneMenge %}
-                                {% if offen > 0 %}
-                                <span class="badge bg-warning text-dark">{{ offen }}</span>
-                                {% else %}
-                                <span class="badge bg-success">0</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <input type="hidden" name="position_id[]" value="{{ p.ID }}">
-                                <input type="number" 
-                                       name="erhaltene_menge[]" 
-                                       class="form-control form-control-sm" 
-                                       min="0" 
-                                       max="{{ p.Menge - p.ErhalteneMenge }}"
-                                       value="0"
-                                       required>
-                                <small class="text-muted">Max: {{ p.Menge - p.ErhalteneMenge }}</small>
-                            </td>
-                            <td>{{ p.Einheit or 'Stk' }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            
-            <!-- Mobile-Version: Cards (nur auf sm und kleiner sichtbar) -->
-            <div class="d-md-none">
-                {% for p in positionen %}
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <input type="hidden" name="position_id[]" value="{{ p.ID }}">
-                        
-                        <div class="mb-2">
-                            <strong>Artikelnummer:</strong>
-                            {% if p.ErsatzteilID %}
-                            <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=p.ErsatzteilID) }}" class="text-decoration-none">
-                                {{ p.ErsatzteilID }}
-                            </a>
-                            {% else %}
-                            -
-                            {% endif %}
-                        </div>
-                        
-                        <div class="mb-2">
-                            <strong>Bestellnummer:</strong> {{ p.Bestellnummer or '-' }}
-                        </div>
-                        
-                        <div class="mb-2">
-                            <strong>Bezeichnung:</strong> {{ p.Bezeichnung or '-' }}
-                        </div>
-                        
-                        <div class="mb-2">
-                            <strong>Bestellt:</strong> <span class="badge bg-primary">{{ p.Menge }}</span>
-                        </div>
-                        
-                        <div class="mb-2">
-                            <strong>Bereits erhalten:</strong>
-                            {% if p.ErhalteneMenge > 0 %}
-                            <span class="badge bg-info">{{ p.ErhalteneMenge }}</span>
-                            {% else %}
-                            <span class="badge bg-secondary">0</span>
-                            {% endif %}
-                        </div>
-                        
-                        <div class="mb-3">
-                            <strong>Offen:</strong>
-                            {% set offen = p.Menge - p.ErhalteneMenge %}
-                            {% if offen > 0 %}
-                            <span class="badge bg-warning text-dark">{{ offen }}</span>
-                            {% else %}
-                            <span class="badge bg-success">0</span>
-                            {% endif %}
-                        </div>
-                        
-                        <div class="mb-2">
-                            <label class="form-label"><strong>Erhaltene Menge:</strong></label>
-                            <input type="number" 
-                                   name="erhaltene_menge[]" 
-                                   class="form-control" 
-                                   min="0" 
-                                   max="{{ p.Menge - p.ErhalteneMenge }}"
-                                   value="0"
-                                   required>
-                            <small class="text-muted">Max: {{ p.Menge - p.ErhalteneMenge }} {{ p.Einheit or 'Stk' }}</small>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            <div class="alert alert-info mt-3">
-                <i class="bi bi-info-circle"></i> <strong>Hinweis:</strong> Geben Sie die erhaltene Menge für diese Lieferung ein. Die Menge wird zu den bereits erhaltenen Mengen addiert. Vollständig gebuchte Bestellungen werden automatisch als "Erledigt" markiert.
-            </div>
-            {% else %}
-            <div class="alert alert-warning">
-                <i class="bi bi-exclamation-triangle"></i> Keine Positionen vorhanden.
-            </div>
-            {% endif %}
-        </div>
-    </div>
-
-    <div class="mb-3">
-        <button type="submit" class="btn btn-success">
-            <i class="bi bi-check-lg"></i> Wareneingang buchen
-        </button>
-        <a href="{{ url_for('ersatzteile.wareneingang') }}" class="btn btn-secondary">
-            <i class="bi bi-x-lg"></i> Abbrechen
-        </a>
-    </div>
-</form>
-
 <!-- Lieferscheine -->
 <div class="card mb-4 shadow-sm">
     <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
@@ -278,6 +123,163 @@
         {% endif %}
     </div>
 </div>
+
+<form method="POST" id="wareneingangForm">
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">Positionen - Erhaltene Mengen eingeben</h5>
+        </div>
+        <div class="card-body">
+            {% if positionen %}
+            <!-- Desktop-Version: Tabelle (nur auf md+ sichtbar) -->
+            <div class="table-responsive d-none d-md-block">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Artikelnummer</th>
+                            <th>Bestellnummer</th>
+                            <th>Bezeichnung</th>
+                            <th>Bestellte Menge</th>
+                            <th>Bereits erhalten</th>
+                            <th>Offen</th>
+                            <th>Erhaltene Menge</th>
+                            <th>Einheit</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in positionen %}
+                        <tr>
+                            <td>
+                                {% if p.ErsatzteilID %}
+                                <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=p.ErsatzteilID) }}" class="text-decoration-none">
+                                    {{ p.ErsatzteilID }}
+                                </a>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>{{ p.Bestellnummer or '-' }}</td>
+                            <td>{{ p.Bezeichnung or '-' }}</td>
+                            <td><strong>{{ p.Menge }}</strong></td>
+                            <td>
+                                {% if p.ErhalteneMenge > 0 %}
+                                <span class="badge bg-info">{{ p.ErhalteneMenge }}</span>
+                                {% else %}
+                                <span class="badge bg-secondary">0</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% set offen = p.Menge - p.ErhalteneMenge %}
+                                {% if offen > 0 %}
+                                <span class="badge bg-warning text-dark">{{ offen }}</span>
+                                {% else %}
+                                <span class="badge bg-success">0</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <input type="hidden" name="position_id[]" value="{{ p.ID }}">
+                                <input type="number" 
+                                       name="erhaltene_menge[]" 
+                                       class="form-control form-control-sm" 
+                                       min="0" 
+                                       max="{{ p.Menge - p.ErhalteneMenge }}"
+                                       value="0"
+                                       inputmode="numeric"
+                                       required>
+                                <small class="text-muted">Max: {{ p.Menge - p.ErhalteneMenge }}</small>
+                            </td>
+                            <td>{{ p.Einheit or 'Stk' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Mobile-Version: Cards (nur auf sm und kleiner sichtbar) -->
+            <div class="d-md-none">
+                {% for p in positionen %}
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <input type="hidden" name="position_id[]" value="{{ p.ID }}">
+                        
+                        <div class="mb-2">
+                            <strong>Artikelnummer:</strong>
+                            {% if p.ErsatzteilID %}
+                            <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=p.ErsatzteilID) }}" class="text-decoration-none">
+                                {{ p.ErsatzteilID }}
+                            </a>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-2">
+                            <strong>Bestellnummer:</strong> {{ p.Bestellnummer or '-' }}
+                        </div>
+                        
+                        <div class="mb-2">
+                            <strong>Bezeichnung:</strong> {{ p.Bezeichnung or '-' }}
+                        </div>
+                        
+                        <div class="mb-2">
+                            <strong>Bestellt:</strong> <span class="badge bg-primary">{{ p.Menge }}</span>
+                        </div>
+                        
+                        <div class="mb-2">
+                            <strong>Bereits erhalten:</strong>
+                            {% if p.ErhalteneMenge > 0 %}
+                            <span class="badge bg-info">{{ p.ErhalteneMenge }}</span>
+                            {% else %}
+                            <span class="badge bg-secondary">0</span>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-3">
+                            <strong>Offen:</strong>
+                            {% set offen = p.Menge - p.ErhalteneMenge %}
+                            {% if offen > 0 %}
+                            <span class="badge bg-warning text-dark">{{ offen }}</span>
+                            {% else %}
+                            <span class="badge bg-success">0</span>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-2">
+                            <label class="form-label"><strong>Erhaltene Menge:</strong></label>
+                            <input type="number" 
+                                   name="erhaltene_menge[]" 
+                                   class="form-control" 
+                                   min="0" 
+                                   max="{{ p.Menge - p.ErhalteneMenge }}"
+                                   value="0"
+                                   inputmode="numeric"
+                                   required>
+                            <small class="text-muted">Max: {{ p.Menge - p.ErhalteneMenge }} {{ p.Einheit or 'Stk' }}</small>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="alert alert-info mt-3">
+                <i class="bi bi-info-circle"></i> <strong>Hinweis:</strong> Geben Sie die erhaltene Menge für diese Lieferung ein. Die Menge wird zu den bereits erhaltenen Mengen addiert. Vollständig gebuchte Bestellungen werden automatisch als "Erledigt" markiert.
+            </div>
+            {% else %}
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i> Keine Positionen vorhanden.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <button type="submit" class="btn btn-success">
+            <i class="bi bi-check-lg"></i> Wareneingang buchen
+        </button>
+        <a href="{{ url_for('ersatzteile.wareneingang') }}" class="btn btn-secondary">
+            <i class="bi bi-x-lg"></i> Abbrechen
+        </a>
+    </div>
+</form>
 
 <!-- Import-Funktionalität für Lieferscheine -->
 <script>

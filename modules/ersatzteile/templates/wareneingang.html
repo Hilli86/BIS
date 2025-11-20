@@ -6,7 +6,8 @@
 <div class="card shadow-sm">
     <div class="card-body">
         {% if bestellungen %}
-        <div class="table-responsive">
+        <!-- Desktop-Version: Tabelle (nur auf md+ sichtbar) -->
+        <div class="table-responsive d-none d-md-block">
             <table class="table table-hover">
                 <thead>
                     <tr>
@@ -38,6 +39,40 @@
                     {% endfor %}
                 </tbody>
             </table>
+        </div>
+        
+        <!-- Mobile-Version: Cards (nur auf sm und kleiner sichtbar) -->
+        <div class="d-md-none">
+            {% for b in bestellungen %}
+            <div class="card mb-3" style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.wareneingang_bestellung', bestellung_id=b.ID) }}';">
+                <div class="card-body">
+                    <div class="mb-2">
+                        <strong>Nr.:</strong> {{ b.ID }}
+                    </div>
+                    
+                    <div class="mb-2">
+                        <strong>Lieferant:</strong> {{ b.LieferantName or '-' }}
+                    </div>
+                    
+                    <div class="mb-2">
+                        <strong>Status:</strong>
+                        {% if b.Status == 'Bestellt' %}
+                        <span class="badge bg-primary">Bestellt</span>
+                        {% elif b.Status == 'Teilweise erhalten' %}
+                        <span class="badge bg-warning text-dark">Teilweise erhalten</span>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-2">
+                        <strong>Bestellt am:</strong> {{ b.BestelltAm[:16] if b.BestelltAm else '-' }}
+                    </div>
+                    
+                    <div class="mb-0">
+                        <strong>Abteilung:</strong> {{ b.Abteilung or '-' }}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
         </div>
         {% else %}
         <div class="alert alert-info">
