@@ -580,6 +580,7 @@ def init_database_schema(db_path, verbose=False):
                 NachfolgeartikelID INTEGER,
                 Kennzeichen TEXT,
                 ArtikelnummerHersteller TEXT,
+                Link TEXT,
                 Aktiv INTEGER NOT NULL DEFAULT 1,
                 Gelöscht INTEGER NOT NULL DEFAULT 0,
                 ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -612,6 +613,7 @@ def init_database_schema(db_path, verbose=False):
             create_column_if_not_exists(conn, 'Ersatzteil', 'NachfolgeartikelID', 'ALTER TABLE Ersatzteil ADD COLUMN NachfolgeartikelID INTEGER NULL')
             create_column_if_not_exists(conn, 'Ersatzteil', 'Kennzeichen', 'ALTER TABLE Ersatzteil ADD COLUMN Kennzeichen TEXT NULL')
             create_column_if_not_exists(conn, 'Ersatzteil', 'ArtikelnummerHersteller', 'ALTER TABLE Ersatzteil ADD COLUMN ArtikelnummerHersteller TEXT NULL')
+            create_column_if_not_exists(conn, 'Ersatzteil', 'Link', 'ALTER TABLE Ersatzteil ADD COLUMN Link TEXT NULL')
             create_column_if_not_exists(conn, 'Ersatzteil', 'Preisstand', 'ALTER TABLE Ersatzteil ADD COLUMN Preisstand DATETIME NULL')
             # Prüfe auf fehlende Indexes
             create_index_if_not_exists(conn, 'idx_ersatzteil_lagerort', 'CREATE INDEX idx_ersatzteil_lagerort ON Ersatzteil(LagerortID)')
@@ -809,6 +811,7 @@ def init_database_schema(db_path, verbose=False):
                 AngebotsanfrageID INTEGER NOT NULL,
                 ErsatzteilID INTEGER NULL,
                 Menge INTEGER NOT NULL,
+                Einheit TEXT NULL,
                 Bemerkung TEXT NULL,
                 Angebotspreis REAL NULL,
                 Angebotswaehrung TEXT NULL,
@@ -825,6 +828,8 @@ def init_database_schema(db_path, verbose=False):
             # Prüfe auf fehlende Spalten
             create_column_if_not_exists(conn, 'AngebotsanfragePosition', 'Bestellnummer', 'ALTER TABLE AngebotsanfragePosition ADD COLUMN Bestellnummer TEXT NULL')
             create_column_if_not_exists(conn, 'AngebotsanfragePosition', 'Bezeichnung', 'ALTER TABLE AngebotsanfragePosition ADD COLUMN Bezeichnung TEXT NULL')
+            if create_column_if_not_exists(conn, 'AngebotsanfragePosition', 'Einheit', 'ALTER TABLE AngebotsanfragePosition ADD COLUMN Einheit TEXT NULL'):
+                print("[INFO] Spalte 'Einheit' zu 'AngebotsanfragePosition' hinzugefügt")
         
         # ========== 26. Bestellung ==========
         created = create_table_if_not_exists(conn, 'Bestellung', '''
@@ -876,6 +881,7 @@ def init_database_schema(db_path, verbose=False):
                 AngebotsanfragePositionID INTEGER NULL,
                 ErsatzteilID INTEGER NULL,
                 Menge INTEGER NOT NULL,
+                Einheit TEXT NULL,
                 ErhalteneMenge INTEGER NOT NULL DEFAULT 0,
                 Bestellnummer TEXT NULL,
                 Bezeichnung TEXT NULL,
@@ -895,6 +901,8 @@ def init_database_schema(db_path, verbose=False):
             # Prüfe auf fehlende Spalte ErhalteneMenge
             if create_column_if_not_exists(conn, 'BestellungPosition', 'ErhalteneMenge', 'ALTER TABLE BestellungPosition ADD COLUMN ErhalteneMenge INTEGER NOT NULL DEFAULT 0'):
                 print("[INFO] Spalte 'ErhalteneMenge' zu 'BestellungPosition' hinzugefügt")
+            if create_column_if_not_exists(conn, 'BestellungPosition', 'Einheit', 'ALTER TABLE BestellungPosition ADD COLUMN Einheit TEXT NULL'):
+                print("[INFO] Spalte 'Einheit' zu 'BestellungPosition' hinzugefügt")
         
         # ========== 28. BestellungSichtbarkeit ==========
         created = create_table_if_not_exists(conn, 'BestellungSichtbarkeit', '''

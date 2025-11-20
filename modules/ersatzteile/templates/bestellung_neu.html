@@ -127,6 +127,10 @@ function addPosition() {
                 <label class="form-label">Menge:</label>
                 <input type="number" name="menge[]" class="form-control" value="1" min="1" required>
             </div>
+            <div class="col-md-1">
+                <label class="form-label">Einheit:</label>
+                <input type="text" name="einheit[]" class="form-control einheit-display" value="Stück" placeholder="Stück">
+            </div>
             <div class="col-md-2">
                 <label class="form-label">Preis:</label>
                 <input type="number" name="preis[]" class="form-control" step="0.01" min="0" placeholder="0.00">
@@ -167,6 +171,7 @@ function lookupErsatzteil(button) {
     const ersatzteilInput = row.querySelector('.ersatzteil-id-input');
     const bestellnummerDisplay = row.querySelector('.bestellnummer-display');
     const bezeichnungDisplay = row.querySelector('.bezeichnung-display');
+    const einheitDisplay = row.querySelector('.einheit-display');
     
     const ersatzteilId = ersatzteilInput.value.trim();
     
@@ -199,6 +204,9 @@ function lookupErsatzteil(button) {
             if (data.success) {
                 bestellnummerDisplay.value = data.bestellnummer;
                 bezeichnungDisplay.value = data.bezeichnung;
+                if (einheitDisplay && data.einheit) {
+                    einheitDisplay.value = data.einheit;
+                }
                 // Preis und Währung übernehmen, falls vorhanden
                 const preisInput = row.querySelector('input[name="preis[]"]');
                 const waehrungSelect = row.querySelector('select[name="waehrung[]"]');
@@ -402,6 +410,7 @@ function selectErsatzteil(id, bestellnummer, bezeichnung, preis, waehrung, event
         const ersatzteilInput = targetRow.querySelector('.ersatzteil-id-input');
         const bestellnummerDisplay = targetRow.querySelector('.bestellnummer-display');
         const bezeichnungDisplay = targetRow.querySelector('.bezeichnung-display');
+        const einheitDisplay = targetRow.querySelector('.einheit-display');
         const preisInput = targetRow.querySelector('input[name="preis[]"]');
         const waehrungSelect = targetRow.querySelector('select[name="waehrung[]"]');
         
@@ -409,6 +418,7 @@ function selectErsatzteil(id, bestellnummer, bezeichnung, preis, waehrung, event
             ersatzteilInput: !!ersatzteilInput,
             bestellnummerDisplay: !!bestellnummerDisplay,
             bezeichnungDisplay: !!bezeichnungDisplay,
+            einheitDisplay: !!einheitDisplay,
             preisInput: !!preisInput,
             waehrungSelect: !!waehrungSelect
         });
@@ -421,6 +431,20 @@ function selectErsatzteil(id, bestellnummer, bezeichnung, preis, waehrung, event
         }
         if (waehrungSelect && waehrung) {
             waehrungSelect.value = waehrung;
+        }
+        
+        // Einheit aus API laden
+        if (einheitDisplay && id) {
+            fetch(`{{ url_for('ersatzteile.api_ersatzteil_info', ersatzteil_id=0) }}`.replace('/0', `/${id}`))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.einheit) {
+                        einheitDisplay.value = data.einheit;
+                    }
+                })
+                .catch(error => {
+                    console.error('Fehler beim Laden der Einheit:', error);
+                });
         }
         
         // Validierung entfernen

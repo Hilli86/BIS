@@ -58,6 +58,10 @@
                             <label class="form-label">Menge:</label>
                             <input type="number" name="menge[]" class="form-control" value="1" min="1" required>
                         </div>
+                        <div class="col-md-1">
+                            <label class="form-label">Einheit:</label>
+                            <input type="text" name="einheit[]" class="form-control einheit-display" value="{{ vorausgefuelltes_ersatzteil.Einheit if vorausgefuelltes_ersatzteil.Einheit else 'Stück' }}" placeholder="Stück">
+                        </div>
                         <div class="col-md-2">
                             <label class="form-label">Bemerkung:</label>
                             <input type="text" name="position_bemerkung[]" class="form-control" placeholder="Optional">
@@ -124,6 +128,10 @@ function addPosition() {
                 <label class="form-label">Menge:</label>
                 <input type="number" name="menge[]" class="form-control" value="1" min="1" required>
             </div>
+            <div class="col-md-1">
+                <label class="form-label">Einheit:</label>
+                <input type="text" name="einheit[]" class="form-control einheit-display" value="Stück" placeholder="Stück">
+            </div>
             <div class="col-md-2">
                 <label class="form-label">Bemerkung:</label>
                 <input type="text" name="position_bemerkung[]" class="form-control" placeholder="Optional">
@@ -165,6 +173,7 @@ function lookupErsatzteil(button) {
     const ersatzteilInput = row.querySelector('.ersatzteil-id-input');
     const bestellnummerDisplay = row.querySelector('.bestellnummer-display');
     const bezeichnungDisplay = row.querySelector('.bezeichnung-display');
+    const einheitDisplay = row.querySelector('.einheit-display');
     
     const ersatzteilId = ersatzteilInput.value.trim();
     
@@ -197,6 +206,9 @@ function lookupErsatzteil(button) {
             if (data.success) {
                 bestellnummerDisplay.value = data.bestellnummer;
                 bezeichnungDisplay.value = data.bezeichnung;
+                if (einheitDisplay && data.einheit) {
+                    einheitDisplay.value = data.einheit;
+                }
                 bestellnummerDisplay.classList.remove('is-invalid');
                 bezeichnungDisplay.classList.remove('is-invalid');
                 ersatzteilInput.classList.remove('is-invalid');
@@ -353,10 +365,25 @@ function selectErsatzteil(id, bestellnummer, bezeichnung, event) {
         const ersatzteilInput = targetRow.querySelector('.ersatzteil-id-input');
         const bestellnummerDisplay = targetRow.querySelector('.bestellnummer-display');
         const bezeichnungDisplay = targetRow.querySelector('.bezeichnung-display');
+        const einheitDisplay = targetRow.querySelector('.einheit-display');
         
         if (ersatzteilInput) ersatzteilInput.value = id;
         if (bestellnummerDisplay) bestellnummerDisplay.value = bestellnummer || '';
         if (bezeichnungDisplay) bezeichnungDisplay.value = bezeichnung || '';
+        
+        // Einheit aus API laden
+        if (einheitDisplay && id) {
+            fetch(`{{ url_for('ersatzteile.api_ersatzteil_info', ersatzteil_id=0) }}`.replace('/0', `/${id}`))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.einheit) {
+                        einheitDisplay.value = data.einheit;
+                    }
+                })
+                .catch(error => {
+                    console.error('Fehler beim Laden der Einheit:', error);
+                });
+        }
         
         // Validierung entfernen
         if (bestellnummerDisplay) bestellnummerDisplay.classList.remove('is-invalid');

@@ -144,9 +144,13 @@
                             <button type="button" class="btn btn-sm btn-outline-danger" onclick="exportBestellungPDF({{ b.ID }})" title="Als PDF exportieren">
                                 <i class="bi bi-file-pdf"></i>
                             </button>
+                            {% else %}
+                            <button type="button" class="btn btn-sm btn-outline-danger invisible" disabled>
+                                <i class="bi bi-file-pdf"></i>
+                            </button>
                             {% endif %}
                             {% if ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) and b.Status in ['Erstellt', 'Zur Freigabe', 'Freigegeben'] %}
-                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="loescheBestellung({{ b.ID }})" title="Bestellung löschen">
+                            <button type="button" class="btn btn-sm btn-outline-danger ms-2" onclick="loescheBestellung({{ b.ID }})" title="Bestellung löschen">
                                 <i class="bi bi-trash"></i>
                             </button>
                             {% endif %}

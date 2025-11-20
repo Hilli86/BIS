@@ -72,6 +72,18 @@
                             <td>{{ ersatzteil.ArtikelnummerHersteller or '-' }}</td>
                         </tr>
                         <tr>
+                            <td class="text-muted"><strong>Link:</strong></td>
+                            <td>
+                                {% if ersatzteil.Link %}
+                                <a href="{{ ersatzteil.Link }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none">
+                                    <i class="bi bi-box-arrow-up-right"></i> {{ ersatzteil.Link }}
+                                </a>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
                             <td class="text-muted"><strong>Lieferant:</strong></td>
                             <td>
                                 {% if ersatzteil.Lieferant %}

@@ -55,6 +55,12 @@
                     <input type="text" name="artikelnummer_hersteller" class="form-control" value="{{ ersatzteil.ArtikelnummerHersteller or '' }}">
                 </div>
 
+                <!-- Link -->
+                <div class="col-12">
+                    <label class="form-label"><strong>Link:</strong> <small class="text-muted">(Optional)</small></label>
+                    <input type="url" name="link" class="form-control" placeholder="https://..." value="{{ ersatzteil.Link or '' }}">
+                </div>
+
                 <!-- 3. Beschreibung -->
                 <div class="col-12">
                     <label class="form-label"><strong>Beschreibung:</strong></label>

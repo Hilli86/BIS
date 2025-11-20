@@ -132,6 +132,10 @@
                         <label class="form-label">Menge:</label>
                         <input type="number" name="menge" class="form-control" value="1" min="1" required>
                     </div>
+                    <div class="col-md-1">
+                        <label class="form-label">Einheit:</label>
+                        <input type="text" name="einheit" class="form-control einheit-display" value="Stück" placeholder="Stück">
+                    </div>
                     <div class="col-md-2">
                         <label class="form-label">Bemerkung:</label>
                         <input type="text" name="bemerkung" class="form-control" placeholder="Optional">
@@ -155,9 +159,10 @@
                     <col style="width: 12%;">
                     <col style="width: 25%;">
                     <col style="width: 6%;">
+                    <col style="width: 6%;">
                     <col style="width: 12%;">
                     <col style="width: 12%;">
-                    <col style="width: 15%;">
+                    <col style="width: 13%;">
                     {% if anfrage.Status == 'Offen' %}
                     <col style="width: 10%;">
                     {% endif %}
@@ -168,6 +173,7 @@
                         <th>Bestellnummer</th>
                         <th>Bezeichnung</th>
                         <th>Menge</th>
+                        <th>Einheit</th>
                         <th>Aktueller Preis</th>
                         <th>Angebotspreis</th>
                         <th>Bemerkung</th>
@@ -178,7 +184,7 @@
                 </thead>
                 <tbody>
                     {% for p in positionen %}
-                    <tr {% if anfrage.Status == 'Offen' %}style="cursor: pointer;" onclick="openEditPositionModal({{ p.ID }}, '{{ p.Bestellnummer|replace("'", "\\'") or '' }}', '{{ p.Bezeichnung|replace("'", "\\'") or '' }}', {{ p.Menge }}, '{{ p.Bemerkung|replace("'", "\\'") or '' }}', {{ p.ErsatzteilID or 'null' }})"{% endif %}>
+                    <tr {% if anfrage.Status == 'Offen' %}style="cursor: pointer;" onclick="openEditPositionModal({{ p.ID }}, '{{ p.Bestellnummer|replace("'", "\\'") or '' }}', '{{ p.Bezeichnung|replace("'", "\\'") or '' }}', {{ p.Menge }}, '{{ p.Einheit|replace("'", "\\'") or 'Stück' }}', '{{ p.Bemerkung|replace("'", "\\'") or '' }}', {{ p.ErsatzteilID or 'null' }})"{% endif %}>
                         <td onclick="event.stopPropagation();">
                             {% if p.ErsatzteilID %}
                             <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=p.ErsatzteilID) }}" class="text-decoration-none">
@@ -191,6 +197,7 @@
                         <td>{{ p.Bestellnummer or '-' }}</td>
                         <td>{{ p.Bezeichnung or '-' }}</td>
                         <td>{{ p.Menge }}</td>
+                        <td>{{ p.Einheit or 'Stück' }}</td>
                         <td>
                             {% if p.AktuellerPreis %}
                             {{ "%.2f"|format(p.AktuellerPreis) }} {{ p.AktuelleWaehrung or 'EUR' }}
@@ -477,6 +484,10 @@
                         <input type="number" id="edit_menge" name="menge" class="form-control" min="1" required>
                     </div>
                     <div class="mb-3">
+                        <label for="edit_einheit" class="form-label">Einheit:</label>
+                        <input type="text" id="edit_einheit" name="einheit" class="form-control" value="Stück" placeholder="Stück">
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label">Bemerkung:</label>
                         <input type="text" id="edit_bemerkung" name="bemerkung" class="form-control">
                     </div>
@@ -497,6 +508,7 @@ function lookupErsatzteilDetail(button) {
     const ersatzteilInput = form.querySelector('.ersatzteil-id-input');
     const bestellnummerDisplay = form.querySelector('.bestellnummer-display');
     const bezeichnungDisplay = form.querySelector('.bezeichnung-display');
+    const einheitDisplay = form.querySelector('.einheit-display');
     
     const ersatzteilId = ersatzteilInput.value.trim();
     
@@ -528,12 +540,18 @@ function lookupErsatzteilDetail(button) {
             if (data.success) {
                 bestellnummerDisplay.value = data.bestellnummer;
                 bezeichnungDisplay.value = data.bezeichnung;
+                if (einheitDisplay && data.einheit) {
+                    einheitDisplay.value = data.einheit;
+                }
                 bestellnummerDisplay.classList.remove('is-invalid');
                 bezeichnungDisplay.classList.remove('is-invalid');
                 ersatzteilInput.classList.remove('is-invalid');
             } else {
                 bestellnummerDisplay.value = '';
                 bezeichnungDisplay.value = '';
+                if (einheitDisplay) {
+                    einheitDisplay.value = 'Stück';
+                }
                 bestellnummerDisplay.classList.add('is-invalid');
                 bezeichnungDisplay.classList.add('is-invalid');
                 ersatzteilInput.classList.add('is-invalid');
@@ -668,10 +686,25 @@ function selectErsatzteilDetail(id, bestellnummer, bezeichnung, event) {
         const ersatzteilInput = form.querySelector('.ersatzteil-id-input');
         const bestellnummerDisplay = form.querySelector('.bestellnummer-display');
         const bezeichnungDisplay = form.querySelector('.bezeichnung-display');
+        const einheitDisplay = form.querySelector('.einheit-display');
         
         if (ersatzteilInput) ersatzteilInput.value = id;
         if (bestellnummerDisplay) bestellnummerDisplay.value = bestellnummer || '';
         if (bezeichnungDisplay) bezeichnungDisplay.value = bezeichnung || '';
+        
+        // Einheit aus API laden
+        if (einheitDisplay && id) {
+            fetch(`{{ url_for('ersatzteile.api_ersatzteil_info', ersatzteil_id=0) }}`.replace('/0', `/${id}`))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.einheit) {
+                        einheitDisplay.value = data.einheit;
+                    }
+                })
+                .catch(error => {
+                    console.error('Fehler beim Laden der Einheit:', error);
+                });
+        }
         
         // Validierung entfernen
         if (bestellnummerDisplay) bestellnummerDisplay.classList.remove('is-invalid');
@@ -683,12 +716,16 @@ function selectErsatzteilDetail(id, bestellnummer, bezeichnung, event) {
 }
 
 // Position bearbeiten Modal öffnen
-function openEditPositionModal(positionId, bestellnummer, bezeichnung, menge, bemerkung, ersatzteilId) {
+function openEditPositionModal(positionId, bestellnummer, bezeichnung, menge, einheit, bemerkung, ersatzteilId) {
     document.getElementById('edit_position_id').value = positionId;
     document.getElementById('edit_ersatzteil_id').value = ersatzteilId || '';
     document.getElementById('edit_bestellnummer').value = bestellnummer;
     document.getElementById('edit_bezeichnung').value = bezeichnung;
     document.getElementById('edit_menge').value = menge;
+    const einheitInput = document.getElementById('edit_einheit');
+    if (einheitInput) {
+        einheitInput.value = einheit || 'Stück';
+    }
     document.getElementById('edit_bemerkung').value = bemerkung;
     
     // Action URL setzen

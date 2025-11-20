@@ -43,6 +43,7 @@
                             <th>Bestellnummer</th>
                             <th>Bezeichnung</th>
                             <th>Menge</th>
+                            <th>Einheit</th>
                             <th>Preis</th>
                             <th>Währung</th>
                             <th>Bemerkung</th>
@@ -66,6 +67,7 @@
                             <td>{{ p.Bestellnummer or '-' }}</td>
                             <td>{{ p.Bezeichnung or '-' }}</td>
                             <td>{{ p.Menge }}</td>
+                            <td>{{ p.Einheit or 'Stück' }}</td>
                             <td>
                                 {% if p.Preis %}
                                 {{ "%.2f"|format(p.Preis) }}
