@@ -66,6 +66,10 @@
                             <label class="form-label">Bemerkung:</label>
                             <input type="text" name="position_bemerkung[]" class="form-control" placeholder="Optional">
                         </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Link:</label>
+                            <input type="url" name="link[]" class="form-control link-display" placeholder="Optional" value="{{ vorausgefuelltes_ersatzteil.Link if vorausgefuelltes_ersatzteil.Link else '' }}">
+                        </div>
                         <div class="col-md-1">
                             <label class="form-label">&nbsp;</label>
                             <button type="button" class="btn btn-danger w-100" onclick="removePosition(this)">
@@ -136,6 +140,10 @@ function addPosition() {
                 <label class="form-label">Bemerkung:</label>
                 <input type="text" name="position_bemerkung[]" class="form-control" placeholder="Optional">
             </div>
+            <div class="col-md-2">
+                <label class="form-label">Link:</label>
+                <input type="url" name="link[]" class="form-control link-display" placeholder="Optional">
+            </div>
             <div class="col-md-1">
                 <label class="form-label">&nbsp;</label>
                 <button type="button" class="btn btn-danger w-100" onclick="removePosition(this)">
@@ -174,6 +182,7 @@ function lookupErsatzteil(button) {
     const bestellnummerDisplay = row.querySelector('.bestellnummer-display');
     const bezeichnungDisplay = row.querySelector('.bezeichnung-display');
     const einheitDisplay = row.querySelector('.einheit-display');
+    const linkDisplay = row.querySelector('.link-display');
     
     const ersatzteilId = ersatzteilInput.value.trim();
     
@@ -208,6 +217,9 @@ function lookupErsatzteil(button) {
                 bezeichnungDisplay.value = data.bezeichnung;
                 if (einheitDisplay && data.einheit) {
                     einheitDisplay.value = data.einheit;
+                }
+                if (linkDisplay && data.link) {
+                    linkDisplay.value = data.link;
                 }
                 bestellnummerDisplay.classList.remove('is-invalid');
                 bezeichnungDisplay.classList.remove('is-invalid');
@@ -366,22 +378,28 @@ function selectErsatzteil(id, bestellnummer, bezeichnung, event) {
         const bestellnummerDisplay = targetRow.querySelector('.bestellnummer-display');
         const bezeichnungDisplay = targetRow.querySelector('.bezeichnung-display');
         const einheitDisplay = targetRow.querySelector('.einheit-display');
+        const linkDisplay = targetRow.querySelector('.link-display');
         
         if (ersatzteilInput) ersatzteilInput.value = id;
         if (bestellnummerDisplay) bestellnummerDisplay.value = bestellnummer || '';
         if (bezeichnungDisplay) bezeichnungDisplay.value = bezeichnung || '';
         
-        // Einheit aus API laden
-        if (einheitDisplay && id) {
+        // Einheit und Link aus API laden
+        if ((einheitDisplay || linkDisplay) && id) {
             fetch(`{{ url_for('ersatzteile.api_ersatzteil_info', ersatzteil_id=0) }}`.replace('/0', `/${id}`))
                 .then(response => response.json())
                 .then(data => {
-                    if (data.success && data.einheit) {
-                        einheitDisplay.value = data.einheit;
+                    if (data.success) {
+                        if (einheitDisplay && data.einheit) {
+                            einheitDisplay.value = data.einheit;
+                        }
+                        if (linkDisplay && data.link) {
+                            linkDisplay.value = data.link;
+                        }
                     }
                 })
                 .catch(error => {
-                    console.error('Fehler beim Laden der Einheit:', error);
+                    console.error('Fehler beim Laden der Einheit/Link:', error);
                 });
         }
         

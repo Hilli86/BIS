@@ -1576,7 +1576,7 @@ def api_ersatzteil_info(ersatzteil_id):
             
             # Ersatzteil laden
             query = '''
-                SELECT e.ID, e.Bestellnummer, e.Bezeichnung, e.Preis, e.Waehrung, e.AktuellerBestand, e.Einheit
+                SELECT e.ID, e.Bestellnummer, e.Bezeichnung, e.Preis, e.Waehrung, e.AktuellerBestand, e.Einheit, e.Link
                 FROM Ersatzteil e
                 WHERE e.ID = ? AND e.Gelöscht = 0
             '''
@@ -1612,7 +1612,8 @@ def api_ersatzteil_info(ersatzteil_id):
                     'preis': float(ersatzteil['Preis']) if ersatzteil['Preis'] else None,
                     'waehrung': ersatzteil['Waehrung'] or 'EUR',
                     'bestand': ersatzteil['AktuellerBestand'] or 0,
-                    'einheit': ersatzteil['Einheit'] or ''
+                    'einheit': ersatzteil['Einheit'] or '',
+                    'link': ersatzteil['Link'] if 'Link' in ersatzteil.keys() else None
                 })
             else:
                 return jsonify({
@@ -2298,7 +2299,7 @@ def angebotsanfrage_smart_add(ersatzteil_id):
         with get_db_connection() as conn:
             # Ersatzteil laden
             ersatzteil = conn.execute(
-                'SELECT LieferantID, Bestellnummer, Bezeichnung, Einheit FROM Ersatzteil WHERE ID = ? AND Gelöscht = 0',
+                'SELECT LieferantID, Bestellnummer, Bezeichnung, Einheit, Link FROM Ersatzteil WHERE ID = ? AND Gelöscht = 0',
                 (ersatzteil_id,)
             ).fetchone()
             
@@ -2345,16 +2346,17 @@ def angebotsanfrage_smart_add(ersatzteil_id):
                         'action': 'bereits_vorhanden'
                     })
                 else:
-                    # Ersatzteil-Daten laden für Bestellnummer, Bezeichnung und Einheit
+                    # Ersatzteil-Daten laden für Bestellnummer, Bezeichnung, Einheit und Link
                     bestellnummer = ersatzteil['Bestellnummer']
                     bezeichnung = ersatzteil['Bezeichnung']
                     einheit = ersatzteil['Einheit'] if 'Einheit' in ersatzteil.keys() and ersatzteil['Einheit'] else 'Stück'
+                    link = ersatzteil['Link'] if 'Link' in ersatzteil.keys() else None
                     
                     # Position hinzufügen
                     conn.execute('''
-                        INSERT INTO AngebotsanfragePosition (AngebotsanfrageID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung)
-                        VALUES (?, ?, 1, ?, ?, ?)
-                    ''', (anfrage_id, ersatzteil_id, einheit, bestellnummer, bezeichnung))
+                        INSERT INTO AngebotsanfragePosition (AngebotsanfrageID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Link)
+                        VALUES (?, ?, 1, ?, ?, ?, ?)
+                    ''', (anfrage_id, ersatzteil_id, einheit, bestellnummer, bezeichnung, link))
                     conn.commit()
                     
                     return jsonify({
@@ -2378,16 +2380,17 @@ def angebotsanfrage_smart_add(ersatzteil_id):
                 ''', (lieferant_id, mitarbeiter_id, abteilung_id))
                 anfrage_id = cursor.lastrowid
                 
-                # Ersatzteil-Daten laden für Bestellnummer, Bezeichnung und Einheit
+                # Ersatzteil-Daten laden für Bestellnummer, Bezeichnung, Einheit und Link
                 bestellnummer = ersatzteil['Bestellnummer']
                 bezeichnung = ersatzteil['Bezeichnung']
                 einheit = ersatzteil['Einheit'] if 'Einheit' in ersatzteil.keys() and ersatzteil['Einheit'] else 'Stück'
+                link = ersatzteil['Link'] if 'Link' in ersatzteil.keys() else None
                 
                 # Ersatzteil als Position hinzufügen
                 conn.execute('''
-                    INSERT INTO AngebotsanfragePosition (AngebotsanfrageID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung)
-                    VALUES (?, ?, 1, ?, ?, ?)
-                ''', (anfrage_id, ersatzteil_id, einheit, bestellnummer, bezeichnung))
+                    INSERT INTO AngebotsanfragePosition (AngebotsanfrageID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Link)
+                    VALUES (?, ?, 1, ?, ?, ?, ?)
+                ''', (anfrage_id, ersatzteil_id, einheit, bestellnummer, bezeichnung, link))
                 conn.commit()
                 
                 return jsonify({
@@ -2428,6 +2431,7 @@ def angebotsanfrage_neu():
         bestellnummern = request.form.getlist('bestellnummer[]')
         bezeichnungen = request.form.getlist('bezeichnung[]')
         positionen_bemerkungen = request.form.getlist('position_bemerkung[]')
+        links = request.form.getlist('link[]')
         
         if not lieferant_id:
             flash('Bitte wählen Sie einen Lieferanten aus.', 'danger')
@@ -2476,10 +2480,11 @@ def angebotsanfrage_neu():
                         bestellnummer = bestellnummern[i].strip() if i < len(bestellnummern) and bestellnummern[i] else None
                         bezeichnung = bezeichnungen[i].strip() if i < len(bezeichnungen) and bezeichnungen[i] else None
                         pos_bemerkung = positionen_bemerkungen[i].strip() if i < len(positionen_bemerkungen) and positionen_bemerkungen[i] else None
+                        link = links[i].strip() if i < len(links) and links[i] else None
                         
                         # Wenn ErsatzteilID vorhanden, aber Bestellnummer/Bezeichnung/Einheit fehlen, aus Ersatzteil laden
                         if ersatzteil_id and (not bestellnummer or not bezeichnung or not einheit):
-                            ersatzteil = conn.execute('SELECT Bestellnummer, Bezeichnung, Einheit FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
+                            ersatzteil = conn.execute('SELECT Bestellnummer, Bezeichnung, Einheit, Link FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
                             if ersatzteil:
                                 if not bestellnummer:
                                     bestellnummer = ersatzteil['Bestellnummer']
@@ -2487,14 +2492,23 @@ def angebotsanfrage_neu():
                                     bezeichnung = ersatzteil['Bezeichnung']
                                 if not einheit:
                                     einheit = ersatzteil['Einheit'] if ersatzteil['Einheit'] else 'Stück'
+                                # Link nur aus Ersatzteil übernehmen, wenn kein Link im Formular vorhanden
+                                if not link and 'Link' in ersatzteil.keys() and ersatzteil['Link']:
+                                    link = ersatzteil['Link']
+                        elif ersatzteil_id:
+                            # Auch wenn alle anderen Felder vorhanden sind, Link aus Ersatzteil laden, wenn kein Link im Formular
+                            if not link:
+                                ersatzteil = conn.execute('SELECT Link FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
+                                if ersatzteil and 'Link' in ersatzteil.keys() and ersatzteil['Link']:
+                                    link = ersatzteil['Link']
                         
                         if not einheit:
                             einheit = 'Stück'
                         
                         conn.execute('''
-                            INSERT INTO AngebotsanfragePosition (AngebotsanfrageID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        ''', (anfrage_id, ersatzteil_id, menge, einheit, bestellnummer, bezeichnung, pos_bemerkung))
+                            INSERT INTO AngebotsanfragePosition (AngebotsanfrageID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung, Link)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (anfrage_id, ersatzteil_id, menge, einheit, bestellnummer, bezeichnung, pos_bemerkung, link))
                     except (ValueError, IndexError):
                         continue
                 
@@ -2580,7 +2594,8 @@ def angebotsanfrage_detail(angebotsanfrage_id):
                 COALESCE(p.Bezeichnung, e.Bezeichnung) AS Bezeichnung,
                 COALESCE(p.Einheit, e.Einheit, 'Stück') AS Einheit,
                 e.Preis AS AktuellerPreis,
-                e.Waehrung AS AktuelleWaehrung
+                e.Waehrung AS AktuelleWaehrung,
+                COALESCE(p.Link, e.Link) AS Link
             FROM AngebotsanfragePosition p
             LEFT JOIN Ersatzteil e ON p.ErsatzteilID = e.ID
             WHERE p.AngebotsanfrageID = ?
@@ -2656,6 +2671,7 @@ def angebotsanfrage_position_hinzufuegen(angebotsanfrage_id):
     bestellnummer = request.form.get('bestellnummer', '').strip() or None
     bezeichnung = request.form.get('bezeichnung', '').strip() or None
     bemerkung = request.form.get('bemerkung', '').strip() or None
+    link = request.form.get('link', '').strip() or None
     
     if not ersatzteil_id and not bestellnummer:
         flash('Bitte geben Sie entweder eine ErsatzteilID oder eine Bestellnummer ein.', 'danger')
@@ -2683,7 +2699,7 @@ def angebotsanfrage_position_hinzufuegen(angebotsanfrage_id):
                 # Falls ErsatzteilID vorhanden und Bestellnummer/Bezeichnung/Einheit nicht angegeben, aus Ersatzteil laden
                 einheit = None
                 if ersatzteil_id:
-                    ersatzteil = conn.execute('SELECT Bestellnummer, Bezeichnung, Einheit FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
+                    ersatzteil = conn.execute('SELECT Bestellnummer, Bezeichnung, Einheit, Link FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
                     if ersatzteil:
                         if not bestellnummer:
                             bestellnummer = ersatzteil['Bestellnummer']
@@ -2691,15 +2707,18 @@ def angebotsanfrage_position_hinzufuegen(angebotsanfrage_id):
                             bezeichnung = ersatzteil['Bezeichnung']
                         if not einheit:
                             einheit = ersatzteil['Einheit'] if ersatzteil['Einheit'] else 'Stück'
+                        # Link nur aus Ersatzteil übernehmen, wenn kein Link im Formular vorhanden
+                        if not link and 'Link' in ersatzteil.keys() and ersatzteil['Link']:
+                            link = ersatzteil['Link']
                 
                 if not einheit:
                     einheit = 'Stück'
                 
-                # Position hinzufügen
+                # Position hinzufügen (Link wird aus Formular oder Ersatzteil übernommen)
                 conn.execute('''
-                    INSERT INTO AngebotsanfragePosition (AngebotsanfrageID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (angebotsanfrage_id, ersatzteil_id, menge, einheit, bestellnummer, bezeichnung, bemerkung))
+                    INSERT INTO AngebotsanfragePosition (AngebotsanfrageID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung, Link)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (angebotsanfrage_id, ersatzteil_id, menge, einheit, bestellnummer, bezeichnung, bemerkung, link))
                 conn.commit()
                 flash('Position erfolgreich hinzugefügt.', 'success')
             
@@ -2735,6 +2754,7 @@ def angebotsanfrage_position_bearbeiten(angebotsanfrage_id, position_id):
             menge = request.form.get('menge')
             einheit = request.form.get('einheit', '').strip() or None
             bemerkung = request.form.get('bemerkung', '').strip() or None
+            link = request.form.get('link', '').strip() or None
             
             # Validierung
             if not bestellnummer or not bezeichnung:
@@ -2778,9 +2798,10 @@ def angebotsanfrage_position_bearbeiten(angebotsanfrage_id, position_id):
                     Bezeichnung = ?,
                     Menge = ?,
                     Einheit = ?,
-                    Bemerkung = ?
+                    Bemerkung = ?,
+                    Link = ?
                 WHERE ID = ? AND AngebotsanfrageID = ?
-            ''', (ersatzteil_id_int, bestellnummer, bezeichnung, menge, einheit, bemerkung, position_id, angebotsanfrage_id))
+            ''', (ersatzteil_id_int, bestellnummer, bezeichnung, menge, einheit, bemerkung, link, position_id, angebotsanfrage_id))
             
             conn.commit()
             flash('Position erfolgreich aktualisiert.', 'success')
@@ -2817,7 +2838,7 @@ def angebotsanfrage_position_artikel_erstellen(angebotsanfrage_id, position_id):
             
             # Position laden
             position = conn.execute('''
-                SELECT ID, ErsatzteilID, Bestellnummer, Bezeichnung, Menge, Bemerkung
+                SELECT ID, ErsatzteilID, Bestellnummer, Bezeichnung, Menge, Bemerkung, Link
                 FROM AngebotsanfragePosition
                 WHERE ID = ? AND AngebotsanfrageID = ?
             ''', (position_id, angebotsanfrage_id)).fetchone()
@@ -2854,13 +2875,14 @@ def angebotsanfrage_position_artikel_erstellen(angebotsanfrage_id, position_id):
                     stammabteilung_id = mitarbeiter['PrimaerAbteilungID']
             
             # Neuen Artikel erstellen
+            link = position['Link'] if 'Link' in position.keys() else None
             cursor = conn.execute('''
                 INSERT INTO Ersatzteil (
                     Bestellnummer, Bezeichnung, Beschreibung, LieferantID, 
-                    AktuellerBestand, Mindestbestand, Einheit, ErstelltVonID, Aktiv, Gelöscht
-                ) VALUES (?, ?, ?, ?, 0, 0, 'Stück', ?, 1, 0)
+                    AktuellerBestand, Mindestbestand, Einheit, ErstelltVonID, Aktiv, Gelöscht, Link
+                ) VALUES (?, ?, ?, ?, 0, 0, 'Stück', ?, 1, 0, ?)
             ''', (position['Bestellnummer'], position['Bezeichnung'], position['Bemerkung'], 
-                  anfrage['LieferantID'], mitarbeiter_id))
+                  anfrage['LieferantID'], mitarbeiter_id, link))
             
             neuer_artikel_id = cursor.lastrowid
             
@@ -3801,7 +3823,8 @@ def bestellung_detail(bestellung_id):
                 e.ID AS ErsatzteilID,
                 COALESCE(p.Bestellnummer, e.Bestellnummer) AS Bestellnummer,
                 COALESCE(p.Bezeichnung, e.Bezeichnung) AS Bezeichnung,
-                COALESCE(p.Einheit, e.Einheit, 'Stück') AS Einheit
+                COALESCE(p.Einheit, e.Einheit, 'Stück') AS Einheit,
+                COALESCE(p.Link, e.Link) AS Link
             FROM BestellungPosition p
             LEFT JOIN Ersatzteil e ON p.ErsatzteilID = e.ID
             WHERE p.BestellungID = ?
@@ -3874,6 +3897,7 @@ def bestellung_neu():
         preise = request.form.getlist('preis[]')
         waehrungen = request.form.getlist('waehrung[]')
         positionen_bemerkungen = request.form.getlist('position_bemerkung[]')
+        links = request.form.getlist('link[]')
         
         if not lieferant_id:
             flash('Bitte wählen Sie einen Lieferanten aus.', 'danger')
@@ -3923,10 +3947,11 @@ def bestellung_neu():
                         preis = float(preis_str) if preis_str else None
                         waehrung = waehrungen[i].strip() if i < len(waehrungen) and waehrungen[i] else 'EUR'
                         pos_bemerkung = positionen_bemerkungen[i].strip() if i < len(positionen_bemerkungen) and positionen_bemerkungen[i] else None
+                        link = links[i].strip() if i < len(links) and links[i] else None
                         
                         # Wenn ErsatzteilID vorhanden, aber Bestellnummer/Bezeichnung/Einheit fehlen, aus Ersatzteil laden
                         if ersatzteil_id and (not bestellnummer or not bezeichnung or not einheit):
-                            ersatzteil = conn.execute('SELECT Bestellnummer, Bezeichnung, Einheit FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
+                            ersatzteil = conn.execute('SELECT Bestellnummer, Bezeichnung, Einheit, Link FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
                             if ersatzteil:
                                 if not bestellnummer:
                                     bestellnummer = ersatzteil['Bestellnummer']
@@ -3934,14 +3959,23 @@ def bestellung_neu():
                                     bezeichnung = ersatzteil['Bezeichnung']
                                 if not einheit:
                                     einheit = ersatzteil['Einheit'] if ersatzteil['Einheit'] else 'Stück'
+                                # Link nur aus Ersatzteil übernehmen, wenn kein Link im Formular vorhanden
+                                if not link and 'Link' in ersatzteil.keys() and ersatzteil['Link']:
+                                    link = ersatzteil['Link']
+                        elif ersatzteil_id:
+                            # Auch wenn alle anderen Felder vorhanden sind, Link aus Ersatzteil laden, wenn kein Link im Formular
+                            if not link:
+                                ersatzteil = conn.execute('SELECT Link FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
+                                if ersatzteil and 'Link' in ersatzteil.keys() and ersatzteil['Link']:
+                                    link = ersatzteil['Link']
                         
                         if not einheit:
                             einheit = 'Stück'
                         
                         conn.execute('''
-                            INSERT INTO BestellungPosition (BestellungID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung, Preis, Waehrung)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ''', (bestellung_id, ersatzteil_id, menge, einheit, bestellnummer, bezeichnung, pos_bemerkung, preis, waehrung))
+                            INSERT INTO BestellungPosition (BestellungID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung, Preis, Waehrung, Link)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (bestellung_id, ersatzteil_id, menge, einheit, bestellnummer, bezeichnung, pos_bemerkung, preis, waehrung, link))
                     except (ValueError, IndexError):
                         continue
                 
@@ -4019,7 +4053,8 @@ def bestellung_aus_angebot(angebotsanfrage_id):
                 COALESCE(p.Bezeichnung, e.Bezeichnung) AS Bezeichnung,
                 COALESCE(p.Einheit, e.Einheit, 'Stück') AS Einheit,
                 COALESCE(p.Angebotspreis, e.Preis) AS Preis,
-                COALESCE(p.Angebotswaehrung, e.Waehrung, 'EUR') AS Waehrung
+                COALESCE(p.Angebotswaehrung, e.Waehrung, 'EUR') AS Waehrung,
+                COALESCE(p.Link, e.Link) AS Link
             FROM AngebotsanfragePosition p
             LEFT JOIN Ersatzteil e ON p.ErsatzteilID = e.ID
             WHERE p.AngebotsanfrageID = ?
@@ -4062,10 +4097,11 @@ def bestellung_aus_angebot(angebotsanfrage_id):
                         continue
                     
                     einheit = pos['Einheit'] if 'Einheit' in pos.keys() and pos['Einheit'] else 'Stück'
+                    link = pos['Link'] if 'Link' in pos.keys() else None
                     conn.execute('''
-                        INSERT INTO BestellungPosition (BestellungID, AngebotsanfragePositionID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung, Preis, Waehrung)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ''', (bestellung_id, pos['ID'], pos['ErsatzteilID'], pos['Menge'], einheit, pos['Bestellnummer'], pos['Bezeichnung'], pos['Bemerkung'], pos['Preis'], pos['Waehrung']))
+                        INSERT INTO BestellungPosition (BestellungID, AngebotsanfragePositionID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung, Preis, Waehrung, Link)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (bestellung_id, pos['ID'], pos['ErsatzteilID'], pos['Menge'], einheit, pos['Bestellnummer'], pos['Bezeichnung'], pos['Bemerkung'], pos['Preis'], pos['Waehrung'], link))
                 
                 # Sichtbarkeiten setzen (optional - wenn keine ausgewählt, wird Primärabteilung verwendet)
                 if sichtbare_abteilungen:
@@ -4254,6 +4290,7 @@ def bestellung_position_hinzufuegen(bestellung_id):
     preis = float(preis_str) if preis_str else None
     waehrung = request.form.get('waehrung', 'EUR').strip()
     bemerkung = request.form.get('bemerkung', '').strip() or None
+    link = request.form.get('link', '').strip() or None
     
     if not ersatzteil_id and not bestellnummer:
         flash('Bitte geben Sie entweder eine ErsatzteilID oder eine Bestellnummer ein.', 'danger')
@@ -4274,7 +4311,7 @@ def bestellung_position_hinzufuegen(bestellung_id):
             # Falls ErsatzteilID vorhanden und Bestellnummer/Bezeichnung/Einheit nicht angegeben, aus Ersatzteil laden
             einheit = None
             if ersatzteil_id:
-                ersatzteil = conn.execute('SELECT Bestellnummer, Bezeichnung, Einheit FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
+                ersatzteil = conn.execute('SELECT Bestellnummer, Bezeichnung, Einheit, Link FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
                 if ersatzteil:
                     if not bestellnummer:
                         bestellnummer = ersatzteil['Bestellnummer']
@@ -4282,15 +4319,18 @@ def bestellung_position_hinzufuegen(bestellung_id):
                         bezeichnung = ersatzteil['Bezeichnung']
                     if not einheit:
                         einheit = ersatzteil['Einheit'] if ersatzteil['Einheit'] else 'Stück'
+                    # Link nur aus Ersatzteil übernehmen, wenn kein Link im Formular vorhanden
+                    if not link and 'Link' in ersatzteil.keys() and ersatzteil['Link']:
+                        link = ersatzteil['Link']
             
             if not einheit:
                 einheit = 'Stück'
             
             # Position hinzufügen
             conn.execute('''
-                INSERT INTO BestellungPosition (BestellungID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung, Preis, Waehrung)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (bestellung_id, ersatzteil_id, menge, einheit, bestellnummer, bezeichnung, bemerkung, preis, waehrung))
+                INSERT INTO BestellungPosition (BestellungID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung, Preis, Waehrung, Link)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (bestellung_id, ersatzteil_id, menge, einheit, bestellnummer, bezeichnung, bemerkung, preis, waehrung, link))
             conn.commit()
             flash('Position erfolgreich hinzugefügt.', 'success')
             
@@ -4313,6 +4353,7 @@ def bestellung_position_bearbeiten(bestellung_id, position_id):
     preis = float(preis_str) if preis_str else None
     waehrung = request.form.get('waehrung', 'EUR').strip()
     bemerkung = request.form.get('bemerkung', '').strip() or None
+    link = request.form.get('link', '').strip() or None
     
     try:
         with get_db_connection() as conn:
@@ -4344,9 +4385,9 @@ def bestellung_position_bearbeiten(bestellung_id, position_id):
             # Position aktualisieren
             conn.execute('''
                 UPDATE BestellungPosition 
-                SET Menge = ?, Einheit = ?, Bestellnummer = ?, Bezeichnung = ?, Bemerkung = ?, Preis = ?, Waehrung = ?
+                SET Menge = ?, Einheit = ?, Bestellnummer = ?, Bezeichnung = ?, Bemerkung = ?, Preis = ?, Waehrung = ?, Link = ?
                 WHERE ID = ? AND BestellungID = ?
-            ''', (menge, einheit, bestellnummer, bezeichnung, bemerkung, preis, waehrung, position_id, bestellung_id))
+            ''', (menge, einheit, bestellnummer, bezeichnung, bemerkung, preis, waehrung, link, position_id, bestellung_id))
             conn.commit()
             flash('Position erfolgreich aktualisiert.', 'success')
             

@@ -265,6 +265,10 @@
                         <label class="form-label">Bemerkung:</label>
                         <input type="text" name="bemerkung" class="form-control" placeholder="Optional...">
                     </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Link:</label>
+                        <input type="url" name="link" class="form-control link-display" placeholder="Optional">
+                    </div>
                     <div class="col-md-1">
                         <label class="form-label">&nbsp;</label>
                         <button type="submit" class="btn btn-primary w-100">
@@ -291,6 +295,7 @@
                         <th>Preis</th>
                         <th>Gesamt</th>
                         <th>Bemerkung</th>
+                        <th>Link</th>
                         {% if bestellung.Status in ['Erstellt', 'Zur Freigabe'] %}
                         <th>Aktionen</th>
                         {% endif %}
@@ -336,9 +341,18 @@
                             {% endif %}
                         </td>
                         <td>{{ p.Bemerkung or '-' }}</td>
+                        <td>
+                            {% if p.Link %}
+                            <a href="{{ p.Link }}" target="_blank" rel="noopener noreferrer">
+                                <i class="bi bi-link-45deg"></i> Link
+                            </a>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
                         {% if bestellung.Status in ['Erstellt', 'Zur Freigabe'] %}
                         <td>
-                            <button class="btn btn-sm btn-outline-primary" onclick="openEditPositionModal({{ p.ID }}, '{{ p.Bestellnummer|replace("'", "\\'") or '' }}', '{{ p.Bezeichnung|replace("'", "\\'") or '' }}', {{ p.Menge }}, '{{ p.Einheit|replace("'", "\\'") or 'Stück' }}', {{ p.Preis or 0 }}, '{{ p.Waehrung or 'EUR' }}', '{{ p.Bemerkung|replace("'", "\\'") or '' }}')">
+                            <button class="btn btn-sm btn-outline-primary" onclick="openEditPositionModal({{ p.ID }}, '{{ p.Bestellnummer|replace("'", "\\'") or '' }}', '{{ p.Bezeichnung|replace("'", "\\'") or '' }}', {{ p.Menge }}, '{{ p.Einheit|replace("'", "\\'") or 'Stück' }}', {{ p.Preis or 0 }}, '{{ p.Waehrung or 'EUR' }}', '{{ p.Bemerkung|replace("'", "\\'") or '' }}', '{{ p.Link|replace("'", "\\'") or '' }}')">
                                 <i class="bi bi-pencil"></i>
                             </button>
                             <form method="POST" action="{{ url_for('ersatzteile.bestellung_position_loeschen', bestellung_id=bestellung.ID, position_id=p.ID) }}" 
@@ -594,6 +608,10 @@
                         <label class="form-label">Bemerkung:</label>
                         <input type="text" id="edit_bemerkung" name="bemerkung" class="form-control">
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label">Link:</label>
+                        <input type="url" id="edit_link" name="link" class="form-control" placeholder="Optional">
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
@@ -645,6 +663,7 @@ function lookupErsatzteilDetail(button) {
     const bestellnummerDisplay = form.querySelector('.bestellnummer-display');
     const bezeichnungDisplay = form.querySelector('.bezeichnung-display');
     const einheitDisplay = form.querySelector('.einheit-display');
+    const linkDisplay = form.querySelector('.link-display');
     
     const ersatzteilId = ersatzteilInput.value.trim();
     
@@ -689,6 +708,9 @@ function lookupErsatzteilDetail(button) {
                 }
                 if (waehrungSelect && data.waehrung) {
                     waehrungSelect.value = data.waehrung;
+                }
+                if (linkDisplay && data.link) {
+                    linkDisplay.value = data.link;
                 }
                 bestellnummerDisplay.classList.remove('is-invalid');
                 bezeichnungDisplay.classList.remove('is-invalid');
@@ -922,7 +944,7 @@ function selectErsatzteilDetail(id, bestellnummer, bezeichnung, preis, waehrung,
 }
 
 // Position bearbeiten Modal öffnen
-function openEditPositionModal(positionId, bestellnummer, bezeichnung, menge, einheit, preis, waehrung, bemerkung) {
+function openEditPositionModal(positionId, bestellnummer, bezeichnung, menge, einheit, preis, waehrung, bemerkung, link) {
     document.getElementById('edit_position_id').value = positionId;
     document.getElementById('edit_bestellnummer').value = bestellnummer || '';
     document.getElementById('edit_bezeichnung').value = bezeichnung || '';
@@ -934,6 +956,10 @@ function openEditPositionModal(positionId, bestellnummer, bezeichnung, menge, ei
     document.getElementById('edit_preis').value = preis || '';
     document.getElementById('edit_waehrung').value = waehrung || 'EUR';
     document.getElementById('edit_bemerkung').value = bemerkung || '';
+    const linkInput = document.getElementById('edit_link');
+    if (linkInput) {
+        linkInput.value = link || '';
+    }
     
     // Action URL setzen
     const form = document.getElementById('editPositionForm');

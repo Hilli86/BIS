@@ -67,15 +67,15 @@
                     {% endif %}
                 </div>
                 {% if gruppe.children %}
-                <div class="ms-4 mt-2">
+                <div class="mt-2">
                     {% for child in gruppe.children %}
-                    <div class="form-check">
+                    <div class="form-check" style="margin-left: {{ (child.level + 1) * 1.5 }}rem;">
                         <input class="form-check-input" type="checkbox" 
                                name="sichtbare_abteilungen" 
                                value="{{ child.ID }}" 
                                id="abt_{{ child.ID }}">
                         <label class="form-check-label" for="abt_{{ child.ID }}">
-                            ↳ {{ child.Bezeichnung }}
+                            {% for i in range(child.level + 1) %}↳{% endfor %} {{ child.Bezeichnung }}
                         </label>
                     </div>
                     {% endfor %}
@@ -147,6 +147,10 @@ function addPosition() {
                 <label class="form-label">Bemerkung:</label>
                 <input type="text" name="position_bemerkung[]" class="form-control" placeholder="Optional...">
             </div>
+            <div class="col-md-2">
+                <label class="form-label">Link:</label>
+                <input type="url" name="link[]" class="form-control link-display" placeholder="Optional">
+            </div>
             <div class="col-md-1">
                 <label class="form-label">&nbsp;</label>
                 <button type="button" class="btn btn-danger w-100" onclick="removePosition(this)">
@@ -176,6 +180,7 @@ function lookupErsatzteil(button) {
     const bestellnummerDisplay = row.querySelector('.bestellnummer-display');
     const bezeichnungDisplay = row.querySelector('.bezeichnung-display');
     const einheitDisplay = row.querySelector('.einheit-display');
+    const linkDisplay = row.querySelector('.link-display');
     
     const ersatzteilId = ersatzteilInput.value.trim();
     
@@ -210,6 +215,9 @@ function lookupErsatzteil(button) {
                 bezeichnungDisplay.value = data.bezeichnung;
                 if (einheitDisplay && data.einheit) {
                     einheitDisplay.value = data.einheit;
+                }
+                if (linkDisplay && data.link) {
+                    linkDisplay.value = data.link;
                 }
                 // Preis und Währung übernehmen, falls vorhanden
                 const preisInput = row.querySelector('input[name="preis[]"]');
@@ -415,6 +423,7 @@ function selectErsatzteil(id, bestellnummer, bezeichnung, preis, waehrung, event
         const bestellnummerDisplay = targetRow.querySelector('.bestellnummer-display');
         const bezeichnungDisplay = targetRow.querySelector('.bezeichnung-display');
         const einheitDisplay = targetRow.querySelector('.einheit-display');
+        const linkDisplay = targetRow.querySelector('.link-display');
         const preisInput = targetRow.querySelector('input[name="preis[]"]');
         const waehrungSelect = targetRow.querySelector('select[name="waehrung[]"]');
         
@@ -423,6 +432,7 @@ function selectErsatzteil(id, bestellnummer, bezeichnung, preis, waehrung, event
             bestellnummerDisplay: !!bestellnummerDisplay,
             bezeichnungDisplay: !!bezeichnungDisplay,
             einheitDisplay: !!einheitDisplay,
+            linkDisplay: !!linkDisplay,
             preisInput: !!preisInput,
             waehrungSelect: !!waehrungSelect
         });
@@ -437,17 +447,22 @@ function selectErsatzteil(id, bestellnummer, bezeichnung, preis, waehrung, event
             waehrungSelect.value = waehrung;
         }
         
-        // Einheit aus API laden
-        if (einheitDisplay && id) {
+        // Einheit und Link aus API laden
+        if ((einheitDisplay || linkDisplay) && id) {
             fetch(`{{ url_for('ersatzteile.api_ersatzteil_info', ersatzteil_id=0) }}`.replace('/0', `/${id}`))
                 .then(response => response.json())
                 .then(data => {
-                    if (data.success && data.einheit) {
-                        einheitDisplay.value = data.einheit;
+                    if (data.success) {
+                        if (einheitDisplay && data.einheit) {
+                            einheitDisplay.value = data.einheit;
+                        }
+                        if (linkDisplay && data.link) {
+                            linkDisplay.value = data.link;
+                        }
                     }
                 })
                 .catch(error => {
-                    console.error('Fehler beim Laden der Einheit:', error);
+                    console.error('Fehler beim Laden der Einheit/Link:', error);
                 });
         }
         
