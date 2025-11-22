@@ -2513,6 +2513,14 @@ def angebotsanfrage_neu():
                         continue
                 
                 conn.commit()
+                
+                # Benachrichtigungen erstellen
+                try:
+                    from utils.benachrichtigungen import erstelle_benachrichtigung_fuer_angebotsanfrage
+                    erstelle_benachrichtigung_fuer_angebotsanfrage(anfrage_id, 'neue_angebotsanfrage', conn)
+                except Exception as e:
+                    print(f"Fehler beim Erstellen von Benachrichtigungen: {e}")
+                
                 flash('Angebotsanfrage erfolgreich erstellt.', 'success')
                 return redirect(url_for('ersatzteile.angebotsanfrage_detail', angebotsanfrage_id=anfrage_id))
                 
@@ -2648,6 +2656,13 @@ def angebotsanfrage_bearbeiten(angebotsanfrage_id):
                 WHERE ID = ?
             ''', params)
             conn.commit()
+            
+            # Benachrichtigungen erstellen
+            try:
+                from utils.benachrichtigungen import erstelle_benachrichtigung_fuer_angebotsanfrage
+                erstelle_benachrichtigung_fuer_angebotsanfrage(angebotsanfrage_id, 'angebotsanfrage_bearbeitet', conn)
+            except Exception as e:
+                print(f"Fehler beim Erstellen von Benachrichtigungen: {e}")
             
             flash(f'Status erfolgreich auf "{neuer_status}" geändert.', 'success')
             
@@ -3097,6 +3112,13 @@ def angebotsanfrage_preise_eingeben(angebotsanfrage_id):
                 flash('Angebotsanfrage als abgeschlossen markiert.', 'success')
             
             conn.commit()
+            
+            # Benachrichtigungen erstellen
+            try:
+                from utils.benachrichtigungen import erstelle_benachrichtigung_fuer_angebotsanfrage
+                erstelle_benachrichtigung_fuer_angebotsanfrage(angebotsanfrage_id, 'angebotsanfrage_preise_eingegeben', conn)
+            except Exception as e:
+                print(f"Fehler beim Erstellen von Benachrichtigungen: {e}")
             
     except Exception as e:
         flash(f'Fehler beim Speichern: {str(e)}', 'danger')
@@ -4000,6 +4022,14 @@ def bestellung_neu():
                         pass
                 
                 conn.commit()
+                
+                # Benachrichtigungen erstellen
+                try:
+                    from utils.benachrichtigungen import erstelle_benachrichtigung_fuer_bestellung
+                    erstelle_benachrichtigung_fuer_bestellung(bestellung_id, 'neue_bestellung', conn)
+                except Exception as e:
+                    print(f"Fehler beim Erstellen von Benachrichtigungen: {e}")
+                
                 flash('Bestellung erfolgreich erstellt.', 'success')
                 return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
                 
@@ -4131,6 +4161,14 @@ def bestellung_aus_angebot(angebotsanfrage_id):
                 ''', (angebotsanfrage_id,))
                 
                 conn.commit()
+                
+                # Benachrichtigungen erstellen
+                try:
+                    from utils.benachrichtigungen import erstelle_benachrichtigung_fuer_bestellung
+                    erstelle_benachrichtigung_fuer_bestellung(bestellung_id, 'neue_bestellung', conn)
+                except Exception as e:
+                    print(f"Fehler beim Erstellen von Benachrichtigungen: {e}")
+                
                 flash('Bestellung erfolgreich aus Angebot erstellt.', 'success')
                 return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
                 
@@ -4172,6 +4210,14 @@ def bestellung_zur_freigabe(bestellung_id):
         conn.execute('UPDATE Bestellung SET Status = ?, FreigabeBemerkung = ? WHERE ID = ?', 
                     ('Zur Freigabe', freigabe_bemerkung if freigabe_bemerkung else None, bestellung_id))
         conn.commit()
+        
+        # Benachrichtigungen erstellen
+        try:
+            from utils.benachrichtigungen import erstelle_benachrichtigung_fuer_bestellung
+            erstelle_benachrichtigung_fuer_bestellung(bestellung_id, 'bestellung_zur_freigabe', conn)
+        except Exception as e:
+            print(f"Fehler beim Erstellen von Benachrichtigungen: {e}")
+        
         flash('Bestellung wurde zur Freigabe markiert.', 'success')
     
     return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
@@ -4243,6 +4289,14 @@ def bestellung_freigeben(bestellung_id):
             WHERE ID = ?
         ''', ('Freigegeben', mitarbeiter_id, unterschrift, bestellung_id))
         conn.commit()
+        
+        # Benachrichtigungen erstellen
+        try:
+            from utils.benachrichtigungen import erstelle_benachrichtigung_fuer_bestellung
+            erstelle_benachrichtigung_fuer_bestellung(bestellung_id, 'bestellung_freigegeben', conn)
+        except Exception as e:
+            print(f"Fehler beim Erstellen von Benachrichtigungen: {e}")
+        
         flash('Bestellung wurde freigegeben.', 'success')
     
     return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
@@ -4270,6 +4324,14 @@ def bestellung_als_bestellt(bestellung_id):
             WHERE ID = ?
         ''', ('Bestellt', mitarbeiter_id, bestellung_id))
         conn.commit()
+        
+        # Benachrichtigungen erstellen
+        try:
+            from utils.benachrichtigungen import erstelle_benachrichtigung_fuer_bestellung
+            erstelle_benachrichtigung_fuer_bestellung(bestellung_id, 'bestellung_bestellt', conn)
+        except Exception as e:
+            print(f"Fehler beim Erstellen von Benachrichtigungen: {e}")
+        
         flash('Bestellung wurde als bestellt markiert.', 'success')
     
     return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
@@ -5162,6 +5224,14 @@ def wareneingang_bestellung(bestellung_id):
                     conn.execute('UPDATE Bestellung SET Status = ? WHERE ID = ?', ('Teilweise erhalten', bestellung_id))
                 
                 conn.commit()
+                
+                # Benachrichtigungen erstellen
+                try:
+                    from utils.benachrichtigungen import erstelle_benachrichtigung_fuer_wareneingang
+                    erstelle_benachrichtigung_fuer_wareneingang(bestellung_id, conn)
+                except Exception as e:
+                    print(f"Fehler beim Erstellen von Benachrichtigungen: {e}")
+                
                 flash('Wareneingang erfolgreich gebucht.', 'success')
                 return redirect(url_for('ersatzteile.wareneingang'))
                 

@@ -119,6 +119,9 @@ def get_required_tables():
         'SchichtbuchBemerkungen',
         'SchichtbuchThemaSichtbarkeit',
         'Benachrichtigung',
+        'BenachrichtigungEinstellung',
+        'BenachrichtigungKanal',
+        'BenachrichtigungVersand',
         'ErsatzteilKategorie',
         'Kostenstelle',
         'Lieferant',
@@ -388,20 +391,99 @@ def init_database_schema(db_path, verbose=False):
                 Nachricht TEXT NOT NULL,
                 Gelesen INTEGER NOT NULL DEFAULT 0,
                 ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
+                Modul TEXT NULL,
+                Aktion TEXT NULL,
+                AbteilungID INTEGER NULL,
+                Zusatzdaten TEXT NULL,
                 FOREIGN KEY (MitarbeiterID) REFERENCES Mitarbeiter(ID) ON DELETE CASCADE,
                 FOREIGN KEY (ThemaID) REFERENCES SchichtbuchThema(ID) ON DELETE CASCADE,
-                FOREIGN KEY (BemerkungID) REFERENCES SchichtbuchBemerkungen(ID) ON DELETE CASCADE
+                FOREIGN KEY (BemerkungID) REFERENCES SchichtbuchBemerkungen(ID) ON DELETE CASCADE,
+                FOREIGN KEY (AbteilungID) REFERENCES Abteilung(ID)
             )
         ''', [
             'CREATE INDEX idx_benachrichtigung_mitarbeiter ON Benachrichtigung(MitarbeiterID)',
             'CREATE INDEX idx_benachrichtigung_thema ON Benachrichtigung(ThemaID)',
             'CREATE INDEX idx_benachrichtigung_gelesen ON Benachrichtigung(Gelesen)',
-            'CREATE INDEX idx_benachrichtigung_erstellt ON Benachrichtigung(ErstelltAm)'
+            'CREATE INDEX idx_benachrichtigung_erstellt ON Benachrichtigung(ErstelltAm)',
+            'CREATE INDEX idx_benachrichtigung_modul ON Benachrichtigung(Modul)',
+            'CREATE INDEX idx_benachrichtigung_aktion ON Benachrichtigung(Aktion)',
+            'CREATE INDEX idx_benachrichtigung_abteilung ON Benachrichtigung(AbteilungID)'
         ])
         if not created:
             # Prüfe auf fehlende Spalten
             if create_column_if_not_exists(conn, 'Benachrichtigung', 'ErstelltAm', 'ALTER TABLE Benachrichtigung ADD COLUMN ErstelltAm DATETIME'):
                 conn.execute('UPDATE Benachrichtigung SET ErstelltAm = datetime(\'now\') WHERE ErstelltAm IS NULL')
+            # Erweiterte Spalten für neues System
+            create_column_if_not_exists(conn, 'Benachrichtigung', 'Modul', 'ALTER TABLE Benachrichtigung ADD COLUMN Modul TEXT NULL')
+            create_column_if_not_exists(conn, 'Benachrichtigung', 'Aktion', 'ALTER TABLE Benachrichtigung ADD COLUMN Aktion TEXT NULL')
+            create_column_if_not_exists(conn, 'Benachrichtigung', 'AbteilungID', 'ALTER TABLE Benachrichtigung ADD COLUMN AbteilungID INTEGER NULL')
+            create_column_if_not_exists(conn, 'Benachrichtigung', 'Zusatzdaten', 'ALTER TABLE Benachrichtigung ADD COLUMN Zusatzdaten TEXT NULL')
+            # Migration: Setze Modul und Aktion für bestehende Benachrichtigungen
+            conn.execute('''
+                UPDATE Benachrichtigung 
+                SET Modul = 'schichtbuch', 
+                    Aktion = Typ
+                WHERE Modul IS NULL AND Typ IN ('neues_thema', 'neue_bemerkung')
+            ''')
+            # Indexes für neue Spalten
+            create_index_if_not_exists(conn, 'idx_benachrichtigung_modul', 'CREATE INDEX idx_benachrichtigung_modul ON Benachrichtigung(Modul)')
+            create_index_if_not_exists(conn, 'idx_benachrichtigung_aktion', 'CREATE INDEX idx_benachrichtigung_aktion ON Benachrichtigung(Aktion)')
+            create_index_if_not_exists(conn, 'idx_benachrichtigung_abteilung', 'CREATE INDEX idx_benachrichtigung_abteilung ON Benachrichtigung(AbteilungID)')
+        
+        # ========== 11a. BenachrichtigungEinstellung ==========
+        create_table_if_not_exists(conn, 'BenachrichtigungEinstellung', '''
+            CREATE TABLE BenachrichtigungEinstellung (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                MitarbeiterID INTEGER NOT NULL,
+                Modul TEXT NOT NULL,
+                Aktion TEXT NOT NULL,
+                AbteilungID INTEGER NULL,
+                Aktiv INTEGER NOT NULL DEFAULT 1,
+                FOREIGN KEY (MitarbeiterID) REFERENCES Mitarbeiter(ID) ON DELETE CASCADE,
+                FOREIGN KEY (AbteilungID) REFERENCES Abteilung(ID) ON DELETE CASCADE,
+                UNIQUE(MitarbeiterID, Modul, Aktion, AbteilungID)
+            )
+        ''', [
+            'CREATE INDEX idx_benachrichtigung_einstellung_mitarbeiter ON BenachrichtigungEinstellung(MitarbeiterID)',
+            'CREATE INDEX idx_benachrichtigung_einstellung_modul ON BenachrichtigungEinstellung(Modul)',
+            'CREATE INDEX idx_benachrichtigung_einstellung_aktion ON BenachrichtigungEinstellung(Aktion)',
+            'CREATE INDEX idx_benachrichtigung_einstellung_abteilung ON BenachrichtigungEinstellung(AbteilungID)'
+        ])
+        
+        # ========== 11b. BenachrichtigungKanal ==========
+        create_table_if_not_exists(conn, 'BenachrichtigungKanal', '''
+            CREATE TABLE BenachrichtigungKanal (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                MitarbeiterID INTEGER NOT NULL,
+                KanalTyp TEXT NOT NULL,
+                Aktiv INTEGER NOT NULL DEFAULT 1,
+                Konfiguration TEXT NULL,
+                FOREIGN KEY (MitarbeiterID) REFERENCES Mitarbeiter(ID) ON DELETE CASCADE,
+                UNIQUE(MitarbeiterID, KanalTyp)
+            )
+        ''', [
+            'CREATE INDEX idx_benachrichtigung_kanal_mitarbeiter ON BenachrichtigungKanal(MitarbeiterID)',
+            'CREATE INDEX idx_benachrichtigung_kanal_typ ON BenachrichtigungKanal(KanalTyp)',
+            'CREATE INDEX idx_benachrichtigung_kanal_aktiv ON BenachrichtigungKanal(Aktiv)'
+        ])
+        
+        # ========== 11c. BenachrichtigungVersand ==========
+        create_table_if_not_exists(conn, 'BenachrichtigungVersand', '''
+            CREATE TABLE BenachrichtigungVersand (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                BenachrichtigungID INTEGER NOT NULL,
+                KanalTyp TEXT NOT NULL,
+                Status TEXT NOT NULL DEFAULT 'pending',
+                VersandAm DATETIME NULL,
+                Fehlermeldung TEXT NULL,
+                FOREIGN KEY (BenachrichtigungID) REFERENCES Benachrichtigung(ID) ON DELETE CASCADE
+            )
+        ''', [
+            'CREATE INDEX idx_benachrichtigung_versand_benachrichtigung ON BenachrichtigungVersand(BenachrichtigungID)',
+            'CREATE INDEX idx_benachrichtigung_versand_kanal ON BenachrichtigungVersand(KanalTyp)',
+            'CREATE INDEX idx_benachrichtigung_versand_status ON BenachrichtigungVersand(Status)',
+            'CREATE INDEX idx_benachrichtigung_versand_versand_am ON BenachrichtigungVersand(VersandAm)'
+        ])
         
         # ========== 12. ErsatzteilKategorie ==========
         create_table_if_not_exists(conn, 'ErsatzteilKategorie', '''
@@ -817,6 +899,7 @@ def init_database_schema(db_path, verbose=False):
                 Angebotswaehrung TEXT NULL,
                 Bestellnummer TEXT NULL,
                 Bezeichnung TEXT NULL,
+                Link TEXT NULL,
                 FOREIGN KEY (AngebotsanfrageID) REFERENCES Angebotsanfrage(ID) ON DELETE CASCADE,
                 FOREIGN KEY (ErsatzteilID) REFERENCES Ersatzteil(ID)
             )
@@ -830,6 +913,7 @@ def init_database_schema(db_path, verbose=False):
             create_column_if_not_exists(conn, 'AngebotsanfragePosition', 'Bezeichnung', 'ALTER TABLE AngebotsanfragePosition ADD COLUMN Bezeichnung TEXT NULL')
             if create_column_if_not_exists(conn, 'AngebotsanfragePosition', 'Einheit', 'ALTER TABLE AngebotsanfragePosition ADD COLUMN Einheit TEXT NULL'):
                 print("[INFO] Spalte 'Einheit' zu 'AngebotsanfragePosition' hinzugefügt")
+            create_column_if_not_exists(conn, 'AngebotsanfragePosition', 'Link', 'ALTER TABLE AngebotsanfragePosition ADD COLUMN Link TEXT NULL')
         
         # ========== 26. Bestellung ==========
         created = create_table_if_not_exists(conn, 'Bestellung', '''
@@ -888,6 +972,7 @@ def init_database_schema(db_path, verbose=False):
                 Bemerkung TEXT NULL,
                 Preis REAL NULL,
                 Waehrung TEXT NULL,
+                Link TEXT NULL,
                 FOREIGN KEY (BestellungID) REFERENCES Bestellung(ID) ON DELETE CASCADE,
                 FOREIGN KEY (AngebotsanfragePositionID) REFERENCES AngebotsanfragePosition(ID),
                 FOREIGN KEY (ErsatzteilID) REFERENCES Ersatzteil(ID)
@@ -903,6 +988,7 @@ def init_database_schema(db_path, verbose=False):
                 print("[INFO] Spalte 'ErhalteneMenge' zu 'BestellungPosition' hinzugefügt")
             if create_column_if_not_exists(conn, 'BestellungPosition', 'Einheit', 'ALTER TABLE BestellungPosition ADD COLUMN Einheit TEXT NULL'):
                 print("[INFO] Spalte 'Einheit' zu 'BestellungPosition' hinzugefügt")
+            create_column_if_not_exists(conn, 'BestellungPosition', 'Link', 'ALTER TABLE BestellungPosition ADD COLUMN Link TEXT NULL')
         
         # ========== 28. BestellungSichtbarkeit ==========
         created = create_table_if_not_exists(conn, 'BestellungSichtbarkeit', '''

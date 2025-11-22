@@ -27,6 +27,22 @@ class Config:
     
     # SQL-Tracing (nur für Entwicklung)
     SQL_TRACING = os.environ.get('SQL_TRACING', 'False').lower() == 'true'
+    
+    # E-Mail-Konfiguration für Benachrichtigungen
+    MAIL_ENABLED = os.environ.get('MAIL_ENABLED', 'False').lower() == 'true'
+    MAIL_SERVER = os.environ.get('MAIL_SERVER', 'localhost')
+    MAIL_PORT = int(os.environ.get('MAIL_PORT', 587))
+    MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'True').lower() == 'true'
+    MAIL_USE_SSL = os.environ.get('MAIL_USE_SSL', 'False').lower() == 'true'
+    MAIL_USERNAME = os.environ.get('MAIL_USERNAME', None)
+    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD', None)
+    MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@example.com')
+    MAIL_DEFAULT_SENDER_NAME = os.environ.get('MAIL_DEFAULT_SENDER_NAME', 'BIS System')
+    
+    # Push-Benachrichtigungen (VAPID)
+    VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', None)
+    VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY', None)
+    VAPID_EMAIL = os.environ.get('VAPID_EMAIL', 'noreply@example.com')
 
 class DevelopmentConfig(Config):
     """Entwicklungskonfiguration"""

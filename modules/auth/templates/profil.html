@@ -132,6 +132,146 @@
                 </div>
             </div>
             {% endif %}
+
+            <!-- Benachrichtigungseinstellungen -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">🔔 Benachrichtigungseinstellungen</h5>
+                </div>
+                <div class="card-body">
+                    <form id="benachrichtigungenForm">
+                        <!-- Benachrichtigungsarten -->
+                        <div class="mb-4">
+                            <h6 class="mb-3">Benachrichtigungsarten</h6>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input kanal-checkbox" type="checkbox" id="kanal_app" value="app" checked>
+                                <label class="form-check-label" for="kanal_app">
+                                    In der App
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input kanal-checkbox" type="checkbox" id="kanal_mail" value="mail">
+                                <label class="form-check-label" for="kanal_mail">
+                                    E-Mail
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input kanal-checkbox" type="checkbox" id="kanal_push" value="push">
+                                <label class="form-check-label" for="kanal_push">
+                                    Push-Benachrichtigungen
+                                </label>
+                            </div>
+                            <div id="push-status" class="mt-2" style="display: none;">
+                                <small class="text-muted">Push-Benachrichtigungen werden automatisch aktiviert, wenn Sie die Berechtigung erteilen.</small>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Schichtbuch -->
+                        <div class="mb-4">
+                            <h6 class="mb-3">📋 Schichtbuch</h6>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Aktionen:</label>
+                                <div class="form-check">
+                                    <input class="form-check-input einstellung-checkbox" type="checkbox" 
+                                           id="schichtbuch_neues_thema" 
+                                           data-modul="schichtbuch" 
+                                           data-aktion="neues_thema">
+                                    <label class="form-check-label" for="schichtbuch_neues_thema">
+                                        Neues Thema
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input einstellung-checkbox" type="checkbox" 
+                                           id="schichtbuch_neue_bemerkung" 
+                                           data-modul="schichtbuch" 
+                                           data-aktion="neue_bemerkung">
+                                    <label class="form-check-label" for="schichtbuch_neue_bemerkung">
+                                        Neue Bemerkung
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Abteilungen:</label>
+                                <select class="form-select" id="schichtbuch_abteilungen" multiple size="5">
+                                    <option value="">Alle Abteilungen</option>
+                                    {% for abt in alle_abteilungen_fuer_auswahl %}
+                                    <option value="{{ abt.ID }}">{{ abt.Bezeichnung }}</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">Halten Sie Strg/Cmd gedrückt, um mehrere Abteilungen auszuwählen.</small>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Bestellwesen -->
+                        <div class="mb-4">
+                            <h6 class="mb-3">🛒 Bestellwesen</h6>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Aktionen:</label>
+                                <div class="form-check">
+                                    <input class="form-check-input einstellung-checkbox" type="checkbox" 
+                                           id="bestellwesen_neue_angebotsanfrage" 
+                                           data-modul="bestellwesen" 
+                                           data-aktion="neue_angebotsanfrage">
+                                    <label class="form-check-label" for="bestellwesen_neue_angebotsanfrage">
+                                        Neue Angebotsanfrage
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input einstellung-checkbox" type="checkbox" 
+                                           id="bestellwesen_neue_bestellung" 
+                                           data-modul="bestellwesen" 
+                                           data-aktion="neue_bestellung">
+                                    <label class="form-check-label" for="bestellwesen_neue_bestellung">
+                                        Neue Bestellung
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input einstellung-checkbox" type="checkbox" 
+                                           id="bestellwesen_bestellung_zur_freigabe" 
+                                           data-modul="bestellwesen" 
+                                           data-aktion="bestellung_zur_freigabe">
+                                    <label class="form-check-label" for="bestellwesen_bestellung_zur_freigabe">
+                                        Bestellung zur Freigabe
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input einstellung-checkbox" type="checkbox" 
+                                           id="bestellwesen_wareneingang" 
+                                           data-modul="bestellwesen" 
+                                           data-aktion="wareneingang">
+                                    <label class="form-check-label" for="bestellwesen_wareneingang">
+                                        Wareneingang
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Abteilungen:</label>
+                                <select class="form-select" id="bestellwesen_abteilungen" multiple size="5">
+                                    <option value="">Alle Abteilungen</option>
+                                    {% for abt in alle_abteilungen_fuer_auswahl %}
+                                    <option value="{{ abt.ID }}">{{ abt.Bezeichnung }}</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">Halten Sie Strg/Cmd gedrückt, um mehrere Abteilungen auszuwählen.</small>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save"></i> Einstellungen speichern
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
 
         <!-- Seitenleiste: Statistiken & Aktionen -->
@@ -251,6 +391,150 @@
       }
     });
   }
+
+  // Benachrichtigungseinstellungen laden und speichern
+  (function() {
+    const form = document.getElementById('benachrichtigungenForm');
+    if (!form) return;
+
+    // Einstellungen laden
+    fetch('{{ url_for("auth.benachrichtigungen_get") }}')
+      .then(response => response.json())
+      .then(data => {
+        // Kanäle setzen
+        if (data.kanale) {
+          data.kanale.forEach(kanal => {
+            const checkbox = document.getElementById(`kanal_${kanal}`);
+            if (checkbox) checkbox.checked = true;
+          });
+        }
+
+        // Einstellungen setzen
+        if (data.einstellungen) {
+          data.einstellungen.forEach(einstellung => {
+            const checkbox = document.querySelector(
+              `input[data-modul="${einstellung.modul}"][data-aktion="${einstellung.aktion}"]`
+            );
+            if (checkbox) checkbox.checked = einstellung.aktiv;
+
+            // Abteilungen setzen
+            if (einstellung.abteilung_id) {
+              const select = document.getElementById(`${einstellung.modul}_abteilungen`);
+              if (select) {
+                const option = Array.from(select.options).find(opt => opt.value == einstellung.abteilung_id);
+                if (option) option.selected = true;
+              }
+            }
+          });
+        }
+      })
+      .catch(error => {
+        console.error('Fehler beim Laden der Einstellungen:', error);
+      });
+
+    // Formular speichern
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+
+      // Sammle Kanäle
+      const kanale = Array.from(document.querySelectorAll('.kanal-checkbox:checked'))
+        .map(cb => cb.value);
+
+      // Sammle Einstellungen
+      const einstellungen = [];
+      document.querySelectorAll('.einstellung-checkbox').forEach(checkbox => {
+        const modul = checkbox.dataset.modul;
+        const aktion = checkbox.dataset.aktion;
+        const aktiv = checkbox.checked;
+
+        if (aktiv) {
+          // Abteilungen für dieses Modul
+          const select = document.getElementById(`${modul}_abteilungen`);
+          const abteilungen = Array.from(select.selectedOptions).map(opt => opt.value);
+
+          if (abteilungen.length === 0 || abteilungen.includes('')) {
+            // Alle Abteilungen
+            einstellungen.push({ modul, aktion, abteilung_id: null, aktiv: true });
+          } else {
+            // Spezifische Abteilungen
+            abteilungen.forEach(abt_id => {
+              if (abt_id) {
+                einstellungen.push({ modul, aktion, abteilung_id: parseInt(abt_id), aktiv: true });
+              }
+            });
+          }
+        }
+      });
+
+      // Sende Daten
+      fetch('{{ url_for("auth.benachrichtigungen_save") }}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          kanale: kanale,
+          einstellungen: einstellungen
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          alert('Einstellungen erfolgreich gespeichert!');
+        } else {
+          alert('Fehler beim Speichern: ' + (data.message || 'Unbekannter Fehler'));
+        }
+      })
+      .catch(error => {
+        console.error('Fehler beim Speichern:', error);
+        alert('Fehler beim Speichern der Einstellungen.');
+      });
+    });
+
+    // Push-Benachrichtigungen aktivieren
+    const pushCheckbox = document.getElementById('kanal_push');
+    if (pushCheckbox) {
+      pushCheckbox.addEventListener('change', function() {
+        if (this.checked && 'serviceWorker' in navigator && 'PushManager' in window) {
+          // Frage nach Berechtigung
+          Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+              // Service Worker registrieren und Subscription erstellen
+              navigator.serviceWorker.register('/static/service-worker.js')
+                .then(registration => {
+                  return registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: '{{ vapid_public_key|default("") }}'
+                  });
+                })
+                .then(subscription => {
+                  // Subscription speichern
+                  fetch('{{ url_for("auth.push_subscription_save") }}', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(subscription.toJSON())
+                  })
+                  .then(response => response.json())
+                  .then(data => {
+                    if (data.success) {
+                      document.getElementById('push-status').style.display = 'block';
+                    }
+                  });
+                })
+                .catch(error => {
+                  console.error('Fehler bei Push-Subscription:', error);
+                  this.checked = false;
+                });
+            } else {
+              this.checked = false;
+            }
+          });
+        }
+      });
+    }
+  })();
 </script>
 {% endblock %}
 

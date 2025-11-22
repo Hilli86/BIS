@@ -179,6 +179,39 @@ def dashboard():
     return render_template('dashboard/dashboard.html')
 
 
+@app.route('/api/benachrichtigungen')
+def api_benachrichtigungen():
+    """API-Endpoint für Benachrichtigungen"""
+    from utils.decorators import login_required
+    from utils import get_db_connection
+    
+    if 'user_id' not in session:
+        return jsonify({'error': 'Nicht angemeldet'}), 401
+    
+    user_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        # Ungelesene Benachrichtigungen
+        benachrichtigungen = conn.execute('''
+            SELECT ID, Titel, Nachricht, Gelesen, ErstelltAm, Modul, Aktion
+            FROM Benachrichtigung
+            WHERE MitarbeiterID = ?
+            ORDER BY ErstelltAm DESC
+            LIMIT 20
+        ''', (user_id,)).fetchall()
+        
+        ungelesen_count = conn.execute('''
+            SELECT COUNT(*) as count
+            FROM Benachrichtigung
+            WHERE MitarbeiterID = ? AND Gelesen = 0
+        ''', (user_id,)).fetchone()['count']
+    
+    return jsonify({
+        'benachrichtigungen': [dict(b) for b in benachrichtigungen],
+        'ungelesen_count': ungelesen_count
+    })
+
+
 @app.route('/api/dashboard')
 def api_dashboard():
     """API-Endpunkt für Dashboard-Daten"""

@@ -2,7 +2,7 @@
 Auth Routes - Login, Logout
 """
 
-from flask import render_template, request, redirect, url_for, session, flash, make_response
+from flask import render_template, request, redirect, url_for, session, flash, make_response, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import datetime, timedelta
 from . import auth_bp
@@ -254,14 +254,22 @@ def profil():
             WHERE m.ID = ?
         ''', (user_id,)).fetchone()
         
-        # Alle Abteilungen des Benutzers laden
+        # Alle Abteilungen des Benutzers laden (mit IDs)
         alle_abteilungen = conn.execute('''
-            SELECT a.Bezeichnung, a.ParentAbteilungID
+            SELECT a.ID, a.Bezeichnung, a.ParentAbteilungID
             FROM MitarbeiterAbteilung ma
             JOIN Abteilung a ON ma.AbteilungID = a.ID
             WHERE ma.MitarbeiterID = ? AND a.Aktiv = 1
             ORDER BY a.Sortierung, a.Bezeichnung
         ''', (user_id,)).fetchall()
+        
+        # Alle aktiven Abteilungen für Auswahl (nicht nur zugeordnete)
+        alle_abteilungen_fuer_auswahl = conn.execute('''
+            SELECT ID, Bezeichnung, ParentAbteilungID
+            FROM Abteilung
+            WHERE Aktiv = 1
+            ORDER BY Sortierung, Bezeichnung
+        ''').fetchall()
         
         # Statistiken für den Benutzer
         thema_anzahl = conn.execute('''
@@ -276,11 +284,136 @@ def profil():
             WHERE MitarbeiterID = ? AND Gelöscht = 0
         ''', (user_id,)).fetchone()['count']
     
+    from flask import current_app
+    
     return render_template(
         'profil.html',
         user=user,
         alle_abteilungen=alle_abteilungen,
+        alle_abteilungen_fuer_auswahl=alle_abteilungen_fuer_auswahl,
         thema_anzahl=thema_anzahl,
-        bemerkung_anzahl=bemerkung_anzahl
+        bemerkung_anzahl=bemerkung_anzahl,
+        vapid_public_key=current_app.config.get('VAPID_PUBLIC_KEY', '')
     )
+
+
+@auth_bp.route('/profil/benachrichtigungen', methods=['GET'])
+@login_required
+def benachrichtigungen_get():
+    """Lädt die Benachrichtigungseinstellungen des aktuellen Benutzers"""
+    user_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        # Aktive Kanäle
+        kanale = conn.execute('''
+            SELECT KanalTyp FROM BenachrichtigungKanal
+            WHERE MitarbeiterID = ? AND Aktiv = 1
+        ''', (user_id,)).fetchall()
+        kanale_list = [k['KanalTyp'] for k in kanale] if kanale else ['app']
+        
+        # Einstellungen
+        einstellungen = conn.execute('''
+            SELECT Modul, Aktion, AbteilungID, Aktiv
+            FROM BenachrichtigungEinstellung
+            WHERE MitarbeiterID = ?
+        ''', (user_id,)).fetchall()
+        
+        einstellungen_list = [
+            {
+                'modul': e['Modul'],
+                'aktion': e['Aktion'],
+                'abteilung_id': e['AbteilungID'],
+                'aktiv': bool(e['Aktiv'])
+            }
+            for e in einstellungen
+        ]
+    
+    return jsonify({
+        'kanale': kanale_list,
+        'einstellungen': einstellungen_list
+    })
+
+
+@auth_bp.route('/profil/benachrichtigungen', methods=['POST'])
+@login_required
+def benachrichtigungen_save():
+    """Speichert die Benachrichtigungseinstellungen des aktuellen Benutzers"""
+    user_id = session.get('user_id')
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'success': False, 'message': 'Keine Daten erhalten'}), 400
+    
+    try:
+        with get_db_connection() as conn:
+            # Kanäle speichern
+            kanale = data.get('kanale', ['app'])
+            
+            # Alle Kanäle deaktivieren
+            conn.execute('''
+                UPDATE BenachrichtigungKanal
+                SET Aktiv = 0
+                WHERE MitarbeiterID = ?
+            ''', (user_id,))
+            
+            # Aktive Kanäle aktivieren
+            for kanal_typ in kanale:
+                conn.execute('''
+                    INSERT OR REPLACE INTO BenachrichtigungKanal (
+                        MitarbeiterID, KanalTyp, Aktiv
+                    )
+                    VALUES (?, ?, 1)
+                ''', (user_id, kanal_typ))
+            
+            # Einstellungen löschen
+            conn.execute('''
+                DELETE FROM BenachrichtigungEinstellung
+                WHERE MitarbeiterID = ?
+            ''', (user_id,))
+            
+            # Neue Einstellungen speichern
+            einstellungen = data.get('einstellungen', [])
+            for einstellung in einstellungen:
+                conn.execute('''
+                    INSERT INTO BenachrichtigungEinstellung (
+                        MitarbeiterID, Modul, Aktion, AbteilungID, Aktiv
+                    )
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (
+                    user_id,
+                    einstellung['modul'],
+                    einstellung['aktion'],
+                    einstellung.get('abteilung_id'),
+                    1
+                ))
+            
+            conn.commit()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@auth_bp.route('/profil/push-subscription', methods=['POST'])
+@login_required
+def push_subscription_save():
+    """Speichert eine Web Push Subscription für den aktuellen Benutzer"""
+    user_id = session.get('user_id')
+    subscription = request.get_json()
+    
+    if not subscription:
+        return jsonify({'success': False, 'message': 'Keine Subscription-Daten erhalten'}), 400
+    
+    try:
+        from utils.benachrichtigungen_push import speichere_push_subscription
+        
+        with get_db_connection() as conn:
+            if speichere_push_subscription(user_id, subscription, conn):
+                return jsonify({'success': True})
+            else:
+                return jsonify({'success': False, 'message': 'Fehler beim Speichern'}), 500
+                
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
