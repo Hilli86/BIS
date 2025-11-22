@@ -146,29 +146,23 @@ def get_auswaehlbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn):
 def get_auswaehlbare_abteilungen_fuer_neues_thema(mitarbeiter_id, conn):
     """
     Ermittelt alle Abteilungen für die Auswahl beim Erstellen eines neuen Themas:
-    - Seine eigenen Abteilungen (primär + zusätzlich)
-    - ALLE untergeordneten Abteilungen (rekursiv)
+    - ALLE Top-Level-Abteilungen (ParentAbteilungID IS NULL)
+    - ALLE untergeordneten Abteilungen (rekursiv) für jede Top-Level-Abteilung
     
     Rückgabe: Dictionary mit Gruppierung nach Parent-Abteilung
     """
-    mitarbeiter_abteilungen_ids = get_mitarbeiter_abteilungen(mitarbeiter_id, conn)
-    
-    # Abteilungs-Details laden
-    if not mitarbeiter_abteilungen_ids:
-        return []
-    
-    placeholders = ','.join(['?'] * len(mitarbeiter_abteilungen_ids))
-    eigene_abteilungen = conn.execute(f'''
+    # Alle Top-Level-Abteilungen laden (keine Parent-Abteilung)
+    top_level_abteilungen = conn.execute('''
         SELECT ID, Bezeichnung, ParentAbteilungID
         FROM Abteilung
-        WHERE ID IN ({placeholders}) AND Aktiv = 1
+        WHERE ParentAbteilungID IS NULL AND Aktiv = 1
         ORDER BY Sortierung, Bezeichnung
-    ''', mitarbeiter_abteilungen_ids).fetchall()
+    ''').fetchall()
     
     # Gruppierte Struktur erstellen mit ALLEN Unterabteilungen
     result = []
     
-    for abt in eigene_abteilungen:
+    for abt in top_level_abteilungen:
         gruppe = {
             'parent': abt,
             'children': get_alle_unterabteilungen_rekursiv(abt['ID'], conn)
