@@ -621,6 +621,35 @@ def ersatzteil_detail(ersatzteil_id):
             ORDER BY ErstelltAm DESC
         ''', (ersatzteil_id,)).fetchall()
         
+        # Dateien aus dem Dateisystem scannen, falls Dateien vorhanden sind, aber nicht in DB
+        dokumente_list = list(dokumente)  # In Liste konvertieren
+        dokumente_db_pfade = {d['Dateipfad'].replace('\\', '/') for d in dokumente_list}
+        
+        # Dateisystem-Ordner prüfen
+        dokumente_ordner = os.path.join(current_app.config['ERSATZTEIL_UPLOAD_FOLDER'], str(ersatzteil_id), 'dokumente')
+        if os.path.exists(dokumente_ordner):
+            for filename in os.listdir(dokumente_ordner):
+                file_path = os.path.join(dokumente_ordner, filename)
+                if os.path.isfile(file_path):
+                    relative_path = f'Ersatzteile/{ersatzteil_id}/dokumente/{filename}'
+                    if relative_path not in dokumente_db_pfade:
+                        # Datei ist im Dateisystem, aber nicht in DB - hinzufügen
+                        # Versuche Timestamp aus Dateiname zu entfernen (Format: YYYYMMDD_HHMMSS_originalname)
+                        display_name = filename
+                        if '_' in filename and len(filename.split('_')) >= 3:
+                            # Versuche Timestamp-Präfix zu entfernen
+                            parts = filename.split('_', 2)
+                            if len(parts[0]) == 8 and len(parts[1]) == 6:  # YYYYMMDD_HHMMSS
+                                display_name = parts[2]
+                        dokumente_list.append({
+                            'ID': None,
+                            'Dateiname': display_name,
+                            'Dateipfad': relative_path,
+                            'Typ': None
+                        })
+        
+        dokumente = dokumente_list
+        
         # Lagerbuchungen laden
         lagerbuchungen = conn.execute('''
             SELECT 
@@ -3804,6 +3833,10 @@ def bestellung_detail(bestellung_id):
         is_admin = 'admin' in session.get('user_berechtigungen', [])
         kann_freigeben = is_admin or 'bestellungen_freigeben' in session.get('user_berechtigungen', [])
         kann_buchen = is_admin or 'artikel_buchen' in session.get('user_berechtigungen', [])
+        
+        # Prüfen, ob Benutzer der Ersteller ist
+        ist_ersteller = bestellung['ErstelltVonID'] == mitarbeiter_id if bestellung['ErstelltVonID'] else False
+        kann_freigabebemerkung_bearbeiten = ist_ersteller and bestellung['Status'] in ['Erstellt', 'Zur Freigabe']
     
     return render_template(
         'bestellung_detail.html',
@@ -3815,7 +3848,8 @@ def bestellung_detail(bestellung_id):
         kann_freigeben=kann_freigeben,
         kann_buchen=kann_buchen,
         gesamtbetrag=gesamtbetrag,
-        waehrung=waehrung
+        waehrung=waehrung,
+        kann_freigabebemerkung_bearbeiten=kann_freigabebemerkung_bearbeiten
     )
 
 
@@ -4105,6 +4139,42 @@ def bestellung_zur_freigabe(bestellung_id):
         flash('Bestellung wurde zur Freigabe markiert.', 'success')
     
     return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/freigabebemerkung/bearbeiten', methods=['POST'])
+@login_required
+def bestellung_freigabebemerkung_bearbeiten(bestellung_id):
+    """Freigabebemerkung einer Bestellung bearbeiten (nur für Ersteller, solange nicht freigegeben)"""
+    mitarbeiter_id = session.get('user_id')
+    freigabe_bemerkung = request.form.get('freigabe_bemerkung', '').strip()
+    
+    with get_db_connection() as conn:
+        # Bestellung laden
+        bestellung = conn.execute('''
+            SELECT Status, ErstelltVonID FROM Bestellung 
+            WHERE ID = ? AND Gelöscht = 0
+        ''', (bestellung_id,)).fetchone()
+        
+        if not bestellung:
+            flash('Bestellung nicht gefunden.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_liste'))
+        
+        # Prüfen, ob Benutzer der Ersteller ist
+        if bestellung['ErstelltVonID'] != mitarbeiter_id:
+            flash('Nur der Ersteller kann die Freigabebemerkung bearbeiten.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+        
+        # Prüfen, ob Status "Erstellt" oder "Zur Freigabe" ist
+        if bestellung['Status'] not in ['Erstellt', 'Zur Freigabe']:
+            flash('Freigabebemerkung kann nur bearbeitet werden, solange die Bestellung nicht freigegeben wurde.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+        
+        # Freigabebemerkung aktualisieren
+        conn.execute('UPDATE Bestellung SET FreigabeBemerkung = ? WHERE ID = ?', 
+                    (freigabe_bemerkung if freigabe_bemerkung else None, bestellung_id))
+        conn.commit()
+        flash('Freigabebemerkung wurde gespeichert.', 'success')
+        return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
 
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/freigeben', methods=['POST'])

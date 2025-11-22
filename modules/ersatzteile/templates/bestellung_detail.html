@@ -105,12 +105,6 @@
                             <td class="text-muted"><strong>Freigegeben von:</strong></td>
                             <td>{{ bestellung.FreigegebenVon or '-' }}</td>
                         </tr>
-                        {% if bestellung.FreigabeBemerkung %}
-                        <tr>
-                            <td class="text-muted"><strong>Freigabebemerkung:</strong></td>
-                            <td>{{ bestellung.FreigabeBemerkung }}</td>
-                        </tr>
-                        {% endif %}
                         {% endif %}
                         {% if bestellung.BestelltAm %}
                         <tr>
@@ -157,7 +151,9 @@
                 <div class="row g-3">
                     <div class="col-md-12">
                         <label for="freigabe_bemerkung" class="form-label">Freigabebemerkung:</label>
-                        <input type="text" name="freigabe_bemerkung" id="freigabe_bemerkung" class="form-control" placeholder="Optional: Bemerkung zur Freigabe...">
+                        <input type="text" name="freigabe_bemerkung" id="freigabe_bemerkung" class="form-control" 
+                               value="{{ bestellung.FreigabeBemerkung or '' }}" 
+                               placeholder="Optional: Bemerkung zur Freigabe...">
                     </div>
                     <div class="col-md-12">
                         <button type="submit" class="btn btn-warning">
@@ -170,7 +166,18 @@
             
             {% if bestellung.Status == 'Zur Freigabe' and kann_freigeben %}
             <div class="w-100">
-                {% if bestellung.FreigabeBemerkung %}
+                {% if kann_freigabebemerkung_bearbeiten %}
+                <!-- Freigabebemerkung anzeigen und bearbeitbar machen (nur für Ersteller) -->
+                <div class="mb-3 p-3 bg-light border rounded">
+                    <strong>Freigabebemerkung:</strong>
+                    <p class="mb-0 mt-1">
+                        <a href="#" class="text-decoration-none text-primary" onclick="openFreigabebemerkungModal({{ bestellung.ID }}, '{{ (bestellung.FreigabeBemerkung or "")|replace("'", "\\'")|replace('"', '&quot;') }}'); return false;" title="Klicken zum Bearbeiten">
+                            <i class="bi bi-pencil"></i> {{ bestellung.FreigabeBemerkung or '(leer - klicken zum Bearbeiten)' }}
+                        </a>
+                    </p>
+                </div>
+                {% elif bestellung.FreigabeBemerkung %}
+                <!-- Freigabebemerkung nur anzeigen (für andere Benutzer) -->
                 <div class="mb-3 p-3 bg-light border rounded">
                     <strong>Freigabebemerkung:</strong>
                     <p class="mb-0 mt-1">{{ bestellung.FreigabeBemerkung }}</p>
@@ -1587,5 +1594,63 @@ async function exportBestellungPDF(bestellungId) {
         </div>
     </div>
 </div>
+
+<!-- Modal für Freigabebemerkung bearbeiten -->
+<div class="modal fade" id="freigabebemerkungModal" tabindex="-1" aria-labelledby="freigabebemerkungModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="freigabebemerkungModalLabel">
+                    <i class="bi bi-pencil"></i> Freigabebemerkung bearbeiten
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="freigabebemerkungForm" method="POST" action="">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="freigabebemerkung_text" class="form-label">Freigabebemerkung:</label>
+                        <input type="text" name="freigabe_bemerkung" id="freigabebemerkung_text" class="form-control" 
+                               placeholder="Optional: Bemerkung zur Freigabe...">
+                        <small class="form-text text-muted">Diese Bemerkung wird bei der Freigabe angezeigt.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Speichern
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Funktion zum Öffnen des Freigabebemerkung-Modals
+function openFreigabebemerkungModal(bestellungId, aktuellerText) {
+    const modal = new bootstrap.Modal(document.getElementById('freigabebemerkungModal'));
+    const form = document.getElementById('freigabebemerkungForm');
+    const input = document.getElementById('freigabebemerkung_text');
+    
+    // Aktuellen Text setzen (entschlüsseln von HTML-Entities)
+    const textField = document.createElement('textarea');
+    textField.innerHTML = aktuellerText || '';
+    const decodedText = textField.value;
+    
+    input.value = decodedText;
+    
+    // Form-Action setzen
+    form.action = `{{ url_for('ersatzteile.bestellung_freigabebemerkung_bearbeiten', bestellung_id=0) }}`.replace('/0', `/${bestellungId}`);
+    
+    // Modal öffnen
+    modal.show();
+    
+    // Fokus auf Eingabefeld setzen
+    setTimeout(() => {
+        input.focus();
+        input.select();
+    }, 500);
+}
+</script>
 {% endblock %}
 

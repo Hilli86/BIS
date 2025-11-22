@@ -75,9 +75,11 @@
                             <td class="text-muted"><strong>Link:</strong></td>
                             <td>
                                 {% if ersatzteil.Link %}
-                                <a href="{{ ersatzteil.Link }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none">
-                                    <i class="bi bi-box-arrow-up-right"></i> {{ ersatzteil.Link }}
-                                </a>
+                                <div class="text-truncate" style="max-width: 400px;" title="{{ ersatzteil.Link }}">
+                                    <a href="{{ ersatzteil.Link }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none">
+                                        <i class="bi bi-box-arrow-up-right"></i> <span class="text-truncate d-inline-block" style="max-width: 350px;">{{ ersatzteil.Link }}</span>
+                                    </a>
+                                </div>
                                 {% else %}
                                 -
                                 {% endif %}
