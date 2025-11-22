@@ -1366,8 +1366,8 @@ def thema_verknuepfen(thema_id):
                 INSERT INTO Lagerbuchung (
                     ErsatzteilID, Typ, Menge, Grund, ThemaID, KostenstelleID,
                     VerwendetVonID, Bemerkung, Preis, Waehrung, Buchungsdatum
-                ) VALUES (?, 'Ausgang', ?, 'Thema', ?, ?, ?, ?, ?, ?, datetime('now'))
-            ''', (ersatzteil_id, menge, thema_id, kostenstelle_id, mitarbeiter_id, bemerkung, artikel_preis, artikel_waehrung))
+                ) VALUES (?, 'Ausgang', ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            ''', (ersatzteil_id, menge, f'Verwendung für Thema {thema_id}', thema_id, kostenstelle_id, mitarbeiter_id, bemerkung, artikel_preis, artikel_waehrung))
             
             # Bestand aktualisieren
             conn.execute('UPDATE Ersatzteil SET AktuellerBestand = ? WHERE ID = ?', (neuer_bestand, ersatzteil_id))
@@ -4306,6 +4306,7 @@ def bestellung_position_hinzufuegen(bestellung_id):
 def bestellung_position_bearbeiten(bestellung_id, position_id):
     """Position einer Bestellung bearbeiten"""
     menge = request.form.get('menge', type=int)
+    einheit = request.form.get('einheit', '').strip() or None
     bestellnummer = request.form.get('bestellnummer', '').strip() or None
     bezeichnung = request.form.get('bezeichnung', '').strip() or None
     preis_str = request.form.get('preis', '').strip()
@@ -4325,17 +4326,20 @@ def bestellung_position_bearbeiten(bestellung_id, position_id):
                 flash('Positionen können nur bei Bestellungen im Status "Erstellt" oder "Zur Freigabe" bearbeitet werden.', 'danger')
                 return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
             
-            # Einheit aus Formular oder Ersatzteil laden, falls nicht vorhanden
-            if not einheit:
-                if ersatzteil_id:
-                    ersatzteil = conn.execute('SELECT Einheit FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
-                    if ersatzteil:
-                        einheit = ersatzteil['Einheit'] if ersatzteil['Einheit'] else 'Stück'
-            
+            # Einheit aus Formular oder bestehender Position übernehmen
             if not einheit:
                 # Einheit aus bestehender Position übernehmen oder Standard
-                alte_position = conn.execute('SELECT Einheit FROM BestellungPosition WHERE ID = ?', (position_id,)).fetchone()
-                einheit = alte_position['Einheit'] if alte_position and alte_position['Einheit'] else 'Stück'
+                alte_position = conn.execute('SELECT Einheit, ErsatzteilID FROM BestellungPosition WHERE ID = ?', (position_id,)).fetchone()
+                if alte_position:
+                    einheit = alte_position['Einheit'] if alte_position['Einheit'] else None
+                    # Falls keine Einheit vorhanden, versuchen von Ersatzteil zu laden
+                    if not einheit and alte_position['ErsatzteilID']:
+                        ersatzteil = conn.execute('SELECT Einheit FROM Ersatzteil WHERE ID = ?', (alte_position['ErsatzteilID'],)).fetchone()
+                        if ersatzteil and ersatzteil['Einheit']:
+                            einheit = ersatzteil['Einheit']
+            
+            if not einheit:
+                einheit = 'Stück'
             
             # Position aktualisieren
             conn.execute('''

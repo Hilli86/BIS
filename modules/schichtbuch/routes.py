@@ -453,6 +453,7 @@ def themaneu():
             # Ersatzteile verarbeiten und Lagerbuchungen erstellen
             ersatzteil_ids = request.form.getlist('ersatzteil_id[]')
             ersatzteil_mengen = request.form.getlist('ersatzteil_menge[]')
+            ersatzteil_bemerkungen = request.form.getlist('ersatzteil_bemerkung[]')
             
             if ersatzteil_ids:
                 from utils import get_sichtbare_abteilungen_fuer_mitarbeiter
@@ -466,6 +467,7 @@ def themaneu():
                     try:
                         ersatzteil_id = int(ersatzteil_id_str)
                         menge = int(ersatzteil_mengen[i]) if i < len(ersatzteil_mengen) and ersatzteil_mengen[i] else 1
+                        bemerkung = ersatzteil_bemerkungen[i].strip() if i < len(ersatzteil_bemerkungen) and ersatzteil_bemerkungen[i] else None
                         
                         if menge <= 0:
                             continue
@@ -509,7 +511,7 @@ def themaneu():
                         artikel_preis = ersatzteil['Preis']
                         artikel_waehrung = ersatzteil['Waehrung'] or 'EUR'
                         
-                        # Lagerbuchung erstellen (Ausgang)
+                        # Lagerbuchung erstellen (Ausgang) - Grund bleibt automatisch, Bemerkung aus Formular
                         conn.execute('''
                             INSERT INTO Lagerbuchung (
                                 ErsatzteilID, Typ, Menge, Grund, ThemaID,
@@ -521,7 +523,7 @@ def themaneu():
                             f'Verwendung für Thema {thema_id}',
                             thema_id,
                             mitarbeiter_id,
-                            f'Automatische Buchung beim Erstellen des Themas {thema_id}',
+                            bemerkung if bemerkung else None,
                             artikel_preis,
                             artikel_waehrung
                         ))
