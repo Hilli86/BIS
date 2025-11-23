@@ -111,7 +111,7 @@ def init_database():
     
     try:
         step = 1
-        total_steps = 21
+        total_steps = 22
         
         # ========== 1. Mitarbeiter ==========
         print(f"[{step}/{total_steps}] Prüfe Tabelle: Mitarbeiter...")
@@ -638,6 +638,67 @@ def init_database():
             print("[INFO] Entferne veraltete Tabelle: ErsatzteilThemaVerknuepfung...")
             conn.execute('DROP TABLE IF EXISTS ErsatzteilThemaVerknuepfung')
             print("  [OK] Tabelle ErsatzteilThemaVerknuepfung entfernt")
+        
+        step += 1
+        
+        # ========== 22. Datei (einheitliche Dateiverwaltung) ==========
+        print(f"[{step}/{total_steps}] Prüfe Tabelle: Datei...")
+        created = create_table_if_not_exists(conn, 'Datei', '''
+            CREATE TABLE Datei (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                BereichTyp TEXT NOT NULL,
+                BereichID INTEGER NOT NULL,
+                Dateiname TEXT NOT NULL,
+                Dateipfad TEXT NOT NULL,
+                Beschreibung TEXT,
+                Typ TEXT,
+                ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
+                ErstelltVonID INTEGER,
+                FOREIGN KEY (ErstelltVonID) REFERENCES Mitarbeiter(ID)
+            )
+        ''', [
+            'CREATE INDEX idx_datei_bereich ON Datei(BereichTyp, BereichID)',
+            'CREATE INDEX idx_datei_typ ON Datei(Typ)',
+            'CREATE INDEX idx_datei_erstellt_von ON Datei(ErstelltVonID)'
+        ])
+        if created:
+            print("  [OK] Tabelle Datei erstellt")
+        else:
+            print("  [SKIP] Tabelle Datei existiert bereits")
+        
+        # Migration: Beschreibung zu ErsatzteilBild hinzufügen
+        print("[INFO] Prüfe Migration: Beschreibung zu ErsatzteilBild...")
+        create_column_if_not_exists(conn, 'ErsatzteilBild', 'Beschreibung', 'ALTER TABLE ErsatzteilBild ADD COLUMN Beschreibung TEXT')
+        
+        # Migration: Beschreibung zu ErsatzteilDokument hinzufügen
+        print("[INFO] Prüfe Migration: Beschreibung zu ErsatzteilDokument...")
+        create_column_if_not_exists(conn, 'ErsatzteilDokument', 'Beschreibung', 'ALTER TABLE ErsatzteilDokument ADD COLUMN Beschreibung TEXT')
+        
+        # Migration: Daten von ErsatzteilBild nach Datei migrieren (nur wenn Datei-Tabelle neu erstellt wurde)
+        if created:
+            print("[INFO] Migriere Daten von ErsatzteilBild nach Datei...")
+            try:
+                conn.execute('''
+                    INSERT INTO Datei (BereichTyp, BereichID, Dateiname, Dateipfad, Beschreibung, Typ, ErstelltAm)
+                    SELECT 'Ersatzteil', ErsatzteilID, Dateiname, Dateipfad, COALESCE(Beschreibung, ''), 'Bild', ErstelltAm
+                    FROM ErsatzteilBild
+                ''')
+                print("  [OK] Daten von ErsatzteilBild migriert")
+            except Exception as e:
+                print(f"  [WARNUNG] Fehler bei Migration von ErsatzteilBild: {e}")
+        
+        # Migration: Daten von ErsatzteilDokument nach Datei migrieren (nur wenn Datei-Tabelle neu erstellt wurde)
+        if created:
+            print("[INFO] Migriere Daten von ErsatzteilDokument nach Datei...")
+            try:
+                conn.execute('''
+                    INSERT INTO Datei (BereichTyp, BereichID, Dateiname, Dateipfad, Beschreibung, Typ, ErstelltAm)
+                    SELECT 'Ersatzteil', ErsatzteilID, Dateiname, Dateipfad, COALESCE(Beschreibung, ''), COALESCE(Typ, 'Dokument'), ErstelltAm
+                    FROM ErsatzteilDokument
+                ''')
+                print("  [OK] Daten von ErsatzteilDokument migriert")
+            except Exception as e:
+                print(f"  [WARNUNG] Fehler bei Migration von ErsatzteilDokument: {e}")
         
         # Änderungen speichern
         conn.commit()

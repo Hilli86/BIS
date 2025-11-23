@@ -235,7 +235,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   // Dashboard-Daten per AJAX laden
-  fetch('{{ url_for("api_dashboard") }}')
+    fetch('{{ url_for("dashboard.api_dashboard") }}')
     .then(response => {
       if (!response.ok) {
         throw new Error(`HTTP-Fehler! Status: ${response.status}`);
@@ -553,7 +553,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const container = document.getElementById('benachrichtigungenContainer');
     if (!container) return;
 
-    fetch('/api/benachrichtigungen')
+    fetch('{{ url_for("dashboard.api_benachrichtigungen") }}')
       .then(response => response.json())
       .then(data => {
         if (!data.benachrichtigungen || data.benachrichtigungen.length === 0) {

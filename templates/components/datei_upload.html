@@ -1,0 +1,103 @@
+{#
+    Macro: datei_upload
+    Zeigt ein Upload-Formular mit Tabs für Hochladen und Import
+    
+    Parameter:
+    - bereich_typ: 'Ersatzteil', 'Bestellung', 'Thema', etc.
+    - bereich_id: ID des Bereichs
+    - erlaubte_dateitypen: Liste erlaubter Dateitypen
+    - upload_route: Route-Name für Upload (z.B. 'ersatzteile.bild_upload')
+    - import_route: Route-Name für Import (optional, z.B. 'ersatzteile.bild_import')
+    - accept_attr: Accept-Attribut für File-Input (z.B. 'image/*' oder '.pdf,.doc,.docx')
+    - upload_tab_id: Eindeutige ID für Upload-Tab (z.B. 'bild-upload-tab')
+    - import_tab_id: Eindeutige ID für Import-Tab (z.B. 'bild-import-tab')
+    - import_function: JavaScript-Funktion für Import (z.B. 'ladeImportDateienErsatzteil("bild")')
+#}
+
+{% macro datei_upload(bereich_typ, bereich_id, erlaubte_dateitypen, upload_route, import_route=None, accept_attr='', upload_tab_id='upload-tab', import_tab_id='import-tab', import_function='') %}
+    <!-- Tab-Auswahl -->
+    <ul class="nav nav-tabs mb-3" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="{{ upload_tab_id }}" data-bs-toggle="tab" data-bs-target="#{{ upload_tab_id }}-pane" type="button">
+                <i class="bi bi-cloud-upload"></i> Hochladen
+            </button>
+        </li>
+        {% if import_route or import_function %}
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="{{ import_tab_id }}" data-bs-toggle="tab" data-bs-target="#{{ import_tab_id }}-pane" type="button" {% if import_function %}onclick="{{ import_function }}"{% endif %}>
+                <i class="bi bi-folder"></i> Aus Import-Ordner
+            </button>
+        </li>
+        {% endif %}
+    </ul>
+    
+    <div class="tab-content">
+        <!-- Upload-Tab -->
+        <div class="tab-pane fade show active" id="{{ upload_tab_id }}-pane" role="tabpanel">
+            {% if bereich_typ == 'Ersatzteil' %}
+                {% set route_param = {'ersatzteil_id': bereich_id} %}
+            {% elif bereich_typ == 'Bestellung' %}
+                {% set route_param = {'bestellung_id': bereich_id} %}
+            {% elif bereich_typ == 'Thema' %}
+                {% set route_param = {'thema_id': bereich_id} %}
+            {% elif bereich_typ == 'Angebotsanfrage' %}
+                {% set route_param = {'angebotsanfrage_id': bereich_id} %}
+            {% elif bereich_typ == 'Lieferschein' %}
+                {% set route_param = {'bestellung_id': bereich_id} %}
+            {% else %}
+                {% set route_param = {} %}
+            {% endif %}
+            <form method="POST" action="{{ url_for(upload_route, **route_param) }}" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label class="form-label">Datei(en):</label>
+                    <input type="file" name="file" class="form-control" {% if accept_attr %}accept="{{ accept_attr }}"{% endif %} multiple required>
+                    {% if accept_attr %}
+                    <div class="form-text">
+                        {% if 'image' in accept_attr or accept_attr == 'image/*' %}
+                            Erlaubte Formate: PNG, JPG, JPEG, GIF, WEBP (mehrere Dateien möglich)
+                        {% elif '.pdf' in accept_attr and '.doc' in accept_attr %}
+                            Erlaubte Formate: PDF, Word, Excel, Text (mehrere Dateien möglich)
+                        {% elif '.pdf' in accept_attr %}
+                            Erlaubte Formate: PDF (mehrere Dateien möglich)
+                        {% elif '.pdf' in accept_attr and '.jpeg' in accept_attr %}
+                            Erlaubte Formate: PDF, JPEG, JPG, PNG (mehrere Dateien möglich)
+                        {% else %}
+                            Max. 16 MB pro Datei (mehrere Dateien möglich)
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Beschreibung (optional, gilt für alle Dateien):</label>
+                    <input type="text" name="beschreibung" class="form-control" placeholder="z.B. Frontansicht, Datenblatt, etc.">
+                </div>
+                {% if 'dokument' in upload_route or 'dok' in upload_tab_id %}
+                <div class="mb-3">
+                    <label class="form-label">Typ (optional):</label>
+                    <input type="text" name="typ" class="form-control" placeholder="z.B. Datenblatt, Anleitung">
+                </div>
+                {% endif %}
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-upload"></i> Hochladen
+                </button>
+            </form>
+        </div>
+        
+        {% if import_route or import_function %}
+        <!-- Import-Tab -->
+        <div class="tab-pane fade" id="{{ import_tab_id }}-pane" role="tabpanel">
+            <div id="{{ import_tab_id }}-dateien-liste">
+                <div class="text-center">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">Lädt...</span>
+                    </div>
+                </div>
+            </div>
+            <button type="button" class="btn btn-primary mt-2" {% if import_function %}onclick="{{ import_function }}"{% endif %}>
+                <i class="bi bi-arrow-clockwise"></i> Aktualisieren
+            </button>
+        </div>
+        {% endif %}
+    </div>
+{% endmacro %}
+
