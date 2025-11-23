@@ -1,4 +1,6 @@
 {% extends "layout/base.html" %}
+{% from "components/datei_liste.html" import datei_liste %}
+{% from "components/datei_upload.html" import datei_upload %}
 
 {% block content %}
     <h1 class="mb-4">Thema #{{ thema.ID }}</h1>
@@ -278,15 +280,20 @@
                 </ul>
                 
                 <div class="tab-content">
-                    <!-- Upload-Tab -->
+                    <!-- Upload-Tab mit Multi-File-Support -->
                     <div class="tab-pane fade show active" id="thema-upload-pane" role="tabpanel">
                         <form id="uploadForm" enctype="multipart/form-data">
                             <div class="mb-3">
+                                <label class="form-label">Dateien (Mehrfachauswahl möglich):</label>
                                 <input type="file" class="form-control" id="fileInput" name="files" 
                                        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" multiple>
                                 <div class="form-text">
                                     Max. 16 MB pro Datei - Mehrfachauswahl möglich - Erlaubt: Bilder, PDF, Word, Excel, Text
                                 </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Beschreibung (optional, für alle Dateien):</label>
+                                <input type="text" class="form-control" id="beschreibungInput" placeholder="z.B. Frontansicht, Datenblatt, etc.">
                             </div>
                             <button type="submit" class="btn btn-primary btn-sm" id="uploadButton">
                                 <i class="bi bi-upload"></i> Hochladen
@@ -823,70 +830,73 @@ async function loadDateienListe(themaId) {
         return;
     }
     
-    // Dateien anzeigen
-    let html = '<div class="row g-3">';
+    // Dateien anzeigen - JPEGs als Vorschaubilder, andere als Liste
+    const isAdmin = {{ 'true' if is_admin else 'false' }};
+    const images = data.dateien.filter(d => d.type === 'image');
+    const documents = data.dateien.filter(d => d.type !== 'image');
     
-    data.dateien.forEach(datei => {
-        if (datei.type === 'image') {
-            // Bilder als Vorschau anzeigen
+    let html = '';
+    
+    // Bilder als Vorschaubilder
+    if (images.length > 0) {
+        html += '<div class="row g-3 mb-3">';
+        images.forEach(datei => {
             html += `
-                <div class="col-md-6 col-lg-4">
-                    <div class="card h-100">
-                        <img src="${datei.url}" class="card-img-top" alt="${datei.name}" style="object-fit: cover; height: 200px; cursor: pointer;" onclick="window.open('${datei.url}', '_blank')">
+                <div class="col-md-3">
+                    <div class="card">
+                        <a href="${datei.url}" target="_blank">
+                            <img src="${datei.url}" class="card-img-top" alt="${datei.name}" style="height: 150px; object-fit: cover;">
+                        </a>
                         <div class="card-body p-2">
-                            <p class="card-text small mb-1">
-                                <strong>${datei.name}</strong>
-                            </p>
-                            <p class="card-text small text-muted mb-0">${datei.size}</p>
-                        </div>
-                        <div class="card-footer p-2">
-                            <a href="${datei.url}" target="_blank" class="btn btn-sm btn-primary w-100">
-                                <i class="bi bi-download"></i> Herunterladen
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            `;
-        } else if (datei.type === 'pdf') {
-            // PDF-Dateien
-            html += `
-                <div class="col-md-6 col-lg-4">
-                    <div class="card h-100">
-                        <div class="card-body text-center d-flex flex-column justify-content-center" style="height: 200px; background-color: #f8f9fa;">
-                            <i class="bi bi-file-pdf" style="font-size: 4rem; color: #dc3545;"></i>
-                            <p class="mt-2 mb-0"><strong>${datei.name}</strong></p>
-                            <p class="text-muted small">${datei.size}</p>
-                        </div>
-                        <div class="card-footer p-2">
-                            <a href="${datei.url}" target="_blank" class="btn btn-sm btn-primary w-100">
-                                <i class="bi bi-eye"></i> Öffnen
-                            </a>
+                            <small class="text-muted d-block">${datei.name}</small>
+                            ${datei.beschreibung ? `<small class="text-muted d-block mt-1">${datei.beschreibung}</small>` : ''}
+                            ${isAdmin ? `
+                                <form method="POST" action="/schichtbuch/thema/${currentThemaId}/datei/${datei.id}/loeschen" 
+                                      onsubmit="return confirm('Datei wirklich löschen?');" class="mt-2">
+                                    <button type="submit" class="btn btn-sm btn-danger w-100">
+                                        <i class="bi bi-trash"></i> Löschen
+                                    </button>
+                                </form>
+                            ` : ''}
                         </div>
                     </div>
                 </div>
             `;
-        } else {
-            // Andere Dokumente
-            html += `
-                <div class="col-md-6 col-lg-4">
-                    <div class="card h-100">
-                        <div class="card-body text-center d-flex flex-column justify-content-center" style="height: 200px; background-color: #f8f9fa;">
-                            <i class="bi bi-file-earmark-text" style="font-size: 4rem; color: #0d6efd;"></i>
-                            <p class="mt-2 mb-0"><strong>${datei.name}</strong></p>
-                            <p class="text-muted small">${datei.size}</p>
-                        </div>
-                        <div class="card-footer p-2">
-                            <a href="${datei.url}" target="_blank" class="btn btn-sm btn-primary w-100">
-                                <i class="bi bi-download"></i> Herunterladen
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-    });
+        });
+        html += '</div>';
+    }
     
-    html += '</div>';
+    // Dokumente als Liste
+    if (documents.length > 0) {
+        html += '<div class="list-group">';
+        documents.forEach(datei => {
+            html += `
+                <div class="list-group-item d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <a href="${datei.url}" target="_blank" class="text-decoration-none">
+                            <i class="bi bi-file-earmark"></i> ${datei.name}
+                        </a>
+                        ${datei.beschreibung ? `<br><small class="text-muted">${datei.beschreibung}</small>` : ''}
+                        <br><small class="text-muted">${datei.size}</small>
+                    </div>
+                    ${isAdmin ? `
+                        <form method="POST" action="/schichtbuch/thema/${currentThemaId}/datei/${datei.id}/loeschen" 
+                              onsubmit="return confirm('Datei wirklich löschen?');" class="d-inline ms-2">
+                            <button type="submit" class="btn btn-sm btn-danger">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    ` : ''}
+                </div>
+            `;
+        });
+        html += '</div>';
+    }
+    
+    if (images.length === 0 && documents.length === 0) {
+        html = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> Keine Dateien vorhanden.</div>';
+    }
+    
     dateienListe.innerHTML = html;
     
     } catch (error) {
@@ -923,10 +933,16 @@ document.addEventListener('DOMContentLoaded', function() {
             uploadProgress.classList.remove('d-none');
             uploadMessage.innerHTML = `<div class="alert alert-info">📤 Lade ${totalFiles} Datei(en) hoch...</div>`;
             
+            // Beschreibung aus Input-Feld holen
+            const beschreibung = document.getElementById('beschreibungInput') ? document.getElementById('beschreibungInput').value : '';
+            
             // Dateien nacheinander hochladen
             for (let i = 0; i < totalFiles; i++) {
                 const formData = new FormData();
                 formData.append('file', files[i]);
+                if (beschreibung) {
+                    formData.append('beschreibung', beschreibung);
+                }
                 
                 try {
                     const response = await fetch(`/schichtbuch/thema/${currentThemaId}/upload`, {
@@ -1049,7 +1065,12 @@ async function verschiebeAusImportThema(filename) {
         const response = await fetch('/api/import/verschieben', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({filename: filename, ziel_ordner: zielOrdner})
+            body: JSON.stringify({
+                filename: filename, 
+                ziel_ordner: zielOrdner,
+                bereich_typ: 'Thema',
+                bereich_id: themaId
+            })
         });
         
         const data = await response.json();

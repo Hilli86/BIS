@@ -5,9 +5,11 @@ Wareneingang Routes - Wareneingang-Verwaltung
 from flask import render_template, request, redirect, url_for, session, flash, send_from_directory, current_app
 from datetime import datetime
 import os
+from werkzeug.utils import secure_filename
 from .. import ersatzteile_bp
 from utils import get_db_connection, login_required, permission_required, get_sichtbare_abteilungen_fuer_mitarbeiter
-from utils.file_handling import save_uploaded_file, validate_file_extension
+from utils.file_handling import save_uploaded_file, validate_file_extension, create_upload_folder
+from ..services import get_dateien_fuer_bereich, speichere_datei, get_datei_typ_aus_dateiname
 
 
 def get_lieferschein_dateien(bestellung_id):
@@ -226,10 +228,36 @@ def wareneingang_bestellung(bestellung_id):
             import traceback
             traceback.print_exc()
     
-    # Lieferschein-Dateien laden
-    lieferschein_dateien = get_lieferschein_dateien(bestellung_id)
+    # Lieferschein-Dateien aus Datei-Tabelle laden
+    with get_db_connection() as conn:
+        lieferscheine_db = get_dateien_fuer_bereich('Lieferschein', bestellung_id, conn)
+        
+        # In das Format konvertieren, das das Template erwartet (konsistent mit anderen Bereichen)
+        lieferscheine = []
+        for d in lieferscheine_db:
+            # Dateigröße aus Dateisystem ermitteln
+            filepath = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], d['Dateipfad'].replace('/', os.sep))
+            file_size = 0
+            modified = None
+            if os.path.exists(filepath):
+                file_size = os.path.getsize(filepath)
+                modified = datetime.fromtimestamp(os.path.getmtime(filepath))
+            
+            # Beide Formate unterstützen: Dictionary mit allen Feldern
+            datei_dict = dict(d)  # Alle Datenbankfelder kopieren (ID, Dateiname, Dateipfad, Beschreibung, Typ, ErstelltAm, ErstelltVon, etc.)
+            datei_dict.update({
+                'name': d['Dateiname'],
+                'path': d['Dateipfad'],
+                'size': file_size,
+                'modified': modified,
+                'id': d['ID'],
+                'beschreibung': d['Beschreibung'] or ''
+            })
+            lieferscheine.append(datei_dict)
+        
+        is_admin = 'admin' in session.get('user_berechtigungen', [])
     
-    return render_template('wareneingang_bestellung.html', bestellung=bestellung, positionen=positionen, lieferschein_dateien=lieferschein_dateien)
+    return render_template('wareneingang_bestellung.html', bestellung=bestellung, positionen=positionen, lieferscheine=lieferscheine, is_admin=is_admin)
 
 
 @ersatzteile_bp.route('/lieferschein/<int:bestellung_id>/upload', methods=['POST'])
@@ -237,6 +265,9 @@ def wareneingang_bestellung(bestellung_id):
 @permission_required('artikel_buchen')
 def lieferschein_upload(bestellung_id):
     """Lieferschein-Upload für Wareneingang (PDF, JPEG, JPG, PNG)"""
+    mitarbeiter_id = session.get('user_id')
+    beschreibung = request.form.get('beschreibung', '').strip()
+    
     if 'file' not in request.files:
         flash('Keine Datei ausgewählt.', 'danger')
         return redirect(url_for('ersatzteile.wareneingang_bestellung', bestellung_id=bestellung_id))
@@ -252,20 +283,40 @@ def lieferschein_upload(bestellung_id):
         return redirect(url_for('ersatzteile.wareneingang_bestellung', bestellung_id=bestellung_id))
     
     try:
-        # Ordner erstellen
-        lieferschein_folder = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], 'Bestellwesen', 'Lieferscheine', str(bestellung_id))
-        
-        filename, error_message = save_uploaded_file(
-            file,
-            lieferschein_folder,
-            allowed_extensions={'pdf', 'jpg', 'jpeg', 'png'}
-        )
-        
-        if error_message:
-            flash(f'Fehler beim Hochladen: {error_message}', 'danger')
-            return redirect(url_for('ersatzteile.wareneingang_bestellung', bestellung_id=bestellung_id))
-        
-        flash('Lieferschein erfolgreich hochgeladen.', 'success')
+        with get_db_connection() as conn:
+            # Ordner erstellen
+            lieferschein_folder = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], 'Bestellwesen', 'Lieferscheine', str(bestellung_id))
+            create_upload_folder(lieferschein_folder)
+            
+            # Datei speichern mit Timestamp
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
+            original_filename = file.filename
+            file.filename = timestamp + secure_filename(original_filename)
+            
+            success_upload, filename, error_message = save_uploaded_file(
+                file,
+                lieferschein_folder,
+                allowed_extensions={'pdf', 'jpg', 'jpeg', 'png'}
+            )
+            
+            if not success_upload or error_message:
+                flash(f'Fehler beim Hochladen: {error_message}', 'danger')
+                return redirect(url_for('ersatzteile.wareneingang_bestellung', bestellung_id=bestellung_id))
+            
+            # Datenbankeintrag in Datei-Tabelle
+            relative_path = f'Bestellwesen/Lieferscheine/{bestellung_id}/{filename}'
+            speichere_datei(
+                bereich_typ='Lieferschein',
+                bereich_id=bestellung_id,
+                dateiname=original_filename,
+                dateipfad=relative_path,
+                beschreibung=beschreibung,
+                typ=get_datei_typ_aus_dateiname(original_filename),
+                mitarbeiter_id=mitarbeiter_id,
+                conn=conn
+            )
+            
+            flash('Lieferschein erfolgreich hochgeladen.', 'success')
     except Exception as e:
         flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
         print(f"Lieferschein-Upload Fehler: {e}")

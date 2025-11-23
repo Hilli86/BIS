@@ -132,6 +132,7 @@ def get_required_tables():
         'ErsatzteilDokument',
         'Lagerbuchung',
         'ErsatzteilAbteilungZugriff',
+        'Datei',
         'LoginLog',
         'Firmendaten',
         'Angebotsanfrage',
@@ -789,7 +790,55 @@ def init_database_schema(db_path, verbose=False):
             'CREATE INDEX idx_ersatzteil_abteilung_abteilung ON ErsatzteilAbteilungZugriff(AbteilungID)'
         ])
         
-        # ========== 22. LoginLog ==========
+        # ========== 22. Datei (einheitliche Dateiverwaltung) ==========
+        created_datei = create_table_if_not_exists(conn, 'Datei', '''
+            CREATE TABLE Datei (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                BereichTyp TEXT NOT NULL,
+                BereichID INTEGER NOT NULL,
+                Dateiname TEXT NOT NULL,
+                Dateipfad TEXT NOT NULL,
+                Beschreibung TEXT,
+                Typ TEXT,
+                ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
+                ErstelltVonID INTEGER,
+                FOREIGN KEY (ErstelltVonID) REFERENCES Mitarbeiter(ID)
+            )
+        ''', [
+            'CREATE INDEX idx_datei_bereich ON Datei(BereichTyp, BereichID)',
+            'CREATE INDEX idx_datei_typ ON Datei(Typ)',
+            'CREATE INDEX idx_datei_erstellt_von ON Datei(ErstelltVonID)'
+        ])
+        
+        # Migration: Beschreibung zu ErsatzteilBild hinzufügen
+        create_column_if_not_exists(conn, 'ErsatzteilBild', 'Beschreibung', 'ALTER TABLE ErsatzteilBild ADD COLUMN Beschreibung TEXT')
+        
+        # Migration: Beschreibung zu ErsatzteilDokument hinzufügen
+        create_column_if_not_exists(conn, 'ErsatzteilDokument', 'Beschreibung', 'ALTER TABLE ErsatzteilDokument ADD COLUMN Beschreibung TEXT')
+        
+        # Migration: Daten von ErsatzteilBild nach Datei migrieren (nur wenn Datei-Tabelle neu erstellt wurde)
+        if created_datei:
+            try:
+                conn.execute('''
+                    INSERT INTO Datei (BereichTyp, BereichID, Dateiname, Dateipfad, Beschreibung, Typ, ErstelltAm)
+                    SELECT 'Ersatzteil', ErsatzteilID, Dateiname, Dateipfad, COALESCE(Beschreibung, ''), 'Bild', ErstelltAm
+                    FROM ErsatzteilBild
+                ''')
+            except Exception as e:
+                print(f"[WARNUNG] Fehler bei Migration von ErsatzteilBild: {e}")
+        
+        # Migration: Daten von ErsatzteilDokument nach Datei migrieren (nur wenn Datei-Tabelle neu erstellt wurde)
+        if created_datei:
+            try:
+                conn.execute('''
+                    INSERT INTO Datei (BereichTyp, BereichID, Dateiname, Dateipfad, Beschreibung, Typ, ErstelltAm)
+                    SELECT 'Ersatzteil', ErsatzteilID, Dateiname, Dateipfad, COALESCE(Beschreibung, ''), COALESCE(Typ, 'Dokument'), ErstelltAm
+                    FROM ErsatzteilDokument
+                ''')
+            except Exception as e:
+                print(f"[WARNUNG] Fehler bei Migration von ErsatzteilDokument: {e}")
+        
+        # ========== 23. LoginLog ==========
         create_table_if_not_exists(conn, 'LoginLog', '''
             CREATE TABLE LoginLog (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -809,7 +858,7 @@ def init_database_schema(db_path, verbose=False):
             'CREATE INDEX idx_loginlog_personalnummer ON LoginLog(Personalnummer)'
         ])
         
-        # ========== 23. Firmendaten ==========
+        # ========== 24. Firmendaten ==========
         create_table_if_not_exists(conn, 'Firmendaten', '''
             CREATE TABLE Firmendaten (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -847,7 +896,7 @@ def init_database_schema(db_path, verbose=False):
             create_column_if_not_exists(conn, 'Firmendaten', 'LieferPLZ', 'ALTER TABLE Firmendaten ADD COLUMN LieferPLZ TEXT NULL')
             create_column_if_not_exists(conn, 'Firmendaten', 'LieferOrt', 'ALTER TABLE Firmendaten ADD COLUMN LieferOrt TEXT NULL')
         
-        # ========== 24. Angebotsanfrage ==========
+        # ========== 25. Angebotsanfrage ==========
         created = create_table_if_not_exists(conn, 'Angebotsanfrage', '''
             CREATE TABLE Angebotsanfrage (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -886,7 +935,7 @@ def init_database_schema(db_path, verbose=False):
             # Prüfe auf fehlende Indexes
             create_index_if_not_exists(conn, 'idx_angebotsanfrage_abteilung', 'CREATE INDEX idx_angebotsanfrage_abteilung ON Angebotsanfrage(ErstellerAbteilungID)')
         
-        # ========== 25. AngebotsanfragePosition ==========
+        # ========== 26. AngebotsanfragePosition ==========
         created = create_table_if_not_exists(conn, 'AngebotsanfragePosition', '''
             CREATE TABLE AngebotsanfragePosition (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -915,7 +964,7 @@ def init_database_schema(db_path, verbose=False):
                 print("[INFO] Spalte 'Einheit' zu 'AngebotsanfragePosition' hinzugefügt")
             create_column_if_not_exists(conn, 'AngebotsanfragePosition', 'Link', 'ALTER TABLE AngebotsanfragePosition ADD COLUMN Link TEXT NULL')
         
-        # ========== 26. Bestellung ==========
+        # ========== 27. Bestellung ==========
         created = create_table_if_not_exists(conn, 'Bestellung', '''
             CREATE TABLE Bestellung (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -957,7 +1006,7 @@ def init_database_schema(db_path, verbose=False):
             if create_column_if_not_exists(conn, 'Bestellung', 'Gelöscht', 'ALTER TABLE Bestellung ADD COLUMN Gelöscht INTEGER NOT NULL DEFAULT 0'):
                 print("[INFO] Spalte 'Gelöscht' zu 'Bestellung' hinzugefügt")
         
-        # ========== 27. BestellungPosition ==========
+        # ========== 28. BestellungPosition ==========
         created = create_table_if_not_exists(conn, 'BestellungPosition', '''
             CREATE TABLE BestellungPosition (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -990,7 +1039,7 @@ def init_database_schema(db_path, verbose=False):
                 print("[INFO] Spalte 'Einheit' zu 'BestellungPosition' hinzugefügt")
             create_column_if_not_exists(conn, 'BestellungPosition', 'Link', 'ALTER TABLE BestellungPosition ADD COLUMN Link TEXT NULL')
         
-        # ========== 28. BestellungSichtbarkeit ==========
+        # ========== 29. BestellungSichtbarkeit ==========
         created = create_table_if_not_exists(conn, 'BestellungSichtbarkeit', '''
             CREATE TABLE BestellungSichtbarkeit (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1010,7 +1059,7 @@ def init_database_schema(db_path, verbose=False):
             if create_column_if_not_exists(conn, 'BestellungSichtbarkeit', 'ErstelltAm', 'ALTER TABLE BestellungSichtbarkeit ADD COLUMN ErstelltAm DATETIME'):
                 conn.execute('UPDATE BestellungSichtbarkeit SET ErstelltAm = datetime(\'now\') WHERE ErstelltAm IS NULL')
         
-        # ========== 29. Berechtigung ==========
+        # ========== 30. Berechtigung ==========
         created = create_table_if_not_exists(conn, 'Berechtigung', '''
             CREATE TABLE Berechtigung (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1037,7 +1086,7 @@ def init_database_schema(db_path, verbose=False):
                     VALUES (?, ?, ?, 1)
                 ''', (schluessel, bezeichnung, beschreibung))
         
-        # ========== 30. MitarbeiterBerechtigung ==========
+        # ========== 31. MitarbeiterBerechtigung ==========
         created = create_table_if_not_exists(conn, 'MitarbeiterBerechtigung', '''
             CREATE TABLE MitarbeiterBerechtigung (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,

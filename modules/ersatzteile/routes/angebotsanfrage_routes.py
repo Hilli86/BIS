@@ -8,8 +8,8 @@ import os
 from werkzeug.utils import secure_filename
 from .. import ersatzteile_bp
 from utils import get_db_connection, login_required
-from utils.file_handling import save_uploaded_file
-from ..services import generate_angebotsanfrage_pdf
+from utils.file_handling import save_uploaded_file, create_upload_folder
+from ..services import generate_angebotsanfrage_pdf, get_dateien_fuer_bereich, speichere_datei, get_datei_typ_aus_dateiname
 
 
 def log_info(message):
@@ -596,13 +596,41 @@ def angebotsanfrage_detail(angebotsanfrage_id):
         ''', (angebotsanfrage_id,)).fetchall()
         
         # PDF-Dateien aus Ordner laden
-        dateien = get_angebotsanfrage_dateien(angebotsanfrage_id)
+        # Dateien aus Datei-Tabelle laden
+        dateien_db = get_dateien_fuer_bereich('Angebotsanfrage', angebotsanfrage_id, conn)
+        
+        # In das Format konvertieren, das das Template erwartet (für Rückwärtskompatibilität)
+        # Aber auch die originalen Datenbankfelder beibehalten für das Template
+        dateien = []
+        for d in dateien_db:
+            # Dateigröße aus Dateisystem ermitteln
+            filepath = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], d['Dateipfad'].replace('/', os.sep))
+            file_size = 0
+            modified = None
+            if os.path.exists(filepath):
+                file_size = os.path.getsize(filepath)
+                modified = datetime.fromtimestamp(os.path.getmtime(filepath))
+            
+            # Beide Formate unterstützen: Dictionary mit allen Feldern
+            datei_dict = dict(d)  # Alle Datenbankfelder kopieren
+            datei_dict.update({
+                'name': d['Dateiname'],
+                'path': d['Dateipfad'],
+                'size': file_size,
+                'modified': modified,
+                'id': d['ID'],
+                'beschreibung': d['Beschreibung'] or ''
+            })
+            dateien.append(datei_dict)
+        
+        is_admin = 'admin' in session.get('user_berechtigungen', [])
     
     return render_template(
         'angebotsanfrage_detail.html',
         anfrage=anfrage,
         positionen=positionen,
-        dateien=dateien
+        dateien=dateien,
+        is_admin=is_admin
     )
 
 
@@ -1119,6 +1147,7 @@ def angebotsanfrage_preise_eingeben(angebotsanfrage_id):
 def angebotsanfrage_datei_upload(angebotsanfrage_id):
     """PDF-Datei für Angebotsanfrage hochladen"""
     mitarbeiter_id = session.get('user_id')
+    beschreibung = request.form.get('beschreibung', '').strip()
     
     if 'file' not in request.files:
         flash('Keine Datei ausgewählt.', 'danger')
@@ -1144,21 +1173,35 @@ def angebotsanfrage_datei_upload(angebotsanfrage_id):
             
             # Ordner erstellen
             upload_folder = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], 'Bestellwesen', 'Angebote', str(angebotsanfrage_id))
+            create_upload_folder(upload_folder)
             
             # Datei speichern mit Timestamp
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
             original_filename = file.filename
             file.filename = timestamp + secure_filename(original_filename)
             
-            filename, error_message = save_uploaded_file(
+            success_upload, filename, error_message = save_uploaded_file(
                 file,
                 upload_folder,
                 allowed_extensions={'pdf'}
             )
             
-            if error_message:
+            if not success_upload or error_message:
                 flash(f'Fehler beim Hochladen: {error_message}', 'danger')
                 return redirect(url_for('ersatzteile.angebotsanfrage_detail', angebotsanfrage_id=angebotsanfrage_id))
+            
+            # Datenbankeintrag in Datei-Tabelle
+            relative_path = f'Bestellwesen/Angebote/{angebotsanfrage_id}/{filename}'
+            speichere_datei(
+                bereich_typ='Angebotsanfrage',
+                bereich_id=angebotsanfrage_id,
+                dateiname=original_filename,
+                dateipfad=relative_path,
+                beschreibung=beschreibung,
+                typ='PDF',
+                mitarbeiter_id=mitarbeiter_id,
+                conn=conn
+            )
             
             flash('PDF erfolgreich hochgeladen.', 'success')
             

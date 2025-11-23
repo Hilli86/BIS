@@ -20,6 +20,7 @@ from . import schichtbuch_bp
 from utils import get_db_connection, login_required, get_sichtbare_abteilungen_fuer_mitarbeiter
 from utils.helpers import build_sichtbarkeits_filter_query, row_to_dict
 from . import services
+from modules.ersatzteile.services import get_dateien_fuer_bereich, speichere_datei, get_datei_typ_aus_dateiname, loesche_datei
 
 
 def get_datei_anzahl(thema_id):
@@ -386,7 +387,8 @@ def thema_detail(thema_id):
         datei_anzahl=datei_anzahl,
         ersatzteil_verknuepfungen=detail_data['thema_lagerbuchungen'],
         verfuegbare_ersatzteile=detail_data['verfuegbare_ersatzteile'],
-        kostenstellen=detail_data['kostenstellen']
+        kostenstellen=detail_data['kostenstellen'],
+        is_admin=is_admin
     )
 
 
@@ -495,12 +497,43 @@ def thema_dateien(thema_id):
         if not berechtigt:
             return jsonify({'success': False, 'message': 'Kein Zugriff auf dieses Thema'}), 403
     
-    # Dateien über Service laden
-    dateien = services.get_thema_dateien_liste(thema_id, current_app.config['SCHICHTBUCH_UPLOAD_FOLDER'])
-    
-    # URLs hinzufügen
-    for datei in dateien:
-        datei['url'] = url_for('schichtbuch.thema_datei_download', thema_id=thema_id, filename=datei['name'])
+        # Dateien aus Datei-Tabelle laden
+        dateien_db = get_dateien_fuer_bereich('Thema', thema_id, conn)
+        
+        # In das Format konvertieren, das das Template erwartet
+        dateien = []
+        for d in dateien_db:
+            # Dateigröße aus Dateisystem ermitteln
+            filepath = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], d['Dateipfad'].replace('/', os.sep))
+            file_size_str = '0 KB'
+            if os.path.exists(filepath):
+                file_size = os.path.getsize(filepath)
+                file_size_str = f"{file_size / 1024:.1f} KB" if file_size < 1024*1024 else f"{file_size / (1024*1024):.1f} MB"
+            
+            # Dateiendung ermitteln
+            file_ext = os.path.splitext(d['Dateiname'])[1].lower()
+            
+            # Dateityp kategorisieren
+            if file_ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp'] or d['Typ'] == 'Bild':
+                file_type = 'image'
+            elif file_ext == '.pdf' or d['Typ'] == 'PDF':
+                file_type = 'pdf'
+            else:
+                file_type = 'document'
+            
+            # Dateiname aus Dateipfad extrahieren (mit Timestamp)
+            dateiname_mit_timestamp = os.path.basename(d['Dateipfad'])
+            
+            dateien.append({
+                'name': d['Dateiname'],
+                'path': d['Dateipfad'],
+                'size': file_size_str,
+                'type': file_type,
+                'ext': file_ext,
+                'beschreibung': d['Beschreibung'] or '',
+                'id': d['ID'],
+                'url': url_for('schichtbuch.thema_datei_download', thema_id=thema_id, filename=dateiname_mit_timestamp)
+            })
     
     return jsonify({'success': True, 'dateien': dateien})
 
@@ -519,16 +552,24 @@ def thema_datei_download(thema_id, filename):
         
         if not berechtigt:
             return "Kein Zugriff auf dieses Thema", 403
+        
+        # Prüfe ob Datei zu diesem Thema gehört (über Dateipfad)
+        datei = conn.execute('''
+            SELECT Dateipfad FROM Datei
+            WHERE BereichTyp = 'Thema' AND BereichID = ? AND Dateipfad LIKE ?
+        ''', (thema_id, f'%{filename}')).fetchone()
+        
+        if not datei:
+            return "Datei nicht gefunden", 404
     
-    # Dateipfad ermitteln
-    thema_folder = os.path.join(current_app.config['SCHICHTBUCH_UPLOAD_FOLDER'], str(thema_id))
+    # Dateipfad aus Datenbank verwenden
+    filepath = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], datei['Dateipfad'].replace('/', os.sep))
     
-    # Sicherheitsprüfung: Datei muss im Thema-Ordner sein
-    safe_path = os.path.abspath(os.path.join(thema_folder, filename))
-    if not safe_path.startswith(os.path.abspath(thema_folder)):
+    # Sicherheitsprüfung: Datei muss im erlaubten Ordner sein
+    if not os.path.exists(filepath) or not os.path.abspath(filepath).startswith(os.path.abspath(current_app.config['UPLOAD_BASE_FOLDER'])):
         return "Ungültiger Dateipfad", 403
     
-    return send_from_directory(thema_folder, filename)
+    return send_from_directory(os.path.dirname(filepath), os.path.basename(filepath))
 
 
 @schichtbuch_bp.route('/thema/<int:thema_id>/upload', methods=['POST'])
@@ -536,6 +577,7 @@ def thema_datei_download(thema_id, filename):
 def thema_datei_upload(thema_id):
     """Lade eine Datei für ein Thema hoch"""
     user_id = session.get('user_id')
+    beschreibung = request.form.get('beschreibung', '').strip() if request.form else ''
     
     with get_db_connection() as conn:
         berechtigt, thema_exists = services.check_thema_datei_berechtigung(thema_id, user_id, conn)
@@ -556,28 +598,95 @@ def thema_datei_upload(thema_id):
         return jsonify({'success': False, 'message': 'Keine Datei ausgewählt'}), 400
     
     # File-Upload mit Utility-Funktion
-    from utils.file_handling import save_uploaded_file
+    from utils.file_handling import save_uploaded_file, create_upload_folder
     
     thema_folder = os.path.join(current_app.config['SCHICHTBUCH_UPLOAD_FOLDER'], str(thema_id))
+    create_upload_folder(thema_folder)
+    
+    # Datei speichern mit Timestamp
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
+    original_filename = file.filename
+    file.filename = timestamp + secure_filename(original_filename)
+    
     success, filename, error_message = save_uploaded_file(
         file,
         thema_folder,
         allowed_extensions=current_app.config['ALLOWED_EXTENSIONS'],
-        create_unique_name=True
+        create_unique_name=False  # Wir haben bereits einen eindeutigen Namen erstellt
     )
     
     if not success:
         return jsonify({'success': False, 'message': error_message}), 400
     
     try:
-        # Datei wurde bereits gespeichert, nur noch Erfolg zurückgeben
+        with get_db_connection() as conn:
+            # Datenbankeintrag in Datei-Tabelle
+            relative_path = f'Schichtbuch/Themen/{thema_id}/{filename}'
+            typ = get_datei_typ_aus_dateiname(original_filename)
+            speichere_datei(
+                bereich_typ='Thema',
+                bereich_id=thema_id,
+                dateiname=original_filename,
+                dateipfad=relative_path,
+                beschreibung=beschreibung,
+                typ=typ,
+                mitarbeiter_id=user_id,
+                conn=conn
+            )
+        
         return jsonify({
             'success': True, 
-            'message': f'Datei "{filename}" erfolgreich hochgeladen',
+            'message': f'Datei "{original_filename}" erfolgreich hochgeladen',
             'filename': filename
         })
     except Exception as e:
         return jsonify({'success': False, 'message': f'Fehler beim Speichern: {str(e)}'}), 500
+
+
+@schichtbuch_bp.route('/thema/<int:thema_id>/datei/<int:datei_id>/loeschen', methods=['POST'])
+@login_required
+def thema_datei_loeschen(thema_id, datei_id):
+    """Datei für ein Thema löschen"""
+    user_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        # Berechtigung prüfen
+        berechtigt, thema_exists = services.check_thema_datei_berechtigung(thema_id, user_id, conn)
+        
+        if not thema_exists:
+            flash('Thema nicht gefunden.', 'danger')
+            return redirect(url_for('schichtbuch.themaliste'))
+        
+        if not berechtigt:
+            flash('Sie haben keine Berechtigung, Dateien für dieses Thema zu löschen.', 'danger')
+            return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
+        
+        # Prüfe ob Datei zu diesem Thema gehört
+        datei = conn.execute('''
+            SELECT ID, Dateipfad, BereichTyp, BereichID
+            FROM Datei
+            WHERE ID = ? AND BereichTyp = 'Thema' AND BereichID = ?
+        ''', (datei_id, thema_id)).fetchone()
+        
+        if not datei:
+            flash('Datei nicht gefunden.', 'danger')
+            return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
+        
+        # Datei vom Dateisystem löschen
+        from modules.ersatzteile.services import loesche_datei
+        filepath = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], datei['Dateipfad'].replace('/', os.sep))
+        if os.path.exists(filepath):
+            try:
+                os.remove(filepath)
+            except Exception as e:
+                print(f"Fehler beim Löschen der Datei vom Dateisystem: {e}")
+        
+        # Datenbankeintrag löschen
+        loesche_datei(datei_id, conn)
+        
+        flash('Datei erfolgreich gelöscht.', 'success')
+    
+    return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
 
 
 # ========== Benachrichtigungen ==========

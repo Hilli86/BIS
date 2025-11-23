@@ -1,4 +1,6 @@
 {% extends "layout/base.html" %}
+{% from "components/datei_liste.html" import datei_liste %}
+{% from "components/datei_upload.html" import datei_upload %}
 
 {% block content %}
 <h1 class="mb-4">🔧 Ersatzteil: {{ ersatzteil.Bezeichnung }}</h1>
@@ -365,177 +367,40 @@
 </div>
 {% endif %}
 
-<!-- Bilder -->
+<!-- Dateien -->
 <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">🖼️ Bilder</h5>
-        <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#bildUploadCollapse">
-            <i class="bi bi-plus-circle"></i> Bild hochladen
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">📁 Dateien</h5>
+        <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#dateiUploadCollapse">
+            <i class="bi bi-plus-circle"></i> Datei hochladen
         </button>
     </div>
-    <div class="collapse" id="bildUploadCollapse">
+    <div class="collapse" id="dateiUploadCollapse">
         <div class="card-body">
-            <!-- Tab-Auswahl -->
-            <ul class="nav nav-tabs mb-3" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="bild-upload-tab" data-bs-toggle="tab" data-bs-target="#bild-upload-pane" type="button">
-                        <i class="bi bi-cloud-upload"></i> Hochladen
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="bild-import-tab" data-bs-toggle="tab" data-bs-target="#bild-import-pane" type="button" onclick="ladeImportDateienErsatzteil('bild')">
-                        <i class="bi bi-folder"></i> Aus Import-Ordner
-                    </button>
-                </li>
-            </ul>
-            
-            <div class="tab-content">
-                <!-- Upload-Tab -->
-                <div class="tab-pane fade show active" id="bild-upload-pane" role="tabpanel">
-                    <form method="POST" action="{{ url_for('ersatzteile.bild_upload', ersatzteil_id=ersatzteil.ID) }}" enctype="multipart/form-data">
-                        <div class="mb-3">
-                            <input type="file" name="file" class="form-control" accept="image/*" required>
-                        </div>
-                        <button type="submit" class="btn btn-success">Hochladen</button>
-                    </form>
-                </div>
-                
-                <!-- Import-Tab -->
-                <div class="tab-pane fade" id="bild-import-pane" role="tabpanel">
-                    <div id="bild-import-dateien-liste">
-                        <div class="text-center">
-                            <div class="spinner-border spinner-border-sm text-primary" role="status">
-                                <span class="visually-hidden">Lädt...</span>
-                            </div>
-                        </div>
-                    </div>
-                    <button type="button" class="btn btn-success mt-2" onclick="ladeImportDateienErsatzteil('bild')">
-                        <i class="bi bi-arrow-clockwise"></i> Aktualisieren
-                    </button>
-                </div>
-            </div>
+            {{ datei_upload(
+                bereich_typ='Ersatzteil',
+                bereich_id=ersatzteil.ID,
+                erlaubte_dateitypen=['Bild', 'Dokument', 'PDF'],
+                upload_route='ersatzteile.ersatzteil_datei_upload',
+                import_route=None,
+                accept_attr='image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt',
+                upload_tab_id='datei-upload-tab',
+                import_tab_id='datei-import-tab',
+                import_function='ladeImportDateienErsatzteil()'
+            ) }}
         </div>
     </div>
     <div class="card-body">
-        {% if bilder %}
-        <div class="row">
-            {% for bild in bilder %}
-            <div class="col-md-3 mb-3">
-                <div class="card">
-                    <a href="{{ url_for('ersatzteile.datei_anzeigen', filepath=bild.Dateipfad) }}" target="_blank">
-                        <img src="{{ url_for('ersatzteile.datei_anzeigen', filepath=bild.Dateipfad) }}" 
-                             class="card-img-top" 
-                             style="height: 150px; object-fit: cover;"
-                             alt="{{ bild.Dateiname }}">
-                    </a>
-                    <div class="card-body p-2">
-                        <small class="text-muted">{{ bild.Dateiname }}</small>
-                        {% if 'admin' in session.get('user_berechtigungen', []) %}
-                        <form method="POST" action="{{ url_for('ersatzteile.bild_loeschen', ersatzteil_id=ersatzteil.ID, bild_id=bild.ID) }}" 
-                              onsubmit="return confirm('Bild wirklich löschen?');" class="mt-2">
-                            <button type="submit" class="btn btn-sm btn-danger w-100">
-                                <i class="bi bi-trash"></i> Löschen
-                            </button>
-                        </form>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="alert alert-info">
-            <i class="bi bi-info-circle"></i> Keine Bilder vorhanden.
-        </div>
-        {% endif %}
-    </div>
-</div>
-
-<!-- Dokumente -->
-<div class="card mb-4 shadow-sm">
-    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">📄 Dokumente</h5>
-        <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#dokumentUploadCollapse">
-            <i class="bi bi-plus-circle"></i> Dokument hochladen
-        </button>
-    </div>
-    <div class="collapse" id="dokumentUploadCollapse">
-        <div class="card-body">
-            <!-- Tab-Auswahl -->
-            <ul class="nav nav-tabs mb-3" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="dok-upload-tab" data-bs-toggle="tab" data-bs-target="#dok-upload-pane" type="button">
-                        <i class="bi bi-cloud-upload"></i> Hochladen
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="dok-import-tab" data-bs-toggle="tab" data-bs-target="#dok-import-pane" type="button" onclick="ladeImportDateienErsatzteil('dokument')">
-                        <i class="bi bi-folder"></i> Aus Import-Ordner
-                    </button>
-                </li>
-            </ul>
-            
-            <div class="tab-content">
-                <!-- Upload-Tab -->
-                <div class="tab-pane fade show active" id="dok-upload-pane" role="tabpanel">
-                    <form method="POST" action="{{ url_for('ersatzteile.dokument_upload', ersatzteil_id=ersatzteil.ID) }}" enctype="multipart/form-data">
-                        <div class="mb-3">
-                            <label class="form-label">Datei:</label>
-                            <input type="file" name="file" class="form-control" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Typ (optional):</label>
-                            <input type="text" name="typ" class="form-control" placeholder="z.B. Datenblatt, Anleitung">
-                        </div>
-                        <button type="submit" class="btn btn-success">Hochladen</button>
-                    </form>
-                </div>
-                
-                <!-- Import-Tab -->
-                <div class="tab-pane fade" id="dok-import-pane" role="tabpanel">
-                    <div id="dok-import-dateien-liste">
-                        <div class="text-center">
-                            <div class="spinner-border spinner-border-sm text-primary" role="status">
-                                <span class="visually-hidden">Lädt...</span>
-                            </div>
-                        </div>
-                    </div>
-                    <button type="button" class="btn btn-success mt-2" onclick="ladeImportDateienErsatzteil('dokument')">
-                        <i class="bi bi-arrow-clockwise"></i> Aktualisieren
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="card-body">
-        {% if dokumente %}
-        <div class="list-group">
-            {% for dok in dokumente %}
-            <div class="list-group-item d-flex justify-content-between align-items-center">
-                <div>
-                    <a href="{{ url_for('ersatzteile.datei_anzeigen', filepath=dok.Dateipfad) }}" target="_blank" class="text-decoration-none">
-                        <i class="bi bi-file-earmark"></i> {{ dok.Dateiname }}
-                    </a>
-                    {% if dok.Typ %}
-                    <br><small class="text-muted">Typ: {{ dok.Typ }}</small>
-                    {% endif %}
-                </div>
-                {% if 'admin' in session.get('user_berechtigungen', []) %}
-                <form method="POST" action="{{ url_for('ersatzteile.dokument_loeschen', ersatzteil_id=ersatzteil.ID, dokument_id=dok.ID) }}" 
-                      onsubmit="return confirm('Dokument wirklich löschen?');" class="d-inline">
-                    <button type="submit" class="btn btn-sm btn-danger">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </form>
-                {% endif %}
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="alert alert-info">
-            <i class="bi bi-info-circle"></i> Keine Dokumente vorhanden.
-        </div>
-        {% endif %}
+        {{ datei_liste(
+            dateien=dateien,
+            bereich_typ='Ersatzteil',
+            bereich_id=ersatzteil.ID,
+            erlaubte_dateitypen=['Bild', 'Dokument', 'PDF'],
+            is_admin=is_admin,
+            datei_anzeigen_route='ersatzteile.datei_anzeigen',
+            datei_loeschen_route='ersatzteile.datei_loeschen',
+            nur_bilder=False
+        ) }}
     </div>
 </div>
 
@@ -780,8 +645,8 @@ function showToast(message, type = 'info') {
 
 <!-- Import-Funktionalität für Ersatzteile -->
 <script>
-async function ladeImportDateienErsatzteil(typ) {
-    const listeId = typ === 'bild' ? 'bild-import-dateien-liste' : 'dok-import-dateien-liste';
+async function ladeImportDateienErsatzteil() {
+    const listeId = 'datei-import-tab-dateien-liste';
     const liste = document.getElementById(listeId);
     
     if (!liste) return;
@@ -797,13 +662,8 @@ async function ladeImportDateienErsatzteil(typ) {
             return;
         }
         
-        // Filtere nach Dateityp
-        let erlaubteEndungen = [];
-        if (typ === 'bild') {
-            erlaubteEndungen = ['.png', '.jpg', '.jpeg', '.gif'];
-        } else if (typ === 'dokument') {
-            erlaubteEndungen = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt'];
-        }
+        // Alle erlaubten Dateitypen (Bilder und Dokumente)
+        const erlaubteEndungen = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt'];
         
         const gefilterteDateien = data.dateien.filter(datei => {
             const ext = '.' + datei.name.split('.').pop().toLowerCase();
@@ -823,7 +683,7 @@ async function ladeImportDateienErsatzteil(typ) {
                         <strong>${datei.name}</strong>
                         <br><small class="text-muted">${datei.size}</small>
                     </div>
-                    <button class="btn btn-sm btn-success" onclick="verschiebeAusImportErsatzteil('${datei.name.replace(/'/g, "\\'")}', '${typ}', {{ ersatzteil.ID }})">
+                    <button class="btn btn-sm btn-success" onclick="verschiebeAusImportErsatzteil('${datei.name.replace(/'/g, "\\'")}', {{ ersatzteil.ID }})">
                         <i class="bi bi-arrow-right"></i> Verwenden
                     </button>
                 </div>
@@ -837,18 +697,20 @@ async function ladeImportDateienErsatzteil(typ) {
     }
 }
 
-async function verschiebeAusImportErsatzteil(filename, typ, ersatzteilId) {
-    let zielOrdner = '';
-    if (typ === 'bild') {
-        zielOrdner = `Ersatzteile/${ersatzteilId}/bilder`;
-    } else if (typ === 'dokument') {
-        zielOrdner = `Ersatzteile/${ersatzteilId}/dokumente`;
-    }
+function getZielOrdnerAusDateiname(filename, ersatzteilId) {
+    // Bestimme Zielordner basierend auf Dateiendung
+    const ext = '.' + filename.split('.').pop().toLowerCase();
+    const bildEndungen = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
     
-    if (!zielOrdner) {
-        alert('Ungültiger Typ');
-        return;
+    if (bildEndungen.includes(ext)) {
+        return `Ersatzteile/${ersatzteilId}/bilder`;
+    } else {
+        return `Ersatzteile/${ersatzteilId}/dokumente`;
     }
+}
+
+async function verschiebeAusImportErsatzteil(filename, ersatzteilId) {
+    const zielOrdner = getZielOrdnerAusDateiname(filename, ersatzteilId);
     
     if (!confirm(`Möchten Sie die Datei "${filename}" aus dem Import-Ordner verwenden? Die Datei wird verschoben.`)) {
         return;
@@ -858,7 +720,12 @@ async function verschiebeAusImportErsatzteil(filename, typ, ersatzteilId) {
         const response = await fetch('/api/import/verschieben', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({filename: filename, ziel_ordner: zielOrdner})
+            body: JSON.stringify({
+                filename: filename, 
+                ziel_ordner: zielOrdner,
+                bereich_typ: 'Ersatzteil',
+                bereich_id: ersatzteilId
+            })
         });
         
         const data = await response.json();

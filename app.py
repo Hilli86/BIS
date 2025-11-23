@@ -25,6 +25,15 @@ with app.app_context():
 from utils.folder_setup import create_all_upload_folders
 create_all_upload_folders(app)
 
+# Benutzerdefinierte Jinja2-Filter
+@app.template_filter('file_extension')
+def file_extension(filename):
+    """Extrahiert die Dateierweiterung aus einem Dateinamen"""
+    if not filename:
+        return ''
+    parts = filename.rsplit('.', 1)
+    return parts[1].lower() if len(parts) > 1 else ''
+
 # Blueprints registrieren
 from modules import auth_bp, schichtbuch_bp, admin_bp, ersatzteile_bp, dashboard_bp, import_bp, errors_bp
 

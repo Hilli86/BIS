@@ -1,4 +1,6 @@
 {% extends "layout/base.html" %}
+{% from "components/datei_liste.html" import datei_liste %}
+{% from "components/datei_upload.html" import datei_upload %}
 
 {% block content %}
 <h1 class="mb-4">📋 Angebotsanfrage #{{ anfrage.ID }}</h1>
@@ -280,67 +282,30 @@
     </div>
     <div class="collapse" id="pdfUploadCollapse">
         <div class="card-body">
-            <!-- Tab-Auswahl -->
-            <ul class="nav nav-tabs mb-3" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="aa-upload-tab" data-bs-toggle="tab" data-bs-target="#aa-upload-pane" type="button">
-                        <i class="bi bi-cloud-upload"></i> Hochladen
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="aa-import-tab" data-bs-toggle="tab" data-bs-target="#aa-import-pane" type="button" onclick="ladeImportDateienAngebotsanfrage()">
-                        <i class="bi bi-folder"></i> Aus Import-Ordner
-                    </button>
-                </li>
-            </ul>
-            
-            <div class="tab-content">
-                <!-- Upload-Tab -->
-                <div class="tab-pane fade show active" id="aa-upload-pane" role="tabpanel">
-                    <form method="POST" action="{{ url_for('ersatzteile.angebotsanfrage_datei_upload', angebotsanfrage_id=anfrage.ID) }}" enctype="multipart/form-data">
-                        <div class="mb-3">
-                            <input type="file" name="file" class="form-control" accept=".pdf" required>
-                            <small class="text-muted">Nur PDF-Dateien erlaubt</small>
-                        </div>
-                        <button type="submit" class="btn btn-success">Hochladen</button>
-                    </form>
-                </div>
-                
-                <!-- Import-Tab -->
-                <div class="tab-pane fade" id="aa-import-pane" role="tabpanel">
-                    <div id="aa-import-dateien-liste">
-                        <div class="text-center">
-                            <div class="spinner-border spinner-border-sm text-primary" role="status">
-                                <span class="visually-hidden">Lädt...</span>
-                            </div>
-                        </div>
-                    </div>
-                    <button type="button" class="btn btn-success mt-2" onclick="ladeImportDateienAngebotsanfrage()">
-                        <i class="bi bi-arrow-clockwise"></i> Aktualisieren
-                    </button>
-                </div>
-            </div>
+            {{ datei_upload(
+                bereich_typ='Angebotsanfrage',
+                bereich_id=anfrage.ID,
+                erlaubte_dateitypen=['PDF'],
+                upload_route='ersatzteile.angebotsanfrage_datei_upload',
+                import_route=None,
+                accept_attr='.pdf',
+                upload_tab_id='aa-upload-tab',
+                import_tab_id='aa-import-tab',
+                import_function='ladeImportDateienAngebotsanfrage()'
+            ) }}
         </div>
     </div>
     <div class="card-body">
-        {% if dateien %}
-        <div class="list-group">
-            {% for datei in dateien %}
-            <div class="list-group-item d-flex justify-content-between align-items-center">
-                <div>
-                    <a href="{{ url_for('ersatzteile.angebotsanfrage_datei_anzeigen', filepath=datei.path) }}" target="_blank" class="text-decoration-none">
-                        <i class="bi bi-file-earmark-pdf"></i> {{ datei.name }}
-                    </a>
-                    <br><small class="text-muted">Geändert: {{ datei.modified.strftime('%d.%m.%Y %H:%M') }}</small>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="alert alert-info">
-            <i class="bi bi-info-circle"></i> Keine PDF-Dateien vorhanden.
-        </div>
-        {% endif %}
+        {{ datei_liste(
+            dateien=dateien,
+            bereich_typ='Angebotsanfrage',
+            bereich_id=anfrage.ID,
+            erlaubte_dateitypen=['PDF'],
+            is_admin=is_admin,
+            datei_anzeigen_route='ersatzteile.angebotsanfrage_datei_anzeigen',
+            datei_loeschen_route='ersatzteile.datei_loeschen',
+            nur_bilder=False
+        ) }}
     </div>
 </div>
 {% endif %}
@@ -875,7 +840,12 @@ async function verschiebeAusImportAngebotsanfrage(filename) {
         const response = await fetch('/api/import/verschieben', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({filename: filename, ziel_ordner: zielOrdner})
+            body: JSON.stringify({
+                filename: filename, 
+                ziel_ordner: zielOrdner,
+                bereich_typ: 'Angebotsanfrage',
+                bereich_id: {{ anfrage.ID }}
+            })
         });
         
         const data = await response.json();

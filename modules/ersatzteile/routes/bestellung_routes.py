@@ -5,10 +5,11 @@ Bestellung Routes - Bestellungs-Verwaltung
 from flask import render_template, request, redirect, url_for, session, jsonify, flash, current_app, make_response, send_from_directory
 from datetime import datetime
 import os
+from werkzeug.utils import secure_filename
 from .. import ersatzteile_bp
 from utils import get_db_connection, login_required, permission_required, get_sichtbare_abteilungen_fuer_mitarbeiter, ist_admin
 from utils.file_handling import save_uploaded_file, validate_file_extension, create_upload_folder
-from ..services import generate_bestellung_pdf
+from ..services import generate_bestellung_pdf, get_dateien_fuer_bereich
 
 
 def get_bestellung_dateien(bestellung_id):
@@ -321,16 +322,20 @@ def bestellung_detail(bestellung_id):
             if pos['Waehrung']:
                 waehrung = pos['Waehrung']
         
-        # PDF-Dateien aus Ordner laden
-        dateien = get_bestellung_dateien(bestellung_id)
+        # Dateien aus Datei-Tabelle laden
+        alle_dateien = get_dateien_fuer_bereich('Bestellung', bestellung_id, conn)
         
-        # Auftragsbestätigungen laden (nur wenn Status "Bestellt" oder später)
+        # Lieferscheine separat laden (eigener BereichTyp)
+        lieferscheine_db = get_dateien_fuer_bereich('Lieferschein', bestellung_id, conn)
+        
+        # Dateien nach Typ filtern (Pfad-basiert für Rückwärtskompatibilität)
+        dateien = [d for d in alle_dateien if 'Bestellungen' in d['Dateipfad']]
         auftragsbestätigungen = []
         lieferscheine = []
         if bestellung['Status'] in ['Bestellt', 'Teilweise erhalten', 'Erhalten', 'Erledigt']:
-            auftragsbestätigungen = get_auftragsbestätigung_dateien(bestellung_id)
-            # Lieferscheine auch laden, wenn Auftragsbestätigungen angezeigt werden
-            lieferscheine = get_lieferschein_dateien(bestellung_id)
+            auftragsbestätigungen = [d for d in alle_dateien if 'Auftragsbestätigungen' in d['Dateipfad']]
+            # Lieferscheine aus eigenem BereichTyp verwenden
+            lieferscheine = list(lieferscheine_db)
         
         # Berechtigungen prüfen (Admin hat alle Rechte)
         is_admin = 'admin' in session.get('user_berechtigungen', [])
@@ -352,7 +357,8 @@ def bestellung_detail(bestellung_id):
         kann_buchen=kann_buchen,
         gesamtbetrag=gesamtbetrag,
         waehrung=waehrung,
-        kann_freigabebemerkung_bearbeiten=kann_freigabebemerkung_bearbeiten
+        kann_freigabebemerkung_bearbeiten=kann_freigabebemerkung_bearbeiten,
+        is_admin=is_admin
     )
 
 
@@ -1110,11 +1116,15 @@ def bestellung_pdf_export(bestellung_id):
 @login_required
 def bestellung_datei_upload(bestellung_id):
     """Datei-Upload für Bestellung"""
+    mitarbeiter_id = session.get('user_id')
+    
     if 'file' not in request.files:
         flash('Keine Datei ausgewählt.', 'danger')
         return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
     
     file = request.files['file']
+    beschreibung = request.form.get('beschreibung', '').strip()
+    
     if file.filename == '':
         flash('Keine Datei ausgewählt.', 'danger')
         return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
@@ -1125,19 +1135,39 @@ def bestellung_datei_upload(bestellung_id):
         return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
     
     try:
-        # Ordner erstellen
-        bestellung_folder = os.path.join(current_app.config['ANGEBOTE_UPLOAD_FOLDER'], 'Bestellungen', str(bestellung_id))
-        
-        filename, error_message = save_uploaded_file(
-            file,
-            bestellung_folder,
-            allowed_extensions={'pdf'}
-        )
-        
-        if error_message:
-            flash(f'Fehler beim Hochladen: {error_message}', 'danger')
-        else:
-            flash('Datei erfolgreich hochgeladen.', 'success')
+        with get_db_connection() as conn:
+            # Ordner erstellen
+            bestellung_folder = os.path.join(current_app.config['ANGEBOTE_UPLOAD_FOLDER'], 'Bestellungen', str(bestellung_id))
+            create_upload_folder(bestellung_folder)
+            
+            # Datei speichern mit Timestamp
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
+            original_filename = file.filename
+            file.filename = timestamp + secure_filename(original_filename)
+            
+            success_upload, filename, error_message = save_uploaded_file(
+                file,
+                bestellung_folder,
+                allowed_extensions={'pdf'}
+            )
+            
+            if not success_upload or error_message:
+                flash(f'Fehler beim Hochladen: {error_message}', 'danger')
+            else:
+                # Datenbankeintrag in Datei-Tabelle
+                relative_path = f'Angebote/Bestellungen/{bestellung_id}/{filename}'
+                from ..services import speichere_datei, get_datei_typ_aus_dateiname
+                speichere_datei(
+                    bereich_typ='Bestellung',
+                    bereich_id=bestellung_id,
+                    dateiname=original_filename,
+                    dateipfad=relative_path,
+                    beschreibung=beschreibung,
+                    typ='PDF',
+                    mitarbeiter_id=mitarbeiter_id,
+                    conn=conn
+                )
+                flash('Datei erfolgreich hochgeladen.', 'success')
     except Exception as e:
         flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
         print(f"Datei-Upload Fehler: {e}")
@@ -1149,6 +1179,8 @@ def bestellung_datei_upload(bestellung_id):
 @login_required
 def bestellung_auftragsbestätigung_upload(bestellung_id):
     """Auftragsbestätigung-Upload für Bestellung"""
+    mitarbeiter_id = session.get('user_id')
+    
     # Prüfe ob Bestellung den Status "Bestellt" hat
     with get_db_connection() as conn:
         bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ? AND Gelöscht = 0', (bestellung_id,)).fetchone()
@@ -1165,6 +1197,8 @@ def bestellung_auftragsbestätigung_upload(bestellung_id):
         return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
     
     file = request.files['file']
+    beschreibung = request.form.get('beschreibung', '').strip()
+    
     if file.filename == '':
         flash('Keine Datei ausgewählt.', 'danger')
         return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
@@ -1175,20 +1209,41 @@ def bestellung_auftragsbestätigung_upload(bestellung_id):
         return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
     
     try:
-        # Ordner erstellen
-        auftragsbestätigung_folder = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], 'Bestellwesen', 'Auftragsbestätigungen', str(bestellung_id))
-        
-        filename, error_message = save_uploaded_file(
-            file,
-            auftragsbestätigung_folder,
-            allowed_extensions={'pdf', 'jpg', 'jpeg', 'png'}
-        )
-        
-        if error_message:
-            flash(f'Fehler beim Hochladen: {error_message}', 'danger')
-            return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
-        
-        flash('Auftragsbestätigung erfolgreich hochgeladen.', 'success')
+        with get_db_connection() as conn:
+            # Ordner erstellen
+            auftragsbestätigung_folder = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], 'Bestellwesen', 'Auftragsbestätigungen', str(bestellung_id))
+            create_upload_folder(auftragsbestätigung_folder)
+            
+            # Datei speichern mit Timestamp
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
+            original_filename = file.filename
+            file.filename = timestamp + secure_filename(original_filename)
+            
+            success_upload, filename, error_message = save_uploaded_file(
+                file,
+                auftragsbestätigung_folder,
+                allowed_extensions={'pdf', 'jpg', 'jpeg', 'png'}
+            )
+            
+            if not success_upload or error_message:
+                flash(f'Fehler beim Hochladen: {error_message}', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+            
+            # Datenbankeintrag in Datei-Tabelle
+            relative_path = f'Bestellwesen/Auftragsbestätigungen/{bestellung_id}/{filename}'
+            from ..services import speichere_datei, get_datei_typ_aus_dateiname
+            typ = get_datei_typ_aus_dateiname(original_filename)
+            speichere_datei(
+                bereich_typ='Bestellung',
+                bereich_id=bestellung_id,
+                dateiname=original_filename,
+                dateipfad=relative_path,
+                beschreibung=beschreibung,
+                typ=typ,
+                mitarbeiter_id=mitarbeiter_id,
+                conn=conn
+            )
+            flash('Auftragsbestätigung erfolgreich hochgeladen.', 'success')
     except Exception as e:
         flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
         print(f"Auftragsbestätigung-Upload Fehler: {e}")
@@ -1205,9 +1260,12 @@ def bestellung_datei_anzeigen(bestellung_id, filepath):
     # Normalisiere den Pfad: Backslashes zu Forward-Slashes (für Windows-Kompatibilität)
     filepath = filepath.replace('\\', '/')
     
-    # Sicherheitsprüfung: Dateipfad muss mit Bestellungen/{bestellung_id}/ beginnen
-    expected_prefix = f'Bestellungen/{bestellung_id}/'
-    if not filepath.startswith(expected_prefix):
+    # Sicherheitsprüfung: Dateipfad muss mit Bestellungen/{bestellung_id}/ oder Angebote/Bestellungen/{bestellung_id}/ beginnen
+    expected_prefixes = [
+        f'Bestellungen/{bestellung_id}/',
+        f'Angebote/Bestellungen/{bestellung_id}/'
+    ]
+    if not any(filepath.startswith(prefix) for prefix in expected_prefixes):
         flash('Ungültiger Dateipfad.', 'danger')
         return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
     
@@ -1224,11 +1282,16 @@ def bestellung_datei_anzeigen(bestellung_id, filepath):
                     flash('Sie haben keine Berechtigung, diese Datei zu sehen.', 'danger')
                     return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
         
-        # Vollständigen Pfad erstellen
-        full_path = os.path.join(current_app.config['ANGEBOTE_UPLOAD_FOLDER'], filepath)
+        # Vollständigen Pfad erstellen - unterstütze beide Pfad-Formate
+        if filepath.startswith('Angebote/Bestellungen/'):
+            # Neues Format: Angebote/Bestellungen/{id}/...
+            full_path = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], filepath.replace('/', os.sep))
+        else:
+            # Altes Format: Bestellungen/{id}/...
+            full_path = os.path.join(current_app.config['ANGEBOTE_UPLOAD_FOLDER'], filepath.replace('/', os.sep))
         
-        # Sicherheitsprüfung: Datei muss existieren und im erlaubten Ordner sein
-        if not os.path.exists(full_path) or not os.path.abspath(full_path).startswith(os.path.abspath(current_app.config['ANGEBOTE_UPLOAD_FOLDER'])):
+        # Sicherheitsprüfung: Datei muss existieren
+        if not os.path.exists(full_path):
             flash('Datei nicht gefunden.', 'danger')
             return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
         

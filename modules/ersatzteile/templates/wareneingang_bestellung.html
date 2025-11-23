@@ -1,4 +1,6 @@
 {% extends "layout/base.html" %}
+{% from "components/datei_liste.html" import datei_liste %}
+{% from "components/datei_upload.html" import datei_upload %}
 
 {% block content %}
 <h1 class="mb-4">📦 Wareneingang - Bestellung #{{ bestellung.ID }}</h1>
@@ -39,7 +41,7 @@
 
 <!-- Lieferscheine -->
 <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0">📄 Lieferscheine</h5>
         <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#lieferscheinUploadCollapse">
             <i class="bi bi-plus-circle"></i> Lieferschein hochladen
@@ -47,80 +49,30 @@
     </div>
     <div class="collapse" id="lieferscheinUploadCollapse">
         <div class="card-body">
-            <!-- Tab-Auswahl -->
-            <ul class="nav nav-tabs mb-3" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="ls-upload-tab" data-bs-toggle="tab" data-bs-target="#ls-upload-pane" type="button">
-                        <i class="bi bi-cloud-upload"></i> Hochladen
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="ls-import-tab" data-bs-toggle="tab" data-bs-target="#ls-import-pane" type="button" onclick="ladeImportDateienLieferschein()">
-                        <i class="bi bi-folder"></i> Aus Import-Ordner
-                    </button>
-                </li>
-            </ul>
-            
-            <div class="tab-content">
-                <!-- Upload-Tab -->
-                <div class="tab-pane fade show active" id="ls-upload-pane" role="tabpanel">
-                    <form method="POST" action="{{ url_for('ersatzteile.lieferschein_upload', bestellung_id=bestellung.ID) }}" enctype="multipart/form-data">
-                        <div class="mb-3">
-                            <label class="form-label">Lieferschein-Datei (PDF, JPEG, JPG oder PNG):</label>
-                            <input type="file" name="file" class="form-control" accept=".pdf,.jpeg,.jpg,.png" required>
-                            <small class="text-muted">Erlaubte Formate: PDF, JPEG, JPG, PNG</small>
-                        </div>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-upload"></i> Hochladen
-                        </button>
-                    </form>
-                </div>
-                
-                <!-- Import-Tab -->
-                <div class="tab-pane fade" id="ls-import-pane" role="tabpanel">
-                    <div id="ls-import-dateien-liste">
-                        <div class="text-center">
-                            <div class="spinner-border spinner-border-sm text-primary" role="status">
-                                <span class="visually-hidden">Lädt...</span>
-                            </div>
-                        </div>
-                    </div>
-                    <button type="button" class="btn btn-primary mt-2" onclick="ladeImportDateienLieferschein()">
-                        <i class="bi bi-arrow-clockwise"></i> Aktualisieren
-                    </button>
-                </div>
-            </div>
+            {{ datei_upload(
+                bereich_typ='Lieferschein',
+                bereich_id=bestellung.ID,
+                erlaubte_dateitypen=['PDF', 'Bild'],
+                upload_route='ersatzteile.lieferschein_upload',
+                import_route=None,
+                accept_attr='.pdf,.jpeg,.jpg,.png',
+                upload_tab_id='ls-upload-tab',
+                import_tab_id='ls-import-tab',
+                import_function='ladeImportDateienLieferschein()'
+            ) }}
         </div>
     </div>
     <div class="card-body">
-        {% if lieferschein_dateien %}
-        <div class="list-group">
-            {% for datei in lieferschein_dateien %}
-            <a href="{{ url_for('ersatzteile.lieferschein_anzeigen', filepath=datei.path) }}" target="_blank" class="list-group-item list-group-item-action">
-                <div class="d-flex w-100 justify-content-between align-items-center">
-                    <div>
-                        <h6 class="mb-1">
-                            {% if datei.type == 'pdf' %}
-                            <i class="bi bi-file-pdf text-danger"></i>
-                            {% elif datei.type == 'image' %}
-                            <i class="bi bi-file-image text-primary"></i>
-                            {% else %}
-                            <i class="bi bi-file"></i>
-                            {% endif %}
-                            {{ datei.name }}
-                        </h6>
-                        <small class="text-muted">{{ datei.modified.strftime('%d.%m.%Y %H:%M') if datei.modified else '' }}</small>
-                    </div>
-                    <small>{{ (datei.size / 1024)|round(1) }} KB</small>
-                </div>
-            </a>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="alert alert-info mb-0">
-            <i class="bi bi-info-circle"></i> Noch keine Lieferscheine hochgeladen.
-        </div>
-        {% endif %}
+        {{ datei_liste(
+            dateien=lieferscheine,
+            bereich_typ='Lieferschein',
+            bereich_id=bestellung.ID,
+            erlaubte_dateitypen=['PDF', 'Bild'],
+            is_admin=is_admin,
+            datei_anzeigen_route='ersatzteile.lieferschein_anzeigen',
+            datei_loeschen_route='ersatzteile.datei_loeschen',
+            nur_bilder=False
+        ) }}
     </div>
 </div>
 
@@ -345,7 +297,12 @@ async function verschiebeAusImportLieferschein(filename) {
         const response = await fetch('/api/import/verschieben', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({filename: filename, ziel_ordner: zielOrdner})
+            body: JSON.stringify({
+                filename: filename, 
+                ziel_ordner: zielOrdner,
+                bereich_typ: 'Lieferschein',
+                bereich_id: {{ bestellung.ID }}
+            })
         });
         
         const data = await response.json();

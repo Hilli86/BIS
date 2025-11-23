@@ -9,11 +9,15 @@ from werkzeug.utils import secure_filename
 from .. import ersatzteile_bp
 from utils import get_db_connection, login_required, get_sichtbare_abteilungen_fuer_mitarbeiter
 from utils.helpers import build_ersatzteil_zugriff_filter, row_to_dict
-from utils.file_handling import save_uploaded_file, create_upload_folder
+from utils.file_handling import save_uploaded_file, create_upload_folder, validate_file_extension
 from ..services import (
     build_ersatzteil_liste_query, 
     get_ersatzteil_liste_filter_options, 
-    get_ersatzteil_detail_data
+    get_ersatzteil_detail_data,
+    get_dateien_fuer_bereich,
+    speichere_datei,
+    loesche_datei,
+    get_datei_typ_aus_dateiname
 )
 from ..utils import hat_ersatzteil_zugriff, get_datei_anzahl, allowed_file
 
@@ -106,20 +110,43 @@ def ersatzteil_detail(ersatzteil_id):
             flash('Ersatzteil nicht gefunden.', 'danger')
             return redirect(url_for('ersatzteile.ersatzteil_liste'))
         
-        datei_anzahl_bilder = get_datei_anzahl(ersatzteil_id, 'bilder')
-        datei_anzahl_dokumente = get_datei_anzahl(ersatzteil_id, 'dokumente')
+        # Dateien aus Datei-Tabelle laden
+        alle_dateien_db = get_dateien_fuer_bereich('Ersatzteil', ersatzteil_id, conn)
+        
+        # In das Format konvertieren, das das Template erwartet (konsistent mit Bestellungen/Angeboten)
+        dateien = []
+        for d in alle_dateien_db:
+            # Dateigröße aus Dateisystem ermitteln
+            filepath = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], d['Dateipfad'].replace('/', os.sep))
+            file_size = 0
+            modified = None
+            if os.path.exists(filepath):
+                file_size = os.path.getsize(filepath)
+                modified = datetime.fromtimestamp(os.path.getmtime(filepath))
+            
+            # Beide Formate unterstützen: Dictionary mit allen Feldern
+            datei_dict = dict(d)  # Alle Datenbankfelder kopieren
+            datei_dict.update({
+                'name': d['Dateiname'],
+                'path': d['Dateipfad'],
+                'size': file_size,
+                'modified': modified,
+                'id': d['ID'],
+                'beschreibung': d['Beschreibung'] or ''
+            })
+            dateien.append(datei_dict)
+        
+        is_admin = 'admin' in session.get('user_berechtigungen', [])
     
     return render_template(
         'ersatzteil_detail.html',
         ersatzteil=detail_data['ersatzteil'],
-        bilder=detail_data['bilder'],
-        dokumente=detail_data['dokumente'],
+        dateien=dateien,
         lagerbuchungen=detail_data['lagerbuchungen'],
         verknuepfungen=detail_data['verknuepfungen'],
         zugriffe=detail_data['zugriffe'],
         kostenstellen=detail_data['kostenstellen'],
-        datei_anzahl_bilder=datei_anzahl_bilder,
-        datei_anzahl_dokumente=datei_anzahl_dokumente
+        is_admin=is_admin
     )
 
 
@@ -504,187 +531,213 @@ def ersatzteil_loeschen(ersatzteil_id):
     return redirect(url_for('ersatzteile.ersatzteil_liste'))
 
 
-@ersatzteile_bp.route('/<int:ersatzteil_id>/bild/upload', methods=['POST'])
+@ersatzteile_bp.route('/<int:ersatzteil_id>/datei/upload', methods=['POST'])
 @login_required
-def bild_upload(ersatzteil_id):
-    """Bild für Ersatzteil hochladen"""
+def ersatzteil_datei_upload(ersatzteil_id):
+    """Datei(en) (Bild oder Dokument) für Ersatzteil hochladen - unterstützt mehrere Dateien"""
     mitarbeiter_id = session.get('user_id')
     
     if 'file' not in request.files:
         flash('Keine Datei ausgewählt.', 'danger')
         return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
     
-    file = request.files['file']
-    if file.filename == '':
-        flash('Keine Datei ausgewählt.', 'danger')
-        return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
-    
-    if file and allowed_file(file.filename):
-        try:
-            with get_db_connection() as conn:
-                # Berechtigung prüfen
-                if not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
-                    flash('Sie haben keine Berechtigung für dieses Ersatzteil.', 'danger')
-                    return redirect(url_for('ersatzteile.ersatzteil_liste'))
-                
-                # Ordner erstellen
-                upload_folder = os.path.join(current_app.config['ERSATZTEIL_UPLOAD_FOLDER'], str(ersatzteil_id), 'bilder')
-                create_upload_folder(upload_folder)
-                
-                # Datei speichern mit Timestamp
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
-                original_filename = file.filename
-                # Temporärer Dateiname mit Timestamp
-                file.filename = timestamp + secure_filename(original_filename)
-                
-                filename, error_message = save_uploaded_file(
-                    file,
-                    upload_folder,
-                    allowed_extensions=current_app.config['ALLOWED_EXTENSIONS']
-                )
-                
-                if error_message:
-                    flash(f'Fehler beim Hochladen: {error_message}', 'danger')
-                    return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
-                
-                # Datenbankeintrag - Pfad mit Forward-Slashes für URLs
-                relative_path = f'Ersatzteile/{ersatzteil_id}/bilder/{filename}'
-                conn.execute('''
-                    INSERT INTO ErsatzteilBild (ErsatzteilID, Dateiname, Dateipfad)
-                    VALUES (?, ?, ?)
-                ''', (ersatzteil_id, original_filename, relative_path))
-                conn.commit()
-                
-                flash('Bild erfolgreich hochgeladen.', 'success')
-        except Exception as e:
-            flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
-            print(f"Bild upload Fehler: {e}")
-    else:
-        flash('Dateityp nicht erlaubt.', 'danger')
-    
-    return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
-
-
-@ersatzteile_bp.route('/<int:ersatzteil_id>/dokument/upload', methods=['POST'])
-@login_required
-def dokument_upload(ersatzteil_id):
-    """Dokument für Ersatzteil hochladen"""
-    mitarbeiter_id = session.get('user_id')
-    
-    if 'file' not in request.files:
-        flash('Keine Datei ausgewählt.', 'danger')
-        return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
-    
-    file = request.files['file']
+    # Mehrere Dateien können hochgeladen werden
+    files = request.files.getlist('file')
+    beschreibung = request.form.get('beschreibung', '').strip()
     typ = request.form.get('typ', '').strip()
     
-    if file.filename == '':
+    # Filtere leere Dateien heraus
+    files = [f for f in files if f.filename != '']
+    
+    if not files:
         flash('Keine Datei ausgewählt.', 'danger')
-        return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
-    
-    if file and allowed_file(file.filename):
-        try:
-            with get_db_connection() as conn:
-                # Berechtigung prüfen
-                if not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
-                    flash('Sie haben keine Berechtigung für dieses Ersatzteil.', 'danger')
-                    return redirect(url_for('ersatzteile.ersatzteil_liste'))
-                
-                # Ordner erstellen
-                upload_folder = os.path.join(current_app.config['ERSATZTEIL_UPLOAD_FOLDER'], str(ersatzteil_id), 'dokumente')
-                create_upload_folder(upload_folder)
-                
-                # Datei speichern mit Timestamp
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
-                original_filename = file.filename
-                # Temporärer Dateiname mit Timestamp
-                file.filename = timestamp + secure_filename(original_filename)
-                
-                filename, error_message = save_uploaded_file(
-                    file,
-                    upload_folder,
-                    allowed_extensions=current_app.config['ALLOWED_EXTENSIONS']
-                )
-                
-                if error_message:
-                    flash(f'Fehler beim Hochladen: {error_message}', 'danger')
-                    return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
-                
-                # Datenbankeintrag - Pfad mit Forward-Slashes für URLs
-                relative_path = f'Ersatzteile/{ersatzteil_id}/dokumente/{filename}'
-                conn.execute('''
-                    INSERT INTO ErsatzteilDokument (ErsatzteilID, Dateiname, Dateipfad, Typ)
-                    VALUES (?, ?, ?, ?)
-                ''', (ersatzteil_id, original_filename, relative_path, typ))
-                conn.commit()
-                
-                flash('Dokument erfolgreich hochgeladen.', 'success')
-        except Exception as e:
-            flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
-            print(f"Dokument upload Fehler: {e}")
-    else:
-        flash('Dateityp nicht erlaubt.', 'danger')
-    
-    return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
-
-
-@ersatzteile_bp.route('/<int:ersatzteil_id>/bild/<int:bild_id>/loeschen', methods=['POST'])
-@login_required
-def bild_loeschen(ersatzteil_id, bild_id):
-    """Bild löschen"""
-    mitarbeiter_id = session.get('user_id')
-    is_admin = 'admin' in session.get('user_berechtigungen', [])
-    
-    if not is_admin:
-        flash('Nur Administratoren können Bilder löschen.', 'danger')
         return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
     
     try:
         with get_db_connection() as conn:
-            bild = conn.execute('SELECT Dateipfad FROM ErsatzteilBild WHERE ID = ? AND ErsatzteilID = ?', (bild_id, ersatzteil_id)).fetchone()
-            if bild:
-                # Datei löschen
-                filepath = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], bild['Dateipfad'])
-                if os.path.exists(filepath):
-                    os.remove(filepath)
+            # Berechtigung prüfen
+            if not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
+                flash('Sie haben keine Berechtigung für dieses Ersatzteil.', 'danger')
+                return redirect(url_for('ersatzteile.ersatzteil_liste'))
+            
+            allowed_image_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+            allowed_document_extensions = {'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'}
+            
+            erfolgreich = 0
+            fehler = []
+            
+            for file in files:
+                try:
+                    original_filename = file.filename
+                    
+                    # Dateityp erkennen und validieren
+                    datei_typ = get_datei_typ_aus_dateiname(original_filename)
+                    
+                    # Bestimme Zielordner basierend auf Dateityp
+                    if datei_typ == 'Bild' or any(original_filename.lower().endswith(f'.{ext}') for ext in allowed_image_extensions):
+                        # Bild
+                        upload_folder = os.path.join(current_app.config['ERSATZTEIL_UPLOAD_FOLDER'], str(ersatzteil_id), 'bilder')
+                        subfolder = 'bilder'
+                        allowed_extensions = allowed_image_extensions
+                    else:
+                        # Dokument
+                        upload_folder = os.path.join(current_app.config['ERSATZTEIL_UPLOAD_FOLDER'], str(ersatzteil_id), 'dokumente')
+                        subfolder = 'dokumente'
+                        allowed_extensions = allowed_document_extensions
+                    
+                    # Validierung mit Original-Dateinamen
+                    if not validate_file_extension(original_filename, allowed_extensions):
+                        fehler.append(f'{original_filename}: Dateityp nicht erlaubt')
+                        continue
+                    
+                    # Ordner erstellen
+                    create_upload_folder(upload_folder)
+                    
+                    # Datei speichern mit Timestamp
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
+                    file.filename = timestamp + secure_filename(original_filename)
+                    
+                    success_upload, filename, error_message = save_uploaded_file(
+                        file,
+                        upload_folder,
+                        allowed_extensions=None  # Bereits validiert
+                    )
+                    
+                    if not success_upload or error_message:
+                        fehler.append(f'{original_filename}: {error_message}')
+                        continue
+                    
+                    # Datenbankeintrag in Datei-Tabelle - Pfad mit Forward-Slashes für URLs
+                    relative_path = f'Ersatzteile/{ersatzteil_id}/{subfolder}/{filename}'
+                    datei_typ_final = typ if typ else datei_typ
+                    speichere_datei(
+                        bereich_typ='Ersatzteil',
+                        bereich_id=ersatzteil_id,
+                        dateiname=original_filename,
+                        dateipfad=relative_path,
+                        beschreibung=beschreibung,
+                        typ=datei_typ_final,
+                        mitarbeiter_id=mitarbeiter_id,
+                        conn=conn
+                    )
+                    
+                    erfolgreich += 1
+                except Exception as e:
+                    fehler.append(f'{file.filename if hasattr(file, "filename") else "Unbekannt"}: {str(e)}')
+                    print(f"Datei-Upload Fehler für {file.filename}: {e}")
+            
+            # Feedback an Benutzer
+            if erfolgreich > 0:
+                if len(files) == 1:
+                    flash('Datei erfolgreich hochgeladen.', 'success')
+                else:
+                    flash(f'{erfolgreich} Datei(en) erfolgreich hochgeladen.', 'success')
+            
+            if fehler:
+                fehler_text = '; '.join(fehler[:5])  # Maximal 5 Fehler anzeigen
+                if len(fehler) > 5:
+                    fehler_text += f' ... und {len(fehler) - 5} weitere Fehler'
+                flash(f'Fehler beim Hochladen: {fehler_text}', 'danger')
                 
-                # Datenbankeintrag löschen
-                conn.execute('DELETE FROM ErsatzteilBild WHERE ID = ?', (bild_id,))
-                conn.commit()
-                flash('Bild erfolgreich gelöscht.', 'success')
+    except Exception as e:
+        flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
+        print(f"Datei-Upload Fehler: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+
+
+@ersatzteile_bp.route('/datei/<int:datei_id>/loeschen', methods=['POST'])
+@login_required
+def datei_loeschen(datei_id):
+    """Datei löschen (einheitlich für alle Dateitypen)"""
+    mitarbeiter_id = session.get('user_id')
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
+    
+    if not is_admin:
+        flash('Nur Administratoren können Dateien löschen.', 'danger')
+        return redirect(url_for('ersatzteile.ersatzteil_liste'))
+    
+    try:
+        with get_db_connection() as conn:
+            # Datei-Informationen laden
+            datei = conn.execute('''
+                SELECT BereichTyp, BereichID, Dateipfad 
+                FROM Datei 
+                WHERE ID = ?
+            ''', (datei_id,)).fetchone()
+            
+            if not datei:
+                flash('Datei nicht gefunden.', 'danger')
+                return redirect(url_for('ersatzteile.ersatzteil_liste'))
+            
+            # Datei physisch löschen
+            filepath = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], datei['Dateipfad'].replace('/', os.sep))
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            
+            # Datenbankeintrag löschen
+            loesche_datei(datei_id, conn)
+            
+            # Zurück zur entsprechenden Detail-Seite
+            if datei['BereichTyp'] == 'Ersatzteil':
+                flash('Datei erfolgreich gelöscht.', 'success')
+                return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=datei['BereichID']))
+            elif datei['BereichTyp'] == 'Bestellung':
+                flash('Datei erfolgreich gelöscht.', 'success')
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=datei['BereichID']))
+            elif datei['BereichTyp'] == 'Thema':
+                flash('Datei erfolgreich gelöscht.', 'success')
+                return redirect(url_for('schichtbuch.thema_detail', thema_id=datei['BereichID']))
+            else:
+                flash('Datei erfolgreich gelöscht.', 'success')
+                return redirect(url_for('ersatzteile.ersatzteil_liste'))
     except Exception as e:
         flash(f'Fehler beim Löschen: {str(e)}', 'danger')
+        print(f"Datei löschen Fehler: {e}")
     
+    return redirect(url_for('ersatzteile.ersatzteil_liste'))
+
+
+# Alte Routen für Rückwärtskompatibilität (werden später entfernt)
+@ersatzteile_bp.route('/<int:ersatzteil_id>/bild/<int:bild_id>/loeschen', methods=['POST'])
+@login_required
+def bild_loeschen(ersatzteil_id, bild_id):
+    """Bild löschen (Legacy - Weiterleitung zu neuer Route)"""
+    # Versuche Datei in Datei-Tabelle zu finden
+    with get_db_connection() as conn:
+        datei = conn.execute('''
+            SELECT ID FROM Datei 
+            WHERE BereichTyp = 'Ersatzteil' 
+            AND BereichID = ? 
+            AND Typ = 'Bild'
+            LIMIT 1
+        ''', (ersatzteil_id,)).fetchone()
+        if datei:
+            return datei_loeschen(datei['ID'])
+    
+    flash('Bild nicht gefunden.', 'danger')
     return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
 
 
 @ersatzteile_bp.route('/<int:ersatzteil_id>/dokument/<int:dokument_id>/loeschen', methods=['POST'])
 @login_required
 def dokument_loeschen(ersatzteil_id, dokument_id):
-    """Dokument löschen"""
-    mitarbeiter_id = session.get('user_id')
-    is_admin = 'admin' in session.get('user_berechtigungen', [])
+    """Dokument löschen (Legacy - Weiterleitung zu neuer Route)"""
+    # Versuche Datei in Datei-Tabelle zu finden
+    with get_db_connection() as conn:
+        datei = conn.execute('''
+            SELECT ID FROM Datei 
+            WHERE BereichTyp = 'Ersatzteil' 
+            AND BereichID = ? 
+            AND Typ != 'Bild'
+            LIMIT 1
+        ''', (ersatzteil_id,)).fetchone()
+        if datei:
+            return datei_loeschen(datei['ID'])
     
-    if not is_admin:
-        flash('Nur Administratoren können Dokumente löschen.', 'danger')
-        return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
-    
-    try:
-        with get_db_connection() as conn:
-            dokument = conn.execute('SELECT Dateipfad FROM ErsatzteilDokument WHERE ID = ? AND ErsatzteilID = ?', (dokument_id, ersatzteil_id)).fetchone()
-            if dokument:
-                # Datei löschen
-                filepath = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], dokument['Dateipfad'])
-                if os.path.exists(filepath):
-                    os.remove(filepath)
-                
-                # Datenbankeintrag löschen
-                conn.execute('DELETE FROM ErsatzteilDokument WHERE ID = ?', (dokument_id,))
-                conn.commit()
-                flash('Dokument erfolgreich gelöscht.', 'success')
-    except Exception as e:
-        flash(f'Fehler beim Löschen: {str(e)}', 'danger')
-    
+    flash('Dokument nicht gefunden.', 'danger')
     return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
 
 

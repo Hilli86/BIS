@@ -1,0 +1,168 @@
+{#
+    Macro: datei_liste
+    Zeigt eine Liste von Dateien an - entweder als Vorschaubilder (für JPEGs) oder als Liste (für Dokumente)
+    
+    Parameter:
+    - dateien: Liste von Datei-Datensätzen
+    - bereich_typ: 'Ersatzteil', 'Bestellung', 'Thema', etc.
+    - bereich_id: ID des Bereichs
+    - erlaubte_dateitypen: Liste erlaubter Dateitypen (z.B. ['Bild'] für nur Bilder, ['Bild', 'Dokument'] für gemischt)
+    - is_admin: Boolean, ob Benutzer Admin ist
+    - datei_anzeigen_route: Route-Name für Datei-Anzeige (z.B. 'ersatzteile.datei_anzeigen')
+    - datei_loeschen_route: Route-Name für Datei-Löschen (z.B. 'ersatzteile.datei_loeschen')
+    - nur_bilder: Boolean, ob nur Bilder angezeigt werden sollen (für Vorschaubilder)
+#}
+
+{% macro datei_liste(dateien, bereich_typ, bereich_id, erlaubte_dateitypen, is_admin, datei_anzeigen_route, datei_loeschen_route, nur_bilder=False) %}
+    {% if dateien %}
+        {% set nur_jpegs = nur_bilder and erlaubte_dateitypen == ['Bild'] %}
+        
+        {# Dateien nach Typ trennen für gemischte Anzeige #}
+        {% set bilder = [] %}
+        {% set dokumente = [] %}
+        {% for datei in dateien %}
+            {% set datei_typ = datei.Typ if datei.Typ else '' %}
+            {% set datei_ext = datei.Dateiname|file_extension if datei.Dateiname else '' %}
+            {% if datei_typ == 'Bild' or datei_ext in ['jpg', 'jpeg', 'png', 'gif', 'webp'] or (datei.Dateipfad and 'bilder' in datei.Dateipfad) %}
+                {% set _ = bilder.append(datei) %}
+            {% else %}
+                {% set _ = dokumente.append(datei) %}
+            {% endif %}
+        {% endfor %}
+        
+        {% if nur_jpegs %}
+            {# Vorschaubilder für JPEGs (nur wenn nur_bilder=True) #}
+            <div class="row">
+                {% for datei in bilder %}
+                    {% set datei_ext = datei.Dateiname|file_extension %}
+                    {% if datei_ext in ['jpg', 'jpeg', 'png', 'gif', 'webp'] %}
+                        <div class="col-md-3 mb-3">
+                            <div class="card">
+                                <a href="{{ url_for(datei_anzeigen_route, filepath=datei.Dateipfad) }}" target="_blank">
+                                    <img src="{{ url_for(datei_anzeigen_route, filepath=datei.Dateipfad) }}" 
+                                         class="card-img-top" 
+                                         style="height: 150px; object-fit: cover;"
+                                         alt="{{ datei.Dateiname }}">
+                                </a>
+                                <div class="card-body p-2">
+                                    <small class="text-muted d-block">{{ datei.Dateiname }}</small>
+                                    {% if datei.Beschreibung %}
+                                        <small class="text-muted d-block mt-1">{{ datei.Beschreibung }}</small>
+                                    {% endif %}
+                                    {% if is_admin %}
+                                        {% set datei_id = datei.ID if datei.ID else (datei.id if datei.id else (datei['ID'] if datei['ID'] else datei['id'])) %}
+                                        {% if datei_id %}
+                                        <form method="POST" action="{{ url_for(datei_loeschen_route, datei_id=datei_id) }}" 
+                                              onsubmit="return confirm('Datei wirklich löschen?');" class="mt-2">
+                                            <button type="submit" class="btn btn-sm btn-danger w-100">
+                                                <i class="bi bi-trash"></i> Löschen
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        {% else %}
+            {# Gemischte Anzeige: Zuerst Bilder als Vorschaubilder, dann Dokumente als Liste #}
+            {% if bilder %}
+                <h6 class="mb-3">Bilder</h6>
+                <div class="row mb-4">
+                    {% for datei in bilder %}
+                        {% set datei_ext = datei.Dateiname|file_extension %}
+                        {% if datei_ext in ['jpg', 'jpeg', 'png', 'gif', 'webp'] %}
+                            <div class="col-md-3 mb-3">
+                                <div class="card">
+                                    <a href="{{ url_for(datei_anzeigen_route, filepath=datei.Dateipfad) }}" target="_blank">
+                                        <img src="{{ url_for(datei_anzeigen_route, filepath=datei.Dateipfad) }}" 
+                                             class="card-img-top" 
+                                             style="height: 150px; object-fit: cover;"
+                                             alt="{{ datei.Dateiname }}">
+                                    </a>
+                                    <div class="card-body p-2">
+                                        <small class="text-muted d-block">{{ datei.Dateiname }}</small>
+                                        {% if datei.Beschreibung %}
+                                            <small class="text-muted d-block mt-1">{{ datei.Beschreibung }}</small>
+                                        {% endif %}
+                                        {% if is_admin %}
+                                            {% set datei_id = datei.ID if datei.ID else (datei.id if datei.id else (datei['ID'] if datei['ID'] else datei['id'])) %}
+                                            {% if datei_id %}
+                                            <form method="POST" action="{{ url_for(datei_loeschen_route, datei_id=datei_id) }}" 
+                                                  onsubmit="return confirm('Datei wirklich löschen?');" class="mt-2">
+                                                <button type="submit" class="btn btn-sm btn-danger w-100">
+                                                    <i class="bi bi-trash"></i> Löschen
+                                                </button>
+                                            </form>
+                                            {% endif %}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            {% endif %}
+            
+            {% if dokumente %}
+                {% if bilder %}
+                    <h6 class="mb-3">Dokumente</h6>
+                {% endif %}
+                <div class="list-group">
+                    {% for datei in dokumente %}
+                        <div class="list-group-item d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                {% if datei.Dateipfad %}
+                                    <a href="{{ url_for(datei_anzeigen_route, filepath=datei.Dateipfad) }}" target="_blank" class="text-decoration-none">
+                                        <i class="bi bi-file-earmark"></i> {{ datei.Dateiname if datei.Dateiname else (datei.name if datei.name else 'Unbekannt') }}
+                                    </a>
+                                {% elif datei.path %}
+                                    <a href="{{ url_for(datei_anzeigen_route, filepath=datei.path) }}" target="_blank" class="text-decoration-none">
+                                        <i class="bi bi-file-earmark"></i> {{ datei.name if datei.name else 'Unbekannt' }}
+                                    </a>
+                                {% else %}
+                                    <i class="bi bi-file-earmark"></i> {{ datei.Dateiname if datei.Dateiname else (datei.name if datei.name else 'Unbekannt') }}
+                                {% endif %}
+                                {% if datei.Beschreibung %}
+                                    <br><small class="text-muted">{{ datei.Beschreibung }}</small>
+                                {% endif %}
+                                {% if datei.Typ %}
+                                    <br><small class="text-muted">Typ: {{ datei.Typ }}</small>
+                                {% endif %}
+                                {% if datei.ErstelltVon %}
+                                    <br><small class="text-muted">Hochgeladen von: {{ datei.ErstelltVon }}</small>
+                                {% endif %}
+                                {% if datei.ErstelltAm %}
+                                    <br><small class="text-muted">{{ datei.ErstelltAm[:16] if datei.ErstelltAm|length >= 16 else datei.ErstelltAm }}</small>
+                                {% elif datei.modified %}
+                                    <br><small class="text-muted">{{ datei.modified.strftime('%d.%m.%Y %H:%M') if datei.modified else '' }}</small>
+                                {% endif %}
+                                {% if datei.size %}
+                                    <br><small class="text-muted">{{ datei.size // 1024 }} KB</small>
+                                {% endif %}
+                            </div>
+                            {% if is_admin %}
+                                {% set datei_id = datei.ID if datei.ID else (datei.id if datei.id else (datei['ID'] if datei['ID'] else datei['id'])) %}
+                                {% if datei_id %}
+                                <form method="POST" action="{{ url_for(datei_loeschen_route, datei_id=datei_id) }}" 
+                                      onsubmit="return confirm('Datei wirklich löschen?');" class="d-inline ms-2">
+                                    <button type="submit" class="btn btn-sm btn-danger">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endif %}
+    {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Keine Dateien vorhanden.
+        </div>
+    {% endif %}
+{% endmacro %}
+
