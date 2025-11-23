@@ -278,7 +278,7 @@
       <h5 class="mb-0">Binca Manufaktur</h5>
     </div>
   
-    <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}">
+    <a href="{{ url_for('dashboard.dashboard') }}" class="{% if request.endpoint == 'dashboard.dashboard' %}active{% endif %}">
       📊 Dashboard
       <span id="notificationBadge" class="badge bg-danger ms-2" style="display: none;">0</span>
     </a>

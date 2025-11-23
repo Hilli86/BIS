@@ -107,7 +107,7 @@ def login():
                     if next_page and is_safe_url(next_page):
                         response = make_response(redirect(next_page))
                     else:
-                        response = make_response(redirect(url_for('dashboard')))
+                        response = make_response(redirect(url_for('dashboard.dashboard')))
                     
                     # Cookie für "Zugangsdaten merken" setzen oder löschen
                     if remember_me_checkbox:

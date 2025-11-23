@@ -56,7 +56,7 @@ def admin_required(view_func):
             if is_ajax:
                 return jsonify({'success': False, 'message': 'Zugriff verweigert. Sie benötigen Admin-Rechte.'}), 403
             flash('Zugriff verweigert. Sie benötigen Admin-Rechte.', 'danger')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('dashboard.dashboard'))
         
         return view_func(*args, **kwargs)
     return wrapper
@@ -106,7 +106,7 @@ def permission_required(berechtigung_schluessel):
                         'message': f'Zugriff verweigert. Sie benötigen die Berechtigung: {berechtigung_schluessel}'
                     }), 403
                 flash(f'Zugriff verweigert. Sie benötigen die erforderliche Berechtigung.', 'danger')
-                return redirect(url_for('dashboard'))
+                return redirect(url_for('dashboard.dashboard'))
             
             return view_func(*args, **kwargs)
         return wrapper

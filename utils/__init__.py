@@ -25,6 +25,19 @@ from .berechtigungen import (
     mitarbeiter_berechtigung_hinzufuegen,
     mitarbeiter_berechtigung_entfernen
 )
+from .helpers import (
+    row_to_dict,
+    build_sichtbarkeits_filter_query,
+    build_ersatzteil_zugriff_filter,
+    format_file_size
+)
+from .file_handling import (
+    validate_file_extension,
+    create_upload_folder,
+    get_file_list,
+    save_uploaded_file,
+    move_file_safe
+)
 
 __all__ = [
     'get_db_connection',
@@ -45,6 +58,15 @@ __all__ = [
     'get_mitarbeiter_berechtigungen',
     'get_alle_berechtigungen',
     'mitarbeiter_berechtigung_hinzufuegen',
-    'mitarbeiter_berechtigung_entfernen'
+    'mitarbeiter_berechtigung_entfernen',
+    'row_to_dict',
+    'build_sichtbarkeits_filter_query',
+    'build_ersatzteil_zugriff_filter',
+    'format_file_size',
+    'validate_file_extension',
+    'create_upload_folder',
+    'get_file_list',
+    'save_uploaded_file',
+    'move_file_safe'
 ]
 

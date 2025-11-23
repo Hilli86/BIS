@@ -18,6 +18,8 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT, TA_JUSTIFY
 from . import schichtbuch_bp
 from utils import get_db_connection, login_required, get_sichtbare_abteilungen_fuer_mitarbeiter
+from utils.helpers import build_sichtbarkeits_filter_query, row_to_dict
+from . import services
 
 
 def get_datei_anzahl(thema_id):
@@ -49,93 +51,22 @@ def themaliste():
         mitarbeiter_id = session.get('user_id')
         sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
         
-        query = '''
-            SELECT 
-                t.ID,
-                b.Bezeichnung AS Bereich,
-                g.Bezeichnung AS Gewerk,
-                s.Bezeichnung AS Status,
-                s.Farbe AS Farbe,
-                abt.Bezeichnung AS Abteilung,
-                COALESCE(MAX(bm.Datum), '1900-01-01') AS LetzteBemerkungDatum,
-                COALESCE(MAX(bm.MitarbeiterID), 0) AS LetzteMitarbeiterID,
-                COALESCE(MAX(m.Vorname), '') AS LetzteMitarbeiterVorname,
-                COALESCE(MAX(m.Nachname), '') AS LetzteMitarbeiterNachname,
-                COALESCE(MAX(ta.Bezeichnung), '') AS LetzteTatigkeit
-            FROM SchichtbuchThema t
-            JOIN Gewerke g ON t.GewerkID = g.ID
-            JOIN Bereich b ON g.BereichID = b.ID
-            JOIN Status s ON t.StatusID = s.ID
-            LEFT JOIN Abteilung abt ON t.ErstellerAbteilungID = abt.ID
-            LEFT JOIN SchichtbuchBemerkungen bm ON bm.ThemaID = t.ID AND bm.Gelöscht = 0
-            LEFT JOIN Mitarbeiter m ON bm.MitarbeiterID = m.ID
-            LEFT JOIN Taetigkeit ta ON bm.TaetigkeitID = ta.ID
-            WHERE t.Gelöscht = 0
-        '''
-        params = []
-        
-        # Sichtbarkeitsfilter: Nur Themen anzeigen, für die Berechtigung besteht
-        if sichtbare_abteilungen:
-            placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
-            query += f''' AND EXISTS (
-                SELECT 1 FROM SchichtbuchThemaSichtbarkeit sv
-                WHERE sv.ThemaID = t.ID 
-                AND sv.AbteilungID IN ({placeholders})
-            )'''
-            params.extend(sichtbare_abteilungen)
-
-        if bereich_filter:
-            query += ' AND b.Bezeichnung = ?'
-            params.append(bereich_filter)
-
-        if gewerk_filter:
-            query += ' AND g.Bezeichnung = ?'
-            params.append(gewerk_filter)
-
-        if status_filter_list:
-            placeholders = ','.join(['?'] * len(status_filter_list))
-            query += f' AND s.Bezeichnung IN ({placeholders})'
-            params.extend(status_filter_list)
-
-        if q_filter:
-            query += ' AND EXISTS (SELECT 1 FROM SchichtbuchBemerkungen b2 WHERE b2.ThemaID = t.ID AND b2.Gelöscht = 0 AND b2.Bemerkung LIKE ? )'
-            params.append(f'%{q_filter}%')
-
-        query += ' GROUP BY t.ID'
-        query += ''' ORDER BY 
-                        LetzteBemerkungDatum DESC,
-                        LetzteMitarbeiterNachname ASC,
-                        LetzteMitarbeiterVorname ASC,
-                        Bereich ASC,
-                        Gewerk ASC,
-                        LetzteTatigkeit ASC,
-                        Status ASC
-                    LIMIT ?'''
-        params.append(items_per_page)
+        # Query mit Service-Funktion aufbauen
+        query, params = services.build_themen_query(
+            sichtbare_abteilungen,
+            bereich_filter=bereich_filter,
+            gewerk_filter=gewerk_filter,
+            status_filter_list=status_filter_list,
+            q_filter=q_filter,
+            limit=items_per_page
+        )
 
         themen = conn.execute(query, params).fetchall()
 
-        # Nur Bemerkungen für die aktuell angezeigten Themen laden
-        if themen:
-            thema_ids = [t['ID'] for t in themen]
-            placeholders = ','.join(['?'] * len(thema_ids))
-            bemerkungen = conn.execute(f'''
-                SELECT 
-                    b.ThemaID,
-                    b.Datum,
-                    b.Bemerkung,
-                    m.Vorname,
-                    m.Nachname,
-                    t.Bezeichnung AS Taetigkeit
-                FROM SchichtbuchBemerkungen b
-                JOIN Mitarbeiter m ON b.MitarbeiterID = m.ID
-                LEFT JOIN Taetigkeit t ON b.TaetigkeitID = t.ID
-                WHERE b.Gelöscht = 0 AND b.ThemaID IN ({placeholders})
-                ORDER BY b.ThemaID DESC, b.Datum DESC
-            ''', thema_ids).fetchall()
-        else:
-            bemerkungen = []
-
+        # Bemerkungen für die aktuell angezeigten Themen laden
+        thema_ids = [t['ID'] for t in themen] if themen else []
+        bemerk_dict = services.get_bemerkungen_fuer_themen(thema_ids, conn)
+        
         # Werte für Dropdowns holen
         status_liste = conn.execute('SELECT ID, Bezeichnung FROM Status WHERE Aktiv = 1 ORDER BY Sortierung ASC').fetchall()
         bereich_liste = conn.execute('SELECT Bezeichnung FROM Bereich WHERE Aktiv = 1 ORDER BY Bezeichnung').fetchall()
@@ -150,11 +81,6 @@ def themaliste():
         else:
             gewerke_liste = conn.execute('SELECT ID, Bezeichnung FROM Gewerke WHERE Aktiv = 1 ORDER BY Bezeichnung').fetchall()
         taetigkeiten_liste = conn.execute('SELECT ID, Bezeichnung FROM Taetigkeit WHERE Aktiv = 1 ORDER BY Sortierung ASC').fetchall()
-
-    # Nach Thema gruppieren
-    bemerk_dict = {}
-    for b in bemerkungen:
-        bemerk_dict.setdefault(b['ThemaID'], []).append(b)
 
     return render_template(
         'sbThemaListe.html',
@@ -187,88 +113,22 @@ def themaliste_load_more():
         mitarbeiter_id = session.get('user_id')
         sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
         
-        query = '''
-            SELECT 
-                t.ID,
-                b.Bezeichnung AS Bereich,
-                g.Bezeichnung AS Gewerk,
-                s.Bezeichnung AS Status,
-                s.Farbe AS Farbe,
-                abt.Bezeichnung AS Abteilung,
-                COALESCE(MAX(bm.Datum), '1900-01-01') AS LetzteBemerkungDatum,
-                COALESCE(MAX(bm.MitarbeiterID), 0) AS LetzteMitarbeiterID,
-                COALESCE(MAX(m.Vorname), '') AS LetzteMitarbeiterVorname,
-                COALESCE(MAX(m.Nachname), '') AS LetzteMitarbeiterNachname,
-                COALESCE(MAX(ta.Bezeichnung), '') AS LetzteTatigkeit
-            FROM SchichtbuchThema t
-            JOIN Gewerke g ON t.GewerkID = g.ID
-            JOIN Bereich b ON g.BereichID = b.ID
-            JOIN Status s ON t.StatusID = s.ID
-            LEFT JOIN Abteilung abt ON t.ErstellerAbteilungID = abt.ID
-            LEFT JOIN SchichtbuchBemerkungen bm ON bm.ThemaID = t.ID AND bm.Gelöscht = 0
-            LEFT JOIN Mitarbeiter m ON bm.MitarbeiterID = m.ID
-            LEFT JOIN Taetigkeit ta ON bm.TaetigkeitID = ta.ID
-            WHERE t.Gelöscht = 0
-        '''
-        params = []
-        
-        # Sichtbarkeitsfilter: Nur Themen anzeigen, für die Berechtigung besteht
-        if sichtbare_abteilungen:
-            placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
-            query += f''' AND EXISTS (
-                SELECT 1 FROM SchichtbuchThemaSichtbarkeit sv
-                WHERE sv.ThemaID = t.ID 
-                AND sv.AbteilungID IN ({placeholders})
-            )'''
-            params.extend(sichtbare_abteilungen)
-
-        if bereich_filter:
-            query += ' AND b.Bezeichnung = ?'
-            params.append(bereich_filter)
-
-        if gewerk_filter:
-            query += ' AND g.Bezeichnung = ?'
-            params.append(gewerk_filter)
-
-        if status_filter_list:
-            placeholders = ','.join(['?'] * len(status_filter_list))
-            query += f' AND s.Bezeichnung IN ({placeholders})'
-            params.extend(status_filter_list)
-
-        if q_filter:
-            query += ' AND EXISTS (SELECT 1 FROM SchichtbuchBemerkungen b2 WHERE b2.ThemaID = t.ID AND b2.Gelöscht = 0 AND b2.Bemerkung LIKE ? )'
-            params.append(f'%{q_filter}%')
-
-        query += ' GROUP BY t.ID ORDER BY LetzteBemerkungDatum DESC, LetzteMitarbeiterNachname ASC, LetzteMitarbeiterVorname ASC, Bereich ASC, Gewerk ASC, LetzteTatigkeit ASC, Status ASC LIMIT ? OFFSET ?'
-        params.extend([limit, offset])
+        # Query mit Service-Funktion aufbauen
+        query, params = services.build_themen_query(
+            sichtbare_abteilungen,
+            bereich_filter=bereich_filter,
+            gewerk_filter=gewerk_filter,
+            status_filter_list=status_filter_list,
+            q_filter=q_filter,
+            limit=limit,
+            offset=offset
+        )
 
         themen = conn.execute(query, params).fetchall()
 
-        # Nur Bemerkungen für diese Themen laden
-        if themen:
-            thema_ids = [t['ID'] for t in themen]
-            placeholders = ','.join(['?'] * len(thema_ids))
-            bemerkungen = conn.execute(f'''
-                SELECT 
-                    b.ThemaID,
-                    b.Datum,
-                    b.Bemerkung,
-                    m.Vorname,
-                    m.Nachname,
-                    t.Bezeichnung AS Taetigkeit
-                FROM SchichtbuchBemerkungen b
-                JOIN Mitarbeiter m ON b.MitarbeiterID = m.ID
-                LEFT JOIN Taetigkeit t ON b.TaetigkeitID = t.ID
-                WHERE b.Gelöscht = 0 AND b.ThemaID IN ({placeholders})
-                ORDER BY b.ThemaID DESC, b.Datum DESC
-            ''', thema_ids).fetchall()
-        else:
-            bemerkungen = []
-
-    # Nach Thema gruppieren
-    bemerk_dict = {}
-    for b in bemerkungen:
-        bemerk_dict.setdefault(b['ThemaID'], []).append(b)
+        # Bemerkungen für diese Themen laden
+        thema_ids = [t['ID'] for t in themen] if themen else []
+        bemerk_dict = services.get_bemerkungen_fuer_themen(thema_ids, conn)
 
     # Als JSON zurückgeben
     return jsonify({
@@ -339,12 +199,14 @@ def add_bemerkung():
         if status_id and status_id.isdigit():
             cursor.execute("UPDATE SchichtbuchThema SET StatusID = ? WHERE ID = ?", (status_id, thema_id))
             status_row = conn.execute("SELECT Bezeichnung, Farbe FROM Status WHERE ID = ?", (status_id,)).fetchone()
-            if status_row:
-                neuer_status = status_row["Bezeichnung"]
-                neue_farbe = status_row["Farbe"]
+            status_dict = row_to_dict(status_row)
+            if status_dict:
+                neuer_status = status_dict["Bezeichnung"]
+                neue_farbe = status_dict["Farbe"]
 
         # Mitarbeitername holen
-        user = conn.execute("SELECT Vorname, Nachname FROM Mitarbeiter WHERE ID = ?", (mitarbeiter_id,)).fetchone()
+        user_row = conn.execute("SELECT Vorname, Nachname FROM Mitarbeiter WHERE ID = ?", (mitarbeiter_id,)).fetchone()
+        user = row_to_dict(user_row)
 
         conn.commit()
 
@@ -354,8 +216,9 @@ def add_bemerkung():
         if taetigkeit_id:
             with get_db_connection() as conn:
                 ta_row = conn.execute("SELECT Bezeichnung FROM Taetigkeit WHERE ID = ?", (taetigkeit_id,)).fetchone()
-                if ta_row:
-                    taetigkeit_name = ta_row["Bezeichnung"]
+                ta_dict = row_to_dict(ta_row)
+                if ta_dict:
+                    taetigkeit_name = ta_dict["Bezeichnung"]
 
         return jsonify({
             "success": True,
@@ -390,10 +253,11 @@ def themaneu():
             cur = conn.cursor()
             
             # Primärabteilung des Erstellers ermitteln
-            mitarbeiter = conn.execute(
+            mitarbeiter_row = conn.execute(
                 'SELECT PrimaerAbteilungID FROM Mitarbeiter WHERE ID = ?',
                 (mitarbeiter_id,)
             ).fetchone()
+            mitarbeiter = row_to_dict(mitarbeiter_row)
             
             ersteller_abteilung_id = mitarbeiter['PrimaerAbteilungID'] if mitarbeiter else None
 
@@ -654,6 +518,7 @@ def thema_detail(thema_id):
         sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
         
         if sichtbare_abteilungen:
+            # Prüfe ob Thema für Benutzer sichtbar ist
             placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
             berechtigt = conn.execute(f'''
                 SELECT COUNT(*) as count FROM SchichtbuchThemaSichtbarkeit
@@ -1148,36 +1013,22 @@ def thema_datei_upload(thema_id):
     if file.filename == '':
         return jsonify({'success': False, 'message': 'Keine Datei ausgewählt'}), 400
     
-    # Dateiendung prüfen
-    def allowed_file(filename):
-        return '.' in filename and \
-               filename.rsplit('.', 1)[1].lower() in current_app.config['ALLOWED_EXTENSIONS']
+    # File-Upload mit Utility-Funktion
+    from utils.file_handling import save_uploaded_file
     
-    if not allowed_file(file.filename):
-        allowed = ', '.join(current_app.config['ALLOWED_EXTENSIONS'])
-        return jsonify({'success': False, 'message': f'Dateityp nicht erlaubt. Erlaubt sind: {allowed}'}), 400
-    
-    # Sicheren Dateinamen erstellen
-    filename = secure_filename(file.filename)
-    
-    # Zielordner erstellen falls nicht vorhanden
     thema_folder = os.path.join(current_app.config['SCHICHTBUCH_UPLOAD_FOLDER'], str(thema_id))
-    os.makedirs(thema_folder, exist_ok=True)
+    success, filename, error_message = save_uploaded_file(
+        file,
+        thema_folder,
+        allowed_extensions=current_app.config['ALLOWED_EXTENSIONS'],
+        create_unique_name=True
+    )
     
-    # Prüfen ob Datei bereits existiert
-    filepath = os.path.join(thema_folder, filename)
-    if os.path.exists(filepath):
-        # Dateiname mit Nummer versehen
-        name, ext = os.path.splitext(filename)
-        counter = 1
-        while os.path.exists(filepath):
-            filename = f"{name}_{counter}{ext}"
-            filepath = os.path.join(thema_folder, filename)
-            counter += 1
+    if not success:
+        return jsonify({'success': False, 'message': error_message}), 400
     
     try:
-        # Datei speichern
-        file.save(filepath)
+        # Datei wurde bereits gespeichert, nur noch Erfolg zurückgeben
         return jsonify({
             'success': True, 
             'message': f'Datei "{filename}" erfolgreich hochgeladen',
@@ -1294,6 +1145,7 @@ def thema_pdf_export(thema_id):
         sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
         
         if sichtbare_abteilungen:
+            # Prüfe ob Thema für Benutzer sichtbar ist
             placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
             berechtigt = conn.execute(f'''
                 SELECT COUNT(*) as count FROM SchichtbuchThemaSichtbarkeit
@@ -1754,15 +1606,14 @@ def suche_thema():
                 params = [thema_id]
                 
                 # Sichtbarkeitsfilter: Nur Themen anzeigen, für die Berechtigung besteht
-                if sichtbare_abteilungen:
-                    placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
-                    query += f''' AND EXISTS (
-                        SELECT 1 FROM SchichtbuchThemaSichtbarkeit sv
-                        WHERE sv.ThemaID = t.ID 
-                        AND sv.AbteilungID IN ({placeholders})
-                    )'''
-                    params.extend(sichtbare_abteilungen)
-                else:
+                query, params = build_sichtbarkeits_filter_query(
+                    query,
+                    sichtbare_abteilungen,
+                    params,
+                    table_alias='t'
+                )
+                
+                if not sichtbare_abteilungen:
                     # Keine Berechtigung
                     flash('Thema nicht gefunden oder Sie haben keine Berechtigung.', 'danger')
                     return render_template('thema_suche.html')

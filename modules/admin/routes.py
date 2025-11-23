@@ -8,6 +8,7 @@ from werkzeug.security import generate_password_hash
 import sqlite3
 from . import admin_bp
 from utils import get_db_connection, admin_required
+from utils.helpers import row_to_dict
 
 
 def ajax_response(message, success=True, status_code=None):
@@ -34,25 +35,39 @@ def dashboard():
             ORDER BY m.Nachname, m.Vorname
         ''').fetchall()
         
-        # Zusätzliche Abteilungen für jeden Mitarbeiter laden
+        # Alle zusätzlichen Abteilungen in einer Query laden
         mitarbeiter_abteilungen = {}
-        for m in mitarbeiter:
-            zusaetzliche = conn.execute('''
-                SELECT AbteilungID
+        if mitarbeiter:
+            mitarbeiter_ids = [m['ID'] for m in mitarbeiter]
+            placeholders = ','.join(['?'] * len(mitarbeiter_ids))
+            abteilungen_rows = conn.execute(f'''
+                SELECT MitarbeiterID, AbteilungID
                 FROM MitarbeiterAbteilung
-                WHERE MitarbeiterID = ?
-            ''', (m['ID'],)).fetchall()
-            mitarbeiter_abteilungen[m['ID']] = [row['AbteilungID'] for row in zusaetzliche]
+                WHERE MitarbeiterID IN ({placeholders})
+            ''', mitarbeiter_ids).fetchall()
+            
+            for row in abteilungen_rows:
+                mid = row['MitarbeiterID']
+                if mid not in mitarbeiter_abteilungen:
+                    mitarbeiter_abteilungen[mid] = []
+                mitarbeiter_abteilungen[mid].append(row['AbteilungID'])
         
-        # Berechtigungen für jeden Mitarbeiter laden
+        # Alle Berechtigungen in einer Query laden
         mitarbeiter_berechtigungen = {}
-        for m in mitarbeiter:
-            berechtigungen = conn.execute('''
-                SELECT BerechtigungID
+        if mitarbeiter:
+            mitarbeiter_ids = [m['ID'] for m in mitarbeiter]
+            placeholders = ','.join(['?'] * len(mitarbeiter_ids))
+            berechtigungen_rows = conn.execute(f'''
+                SELECT MitarbeiterID, BerechtigungID
                 FROM MitarbeiterBerechtigung
-                WHERE MitarbeiterID = ?
-            ''', (m['ID'],)).fetchall()
-            mitarbeiter_berechtigungen[m['ID']] = [row['BerechtigungID'] for row in berechtigungen]
+                WHERE MitarbeiterID IN ({placeholders})
+            ''', mitarbeiter_ids).fetchall()
+            
+            for row in berechtigungen_rows:
+                mid = row['MitarbeiterID']
+                if mid not in mitarbeiter_berechtigungen:
+                    mitarbeiter_berechtigungen[mid] = []
+                mitarbeiter_berechtigungen[mid].append(row['BerechtigungID'])
         
         # Abteilungen hierarchisch laden
         abteilungen = conn.execute('''
@@ -81,7 +96,8 @@ def dashboard():
         lagerplaetze = conn.execute('SELECT ID, Bezeichnung, Beschreibung, Aktiv, Sortierung FROM Lagerplatz ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
         
         # Firmendaten laden (nur erste Zeile, sollte nur eine geben)
-        firmendaten = conn.execute('SELECT * FROM Firmendaten LIMIT 1').fetchone()
+        firmendaten_row = conn.execute('SELECT * FROM Firmendaten LIMIT 1').fetchone()
+        firmendaten = row_to_dict(firmendaten_row) if firmendaten_row else None
         
         # Berechtigungen laden
         berechtigungen = conn.execute('SELECT ID, Schluessel, Bezeichnung, Beschreibung, Aktiv FROM Berechtigung ORDER BY Bezeichnung').fetchall()

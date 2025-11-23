@@ -15,6 +15,8 @@ from werkzeug.utils import secure_filename
 from . import ersatzteile_bp
 from utils import get_db_connection, login_required, permission_required, get_sichtbare_abteilungen_fuer_mitarbeiter, ist_admin
 from utils.firmendaten import get_firmendaten
+from utils.helpers import build_sichtbarkeits_filter_query, build_ersatzteil_zugriff_filter, row_to_dict
+from utils.file_handling import save_uploaded_file, validate_file_extension, create_upload_folder
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import cm
@@ -221,8 +223,9 @@ def hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
         return True
     
     # Prüfe ob Benutzer der Ersteller ist
-    ersatzteil = conn.execute('SELECT ErstelltVonID FROM Ersatzteil WHERE ID = ? AND Gelöscht = 0', (ersatzteil_id,)).fetchone()
-    if ersatzteil and ersatzteil['ErstelltVonID'] == mitarbeiter_id:
+    ersatzteil_row = conn.execute('SELECT ErstelltVonID FROM Ersatzteil WHERE ID = ? AND Gelöscht = 0', (ersatzteil_id,)).fetchone()
+    ersatzteil = row_to_dict(ersatzteil_row)
+    if ersatzteil and ersatzteil.get('ErstelltVonID') == mitarbeiter_id:
         return True
     
     # Prüfe ob Ersatzteil für Abteilungen des Mitarbeiters freigegeben ist
@@ -231,12 +234,13 @@ def hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
         return False
     
     placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
-    zugriff = conn.execute(f'''
+    zugriff_row = conn.execute(f'''
         SELECT COUNT(*) as count FROM ErsatzteilAbteilungZugriff
         WHERE ErsatzteilID = ? AND AbteilungID IN ({placeholders})
     ''', [ersatzteil_id] + sichtbare_abteilungen).fetchone()
+    zugriff = row_to_dict(zugriff_row)
     
-    return zugriff['count'] > 0
+    return zugriff and zugriff.get('count', 0) > 0
 
 
 def get_datei_anzahl(ersatzteil_id, typ='bild'):
@@ -308,24 +312,13 @@ def ersatzteil_liste():
         params = []
         
         # Berechtigungsfilter
-        if not is_admin:
-            if sichtbare_abteilungen:
-                placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
-                query += f'''
-                    AND (
-                        e.ErstelltVonID = ? OR
-                        e.ID IN (
-                            SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
-                            WHERE AbteilungID IN ({placeholders})
-                        )
-                    )
-                '''
-                params.append(mitarbeiter_id)
-                params.extend(sichtbare_abteilungen)
-            else:
-                # Nur selbst erstellte Artikel
-                query += ' AND e.ErstelltVonID = ?'
-                params.append(mitarbeiter_id)
+        query, params = build_ersatzteil_zugriff_filter(
+            query,
+            mitarbeiter_id,
+            sichtbare_abteilungen,
+            is_admin,
+            params
+        )
         
         # Filter anwenden
         if kategorie_filter:
@@ -466,24 +459,13 @@ def lagerbuchungen_liste():
         params = []
         
         # Berechtigungsfilter: Nur Ersatzteile, auf die der Benutzer Zugriff hat
-        if not is_admin:
-            if sichtbare_abteilungen:
-                placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
-                query += f'''
-                    AND (
-                        e.ErstelltVonID = ? OR
-                        e.ID IN (
-                            SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
-                            WHERE AbteilungID IN ({placeholders})
-                        )
-                    )
-                '''
-                params.append(mitarbeiter_id)
-                params.extend(sichtbare_abteilungen)
-            else:
-                # Nur selbst erstellte Artikel
-                query += ' AND e.ErstelltVonID = ?'
-                params.append(mitarbeiter_id)
+        query, params = build_ersatzteil_zugriff_filter(
+            query,
+            mitarbeiter_id,
+            sichtbare_abteilungen,
+            is_admin,
+            params
+        )
         
         # Filter anwenden
         if ersatzteil_filter:
@@ -528,24 +510,14 @@ def lagerbuchungen_liste():
         '''
         ersatzteile_params = []
         
-        if not is_admin:
-            if sichtbare_abteilungen:
-                placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
-                ersatzteile_query += f'''
-                    AND (
-                        e.ErstelltVonID = ? OR
-                        e.ID IN (
-                            SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
-                            WHERE AbteilungID IN ({placeholders})
-                        )
-                    )
-                '''
-                ersatzteile_params.append(mitarbeiter_id)
-                ersatzteile_params.extend(sichtbare_abteilungen)
-            else:
-                # Nur selbst erstellte Artikel
-                ersatzteile_query += ' AND e.ErstelltVonID = ?'
-                ersatzteile_params.append(mitarbeiter_id)
+        # Berechtigungsfilter
+        ersatzteile_query, ersatzteile_params = build_ersatzteil_zugriff_filter(
+            ersatzteile_query,
+            mitarbeiter_id,
+            sichtbare_abteilungen,
+            is_admin,
+            ersatzteile_params
+        )
         
         ersatzteile_query += ' ORDER BY e.Bestellnummer'
         ersatzteile = conn.execute(ersatzteile_query, ersatzteile_params).fetchall()
@@ -737,8 +709,9 @@ def ersatzteil_neu():
     
     # Eigene Abteilung des Benutzers ermitteln
     with get_db_connection() as conn:
-        user_abteilung = conn.execute('SELECT PrimaerAbteilungID FROM Mitarbeiter WHERE ID = ?', (mitarbeiter_id,)).fetchone()
-        eigene_abteilung_id = user_abteilung['PrimaerAbteilungID'] if user_abteilung and user_abteilung['PrimaerAbteilungID'] else None
+        user_abteilung_row = conn.execute('SELECT PrimaerAbteilungID FROM Mitarbeiter WHERE ID = ?', (mitarbeiter_id,)).fetchone()
+        user_abteilung = row_to_dict(user_abteilung_row)
+        eigene_abteilung_id = user_abteilung.get('PrimaerAbteilungID') if user_abteilung else None
         
         if vorlage_id:
             vorlage = conn.execute('''
@@ -1436,24 +1409,13 @@ def inventurliste():
         params = []
         
         # Berechtigungsfilter
-        if not is_admin:
-            if sichtbare_abteilungen:
-                placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
-                query += f'''
-                    AND (
-                        e.ErstelltVonID = ? OR
-                        e.ID IN (
-                            SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
-                            WHERE AbteilungID IN ({placeholders})
-                        )
-                    )
-                '''
-                params.append(mitarbeiter_id)
-                params.extend(sichtbare_abteilungen)
-            else:
-                # Nur selbst erstellte Artikel
-                query += ' AND e.ErstelltVonID = ?'
-                params.append(mitarbeiter_id)
+        query, params = build_ersatzteil_zugriff_filter(
+            query,
+            mitarbeiter_id,
+            sichtbare_abteilungen,
+            is_admin,
+            params
+        )
         
         # Lagerort-Filter
         if lagerort_filter:
@@ -1978,21 +1940,30 @@ def bild_upload(ersatzteil_id):
                 
                 # Ordner erstellen
                 upload_folder = os.path.join(current_app.config['ERSATZTEIL_UPLOAD_FOLDER'], str(ersatzteil_id), 'bilder')
-                os.makedirs(upload_folder, exist_ok=True)
+                create_upload_folder(upload_folder)
                 
-                # Datei speichern
-                filename = secure_filename(file.filename)
+                # Datei speichern mit Timestamp
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
-                filename = timestamp + filename
-                filepath = os.path.join(upload_folder, filename)
-                file.save(filepath)
+                original_filename = file.filename
+                # Temporärer Dateiname mit Timestamp
+                file.filename = timestamp + secure_filename(original_filename)
+                
+                filename, error_message = save_uploaded_file(
+                    file,
+                    upload_folder,
+                    allowed_extensions=current_app.config['ALLOWED_EXTENSIONS']
+                )
+                
+                if error_message:
+                    flash(f'Fehler beim Hochladen: {error_message}', 'danger')
+                    return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
                 
                 # Datenbankeintrag - Pfad mit Forward-Slashes für URLs
                 relative_path = f'Ersatzteile/{ersatzteil_id}/bilder/{filename}'
                 conn.execute('''
                     INSERT INTO ErsatzteilBild (ErsatzteilID, Dateiname, Dateipfad)
                     VALUES (?, ?, ?)
-                ''', (ersatzteil_id, file.filename, relative_path))
+                ''', (ersatzteil_id, original_filename, relative_path))
                 conn.commit()
                 
                 flash('Bild erfolgreich hochgeladen.', 'success')
@@ -2032,21 +2003,30 @@ def dokument_upload(ersatzteil_id):
                 
                 # Ordner erstellen
                 upload_folder = os.path.join(current_app.config['ERSATZTEIL_UPLOAD_FOLDER'], str(ersatzteil_id), 'dokumente')
-                os.makedirs(upload_folder, exist_ok=True)
+                create_upload_folder(upload_folder)
                 
-                # Datei speichern
-                filename = secure_filename(file.filename)
+                # Datei speichern mit Timestamp
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
-                filename = timestamp + filename
-                filepath = os.path.join(upload_folder, filename)
-                file.save(filepath)
+                original_filename = file.filename
+                # Temporärer Dateiname mit Timestamp
+                file.filename = timestamp + secure_filename(original_filename)
+                
+                filename, error_message = save_uploaded_file(
+                    file,
+                    upload_folder,
+                    allowed_extensions=current_app.config['ALLOWED_EXTENSIONS']
+                )
+                
+                if error_message:
+                    flash(f'Fehler beim Hochladen: {error_message}', 'danger')
+                    return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
                 
                 # Datenbankeintrag - Pfad mit Forward-Slashes für URLs
                 relative_path = f'Ersatzteile/{ersatzteil_id}/dokumente/{filename}'
                 conn.execute('''
                     INSERT INTO ErsatzteilDokument (ErsatzteilID, Dateiname, Dateipfad, Typ)
                     VALUES (?, ?, ?, ?)
-                ''', (ersatzteil_id, file.filename, relative_path, typ))
+                ''', (ersatzteil_id, original_filename, relative_path, typ))
                 conn.commit()
                 
                 flash('Dokument erfolgreich hochgeladen.', 'success')
@@ -3159,14 +3139,21 @@ def angebotsanfrage_datei_upload(angebotsanfrage_id):
             
             # Ordner erstellen
             upload_folder = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], 'Bestellwesen', 'Angebote', str(angebotsanfrage_id))
-            os.makedirs(upload_folder, exist_ok=True)
             
-            # Datei speichern
-            filename = secure_filename(file.filename)
+            # Datei speichern mit Timestamp
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
-            filename = timestamp + filename
-            filepath = os.path.join(upload_folder, filename)
-            file.save(filepath)
+            original_filename = file.filename
+            file.filename = timestamp + secure_filename(original_filename)
+            
+            filename, error_message = save_uploaded_file(
+                file,
+                upload_folder,
+                allowed_extensions={'pdf'}
+            )
+            
+            if error_message:
+                flash(f'Fehler beim Hochladen: {error_message}', 'danger')
+                return redirect(url_for('ersatzteile.angebotsanfrage_detail', angebotsanfrage_id=angebotsanfrage_id))
             
             flash('PDF erfolgreich hochgeladen.', 'success')
             
@@ -4996,23 +4983,28 @@ def bestellung_datei_upload(bestellung_id):
         flash('Keine Datei ausgewählt.', 'danger')
         return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
     
-    if file and file.filename.lower().endswith('.pdf'):
-        try:
-            # Ordner erstellen
-            bestellung_folder = os.path.join(current_app.config['ANGEBOTE_UPLOAD_FOLDER'], 'Bestellungen', str(bestellung_id))
-            os.makedirs(bestellung_folder, exist_ok=True)
-            
-            # Datei speichern
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(bestellung_folder, filename)
-            file.save(filepath)
-            
-            flash('Datei erfolgreich hochgeladen.', 'success')
-        except Exception as e:
-            flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
-            print(f"Datei-Upload Fehler: {e}")
-    else:
+    # Dateiendung prüfen
+    if not validate_file_extension(file.filename, {'pdf'}):
         flash('Nur PDF-Dateien sind erlaubt.', 'danger')
+        return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+    
+    try:
+        # Ordner erstellen
+        bestellung_folder = os.path.join(current_app.config['ANGEBOTE_UPLOAD_FOLDER'], 'Bestellungen', str(bestellung_id))
+        
+        filename, error_message = save_uploaded_file(
+            file,
+            bestellung_folder,
+            allowed_extensions={'pdf'}
+        )
+        
+        if error_message:
+            flash(f'Fehler beim Hochladen: {error_message}', 'danger')
+        else:
+            flash('Datei erfolgreich hochgeladen.', 'success')
+    except Exception as e:
+        flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
+        print(f"Datei-Upload Fehler: {e}")
     
     return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
 
@@ -5041,24 +5033,29 @@ def bestellung_auftragsbestätigung_upload(bestellung_id):
         flash('Keine Datei ausgewählt.', 'danger')
         return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
     
-    file_ext = file.filename.lower()
-    if file and (file_ext.endswith(('.pdf', '.jpeg', '.jpg', '.png'))):
-        try:
-            # Ordner erstellen
-            auftragsbestätigung_folder = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], 'Bestellwesen', 'Auftragsbestätigungen', str(bestellung_id))
-            os.makedirs(auftragsbestätigung_folder, exist_ok=True)
-            
-            # Datei speichern
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(auftragsbestätigung_folder, filename)
-            file.save(filepath)
-            
-            flash('Auftragsbestätigung erfolgreich hochgeladen.', 'success')
-        except Exception as e:
-            flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
-            print(f"Auftragsbestätigung-Upload Fehler: {e}")
-    else:
+    # Dateiendung prüfen
+    if not validate_file_extension(file.filename, {'pdf', 'jpg', 'jpeg', 'png'}):
         flash('Nur PDF-, JPEG- oder PNG-Dateien sind erlaubt.', 'danger')
+        return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+    
+    try:
+        # Ordner erstellen
+        auftragsbestätigung_folder = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], 'Bestellwesen', 'Auftragsbestätigungen', str(bestellung_id))
+        
+        filename, error_message = save_uploaded_file(
+            file,
+            auftragsbestätigung_folder,
+            allowed_extensions={'pdf', 'jpg', 'jpeg', 'png'}
+        )
+        
+        if error_message:
+            flash(f'Fehler beim Hochladen: {error_message}', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+        
+        flash('Auftragsbestätigung erfolgreich hochgeladen.', 'success')
+    except Exception as e:
+        flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
+        print(f"Auftragsbestätigung-Upload Fehler: {e}")
     
     return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
 
@@ -5261,29 +5258,31 @@ def lieferschein_upload(bestellung_id):
         flash('Keine Datei ausgewählt.', 'danger')
         return redirect(url_for('ersatzteile.wareneingang_bestellung', bestellung_id=bestellung_id))
     
-    # Erlaubte Dateitypen: PDF, JPEG, JPG, PNG
-    allowed_extensions = ['.pdf', '.jpeg', '.jpg', '.png']
-    file_ext = os.path.splitext(file.filename)[1].lower()
-    
-    if file and file_ext in allowed_extensions:
-        try:
-            # Ordner erstellen
-            lieferschein_folder = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], 'Bestellwesen', 'Lieferscheine', str(bestellung_id))
-            os.makedirs(lieferschein_folder, exist_ok=True)
-            
-            # Datei speichern
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(lieferschein_folder, filename)
-            file.save(filepath)
-            
-            flash('Lieferschein erfolgreich hochgeladen.', 'success')
-        except Exception as e:
-            flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
-            print(f"Lieferschein-Upload Fehler: {e}")
-            import traceback
-            traceback.print_exc()
-    else:
+    # Dateiendung prüfen
+    if not validate_file_extension(file.filename, {'pdf', 'jpg', 'jpeg', 'png'}):
         flash('Nur PDF-, JPEG-, JPG- oder PNG-Dateien sind erlaubt.', 'danger')
+        return redirect(url_for('ersatzteile.wareneingang_bestellung', bestellung_id=bestellung_id))
+    
+    try:
+        # Ordner erstellen
+        lieferschein_folder = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], 'Bestellwesen', 'Lieferscheine', str(bestellung_id))
+        
+        filename, error_message = save_uploaded_file(
+            file,
+            lieferschein_folder,
+            allowed_extensions={'pdf', 'jpg', 'jpeg', 'png'}
+        )
+        
+        if error_message:
+            flash(f'Fehler beim Hochladen: {error_message}', 'danger')
+            return redirect(url_for('ersatzteile.wareneingang_bestellung', bestellung_id=bestellung_id))
+        
+        flash('Lieferschein erfolgreich hochgeladen.', 'success')
+    except Exception as e:
+        flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
+        print(f"Lieferschein-Upload Fehler: {e}")
+        import traceback
+        traceback.print_exc()
     
     return redirect(url_for('ersatzteile.wareneingang_bestellung', bestellung_id=bestellung_id))
 
