@@ -3,6 +3,15 @@ File Handling Utilities für Ersatzteile-Modul
 """
 
 import os
+from flask import current_app
+
+
+def allowed_file(filename):
+    """Prüft ob Dateityp erlaubt ist"""
+    allowed_extensions = current_app.config.get('ALLOWED_EXTENSIONS', {'.png', '.jpg', '.jpeg', '.gif', '.pdf', '.doc', '.docx'})
+    return '.' in filename and os.path.splitext(filename)[1].lower() in allowed_extensions
+
+import os
 from datetime import datetime
 from flask import current_app
 

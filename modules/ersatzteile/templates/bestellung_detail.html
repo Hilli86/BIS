@@ -434,7 +434,7 @@
     <div class="card-body">
         <div class="list-group">
             {% for datei in dateien %}
-            <a href="{{ url_for('ersatzteile.bestellung_datei_anzeigen', filepath=datei.path) }}" target="_blank" class="list-group-item list-group-item-action">
+            <a href="{{ url_for('ersatzteile.bestellung_datei_anzeigen', bestellung_id=bestellung.ID, filepath=datei.path) }}" target="_blank" class="list-group-item list-group-item-action">
                 <div class="d-flex w-100 justify-content-between">
                     <h6 class="mb-1">{{ datei.name }}</h6>
                     <small>{{ datei.size // 1024 }} KB</small>
@@ -506,7 +506,7 @@
         {% if auftragsbestätigungen %}
         <div class="list-group">
             {% for datei in auftragsbestätigungen %}
-            <a href="{{ url_for('ersatzteile.bestellung_datei_anzeigen', filepath=datei.path) }}" target="_blank" class="list-group-item list-group-item-action">
+            <a href="{{ url_for('ersatzteile.auftragsbestätigung_anzeigen', filepath=datei.path) }}" target="_blank" class="list-group-item list-group-item-action">
                 <div class="d-flex w-100 justify-content-between">
                     <h6 class="mb-1">{{ datei.name }}</h6>
                     <small>{{ datei.size // 1024 }} KB</small>

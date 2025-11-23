@@ -240,9 +240,10 @@ def add_bemerkung():
 @login_required
 def themaneu():
     """Neues Thema + erste Bemerkung"""
+    mitarbeiter_id = session.get('user_id')
+    
     # POST = neues Thema speichern
     if request.method == 'POST':
-        mitarbeiter_id = session.get('user_id')
         gewerk_id = request.form['gewerk']
         taetigkeit_id = request.form['taetigkeit']
         status_id = request.form['status']
@@ -250,229 +251,40 @@ def themaneu():
         sichtbare_abteilungen = request.form.getlist('sichtbare_abteilungen')
 
         with get_db_connection() as conn:
-            cur = conn.cursor()
-            
-            # Primärabteilung des Erstellers ermitteln
-            mitarbeiter_row = conn.execute(
-                'SELECT PrimaerAbteilungID FROM Mitarbeiter WHERE ID = ?',
-                (mitarbeiter_id,)
-            ).fetchone()
-            mitarbeiter = row_to_dict(mitarbeiter_row)
-            
-            ersteller_abteilung_id = mitarbeiter['PrimaerAbteilungID'] if mitarbeiter else None
-
-            # Thema mit Abteilung anlegen
-            cur.execute(
-                'INSERT INTO SchichtbuchThema (GewerkID, StatusID, ErstellerAbteilungID) VALUES (?, ?, ?)',
-                (gewerk_id, status_id, ersteller_abteilung_id)
+            # Thema erstellen über Service
+            thema_id, thema_dict = services.create_thema(
+                gewerk_id, status_id, mitarbeiter_id, taetigkeit_id, bemerkung,
+                sichtbare_abteilungen, conn
             )
-            thema_id = cur.lastrowid
-
-            # Erste Bemerkung hinzufügen
-            cur.execute('''
-                INSERT INTO SchichtbuchBemerkungen (ThemaID, MitarbeiterID, Datum, TaetigkeitID, Bemerkung)
-                VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?)
-            ''', (thema_id, mitarbeiter_id, taetigkeit_id, bemerkung))
             
-            # Imports für Benachrichtigungen und Unterabteilungen
-            from utils import erstelle_benachrichtigung_fuer_neues_thema, get_untergeordnete_abteilungen
-            
-            # Sichtbarkeiten speichern
-            # Alle Abteilungs-IDs sammeln (inkl. Unterabteilungen und Duplikate vermeiden)
-            alle_sichtbarkeits_ids = set()
-            
-            if sichtbare_abteilungen:
-                for abt_id in sichtbare_abteilungen:
-                    abt_id_int = int(abt_id)
-                    alle_sichtbarkeits_ids.add(abt_id_int)
-                    # Unterabteilungen auch hinzufügen (Funktion gibt direkt IDs zurück)
-                    unterabteilungen = get_untergeordnete_abteilungen(abt_id_int, conn)
-                    alle_sichtbarkeits_ids.update(unterabteilungen)
-            else:
-                # Fallback: Wenn nichts ausgewählt, nur Ersteller-Abteilung
-                if ersteller_abteilung_id:
-                    alle_sichtbarkeits_ids.add(ersteller_abteilung_id)
-                    # Unterabteilungen auch hinzufügen (Funktion gibt direkt IDs zurück)
-                    unterabteilungen = get_untergeordnete_abteilungen(ersteller_abteilung_id, conn)
-                    alle_sichtbarkeits_ids.update(unterabteilungen)
-            
-            # Benachrichtigungen für Mitarbeiter in sichtbaren Abteilungen erstellen
-            try:
-                if alle_sichtbarkeits_ids:
-                    erstelle_benachrichtigung_fuer_neues_thema(thema_id, list(alle_sichtbarkeits_ids), conn)
-            except Exception as e:
-                print(f"Fehler beim Erstellen von Benachrichtigungen: {e}")
-            
-            # Sichtbarkeiten einfügen (INSERT OR IGNORE verhindert Duplikate)
-            for abt_id in alle_sichtbarkeits_ids:
-                try:
-                    cur.execute('''
-                        INSERT OR IGNORE INTO SchichtbuchThemaSichtbarkeit (ThemaID, AbteilungID)
-                        VALUES (?, ?)
-                    ''', (thema_id, abt_id))
-                except sqlite3.IntegrityError:
-                    # Duplikat ignorieren (falls INSERT OR IGNORE nicht funktioniert)
-                    pass
-
-            # Ersatzteile verarbeiten und Lagerbuchungen erstellen
+            # Ersatzteile verarbeiten
             ersatzteil_ids = request.form.getlist('ersatzteil_id[]')
             ersatzteil_mengen = request.form.getlist('ersatzteil_menge[]')
             ersatzteil_bemerkungen = request.form.getlist('ersatzteil_bemerkung[]')
             
-            if ersatzteil_ids:
-                from utils import get_sichtbare_abteilungen_fuer_mitarbeiter
-                is_admin = 'admin' in session.get('user_berechtigungen', [])
-                sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
-                
-                for i, ersatzteil_id_str in enumerate(ersatzteil_ids):
-                    if not ersatzteil_id_str or not ersatzteil_id_str.strip():
-                        continue
-                    
-                    try:
-                        ersatzteil_id = int(ersatzteil_id_str)
-                        menge = int(ersatzteil_mengen[i]) if i < len(ersatzteil_mengen) and ersatzteil_mengen[i] else 1
-                        bemerkung = ersatzteil_bemerkungen[i].strip() if i < len(ersatzteil_bemerkungen) and ersatzteil_bemerkungen[i] else None
-                        
-                        if menge <= 0:
-                            continue
-                        
-                        # Ersatzteil prüfen
-                        ersatzteil = conn.execute('''
-                            SELECT ID, AktuellerBestand, Preis, Waehrung, Bezeichnung
-                            FROM Ersatzteil
-                            WHERE ID = ? AND Gelöscht = 0 AND Aktiv = 1
-                        ''', (ersatzteil_id,)).fetchone()
-                        
-                        if not ersatzteil:
-                            continue
-                        
-                        # Berechtigung prüfen (nur für Admins oder wenn Ersatzteil sichtbar ist)
-                        if not is_admin:
-                            # Prüfe ob Ersatzteil für sichtbare Abteilungen zugänglich ist
-                            if sichtbare_abteilungen:
-                                placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
-                                zugriff = conn.execute(f'''
-                                    SELECT 1 FROM ErsatzteilAbteilungZugriff
-                                    WHERE ErsatzteilID = ? AND AbteilungID IN ({placeholders})
-                                ''', [ersatzteil_id] + sichtbare_abteilungen).fetchone()
-                                if not zugriff:
-                                    continue
-                            else:
-                                # Keine Berechtigung
-                                continue
-                        
-                        # Bestand prüfen
-                        aktueller_bestand = ersatzteil['AktuellerBestand'] or 0
-                        if aktueller_bestand < menge:
-                            # Nicht genug Bestand - überspringen, aber Fehler protokollieren
-                            print(f"Warnung: Nicht genug Bestand für Ersatzteil {ersatzteil_id}. Verfügbar: {aktueller_bestand}, benötigt: {menge}")
-                            continue
-                        
-                        # Neuer Bestand berechnen
-                        neuer_bestand = aktueller_bestand - menge
-                        
-                        # Preis und Währung
-                        artikel_preis = ersatzteil['Preis']
-                        artikel_waehrung = ersatzteil['Waehrung'] or 'EUR'
-                        
-                        # Lagerbuchung erstellen (Ausgang) - Grund bleibt automatisch, Bemerkung aus Formular
-                        conn.execute('''
-                            INSERT INTO Lagerbuchung (
-                                ErsatzteilID, Typ, Menge, Grund, ThemaID,
-                                VerwendetVonID, Bemerkung, Preis, Waehrung, Buchungsdatum
-                            ) VALUES (?, 'Ausgang', ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-                        ''', (
-                            ersatzteil_id, 
-                            menge, 
-                            f'Verwendung für Thema {thema_id}',
-                            thema_id,
-                            mitarbeiter_id,
-                            bemerkung if bemerkung else None,
-                            artikel_preis,
-                            artikel_waehrung
-                        ))
-                        
-                        # Bestand aktualisieren
-                        conn.execute('UPDATE Ersatzteil SET AktuellerBestand = ? WHERE ID = ?', (neuer_bestand, ersatzteil_id))
-                        
-                    except (ValueError, TypeError) as e:
-                        print(f"Fehler beim Verarbeiten von Ersatzteil {ersatzteil_id_str}: {e}")
-                        continue
-                    except Exception as e:
-                        print(f"Unerwarteter Fehler beim Verarbeiten von Ersatzteil {ersatzteil_id_str}: {e}")
-                        continue
+            is_admin = 'admin' in session.get('user_berechtigungen', [])
+            services.process_ersatzteile_fuer_thema(
+                thema_id, ersatzteil_ids, ersatzteil_mengen, ersatzteil_bemerkungen,
+                mitarbeiter_id, conn, is_admin=is_admin
+            )
 
             conn.commit()
 
-            # Taetigkeit-Name holen
-            taetigkeit_row = conn.execute(
-                "SELECT Bezeichnung FROM Taetigkeit WHERE ID = ?",
-                (taetigkeit_id,)
-            ).fetchone()
-            taetigkeit_name = taetigkeit_row["Bezeichnung"] if taetigkeit_row else None
-
-            # Neu erstellten Datensatz abrufen
-            thema = conn.execute('''
-                SELECT 
-                    t.ID, 
-                    b.Bezeichnung AS Bereich,
-                    g.Bezeichnung AS Gewerk,
-                    s.Bezeichnung AS Status,
-                    ? AS LetzteBemerkung,
-                    CURRENT_TIMESTAMP AS LetzteBemerkungDatum
-                FROM SchichtbuchThema t
-                JOIN Gewerke g ON t.GewerkID = g.ID
-                JOIN Bereich b ON g.BereichID = b.ID
-                JOIN Status s ON t.StatusID = s.ID
-                WHERE t.ID = ?
-            ''', (bemerkung, thema_id)).fetchone()
-
         # Für AJAX → JSON zurückgeben
-        return jsonify({
-            "ID": thema["ID"],
-            "Bereich": thema["Bereich"],
-            "Gewerk": thema["Gewerk"],
-            "Taetigkeit": taetigkeit_name,
-            "Status": thema["Status"],
-            "LetzteBemerkung": thema["LetzteBemerkung"],
-            "LetzteBemerkungDatum": thema["LetzteBemerkungDatum"]
-        })
+        return jsonify(thema_dict)
 
     # GET = Seite anzeigen
-    mitarbeiter_id = session.get('user_id')
-    
     with get_db_connection() as conn:
-        gewerke = conn.execute('''
-            SELECT G.ID, G.Bezeichnung, B.ID AS BereichID, B.Bezeichnung AS Bereich
-            FROM Gewerke G
-            JOIN Bereich B ON G.BereichID = B.ID
-            WHERE G.Aktiv = 1 AND B.Aktiv = 1
-            ORDER BY B.Bezeichnung, G.Bezeichnung
-        ''').fetchall()
-
-        taetigkeiten = conn.execute('SELECT * FROM Taetigkeit WHERE Aktiv = 1 ORDER BY Sortierung ASC').fetchall()
-        status = conn.execute('SELECT * FROM Status WHERE Aktiv = 1 ORDER BY Sortierung ASC').fetchall()
-        bereiche = conn.execute('SELECT * FROM Bereich WHERE Aktiv = 1 ORDER BY Bezeichnung').fetchall()
-        
-        # Primärabteilung des Mitarbeiters
-        mitarbeiter = conn.execute(
-            'SELECT PrimaerAbteilungID FROM Mitarbeiter WHERE ID = ?',
-            (mitarbeiter_id,)
-        ).fetchone()
-        primaer_abteilung_id = mitarbeiter['PrimaerAbteilungID'] if mitarbeiter else None
-        
-        # Auswählbare Abteilungen für Sichtbarkeitssteuerung (mit ALLEN Unterabteilungen für neues Thema)
-        from utils import get_auswaehlbare_abteilungen_fuer_neues_thema
-        auswaehlbare_abteilungen = get_auswaehlbare_abteilungen_fuer_neues_thema(mitarbeiter_id, conn)
+        form_data = services.get_thema_erstellung_form_data(mitarbeiter_id, conn)
 
     return render_template(
         'sbThemaNeu.html',
-        gewerke=gewerke,
-        taetigkeiten=taetigkeiten,
-        status=status,
-        bereiche=bereiche,
-        auswaehlbare_abteilungen=auswaehlbare_abteilungen,
-        primaer_abteilung_id=primaer_abteilung_id
+        gewerke=form_data['gewerke'],
+        taetigkeiten=form_data['taetigkeiten'],
+        status=form_data['status'],
+        bereiche=form_data['bereiche'],
+        auswaehlbare_abteilungen=form_data['auswaehlbare_abteilungen'],
+        primaer_abteilung_id=form_data['primaer_abteilung_id']
     )
 
 
@@ -515,19 +327,9 @@ def thema_detail(thema_id):
     
     # Berechtigungsprüfung: Darf der Benutzer dieses Thema sehen?
     with get_db_connection() as conn:
-        sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
-        
-        if sichtbare_abteilungen:
-            # Prüfe ob Thema für Benutzer sichtbar ist
-            placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
-            berechtigt = conn.execute(f'''
-                SELECT COUNT(*) as count FROM SchichtbuchThemaSichtbarkeit
-                WHERE ThemaID = ? AND AbteilungID IN ({placeholders})
-            ''', [thema_id] + sichtbare_abteilungen).fetchone()
-            
-            if berechtigt['count'] == 0:
-                flash('Sie haben keine Berechtigung, dieses Thema zu sehen.', 'danger')
-                return redirect(url_for('schichtbuch.themaliste'))
+        if not services.check_thema_berechtigung(thema_id, mitarbeiter_id, conn):
+            flash('Sie haben keine Berechtigung, dieses Thema zu sehen.', 'danger')
+            return redirect(url_for('schichtbuch.themaliste'))
     
     if request.method == 'POST':
         if not mitarbeiter_id:
@@ -562,111 +364,10 @@ def thema_detail(thema_id):
 
             conn.commit()
 
-    # Thema-Infos abrufen
+    # Thema-Daten über Service laden
     with get_db_connection() as conn:
-        thema = conn.execute('''
-            SELECT 
-                t.ID, 
-                g.Bezeichnung AS Gewerk,
-                b.Bezeichnung AS Bereich,
-                s.Bezeichnung AS Status, 
-                s.ID AS StatusID,
-                s.Farbe AS StatusFarbe,
-                a.Bezeichnung AS Abteilung
-            FROM SchichtbuchThema t
-            JOIN Gewerke g ON t.GewerkID = g.ID
-            JOIN Bereich b ON g.BereichID = b.ID
-            JOIN Status s ON t.StatusID = s.ID
-            LEFT JOIN Abteilung a ON t.ErstellerAbteilungID = a.ID
-            WHERE t.ID = ?
-        ''', (thema_id,)).fetchone()
-
-        # Sichtbare Abteilungen für dieses Thema laden
-        sichtbarkeiten = conn.execute('''
-            SELECT a.Bezeichnung, a.ParentAbteilungID
-            FROM SchichtbuchThemaSichtbarkeit sv
-            JOIN Abteilung a ON sv.AbteilungID = a.ID
-            WHERE sv.ThemaID = ?
-            ORDER BY a.Sortierung, a.Bezeichnung
-        ''', (thema_id,)).fetchall()
-
-        # Alle Status-Werte für Dropdown
-        status_liste = conn.execute('SELECT * FROM Status ORDER BY Sortierung ASC').fetchall()
-        taetigkeiten = conn.execute('SELECT * FROM Taetigkeit ORDER BY Sortierung ASC').fetchall()
-
-        # Bemerkungen zu diesem Thema
-        bemerkungen = conn.execute('''
-            SELECT 
-                b.ID AS BemerkungID,
-                b.Datum,
-                b.MitarbeiterID,
-                m.Vorname,
-                m.Nachname,
-                b.Bemerkung,
-                b.TaetigkeitID,
-                t.Bezeichnung AS Taetigkeit
-            FROM SchichtbuchBemerkungen b
-            JOIN Mitarbeiter m ON b.MitarbeiterID = m.ID
-            LEFT JOIN Taetigkeit t ON b.TaetigkeitID = t.ID
-            WHERE b.ThemaID = ? AND b.Gelöscht = 0
-            ORDER BY b.Datum DESC
-        ''', (thema_id,)).fetchall()
-
-        mitarbeiter = conn.execute('SELECT * FROM Mitarbeiter').fetchall()
-
-        # Alle Lagerbuchungen für dieses Thema laden (Eingang, Ausgang, Inventur)
-        thema_lagerbuchungen = conn.execute('''
-            SELECT 
-                l.ID AS BuchungsID,
-                l.ErsatzteilID,
-                l.Typ,
-                l.Menge,
-                l.Grund,
-                l.Buchungsdatum,
-                l.Bemerkung,
-                l.Preis,
-                l.Waehrung,
-                e.Bestellnummer,
-                e.Bezeichnung AS ErsatzteilBezeichnung,
-                m.Vorname || ' ' || m.Nachname AS VerwendetVon,
-                k.Bezeichnung AS Kostenstelle
-            FROM Lagerbuchung l
-            JOIN Ersatzteil e ON l.ErsatzteilID = e.ID
-            LEFT JOIN Mitarbeiter m ON l.VerwendetVonID = m.ID
-            LEFT JOIN Kostenstelle k ON l.KostenstelleID = k.ID
-            WHERE l.ThemaID = ?
-            ORDER BY l.Buchungsdatum DESC
-        ''', (thema_id,)).fetchall()
-
-        # Verfügbare Ersatzteile für den aktuellen Benutzer laden
-        mitarbeiter_id = session.get('user_id')
-        sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
         is_admin = 'admin' in session.get('user_berechtigungen', [])
-        
-        verfuegbare_query = '''
-            SELECT e.ID, e.Bestellnummer, e.Bezeichnung, e.AktuellerBestand, e.Einheit
-            FROM Ersatzteil e
-            WHERE e.Gelöscht = 0 AND e.Aktiv = 1 AND e.AktuellerBestand > 0
-        '''
-        verfuegbare_params = []
-        
-        if not is_admin and sichtbare_abteilungen:
-            placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
-            verfuegbare_query += f'''
-                AND e.ID IN (
-                    SELECT ErsatzteilID FROM ErsatzteilAbteilungZugriff
-                    WHERE AbteilungID IN ({placeholders})
-                )
-            '''
-            verfuegbare_params.extend(sichtbare_abteilungen)
-        elif not is_admin:
-            verfuegbare_query += ' AND 1=0'
-        
-        verfuegbare_query += ' ORDER BY e.Bezeichnung'
-        verfuegbare_ersatzteile = conn.execute(verfuegbare_query, verfuegbare_params).fetchall()
-
-        # Kostenstellen für Dropdown
-        kostenstellen = conn.execute('SELECT ID, Bezeichnung FROM Kostenstelle WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung').fetchall()
+        detail_data = services.get_thema_detail_data(thema_id, mitarbeiter_id, conn, is_admin=is_admin)
 
     previous_page = request.args.get('next') or url_for('index')
     
@@ -675,17 +376,17 @@ def thema_detail(thema_id):
 
     return render_template(
         'sbThemaDetail.html',
-        thema=thema,
-        bemerkungen=bemerkungen,
-        mitarbeiter=mitarbeiter,
-        status_liste=status_liste,
-        taetigkeiten=taetigkeiten,
-        sichtbarkeiten=sichtbarkeiten,
+        thema=detail_data['thema'],
+        bemerkungen=detail_data['bemerkungen'],
+        mitarbeiter=detail_data['mitarbeiter'],
+        status_liste=detail_data['status_liste'],
+        taetigkeiten=detail_data['taetigkeiten'],
+        sichtbarkeiten=detail_data['sichtbarkeiten'],
         previous_page=previous_page,
         datei_anzahl=datei_anzahl,
-        ersatzteil_verknuepfungen=thema_lagerbuchungen,
-        verfuegbare_ersatzteile=verfuegbare_ersatzteile,
-        kostenstellen=kostenstellen
+        ersatzteil_verknuepfungen=detail_data['thema_lagerbuchungen'],
+        verfuegbare_ersatzteile=detail_data['verfuegbare_ersatzteile'],
+        kostenstellen=detail_data['kostenstellen']
     )
 
 
@@ -758,85 +459,8 @@ def get_thema_sichtbarkeit(thema_id):
     mitarbeiter_id = session.get('user_id')
     
     with get_db_connection() as conn:
-        # Primärabteilung des Mitarbeiters
-        mitarbeiter = conn.execute(
-            'SELECT PrimaerAbteilungID FROM Mitarbeiter WHERE ID = ?',
-            (mitarbeiter_id,)
-        ).fetchone()
-        primaer_abteilung_id = mitarbeiter['PrimaerAbteilungID'] if mitarbeiter else None
-        
-        # Auswählbare Abteilungen (eigene + untergeordnete)
-        from utils import get_auswaehlbare_abteilungen_fuer_mitarbeiter, get_mitarbeiter_abteilungen
-        auswaehlbare = get_auswaehlbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
-        eigene_abteilungen_ids = get_mitarbeiter_abteilungen(mitarbeiter_id, conn)
-        
-        # Aktuell ausgewählte Sichtbarkeiten mit Details
-        aktuelle = conn.execute('''
-            SELECT sv.AbteilungID, a.Bezeichnung, a.ParentAbteilungID, a.Sortierung
-            FROM SchichtbuchThemaSichtbarkeit sv
-            JOIN Abteilung a ON sv.AbteilungID = a.ID
-            WHERE sv.ThemaID = ?
-            ORDER BY a.Sortierung, a.Bezeichnung
-        ''', (thema_id,)).fetchall()
-        aktuelle_ids = [a['AbteilungID'] for a in aktuelle]
-        
-        # Alle eigenen Abteilungen mit allen Unterabteilungen (für Vergleich)
-        from utils import get_untergeordnete_abteilungen
-        alle_eigene_mit_unter = set()
-        for abt_id in eigene_abteilungen_ids:
-            alle_eigene_mit_unter.update(get_untergeordnete_abteilungen(abt_id, conn))
-        
-        # Alle aktuell zugewiesenen Abteilungen, die NICHT in den eigenen (inkl. Unterabteilungen) sind
-        zusaetzliche_aktuelle = []
-        for akt in aktuelle:
-            if akt['AbteilungID'] not in alle_eigene_mit_unter:
-                # Parent-Abteilung finden (falls vorhanden)
-                parent_info = None
-                if akt['ParentAbteilungID']:
-                    parent = conn.execute(
-                        'SELECT ID, Bezeichnung FROM Abteilung WHERE ID = ?',
-                        (akt['ParentAbteilungID'],)
-                    ).fetchone()
-                    if parent:
-                        parent_info = {'id': parent['ID'], 'name': parent['Bezeichnung']}
-                
-                zusaetzliche_aktuelle.append({
-                    'id': akt['AbteilungID'],
-                    'name': akt['Bezeichnung'],
-                    'parent': parent_info,
-                    'is_own': False
-                })
-        
-        # In JSON-Format umwandeln
-        auswaehlbare_json = []
-        for gruppe in auswaehlbare:
-            children_json = []
-            for c in gruppe['children']:
-                is_current = c['ID'] in aktuelle_ids
-                children_json.append({
-                    'id': c['ID'], 
-                    'name': c['Bezeichnung'],
-                    'is_current': is_current
-                })
-            
-            is_current_parent = gruppe['parent']['ID'] in aktuelle_ids
-            auswaehlbare_json.append({
-                'parent': {
-                    'id': gruppe['parent']['ID'],
-                    'name': gruppe['parent']['Bezeichnung'],
-                    'is_primaer': gruppe['parent']['ID'] == primaer_abteilung_id,
-                    'is_current': is_current_parent
-                },
-                'children': children_json
-            })
-        
-        return jsonify({
-            'success': True,
-            'thema_id': thema_id,
-            'auswaehlbare': auswaehlbare_json,
-            'zusaetzliche': zusaetzliche_aktuelle,
-            'aktuelle': aktuelle_ids
-        })
+        sichtbarkeit_data = services.get_thema_sichtbarkeit_data(thema_id, mitarbeiter_id, conn)
+        return jsonify(sichtbarkeit_data)
 
 
 @schichtbuch_bp.route('/thema/<int:thema_id>/sichtbarkeit', methods=['POST'])
@@ -845,29 +469,13 @@ def update_thema_sichtbarkeit(thema_id):
     """AJAX: Sichtbarkeiten eines Themas aktualisieren"""
     sichtbare_abteilungen = request.form.getlist('sichtbare_abteilungen')
     
-    if not sichtbare_abteilungen:
-        return jsonify({'success': False, 'message': 'Mindestens eine Abteilung muss ausgewählt sein.'}), 400
-    
-    try:
-        with get_db_connection() as conn:
-            # Alte Sichtbarkeiten löschen
-            conn.execute('DELETE FROM SchichtbuchThemaSichtbarkeit WHERE ThemaID = ?', (thema_id,))
-            
-            # Neue Sichtbarkeiten einfügen
-            for abt_id in sichtbare_abteilungen:
-                try:
-                    conn.execute('''
-                        INSERT INTO SchichtbuchThemaSichtbarkeit (ThemaID, AbteilungID)
-                        VALUES (?, ?)
-                    ''', (thema_id, abt_id))
-                except sqlite3.IntegrityError:
-                    pass  # Duplikat ignorieren
-            
-            conn.commit()
+    with get_db_connection() as conn:
+        success, message = services.update_thema_sichtbarkeiten(thema_id, sichtbare_abteilungen, conn)
         
-        return jsonify({'success': True, 'message': 'Sichtbarkeit erfolgreich aktualisiert.'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': f'Fehler: {str(e)}'}), 500
+        if success:
+            return jsonify({'success': True, 'message': message})
+        else:
+            return jsonify({'success': False, 'message': message}), 400
 
 
 # ========== Dateien/Anhänge ==========
@@ -876,61 +484,23 @@ def update_thema_sichtbarkeit(thema_id):
 @login_required
 def thema_dateien(thema_id):
     """Liste alle Dateien für ein Thema"""
-    # Prüfen ob Benutzer Zugriff auf das Thema hat
     user_id = session.get('user_id')
     
     with get_db_connection() as conn:
-        sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(user_id, conn)
+        berechtigt, thema_exists = services.check_thema_datei_berechtigung(thema_id, user_id, conn)
         
-        thema = conn.execute('''
-            SELECT t.ID, t.ErstellerAbteilungID
-            FROM SchichtbuchThema t
-            WHERE t.ID = ? AND t.Gelöscht = 0
-        ''', (thema_id,)).fetchone()
-        
-        if not thema:
+        if not thema_exists:
             return jsonify({'success': False, 'message': 'Thema nicht gefunden'}), 404
         
-        # Prüfen ob Thema für Benutzer sichtbar ist
-        thema_sichtbarkeiten = conn.execute('''
-            SELECT AbteilungID FROM SchichtbuchThemaSichtbarkeit WHERE ThemaID = ?
-        ''', (thema_id,)).fetchall()
-        
-        thema_abteilungen = [s['AbteilungID'] for s in thema_sichtbarkeiten]
-        
-        if not any(abt in sichtbare_abteilungen for abt in thema_abteilungen):
+        if not berechtigt:
             return jsonify({'success': False, 'message': 'Kein Zugriff auf dieses Thema'}), 403
     
-    # Dateipfad ermitteln
-    thema_folder = os.path.join(current_app.config['SCHICHTBUCH_UPLOAD_FOLDER'], str(thema_id))
+    # Dateien über Service laden
+    dateien = services.get_thema_dateien_liste(thema_id, current_app.config['SCHICHTBUCH_UPLOAD_FOLDER'])
     
-    dateien = []
-    if os.path.exists(thema_folder):
-        for filename in os.listdir(thema_folder):
-            filepath = os.path.join(thema_folder, filename)
-            if os.path.isfile(filepath):
-                # Dateigröße ermitteln
-                file_size = os.path.getsize(filepath)
-                file_size_str = f"{file_size / 1024:.1f} KB" if file_size < 1024*1024 else f"{file_size / (1024*1024):.1f} MB"
-                
-                # Dateiendung ermitteln
-                file_ext = os.path.splitext(filename)[1].lower()
-                
-                # Dateityp kategorisieren
-                if file_ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']:
-                    file_type = 'image'
-                elif file_ext == '.pdf':
-                    file_type = 'pdf'
-                else:
-                    file_type = 'document'
-                
-                dateien.append({
-                    'name': filename,
-                    'size': file_size_str,
-                    'type': file_type,
-                    'ext': file_ext,
-                    'url': url_for('schichtbuch.thema_datei_download', thema_id=thema_id, filename=filename)
-                })
+    # URLs hinzufügen
+    for datei in dateien:
+        datei['url'] = url_for('schichtbuch.thema_datei_download', thema_id=thema_id, filename=datei['name'])
     
     return jsonify({'success': True, 'dateien': dateien})
 
@@ -939,29 +509,15 @@ def thema_dateien(thema_id):
 @login_required
 def thema_datei_download(thema_id, filename):
     """Stelle eine Datei zum Download/Anzeigen bereit"""
-    # Prüfen ob Benutzer Zugriff auf das Thema hat
     user_id = session.get('user_id')
     
     with get_db_connection() as conn:
-        sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(user_id, conn)
+        berechtigt, thema_exists = services.check_thema_datei_berechtigung(thema_id, user_id, conn)
         
-        thema = conn.execute('''
-            SELECT t.ID, t.ErstellerAbteilungID
-            FROM SchichtbuchThema t
-            WHERE t.ID = ? AND t.Gelöscht = 0
-        ''', (thema_id,)).fetchone()
-        
-        if not thema:
+        if not thema_exists:
             return "Thema nicht gefunden", 404
         
-        # Prüfen ob Thema für Benutzer sichtbar ist
-        thema_sichtbarkeiten = conn.execute('''
-            SELECT AbteilungID FROM SchichtbuchThemaSichtbarkeit WHERE ThemaID = ?
-        ''', (thema_id,)).fetchall()
-        
-        thema_abteilungen = [s['AbteilungID'] for s in thema_sichtbarkeiten]
-        
-        if not any(abt in sichtbare_abteilungen for abt in thema_abteilungen):
+        if not berechtigt:
             return "Kein Zugriff auf dieses Thema", 403
     
     # Dateipfad ermitteln
@@ -979,29 +535,15 @@ def thema_datei_download(thema_id, filename):
 @login_required
 def thema_datei_upload(thema_id):
     """Lade eine Datei für ein Thema hoch"""
-    # Prüfen ob Benutzer Zugriff auf das Thema hat
     user_id = session.get('user_id')
     
     with get_db_connection() as conn:
-        sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(user_id, conn)
+        berechtigt, thema_exists = services.check_thema_datei_berechtigung(thema_id, user_id, conn)
         
-        thema = conn.execute('''
-            SELECT t.ID, t.ErstellerAbteilungID
-            FROM SchichtbuchThema t
-            WHERE t.ID = ? AND t.Gelöscht = 0
-        ''', (thema_id,)).fetchone()
-        
-        if not thema:
+        if not thema_exists:
             return jsonify({'success': False, 'message': 'Thema nicht gefunden'}), 404
         
-        # Prüfen ob Thema für Benutzer sichtbar ist
-        thema_sichtbarkeiten = conn.execute('''
-            SELECT AbteilungID FROM SchichtbuchThemaSichtbarkeit WHERE ThemaID = ?
-        ''', (thema_id,)).fetchall()
-        
-        thema_abteilungen = [s['AbteilungID'] for s in thema_sichtbarkeiten]
-        
-        if not any(abt in sichtbare_abteilungen for abt in thema_abteilungen):
+        if not berechtigt:
             return jsonify({'success': False, 'message': 'Kein Zugriff auf dieses Thema'}), 403
     
     # Prüfen ob Datei hochgeladen wurde
