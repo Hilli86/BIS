@@ -262,6 +262,7 @@ def get_ersatzteil_detail_data(ersatzteil_id, mitarbeiter_id, conn, upload_folde
             l.Bemerkung,
             l.Preis,
             l.Waehrung,
+            l.BestellungID,
             m.Vorname || ' ' || m.Nachname AS VerwendetVon,
             k.Bezeichnung AS Kostenstelle,
             t.ID AS ThemaID

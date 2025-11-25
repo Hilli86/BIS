@@ -687,6 +687,9 @@ def datei_loeschen(datei_id):
             elif datei['BereichTyp'] == 'Bestellung':
                 flash('Datei erfolgreich gelöscht.', 'success')
                 return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=datei['BereichID']))
+            elif datei['BereichTyp'] == 'Lieferschein':
+                flash('Datei erfolgreich gelöscht.', 'success')
+                return redirect(url_for('ersatzteile.wareneingang_bestellung', bestellung_id=datei['BereichID']))
             elif datei['BereichTyp'] == 'Thema':
                 flash('Datei erfolgreich gelöscht.', 'success')
                 return redirect(url_for('schichtbuch.thema_detail', thema_id=datei['BereichID']))

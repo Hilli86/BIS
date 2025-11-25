@@ -1156,6 +1156,27 @@ def database_check():
         }), 500
 
 
+@admin_bp.route('/benachrichtigungen/cleanup', methods=['POST'])
+@admin_required
+def benachrichtigungen_cleanup():
+    """Manuelles Auslösen der Bereinigung alter Benachrichtigungen"""
+    try:
+        from utils.benachrichtigungen_cleanup import bereinige_benachrichtigungen_automatisch
+        from flask import current_app
+        
+        gelöscht_count, fehler = bereinige_benachrichtigungen_automatisch(current_app)
+        
+        if fehler:
+            return ajax_response(f'Fehler beim Cleanup: {fehler}', success=False)
+        
+        if gelöscht_count > 0:
+            return ajax_response(f'{gelöscht_count} alte Benachrichtigungen wurden gelöscht.', success=True)
+        else:
+            return ajax_response('Keine alten Benachrichtigungen gefunden.', success=True)
+    except Exception as e:
+        return ajax_response(f'Fehler: {str(e)}', success=False)
+
+
 @admin_bp.route('/database/repair', methods=['POST'])
 @admin_required
 def database_repair():

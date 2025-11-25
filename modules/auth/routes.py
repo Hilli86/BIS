@@ -309,7 +309,7 @@ def benachrichtigungen_get():
             SELECT KanalTyp FROM BenachrichtigungKanal
             WHERE MitarbeiterID = ? AND Aktiv = 1
         ''', (user_id,)).fetchall()
-        kanale_list = [k['KanalTyp'] for k in kanale] if kanale else ['app']
+        kanale_list = [k['KanalTyp'] for k in kanale] if kanale else []
         
         # Einstellungen
         einstellungen = conn.execute('''
@@ -347,7 +347,7 @@ def benachrichtigungen_save():
     try:
         with get_db_connection() as conn:
             # Kanäle speichern
-            kanale = data.get('kanale', ['app'])
+            kanale = data.get('kanale', [])
             
             # Alle Kanäle deaktivieren
             conn.execute('''
@@ -417,3 +417,21 @@ def push_subscription_save():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
+
+@auth_bp.route('/profil/push-test', methods=['POST'])
+@login_required
+def push_test():
+    """Sendet eine Test-Push-Benachrichtigung an den aktuellen Benutzer"""
+    user_id = session.get('user_id')
+    
+    try:
+        from utils.benachrichtigungen_push import versende_test_push
+        
+        with get_db_connection() as conn:
+            if versende_test_push(user_id, conn):
+                return jsonify({'success': True, 'message': 'Test-Push-Nachricht wurde gesendet'})
+            else:
+                return jsonify({'success': False, 'message': 'Push-Benachrichtigungen sind nicht aktiviert oder konfiguriert'}), 400
+                
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500

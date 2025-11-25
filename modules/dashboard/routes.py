@@ -78,6 +78,13 @@ def api_dashboard():
         return jsonify({'success': False, 'error': str(e), 'details': error_details}), 500
 
 
+@dashboard_bp.route('/benachrichtigungen')
+@login_required
+def benachrichtigungen():
+    """Seite mit allen Benachrichtigungen"""
+    return render_template('dashboard/benachrichtigungen.html')
+
+
 @dashboard_bp.route('/api/benachrichtigungen')
 def api_benachrichtigungen():
     """API-Endpoint für Benachrichtigungen"""
@@ -87,13 +94,12 @@ def api_benachrichtigungen():
     user_id = session.get('user_id')
     
     with get_db_connection() as conn:
-        # Ungelesene Benachrichtigungen
+        # Alle Benachrichtigungen (nicht nur ungelesene)
         benachrichtigungen = conn.execute('''
             SELECT ID, Titel, Nachricht, Gelesen, ErstelltAm, Modul, Aktion
             FROM Benachrichtigung
             WHERE MitarbeiterID = ?
             ORDER BY ErstelltAm DESC
-            LIMIT 20
         ''', (user_id,)).fetchall()
         
         ungelesen_count = conn.execute('''
@@ -106,4 +112,46 @@ def api_benachrichtigungen():
         'benachrichtigungen': [row_to_dict(b) for b in benachrichtigungen],
         'ungelesen_count': ungelesen_count
     })
+
+
+@dashboard_bp.route('/api/benachrichtigungen/<int:benachrichtigung_id>/gelesen', methods=['POST'])
+@login_required
+def api_benachrichtigung_gelesen(benachrichtigung_id):
+    """API: Benachrichtigung als gelesen markieren"""
+    user_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        # Prüfen ob Benachrichtigung dem Benutzer gehört
+        benachrichtigung = conn.execute('''
+            SELECT ID FROM Benachrichtigung 
+            WHERE ID = ? AND MitarbeiterID = ?
+        ''', (benachrichtigung_id, user_id)).fetchone()
+        
+        if not benachrichtigung:
+            return jsonify({'success': False, 'message': 'Benachrichtigung nicht gefunden'}), 404
+        
+        # Als gelesen markieren
+        conn.execute('''
+            UPDATE Benachrichtigung SET Gelesen = 1 
+            WHERE ID = ?
+        ''', (benachrichtigung_id,))
+        conn.commit()
+    
+    return jsonify({'success': True, 'message': 'Benachrichtigung als gelesen markiert'})
+
+
+@dashboard_bp.route('/api/benachrichtigungen/alle-gelesen', methods=['POST'])
+@login_required
+def api_alle_benachrichtigungen_gelesen():
+    """API: Alle Benachrichtigungen als gelesen markieren"""
+    user_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        conn.execute('''
+            UPDATE Benachrichtigung SET Gelesen = 1 
+            WHERE MitarbeiterID = ? AND Gelesen = 0
+        ''', (user_id,))
+        conn.commit()
+    
+    return jsonify({'success': True, 'message': 'Alle Benachrichtigungen als gelesen markiert'})
 

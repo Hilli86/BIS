@@ -11,4 +11,5 @@ qrcode==7.4.2
 Pillow==11.2.1
 docxtpl
 docx2pdf
+pywebpush
 

@@ -198,7 +198,13 @@
                             -
                             {% endif %}
                         </td>
-                        <td>{{ lb.Grund or '-' }}</td>
+                        <td>
+                            {% if lb.BestellungID %}
+                                Wareneingang Bestellung <a href="{{ url_for('ersatzteile.bestellung_detail', bestellung_id=lb.BestellungID) }}" class="text-decoration-none">#{{ lb.BestellungID }}</a>
+                            {% else %}
+                                {{ lb.Grund or '-' }}
+                            {% endif %}
+                        </td>
                         <td>{{ lb.VerwendetVon or '-' }}</td>
                         <td>{{ lb.Bemerkung or '-' }}</td>
                     </tr>

@@ -144,7 +144,7 @@
                         <div class="mb-4">
                             <h6 class="mb-3">Benachrichtigungsarten</h6>
                             <div class="form-check mb-2">
-                                <input class="form-check-input kanal-checkbox" type="checkbox" id="kanal_app" value="app" checked>
+                                <input class="form-check-input kanal-checkbox" type="checkbox" id="kanal_app" value="app">
                                 <label class="form-check-label" for="kanal_app">
                                     In der App
                                 </label>
@@ -163,6 +163,12 @@
                             </div>
                             <div id="push-status" class="mt-2" style="display: none;">
                                 <small class="text-muted">Push-Benachrichtigungen werden automatisch aktiviert, wenn Sie die Berechtigung erteilen.</small>
+                                <div class="mt-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="push-test-btn" style="display: none;">
+                                        <i class="bi bi-bell"></i> Test-Push senden
+                                    </button>
+                                    <div id="push-test-result" class="mt-2" style="display: none;"></div>
+                                </div>
                             </div>
                         </div>
 
@@ -405,7 +411,14 @@
         if (data.kanale) {
           data.kanale.forEach(kanal => {
             const checkbox = document.getElementById(`kanal_${kanal}`);
-            if (checkbox) checkbox.checked = true;
+            if (checkbox) {
+              checkbox.checked = true;
+              // Wenn Push aktiviert ist, zeige Test-Button
+              if (checkbox.id === 'kanal_push') {
+                document.getElementById('push-status').style.display = 'block';
+                document.getElementById('push-test-btn').style.display = 'inline-block';
+              }
+            }
           });
         }
 
@@ -520,6 +533,7 @@
                   .then(data => {
                     if (data.success) {
                       document.getElementById('push-status').style.display = 'block';
+                      document.getElementById('push-test-btn').style.display = 'inline-block';
                     }
                   });
                 })
@@ -530,6 +544,56 @@
             } else {
               this.checked = false;
             }
+          });
+        }
+        
+        // Test-Push-Button
+        const pushTestBtn = document.getElementById('push-test-btn');
+        if (pushTestBtn) {
+          pushTestBtn.addEventListener('click', function() {
+            const btn = this;
+            const resultDiv = document.getElementById('push-test-result');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Sende...';
+            resultDiv.style.display = 'none';
+            
+            fetch('{{ url_for("auth.push_test") }}', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              }
+            })
+            .then(response => response.json())
+            .then(data => {
+              btn.disabled = false;
+              btn.innerHTML = '<i class="bi bi-bell"></i> Test-Push senden';
+              resultDiv.style.display = 'block';
+              
+              if (data.success) {
+                resultDiv.className = 'mt-2 alert alert-success';
+                resultDiv.innerHTML = '<i class="bi bi-check-circle"></i> ' + (data.message || 'Test-Push wurde erfolgreich gesendet!');
+              } else {
+                resultDiv.className = 'mt-2 alert alert-danger';
+                resultDiv.innerHTML = '<i class="bi bi-exclamation-circle"></i> ' + (data.message || 'Fehler beim Senden der Test-Push-Nachricht');
+              }
+              
+              // Nach 5 Sekunden ausblenden
+              setTimeout(() => {
+                resultDiv.style.display = 'none';
+              }, 5000);
+            })
+            .catch(error => {
+              btn.disabled = false;
+              btn.innerHTML = '<i class="bi bi-bell"></i> Test-Push senden';
+              resultDiv.style.display = 'block';
+              resultDiv.className = 'mt-2 alert alert-danger';
+              resultDiv.innerHTML = '<i class="bi bi-exclamation-circle"></i> Netzwerkfehler beim Senden der Test-Push-Nachricht';
+              console.error('Fehler bei Test-Push:', error);
+              
+              setTimeout(() => {
+                resultDiv.style.display = 'none';
+              }, 5000);
+            });
           });
         }
       });

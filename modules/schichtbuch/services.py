@@ -8,7 +8,7 @@ from utils.helpers import build_sichtbarkeits_filter_query
 
 
 def build_themen_query(sichtbare_abteilungen, bereich_filter=None, gewerk_filter=None, 
-                       status_filter_list=None, q_filter=None, limit=None, offset=None):
+                       status_filter_list=None, q_filter=None, limit=None, offset=None, mitarbeiter_id=None):
     """
     Baut die SQL-Query für Themenliste auf
     
@@ -20,6 +20,7 @@ def build_themen_query(sichtbare_abteilungen, bereich_filter=None, gewerk_filter
         q_filter: Optionaler Such-Filter
         limit: Optionales Limit
         offset: Optionales Offset
+        mitarbeiter_id: Optional: ID des Mitarbeiters (für Anzeige selbst erstellter Themen)
         
     Returns:
         Tuple (query, params)
@@ -49,13 +50,52 @@ def build_themen_query(sichtbare_abteilungen, bereich_filter=None, gewerk_filter
     '''
     params = []
     
-    # Sichtbarkeitsfilter
-    query, params = build_sichtbarkeits_filter_query(
-        query,
-        sichtbare_abteilungen,
-        params,
-        table_alias='t'
-    )
+    # Sichtbarkeitsfilter: Themen aus sichtbaren Abteilungen ODER selbst erstellte Themen
+    if mitarbeiter_id and sichtbare_abteilungen:
+        # Prüfe, ob Thema in sichtbaren Abteilungen ist ODER vom Benutzer erstellt wurde
+        placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+        query += f''' AND (
+            EXISTS (
+                SELECT 1 FROM SchichtbuchThemaSichtbarkeit sv
+                WHERE sv.ThemaID = t.ID 
+                AND sv.AbteilungID IN ({placeholders})
+            )
+            OR EXISTS (
+                SELECT 1 FROM SchichtbuchBemerkungen b_first
+                WHERE b_first.ThemaID = t.ID 
+                AND b_first.Gelöscht = 0
+                AND b_first.MitarbeiterID = ?
+                AND b_first.Datum = (
+                    SELECT MIN(b2.Datum) 
+                    FROM SchichtbuchBemerkungen b2 
+                    WHERE b2.ThemaID = t.ID AND b2.Gelöscht = 0
+                )
+            )
+        )'''
+        params.extend(sichtbare_abteilungen)
+        params.append(mitarbeiter_id)
+    elif mitarbeiter_id:
+        # Keine sichtbaren Abteilungen, aber selbst erstellte Themen anzeigen
+        query += ''' AND EXISTS (
+            SELECT 1 FROM SchichtbuchBemerkungen b_first
+            WHERE b_first.ThemaID = t.ID 
+            AND b_first.Gelöscht = 0
+            AND b_first.MitarbeiterID = ?
+            AND b_first.Datum = (
+                SELECT MIN(b2.Datum) 
+                FROM SchichtbuchBemerkungen b2 
+                WHERE b2.ThemaID = t.ID AND b2.Gelöscht = 0
+            )
+        )'''
+        params.append(mitarbeiter_id)
+    else:
+        # Standard-Sichtbarkeitsfilter (ohne selbst erstellte Themen)
+        query, params = build_sichtbarkeits_filter_query(
+            query,
+            sichtbare_abteilungen,
+            params,
+            table_alias='t'
+        )
     
     # Filter anwenden
     if bereich_filter:
@@ -148,6 +188,24 @@ def check_thema_berechtigung(thema_id, mitarbeiter_id, conn):
     Returns:
         True wenn berechtigt, False sonst
     """
+    # Prüfe zuerst, ob der Benutzer der Ersteller des Themas ist
+    ersteller_check = conn.execute('''
+        SELECT COUNT(*) as count FROM SchichtbuchBemerkungen
+        WHERE ThemaID = ? 
+        AND Gelöscht = 0
+        AND MitarbeiterID = ?
+        AND Datum = (
+            SELECT MIN(Datum) 
+            FROM SchichtbuchBemerkungen 
+            WHERE ThemaID = ? AND Gelöscht = 0
+        )
+    ''', (thema_id, mitarbeiter_id, thema_id)).fetchone()
+    
+    if ersteller_check['count'] > 0:
+        # Benutzer ist Ersteller - immer berechtigt
+        return True
+    
+    # Prüfe Sichtbarkeit über Abteilungen
     sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
     
     if not sichtbare_abteilungen:
@@ -380,11 +438,13 @@ def create_thema(gewerk_id, status_id, mitarbeiter_id, taetigkeit_id, bemerkung,
             alle_sichtbarkeits_ids.update(unterabteilungen)
     
     # Benachrichtigungen für Mitarbeiter in sichtbaren Abteilungen erstellen
+    import logging
+    logger = logging.getLogger(__name__)
     try:
         if alle_sichtbarkeits_ids:
             erstelle_benachrichtigung_fuer_neues_thema(thema_id, list(alle_sichtbarkeits_ids), conn)
     except Exception as e:
-        print(f"Fehler beim Erstellen von Benachrichtigungen: {e}")
+        logger.error(f"Fehler beim Erstellen von Benachrichtigungen für neues Thema: ThemaID={thema_id}, SichtbareAbteilungen={alle_sichtbarkeits_ids}, Fehler={str(e)}", exc_info=True)
     
     # Sichtbarkeiten einfügen (INSERT OR IGNORE verhindert Duplikate)
     for abt_id in alle_sichtbarkeits_ids:

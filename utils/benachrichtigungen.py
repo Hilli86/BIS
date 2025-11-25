@@ -4,12 +4,24 @@ Funktionen zum Erstellen und Verwalten von Benachrichtigungen
 """
 
 import json
+import logging
 from utils import get_db_connection
+
+# Logger für Benachrichtigungen
+logger = logging.getLogger(__name__)
 
 
 def get_benachrichtigungseinstellungen(mitarbeiter_id, modul, aktion, abteilung_id=None, conn=None):
     """
     Prüft ob eine Benachrichtigung für einen Mitarbeiter aktiviert ist.
+    
+    Logik:
+    - Wenn abteilung_id gesetzt ist: Prüfe zuerst spezifische Einstellung (mit Abteilung)
+      - Wenn gefunden und Aktiv=0: return False
+      - Wenn gefunden und Aktiv=1: return True
+      - Wenn nicht gefunden: Prüfe allgemeine Einstellung (ohne Abteilung)
+    - Wenn abteilung_id None ist: Prüfe nur allgemeine Einstellung
+    - Wenn keine Einstellung gefunden: return False (Standard: deaktiviert)
     
     Args:
         mitarbeiter_id: ID des Mitarbeiters
@@ -25,14 +37,16 @@ def get_benachrichtigungseinstellungen(mitarbeiter_id, modul, aktion, abteilung_
         with get_db_connection() as conn:
             return get_benachrichtigungseinstellungen(mitarbeiter_id, modul, aktion, abteilung_id, conn)
     
-    # Prüfe spezifische Einstellung (mit Abteilung)
+    # Wenn abteilung_id gesetzt ist: Prüfe zuerst spezifische Einstellung (mit Abteilung)
     if abteilung_id is not None:
         einstellung = conn.execute('''
             SELECT Aktiv FROM BenachrichtigungEinstellung
             WHERE MitarbeiterID = ? AND Modul = ? AND Aktion = ? AND AbteilungID = ?
         ''', (mitarbeiter_id, modul, aktion, abteilung_id)).fetchone()
         if einstellung:
-            return bool(einstellung['Aktiv'])
+            aktiv = bool(einstellung['Aktiv'])
+            logger.debug(f"Benachrichtigungseinstellung gefunden (spezifisch): MitarbeiterID={mitarbeiter_id}, Modul={modul}, Aktion={aktion}, AbteilungID={abteilung_id}, Aktiv={aktiv}")
+            return aktiv
     
     # Prüfe allgemeine Einstellung (alle Abteilungen)
     einstellung = conn.execute('''
@@ -40,10 +54,13 @@ def get_benachrichtigungseinstellungen(mitarbeiter_id, modul, aktion, abteilung_
         WHERE MitarbeiterID = ? AND Modul = ? AND Aktion = ? AND AbteilungID IS NULL
     ''', (mitarbeiter_id, modul, aktion)).fetchone()
     if einstellung:
-        return bool(einstellung['Aktiv'])
+        aktiv = bool(einstellung['Aktiv'])
+        logger.debug(f"Benachrichtigungseinstellung gefunden (allgemein): MitarbeiterID={mitarbeiter_id}, Modul={modul}, Aktion={aktion}, Aktiv={aktiv}")
+        return aktiv
     
-    # Standard: Benachrichtigung ist aktiviert (wenn keine Einstellung vorhanden)
-    return True
+    # Standard: Benachrichtigung ist deaktiviert (wenn keine Einstellung vorhanden)
+    logger.debug(f"Keine Benachrichtigungseinstellung gefunden, verwende Standard (deaktiviert): MitarbeiterID={mitarbeiter_id}, Modul={modul}, Aktion={aktion}, AbteilungID={abteilung_id}")
+    return False
 
 
 def get_aktive_benachrichtigungskanaele(mitarbeiter_id, conn=None):
@@ -66,7 +83,7 @@ def get_aktive_benachrichtigungskanaele(mitarbeiter_id, conn=None):
         WHERE MitarbeiterID = ? AND Aktiv = 1
     ''', (mitarbeiter_id,)).fetchall()
     
-    return [k['KanalTyp'] for k in kanale] if kanale else ['app']  # Standard: nur App
+    return [k['KanalTyp'] for k in kanale] if kanale else []  # Standard: keine Kanäle
 
 
 def erstelle_benachrichtigung_mit_filter(modul, aktion, mitarbeiter_id, titel, nachricht, 
@@ -99,50 +116,58 @@ def erstelle_benachrichtigung_mit_filter(modul, aktion, mitarbeiter_id, titel, n
     
     # Prüfe ob Benachrichtigung aktiviert ist
     if not get_benachrichtigungseinstellungen(mitarbeiter_id, modul, aktion, abteilung_id, conn):
+        logger.info(f"Benachrichtigung nicht erstellt: Einstellung deaktiviert - MitarbeiterID={mitarbeiter_id}, Modul={modul}, Aktion={aktion}, AbteilungID={abteilung_id}")
+        return None
+    
+    # Für Schichtbuch: ThemaID ist erforderlich
+    if modul == 'schichtbuch' and thema_id is None:
+        logger.warning(f"Benachrichtigung nicht erstellt: ThemaID fehlt für Schichtbuch - MitarbeiterID={mitarbeiter_id}, Modul={modul}, Aktion={aktion}")
         return None
     
     # Zusatzdaten als JSON speichern
     zusatzdaten_json = json.dumps(zusatzdaten) if zusatzdaten else None
     
-    # Für Schichtbuch: ThemaID ist erforderlich
-    if modul == 'schichtbuch' and thema_id is None:
-        return None
-    
-    # Erstelle Benachrichtigung
-    cursor = conn.execute('''
-        INSERT INTO Benachrichtigung (
-            MitarbeiterID, ThemaID, BemerkungID, Typ, Titel, Nachricht,
-            Modul, Aktion, AbteilungID, Zusatzdaten
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        mitarbeiter_id,
-        thema_id if thema_id else 0,  # SQLite erfordert NOT NULL, verwende 0 als Platzhalter
-        bemerkung_id,
-        aktion,  # Typ wird durch Aktion ersetzt
-        titel,
-        nachricht,
-        modul,
-        aktion,
-        abteilung_id,
-        zusatzdaten_json
-    ))
-    
-    benachrichtigung_id = cursor.lastrowid
-    
-    # Versende Benachrichtigung über aktive Kanäle
-    aktive_kanale = get_aktive_benachrichtigungskanaele(mitarbeiter_id, conn)
-    for kanal_typ in aktive_kanale:
-        if kanal_typ != 'app':  # App-Benachrichtigungen werden direkt angezeigt
-            # Erstelle Versand-Eintrag
-            conn.execute('''
-                INSERT INTO BenachrichtigungVersand (
-                    BenachrichtigungID, KanalTyp, Status
-                )
-                VALUES (?, ?, 'pending')
-            ''', (benachrichtigung_id, kanal_typ))
-    
-    return benachrichtigung_id
+    try:
+        # Erstelle Benachrichtigung
+        cursor = conn.execute('''
+            INSERT INTO Benachrichtigung (
+                MitarbeiterID, ThemaID, BemerkungID, Typ, Titel, Nachricht,
+                Modul, Aktion, AbteilungID, Zusatzdaten
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            mitarbeiter_id,
+            thema_id if thema_id else 0,  # SQLite erfordert NOT NULL, verwende 0 als Platzhalter
+            bemerkung_id,
+            aktion,  # Typ wird durch Aktion ersetzt
+            titel,
+            nachricht,
+            modul,
+            aktion,
+            abteilung_id,
+            zusatzdaten_json
+        ))
+        
+        benachrichtigung_id = cursor.lastrowid
+        logger.info(f"Benachrichtigung erstellt: ID={benachrichtigung_id}, MitarbeiterID={mitarbeiter_id}, Modul={modul}, Aktion={aktion}, Titel={titel[:50]}")
+        
+        # Versende Benachrichtigung über aktive Kanäle
+        aktive_kanale = get_aktive_benachrichtigungskanaele(mitarbeiter_id, conn)
+        for kanal_typ in aktive_kanale:
+            if kanal_typ != 'app':  # App-Benachrichtigungen werden direkt angezeigt
+                # Erstelle Versand-Eintrag
+                conn.execute('''
+                    INSERT INTO BenachrichtigungVersand (
+                        BenachrichtigungID, KanalTyp, Status
+                    )
+                    VALUES (?, ?, 'pending')
+                ''', (benachrichtigung_id, kanal_typ))
+                logger.debug(f"Versand-Eintrag erstellt: BenachrichtigungID={benachrichtigung_id}, KanalTyp={kanal_typ}")
+        
+        return benachrichtigung_id
+    except Exception as e:
+        logger.error(f"Fehler beim Erstellen der Benachrichtigung: MitarbeiterID={mitarbeiter_id}, Modul={modul}, Aktion={aktion}, Fehler={str(e)}", exc_info=True)
+        raise
 
 
 def erstelle_benachrichtigung_fuer_bemerkung(thema_id, bemerkung_id, mitarbeiter_id_erstellt, conn=None):
@@ -155,6 +180,8 @@ def erstelle_benachrichtigung_fuer_bemerkung(thema_id, bemerkung_id, mitarbeiter
         with get_db_connection() as conn:
             return erstelle_benachrichtigung_fuer_bemerkung(thema_id, bemerkung_id, mitarbeiter_id_erstellt, conn)
     
+    logger.info(f"Erstelle Benachrichtigungen für neue Bemerkung: ThemaID={thema_id}, BemerkungID={bemerkung_id}, ErstellerID={mitarbeiter_id_erstellt}")
+    
     # Alle Mitarbeiter finden, die bereits eine Bemerkung zu diesem Thema haben
     mitarbeiter_mit_bemerkungen = conn.execute('''
         SELECT DISTINCT BM.MitarbeiterID, M.Vorname, M.Nachname
@@ -165,6 +192,8 @@ def erstelle_benachrichtigung_fuer_bemerkung(thema_id, bemerkung_id, mitarbeiter
         AND BM.Gelöscht = 0
         AND M.Aktiv = 1
     ''', (thema_id, mitarbeiter_id_erstellt)).fetchall()
+    
+    logger.debug(f"Gefundene Mitarbeiter mit Bemerkungen zu Thema {thema_id}: {len(mitarbeiter_mit_bemerkungen)}")
     
     # Thema-Informationen holen
     thema_info = conn.execute('''
@@ -180,6 +209,7 @@ def erstelle_benachrichtigung_fuer_bemerkung(thema_id, bemerkung_id, mitarbeiter
     ''', (thema_id,)).fetchone()
     
     if not thema_info:
+        logger.warning(f"Thema {thema_id} nicht gefunden, keine Benachrichtigungen erstellt")
         return
     
     # Erstellername holen
@@ -193,8 +223,11 @@ def erstelle_benachrichtigung_fuer_bemerkung(thema_id, bemerkung_id, mitarbeiter
     titel = f"Neue Bemerkung zu Thema #{thema_id}"
     nachricht = f"{ersteller_name} hat eine neue Bemerkung zu '{thema_info['Bereich']} / {thema_info['Gewerk']}' hinzugefügt."
     
+    erstellt_count = 0
+    uebersprungen_count = 0
+    
     for mitarbeiter in mitarbeiter_mit_bemerkungen:
-        erstelle_benachrichtigung_mit_filter(
+        benachrichtigung_id = erstelle_benachrichtigung_mit_filter(
             modul='schichtbuch',
             aktion='neue_bemerkung',
             mitarbeiter_id=mitarbeiter['MitarbeiterID'],
@@ -205,6 +238,12 @@ def erstelle_benachrichtigung_fuer_bemerkung(thema_id, bemerkung_id, mitarbeiter
             abteilung_id=thema_info.get('ErstellerAbteilungID'),
             conn=conn
         )
+        if benachrichtigung_id:
+            erstellt_count += 1
+        else:
+            uebersprungen_count += 1
+    
+    logger.info(f"Benachrichtigungen für neue Bemerkung erstellt: {erstellt_count} erstellt, {uebersprungen_count} übersprungen (ThemaID={thema_id})")
 
 
 def erstelle_benachrichtigung_fuer_neues_thema(thema_id, sichtbare_abteilungen, conn=None):
@@ -218,7 +257,10 @@ def erstelle_benachrichtigung_fuer_neues_thema(thema_id, sichtbare_abteilungen, 
             return erstelle_benachrichtigung_fuer_neues_thema(thema_id, sichtbare_abteilungen, conn)
     
     if not sichtbare_abteilungen:
+        logger.warning(f"Keine sichtbaren Abteilungen für Thema {thema_id}, keine Benachrichtigungen erstellt")
         return
+    
+    logger.info(f"Erstelle Benachrichtigungen für neues Thema: ThemaID={thema_id}, SichtbareAbteilungen={sichtbare_abteilungen}")
     
     # Thema-Informationen holen
     thema_info = conn.execute('''
@@ -234,6 +276,7 @@ def erstelle_benachrichtigung_fuer_neues_thema(thema_id, sichtbare_abteilungen, 
     ''', (thema_id,)).fetchone()
     
     if not thema_info:
+        logger.warning(f"Thema {thema_id} nicht gefunden, keine Benachrichtigungen erstellt")
         return
     
     # Ersteller-ID ermitteln (über erste Bemerkung)
@@ -246,9 +289,6 @@ def erstelle_benachrichtigung_fuer_neues_thema(thema_id, sichtbare_abteilungen, 
     ersteller_id = ersteller['MitarbeiterID'] if ersteller else None
     
     # Alle Mitarbeiter in den sichtbaren Abteilungen finden
-    if not sichtbare_abteilungen:
-        return
-    
     placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
     params = sichtbare_abteilungen + sichtbare_abteilungen + ([ersteller_id] if ersteller_id else [0])
     
@@ -267,12 +307,17 @@ def erstelle_benachrichtigung_fuer_neues_thema(thema_id, sichtbare_abteilungen, 
         AND M.ID != ?
     ''', params).fetchall()
     
+    logger.debug(f"Gefundene Mitarbeiter in sichtbaren Abteilungen: {len(mitarbeiter)}")
+    
     # Benachrichtigungen erstellen mit Filterlogik
     titel = f"Neues Thema #{thema_id}"
     nachricht = f"Ein neues Thema '{thema_info['Bereich']} / {thema_info['Gewerk']}' wurde erstellt."
     
+    erstellt_count = 0
+    uebersprungen_count = 0
+    
     for ma in mitarbeiter:
-        erstelle_benachrichtigung_mit_filter(
+        benachrichtigung_id = erstelle_benachrichtigung_mit_filter(
             modul='schichtbuch',
             aktion='neues_thema',
             mitarbeiter_id=ma['ID'],
@@ -282,6 +327,12 @@ def erstelle_benachrichtigung_fuer_neues_thema(thema_id, sichtbare_abteilungen, 
             abteilung_id=thema_info.get('ErstellerAbteilungID'),
             conn=conn
         )
+        if benachrichtigung_id:
+            erstellt_count += 1
+        else:
+            uebersprungen_count += 1
+    
+    logger.info(f"Benachrichtigungen für neues Thema erstellt: {erstellt_count} erstellt, {uebersprungen_count} übersprungen (ThemaID={thema_id})")
 
 
 # ========== Bestellwesen-Benachrichtigungen ==========
@@ -325,6 +376,8 @@ def erstelle_benachrichtigung_fuer_angebotsanfrage(angebotsanfrage_id, aktion, c
     
     titel, nachricht = aktionen.get(aktion, (f"Angebotsanfrage #{angebotsanfrage_id}", f"Aktion bei Angebotsanfrage #{angebotsanfrage_id}"))
     
+    logger.info(f"Erstelle Benachrichtigungen für Angebotsanfrage: AngebotsanfrageID={angebotsanfrage_id}, Aktion={aktion}")
+    
     # Alle Mitarbeiter in der Abteilung finden (außer Ersteller)
     mitarbeiter = conn.execute('''
         SELECT DISTINCT M.ID
@@ -341,9 +394,14 @@ def erstelle_benachrichtigung_fuer_angebotsanfrage(angebotsanfrage_id, aktion, c
         AND M.ID != (SELECT ErstelltVonID FROM Angebotsanfrage WHERE ID = ?)
     ''', (anfrage['ErstellerAbteilungID'], anfrage['ErstellerAbteilungID'], angebotsanfrage_id)).fetchall()
     
+    logger.debug(f"Gefundene Mitarbeiter für Angebotsanfrage {angebotsanfrage_id}: {len(mitarbeiter)}")
+    
+    erstellt_count = 0
+    uebersprungen_count = 0
+    
     # Benachrichtigungen erstellen
     for ma in mitarbeiter:
-        erstelle_benachrichtigung_mit_filter(
+        benachrichtigung_id = erstelle_benachrichtigung_mit_filter(
             modul='bestellwesen',
             aktion=aktion,
             mitarbeiter_id=ma['ID'],
@@ -353,6 +411,12 @@ def erstelle_benachrichtigung_fuer_angebotsanfrage(angebotsanfrage_id, aktion, c
             zusatzdaten={'angebotsanfrage_id': angebotsanfrage_id, 'lieferant': anfrage['LieferantName']},
             conn=conn
         )
+        if benachrichtigung_id:
+            erstellt_count += 1
+        else:
+            uebersprungen_count += 1
+    
+    logger.info(f"Benachrichtigungen für Angebotsanfrage erstellt: {erstellt_count} erstellt, {uebersprungen_count} übersprungen (AngebotsanfrageID={angebotsanfrage_id})")
 
 
 def erstelle_benachrichtigung_fuer_bestellung(bestellung_id, aktion, conn=None):
@@ -395,6 +459,8 @@ def erstelle_benachrichtigung_fuer_bestellung(bestellung_id, aktion, conn=None):
     
     titel, nachricht = aktionen.get(aktion, (f"Bestellung #{bestellung_id}", f"Aktion bei Bestellung #{bestellung_id}"))
     
+    logger.info(f"Erstelle Benachrichtigungen für Bestellung: BestellungID={bestellung_id}, Aktion={aktion}")
+    
     # Für Freigabe: Benachrichtige alle mit Freigabeberechtigung
     if aktion == 'bestellung_zur_freigabe':
         mitarbeiter = conn.execute('''
@@ -406,6 +472,7 @@ def erstelle_benachrichtigung_fuer_bestellung(bestellung_id, aktion, conn=None):
             AND B.Schluessel = 'bestellungen_freigeben'
             AND B.Aktiv = 1
         ''').fetchall()
+        logger.debug(f"Gefundene Mitarbeiter mit Freigabeberechtigung: {len(mitarbeiter)}")
     else:
         # Alle Mitarbeiter in der Abteilung finden (außer Ersteller)
         mitarbeiter = conn.execute('''
@@ -422,10 +489,14 @@ def erstelle_benachrichtigung_fuer_bestellung(bestellung_id, aktion, conn=None):
             )
             AND M.ID != (SELECT ErstelltVonID FROM Bestellung WHERE ID = ?)
         ''', (bestellung['ErstellerAbteilungID'], bestellung['ErstellerAbteilungID'], bestellung_id)).fetchall()
+        logger.debug(f"Gefundene Mitarbeiter in Abteilung für Bestellung {bestellung_id}: {len(mitarbeiter)}")
+    
+    erstellt_count = 0
+    uebersprungen_count = 0
     
     # Benachrichtigungen erstellen
     for ma in mitarbeiter:
-        erstelle_benachrichtigung_mit_filter(
+        benachrichtigung_id = erstelle_benachrichtigung_mit_filter(
             modul='bestellwesen',
             aktion=aktion,
             mitarbeiter_id=ma['ID'],
@@ -435,6 +506,12 @@ def erstelle_benachrichtigung_fuer_bestellung(bestellung_id, aktion, conn=None):
             zusatzdaten={'bestellung_id': bestellung_id, 'lieferant': bestellung['LieferantName']},
             conn=conn
         )
+        if benachrichtigung_id:
+            erstellt_count += 1
+        else:
+            uebersprungen_count += 1
+    
+    logger.info(f"Benachrichtigungen für Bestellung erstellt: {erstellt_count} erstellt, {uebersprungen_count} übersprungen (BestellungID={bestellung_id})")
 
 
 def erstelle_benachrichtigung_fuer_wareneingang(bestellung_id, conn=None):
@@ -463,6 +540,8 @@ def erstelle_benachrichtigung_fuer_wareneingang(bestellung_id, conn=None):
     if not bestellung:
         return
     
+    logger.info(f"Erstelle Benachrichtigungen für Wareneingang: BestellungID={bestellung_id}")
+    
     titel = f"Wareneingang für Bestellung #{bestellung_id}"
     nachricht = f"Wareneingang für Bestellung #{bestellung_id} wurde gebucht."
     
@@ -481,9 +560,14 @@ def erstelle_benachrichtigung_fuer_wareneingang(bestellung_id, conn=None):
         )
     ''', (bestellung['ErstellerAbteilungID'], bestellung['ErstellerAbteilungID'])).fetchall()
     
+    logger.debug(f"Gefundene Mitarbeiter für Wareneingang Bestellung {bestellung_id}: {len(mitarbeiter)}")
+    
+    erstellt_count = 0
+    uebersprungen_count = 0
+    
     # Benachrichtigungen erstellen
     for ma in mitarbeiter:
-        erstelle_benachrichtigung_mit_filter(
+        benachrichtigung_id = erstelle_benachrichtigung_mit_filter(
             modul='bestellwesen',
             aktion='wareneingang',
             mitarbeiter_id=ma['ID'],
@@ -493,6 +577,12 @@ def erstelle_benachrichtigung_fuer_wareneingang(bestellung_id, conn=None):
             zusatzdaten={'bestellung_id': bestellung_id, 'lieferant': bestellung['LieferantName']},
             conn=conn
         )
+        if benachrichtigung_id:
+            erstellt_count += 1
+        else:
+            uebersprungen_count += 1
+    
+    logger.info(f"Benachrichtigungen für Wareneingang erstellt: {erstellt_count} erstellt, {uebersprungen_count} übersprungen (BestellungID={bestellung_id})")
 
 
 # ========== Versand-Funktionen ==========
@@ -529,7 +619,7 @@ def versende_benachrichtigung(benachrichtigung_id, kanal_typ, conn=None):
         # Modul nicht verfügbar
         erfolg = False
     except Exception as e:
-        print(f"Fehler beim Versenden der Benachrichtigung {benachrichtigung_id} über {kanal_typ}: {e}")
+        logger.error(f"Fehler beim Versenden der Benachrichtigung {benachrichtigung_id} über {kanal_typ}: {e}", exc_info=True)
         erfolg = False
     
     # Aktualisiere Versand-Status

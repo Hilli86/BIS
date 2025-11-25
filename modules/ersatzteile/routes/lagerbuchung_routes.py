@@ -53,6 +53,7 @@ def lagerbuchungen_liste():
                 l.ErsatzteilID,
                 l.Preis,
                 l.Waehrung,
+                l.BestellungID,
                 e.Bestellnummer,
                 e.Bezeichnung AS ErsatzteilBezeichnung,
                 m.Vorname || ' ' || m.Nachname AS VerwendetVon,

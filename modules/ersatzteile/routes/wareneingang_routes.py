@@ -186,8 +186,8 @@ def wareneingang_bestellung(bestellung_id):
                             # Lagerbuchung erstellen
                             conn.execute('''
                                 INSERT INTO Lagerbuchung (ErsatzteilID, Typ, Menge, VerwendetVonID, Buchungsdatum, Grund, BestellungID)
-                                VALUES (?, 'Eingang', ?, ?, datetime('now'), 'Wareneingang Bestellung', ?)
-                            ''', (pos['ErsatzteilID'], erhaltene_menge, mitarbeiter_id, bestellung_id))
+                                VALUES (?, 'Eingang', ?, ?, datetime('now'), ?, ?)
+                            ''', (pos['ErsatzteilID'], erhaltene_menge, mitarbeiter_id, f'Wareneingang Bestellung #{bestellung_id}', bestellung_id))
                         
                         # Status prüfen
                         if neue_erhaltene_menge < pos['Menge']:

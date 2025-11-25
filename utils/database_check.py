@@ -47,8 +47,15 @@ def extract_column_from_index(index_sql):
         end = index_sql.find(')')
         if start != -1 and end != -1:
             column_part = index_sql[start+1:end].strip()
+            # Prüfe ob es ein zusammengesetzter Index ist (mehrere Spalten)
+            if ',' in column_part:
+                # Bei zusammengesetzten Indizes geben wir None zurück
+                # Die Spaltenprüfung wird übersprungen
+                return None
             # Entferne mögliche zusätzliche Teile wie ASC/DESC
             column_name = column_part.split()[0]
+            # Entferne Komma am Ende falls vorhanden
+            column_name = column_name.rstrip(',')
             return column_name
     except:
         pass
@@ -72,13 +79,20 @@ def create_table_if_not_exists(conn, table_name, create_sql, indices=None):
                 if not index_exists(conn, index_name):
                     # Prüfe ob die Spalte existiert, bevor der Index erstellt wird
                     column_name = extract_column_from_index(index_sql)
-                    if column_name and column_exists(conn, table_name, column_name):
+                    if column_name is None:
+                        # Zusammengesetzter Index - versuche direkt zu erstellen
                         try:
                             conn.execute(index_sql)
                         except sqlite3.OperationalError as e:
                             # Ignoriere Fehler wenn Spalte nicht existiert oder Index bereits existiert
                             print(f"[WARN] Index '{index_name}' konnte nicht erstellt werden: {e}")
-                    elif column_name:
+                    elif column_exists(conn, table_name, column_name):
+                        try:
+                            conn.execute(index_sql)
+                        except sqlite3.OperationalError as e:
+                            # Ignoriere Fehler wenn Spalte nicht existiert oder Index bereits existiert
+                            print(f"[WARN] Index '{index_name}' konnte nicht erstellt werden: {e}")
+                    else:
                         print(f"[WARN] Spalte '{column_name}' existiert nicht in Tabelle '{table_name}', überspringe Index '{index_name}'")
     
     return table_created

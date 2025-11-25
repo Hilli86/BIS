@@ -59,7 +59,8 @@ def themaliste():
             gewerk_filter=gewerk_filter,
             status_filter_list=status_filter_list,
             q_filter=q_filter,
-            limit=items_per_page
+            limit=items_per_page,
+            mitarbeiter_id=mitarbeiter_id
         )
 
         themen = conn.execute(query, params).fetchall()
@@ -122,7 +123,8 @@ def themaliste_load_more():
             status_filter_list=status_filter_list,
             q_filter=q_filter,
             limit=limit,
-            offset=offset
+            offset=offset,
+            mitarbeiter_id=mitarbeiter_id
         )
 
         themen = conn.execute(query, params).fetchall()
@@ -188,10 +190,12 @@ def add_bemerkung():
         
         # Benachrichtigungen für andere Mitarbeiter erstellen
         from utils import erstelle_benachrichtigung_fuer_bemerkung
+        import logging
+        logger = logging.getLogger(__name__)
         try:
             erstelle_benachrichtigung_fuer_bemerkung(thema_id, bemerkung_id, mitarbeiter_id, conn)
         except Exception as e:
-            print(f"Fehler beim Erstellen von Benachrichtigungen: {e}")
+            logger.error(f"Fehler beim Erstellen von Benachrichtigungen für Bemerkung: ThemaID={thema_id}, BemerkungID={bemerkung_id}, Fehler={str(e)}", exc_info=True)
 
         neuer_status = None
         neue_farbe = None
@@ -354,10 +358,12 @@ def thema_detail(thema_id):
             
             # Benachrichtigungen für andere Mitarbeiter erstellen
             from utils import erstelle_benachrichtigung_fuer_bemerkung
+            import logging
+            logger = logging.getLogger(__name__)
             try:
                 erstelle_benachrichtigung_fuer_bemerkung(thema_id, bemerkung_id, mitarbeiter_id, conn)
             except Exception as e:
-                print(f"Fehler beim Erstellen von Benachrichtigungen: {e}")
+                logger.error(f"Fehler beim Erstellen von Benachrichtigungen für Bemerkung (API): ThemaID={thema_id}, BemerkungID={bemerkung_id}, Fehler={str(e)}", exc_info=True)
 
             # Status ggf. ändern
             if neuer_status and neuer_status != "":

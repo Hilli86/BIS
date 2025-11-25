@@ -43,6 +43,12 @@ class Config:
     VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', None)
     VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY', None)
     VAPID_EMAIL = os.environ.get('VAPID_EMAIL', 'noreply@example.com')
+    
+    # Benachrichtigungen-Cleanup
+    BENACHRICHTIGUNGEN_CLEANUP_AKTIV = os.environ.get('BENACHRICHTIGUNGEN_CLEANUP_AKTIV', 'True').lower() == 'true'
+    BENACHRICHTIGUNGEN_CLEANUP_TAGE = int(os.environ.get('BENACHRICHTIGUNGEN_CLEANUP_TAGE', 30))
+    BENACHRICHTIGUNGEN_CLEANUP_NUR_GELESENE = os.environ.get('BENACHRICHTIGUNGEN_CLEANUP_NUR_GELESENE', 'True').lower() == 'true'
+    BENACHRICHTIGUNGEN_CLEANUP_LIMIT_PRO_MITARBEITER = int(os.environ.get('BENACHRICHTIGUNGEN_CLEANUP_LIMIT_PRO_MITARBEITER', 0)) or None
 
 class DevelopmentConfig(Config):
     """Entwicklungskonfiguration"""
