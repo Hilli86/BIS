@@ -817,6 +817,9 @@ def bestellung_position_hinzufuegen(bestellung_id):
     waehrung = request.form.get('waehrung', 'EUR').strip()
     bemerkung = request.form.get('bemerkung', '').strip() or None
     link = request.form.get('link', '').strip() or None
+    # Prüfe ob link "None" als String ist und konvertiere zu None
+    if link and link.lower() in ('none', 'null', 'undefined'):
+        link = None
     
     if not ersatzteil_id and not bestellnummer:
         flash('Bitte geben Sie entweder eine ErsatzteilID oder eine Bestellnummer ein.', 'danger')
@@ -880,6 +883,9 @@ def bestellung_position_bearbeiten(bestellung_id, position_id):
     waehrung = request.form.get('waehrung', 'EUR').strip()
     bemerkung = request.form.get('bemerkung', '').strip() or None
     link = request.form.get('link', '').strip() or None
+    # Prüfe ob link "None" als String ist und konvertiere zu None
+    if link and link.lower() in ('none', 'null', 'undefined'):
+        link = None
     
     try:
         with get_db_connection() as conn:

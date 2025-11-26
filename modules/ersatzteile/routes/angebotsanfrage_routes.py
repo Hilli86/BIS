@@ -783,6 +783,9 @@ def angebotsanfrage_position_bearbeiten(angebotsanfrage_id, position_id):
             einheit = request.form.get('einheit', '').strip() or None
             bemerkung = request.form.get('bemerkung', '').strip() or None
             link = request.form.get('link', '').strip() or None
+            # Prüfe ob link "None" als String ist und konvertiere zu None
+            if link and link.lower() in ('none', 'null', 'undefined'):
+                link = None
             
             # Validierung
             if not bestellnummer or not bezeichnung:

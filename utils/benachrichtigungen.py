@@ -437,6 +437,7 @@ def erstelle_benachrichtigung_fuer_bestellung(bestellung_id, aktion, conn=None):
         SELECT 
             B.ID,
             B.ErstellerAbteilungID,
+            B.ErstelltVonID,
             B.Status,
             L.Name AS LieferantName,
             M.Vorname || ' ' || M.Nachname AS ErstellerName
@@ -473,6 +474,22 @@ def erstelle_benachrichtigung_fuer_bestellung(bestellung_id, aktion, conn=None):
             AND B.Aktiv = 1
         ''').fetchall()
         logger.debug(f"Gefundene Mitarbeiter mit Freigabeberechtigung: {len(mitarbeiter)}")
+    elif aktion == 'bestellung_freigegeben':
+        # Bei Freigabe: Alle Mitarbeiter in der Abteilung einschließlich Ersteller
+        mitarbeiter = conn.execute('''
+            SELECT DISTINCT M.ID
+            FROM Mitarbeiter M
+            WHERE M.Aktiv = 1
+            AND (
+                M.PrimaerAbteilungID = ?
+                OR EXISTS (
+                    SELECT 1 FROM MitarbeiterAbteilung MA
+                    WHERE MA.MitarbeiterID = M.ID
+                    AND MA.AbteilungID = ?
+                )
+            )
+        ''', (bestellung['ErstellerAbteilungID'], bestellung['ErstellerAbteilungID'])).fetchall()
+        logger.debug(f"Gefundene Mitarbeiter in Abteilung für freigegebene Bestellung {bestellung_id} (inkl. Ersteller): {len(mitarbeiter)}")
     else:
         # Alle Mitarbeiter in der Abteilung finden (außer Ersteller)
         mitarbeiter = conn.execute('''
@@ -487,8 +504,8 @@ def erstelle_benachrichtigung_fuer_bestellung(bestellung_id, aktion, conn=None):
                     AND MA.AbteilungID = ?
                 )
             )
-            AND M.ID != (SELECT ErstelltVonID FROM Bestellung WHERE ID = ?)
-        ''', (bestellung['ErstellerAbteilungID'], bestellung['ErstellerAbteilungID'], bestellung_id)).fetchall()
+            AND M.ID != ?
+        ''', (bestellung['ErstellerAbteilungID'], bestellung['ErstellerAbteilungID'], bestellung['ErstelltVonID'])).fetchall()
         logger.debug(f"Gefundene Mitarbeiter in Abteilung für Bestellung {bestellung_id}: {len(mitarbeiter)}")
     
     erstellt_count = 0
