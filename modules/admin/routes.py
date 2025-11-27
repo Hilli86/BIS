@@ -8,6 +8,7 @@ from werkzeug.security import generate_password_hash
 import sqlite3
 from . import admin_bp
 from utils import get_db_connection, admin_required
+from utils.zebra_client import send_zpl_to_printer, build_test_label
 from utils.helpers import row_to_dict
 
 
@@ -102,6 +103,18 @@ def dashboard():
         # Berechtigungen laden
         berechtigungen = conn.execute('SELECT ID, Schluessel, Bezeichnung, Beschreibung, Aktiv FROM Berechtigung ORDER BY Bezeichnung').fetchall()
 
+        # Zebra-Drucker und Etikettenformate laden
+        zebra_printers = conn.execute('''
+            SELECT id, name, ip_address, description, active
+            FROM zebra_printers
+            ORDER BY name
+        ''').fetchall()
+        label_formats = conn.execute('''
+            SELECT id, name, description, width_mm, height_mm, orientation, zpl_header
+            FROM label_formats
+            ORDER BY name
+        ''').fetchall()
+
     return render_template('admin.html',
                            mitarbeiter=mitarbeiter,
                            mitarbeiter_abteilungen=mitarbeiter_abteilungen,
@@ -117,7 +130,157 @@ def dashboard():
                            lagerorte=lagerorte,
                            lagerplaetze=lagerplaetze,
                            firmendaten=firmendaten,
-                           berechtigungen=berechtigungen)
+                           berechtigungen=berechtigungen,
+                           zebra_printers=zebra_printers,
+                           label_formats=label_formats)
+
+
+# ========== Zebra-Drucker Verwaltung ==========
+
+@admin_bp.route('/zebra/printers', methods=['POST'])
+@admin_required
+def zebra_printer_save():
+    """
+    Zebra-Drucker anlegen oder aktualisieren.
+    Wenn eine ID übergeben wird, wird aktualisiert, sonst neu angelegt.
+    """
+    printer_id = request.form.get('id')
+    name = request.form.get('name', '').strip()
+    ip_address = request.form.get('ip_address', '').strip()
+    description = request.form.get('description', '').strip() or None
+    active = 1 if request.form.get('active') == 'on' else 0
+
+    if not name or not ip_address:
+        return ajax_response('Bitte Name und IP-Adresse ausfüllen.', success=False)
+
+    try:
+        with get_db_connection() as conn:
+            if printer_id:
+                conn.execute('''
+                    UPDATE zebra_printers
+                    SET name = ?, ip_address = ?, description = ?, active = ?, updated_at = datetime('now')
+                    WHERE id = ?
+                ''', (name, ip_address, description, active, printer_id))
+            else:
+                conn.execute('''
+                    INSERT INTO zebra_printers (name, ip_address, description, active, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+                ''', (name, ip_address, description, active))
+            conn.commit()
+        return ajax_response('Zebra-Drucker gespeichert.')
+    except Exception as e:
+        return ajax_response(f'Fehler beim Speichern des Druckers: {str(e)}', success=False, status_code=500)
+
+
+@admin_bp.route('/zebra/printers/toggle/<int:pid>', methods=['POST'])
+@admin_required
+def zebra_printer_toggle(pid):
+    """Aktiv-Status eines Zebra-Druckers umschalten."""
+    try:
+        with get_db_connection() as conn:
+            row = conn.execute('SELECT active FROM zebra_printers WHERE id = ?', (pid,)).fetchone()
+            if not row:
+                return ajax_response('Drucker nicht gefunden.', success=False, status_code=404)
+            new_active = 0 if row['active'] else 1
+            conn.execute('UPDATE zebra_printers SET active = ?, updated_at = datetime(\'now\') WHERE id = ?', (new_active, pid))
+            conn.commit()
+        return ajax_response('Zebra-Drucker-Status aktualisiert.')
+    except Exception as e:
+        return ajax_response(f'Fehler beim Aktualisieren des Druckerstatus: {str(e)}', success=False, status_code=500)
+
+
+# ========== Etikettenformate Verwaltung ==========
+
+@admin_bp.route('/zebra/labels', methods=['POST'])
+@admin_required
+def zebra_label_save():
+    """
+    Etikettenformat anlegen oder aktualisieren.
+    Wenn eine ID übergeben wird, wird aktualisiert, sonst neu angelegt.
+    """
+    label_id = request.form.get('id')
+    name = request.form.get('name', '').strip()
+    description = request.form.get('description', '').strip() or None
+    width_mm = request.form.get('width_mm', type=int)
+    height_mm = request.form.get('height_mm', type=int)
+    orientation = request.form.get('orientation', 'portrait').strip() or 'portrait'
+    zpl_header = request.form.get('zpl_header', '').strip()
+
+    if not name or not width_mm or not height_mm or not zpl_header:
+        return ajax_response('Bitte Name, Breite, Höhe und ZPL-Header ausfüllen.', success=False)
+
+    try:
+        with get_db_connection() as conn:
+            if label_id:
+                conn.execute('''
+                    UPDATE label_formats
+                    SET name = ?, description = ?, width_mm = ?, height_mm = ?, orientation = ?, zpl_header = ?, updated_at = datetime('now')
+                    WHERE id = ?
+                ''', (name, description, width_mm, height_mm, orientation, zpl_header, label_id))
+            else:
+                conn.execute('''
+                    INSERT INTO label_formats (name, description, width_mm, height_mm, orientation, zpl_header, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                ''', (name, description, width_mm, height_mm, orientation, zpl_header))
+            conn.commit()
+        return ajax_response('Etikettenformat gespeichert.')
+    except Exception as e:
+        return ajax_response(f'Fehler beim Speichern des Etikettenformats: {str(e)}', success=False, status_code=500)
+
+
+# ========== Zebra-Testdruck ==========
+
+@admin_bp.route('/zebra/test', methods=['GET', 'POST'])
+@admin_required
+def zebra_test():
+    """
+    Testseite für Zebra-Drucker:
+    - GET: Formular mit Auswahl Drucker + Etikettenformat
+    - POST: Testetikett drucken
+    """
+    with get_db_connection() as conn:
+        printers = conn.execute('''
+            SELECT id, name, ip_address, active
+            FROM zebra_printers
+            ORDER BY name
+        ''').fetchall()
+        labels = conn.execute('''
+            SELECT id, name, zpl_header
+            FROM label_formats
+            ORDER BY name
+        ''').fetchall()
+
+        if request.method == 'POST':
+            printer_id = request.form.get('printer_id', type=int)
+            label_id = request.form.get('label_id', type=int)
+
+            if not printer_id or not label_id:
+                flash('Bitte Drucker und Etikettenformat auswählen.', 'danger')
+                return redirect(url_for('admin.zebra_test'))
+
+            printer = conn.execute('SELECT * FROM zebra_printers WHERE id = ?', (printer_id,)).fetchone()
+            label = conn.execute('SELECT * FROM label_formats WHERE id = ?', (label_id,)).fetchone()
+
+            if not printer or not label:
+                flash('Ausgewählter Drucker oder Etikettenformat nicht gefunden.', 'danger')
+                return redirect(url_for('admin.zebra_test'))
+
+            zpl = build_test_label(label['zpl_header'], label['name'])
+
+            # Kompletten ZPL-Befehl in der Konsole ausgeben (für Debugging)
+            print("===== ZEBRA TEST ZPL =====")
+            print(zpl)
+            print("===== END ZEBRA TEST ZPL =====")
+
+            try:
+                send_zpl_to_printer(printer['ip_address'], zpl)
+                flash(f"Testetikett '{label['name']}' an Drucker '{printer['name']}' gesendet.", 'success')
+            except Exception as e:
+                flash(f"Fehler beim Senden an den Drucker: {e}", 'danger')
+
+            return redirect(url_for('admin.zebra_test'))
+
+    return render_template('admin_zebra_test.html', printers=printers, labels=labels)
 
 
 # ========== Mitarbeiter-Verwaltung ==========

@@ -1172,9 +1172,66 @@ def init_database_schema(db_path, verbose=False):
                         INSERT OR IGNORE INTO MitarbeiterBerechtigung (MitarbeiterID, BerechtigungID)
                         VALUES (?, ?)
                     ''', (ma['ID'], admin_ber_id))
-            
-            conn.commit()
         
+        # ========== 32. Zebra-Drucker und Etikettenformate ==========
+        # Tabelle für Zebra-Netzwerkdrucker
+        created_zebra_printers = create_table_if_not_exists(conn, 'zebra_printers', '''
+            CREATE TABLE zebra_printers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                ip_address TEXT NOT NULL,
+                description TEXT NULL,
+                active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now'))
+            )
+        ''', [
+            'CREATE INDEX idx_zebra_printers_active ON zebra_printers(active)',
+            'CREATE INDEX idx_zebra_printers_ip ON zebra_printers(ip_address)'
+        ])
+
+        # Tabelle für Etikettenformate
+        created_label_formats = create_table_if_not_exists(conn, 'label_formats', '''
+            CREATE TABLE label_formats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT NULL,
+                width_mm INTEGER NOT NULL,
+                height_mm INTEGER NOT NULL,
+                orientation TEXT NOT NULL DEFAULT 'portrait',
+                zpl_header TEXT NOT NULL,
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now'))
+            )
+        ''', [
+            'CREATE INDEX idx_label_formats_name ON label_formats(name)'
+        ])
+
+        # Seed-Daten nur anlegen, wenn Tabellen gerade neu erstellt wurden oder leer sind
+        if created_zebra_printers:
+            cursor.execute('SELECT COUNT(*) AS count FROM zebra_printers')
+            if cursor.fetchone()['count'] == 0:
+                cursor.execute('''
+                    INSERT INTO zebra_printers (name, ip_address, description, active)
+                    VALUES (?, ?, ?, ?)
+                ''', ('Zebra 1', '192.168.1.100', 'Haupt-Zebra-Drucker', 1))
+
+        if created_label_formats:
+            cursor.execute('SELECT COUNT(*) AS count FROM label_formats')
+            if cursor.fetchone()['count'] == 0:
+                # 203 dpi -> ca. 8 Dots/mm
+                zpl_30x30 = "^PW240\n^LL240\n^LS0"
+                zpl_40x160 = "^PW320\n^LL1280\n^LS0"
+                cursor.executemany('''
+                    INSERT INTO label_formats (name, description, width_mm, height_mm, orientation, zpl_header)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', [
+                    ('30x30 mm', 'Quadratisches Etikett 30x30 mm', 30, 30, 'portrait', zpl_30x30),
+                    ('40x160 mm', 'Langes Etikett 40x160 mm', 40, 160, 'portrait', zpl_40x160),
+                ])
+
+        conn.commit()
+
     except Exception as e:
         conn.rollback()
         raise

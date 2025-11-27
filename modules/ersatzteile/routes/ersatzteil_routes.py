@@ -20,6 +20,7 @@ from ..services import (
     get_datei_typ_aus_dateiname
 )
 from ..utils import hat_ersatzteil_zugriff, get_datei_anzahl, allowed_file
+from utils.zebra_client import send_zpl_to_printer, build_test_label
 
 
 @ersatzteile_bp.route('/')
@@ -64,6 +65,10 @@ def ersatzteil_liste():
         
         # Filter-Optionen über Service laden
         filter_options = get_ersatzteil_liste_filter_options(conn)
+
+        # Zebra-Defaults für Etikettendruck
+        default_printer = conn.execute('SELECT id, name FROM zebra_printers WHERE active = 1 ORDER BY id LIMIT 1').fetchone()
+        default_label = conn.execute('SELECT id, name FROM label_formats WHERE name = ? LIMIT 1', ('30x30 mm',)).fetchone()
     
     return render_template(
         'ersatzteil_liste.html',
@@ -82,8 +87,107 @@ def ersatzteil_liste():
         q_filter=q_filter,
         sort_by=sort_by,
         sort_dir=sort_dir,
-        is_admin=is_admin
+        is_admin=is_admin,
+        default_printer=default_printer,
+        default_label=default_label
     )
+
+
+@ersatzteile_bp.route('/<int:ersatzteil_id>/druck_label', methods=['POST'])
+@login_required
+def ersatzteil_druck_label(ersatzteil_id):
+    """Druckt ein 30x30-Etikett für ein Ersatzteil über Zebra."""
+    mitarbeiter_id = session.get('user_id')
+
+    with get_db_connection() as conn:
+        # Berechtigung prüfen
+        if not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
+            return jsonify({'success': False, 'message': 'Keine Berechtigung für dieses Ersatzteil.'}), 403
+
+        # Ersatzteil-Daten laden (für Inhalt)
+        et = conn.execute('''
+            SELECT e.ID, e.Bezeichnung, e.Bestellnummer, lo.Bezeichnung AS LagerortName, lp.Bezeichnung AS LagerplatzName
+            FROM Ersatzteil e
+            LEFT JOIN Lagerort lo ON e.LagerortID = lo.ID
+            LEFT JOIN Lagerplatz lp ON e.LagerplatzID = lp.ID
+            WHERE e.ID = ? AND e.Gelöscht = 0
+        ''', (ersatzteil_id,)).fetchone()
+
+        if not et:
+            return jsonify({'success': False, 'message': 'Ersatzteil nicht gefunden.'}), 404
+
+        # Aktiven Zebra-Drucker nehmen (oder Fehler)
+        printer = conn.execute('SELECT * FROM zebra_printers WHERE active = 1 ORDER BY id LIMIT 1').fetchone()
+        if not printer:
+            return jsonify({'success': False, 'message': 'Kein aktiver Zebra-Drucker konfiguriert.'}), 400
+
+        # 30x30-Label-Format laden
+        label = conn.execute('SELECT * FROM label_formats WHERE name = ? LIMIT 1', ('30x30 mm',)).fetchone()
+        if not label:
+            return jsonify({'success': False, 'message': 'Etikettenformat \"30x30 mm\" nicht gefunden.'}), 400
+
+        # ZPL basierend auf deiner Vorlage aufbauen
+        # ArtNr = ID, Text = Bezeichnung, QR = ID, Lagerort/platz
+        artnr = str(et['ID'])
+        # Ganze Bezeichnung verwenden; der Zeilenumbruch unten begrenzt auf max. 3 Zeilen
+        bezeichnung = et['Bezeichnung'] or ''
+        lagerort = et['LagerortName'] or ''
+        lagerplatz = et['LagerplatzName'] or ''
+
+
+        max_len = 28  # Zeichen pro Zeile (nach Bedarf anpassen)
+        words = (bezeichnung or "").split()
+
+        # Drei leere Zeilen vorbereiten
+        lines = ["", "", ""]
+        current_line = 0
+
+        for w in words:
+            # Leerzeichen nur, wenn schon Text in der Zeile steht
+            sep = "" if len(lines[current_line]) == 0 else " "
+
+            if len(lines[current_line]) + len(sep) + len(w) <= max_len:
+                lines[current_line] += sep + w
+            elif current_line < 2:
+                current_line += 1
+                lines[current_line] = w
+            else:
+                break  # Keine weiteren Zeilen mehr verfügbar
+
+        line1, line2, line3 = lines
+
+        zpl_parts = [
+            "^XA",
+            label['zpl_header'],
+            "^MMT",
+            "^CI28",
+            "^FT0,50^A0N,28,28^FH\\^FDArtNr.^FS",
+            f"^FT80,52^A0N,35,35^FB51,1,0,R^FH\\^FD{artnr}^FS",
+            f"^FT0,80^A0N,22,17^FH\\^FD{line1}^FS",
+            f"^FT0,105^A0N,22,17^FH\\^FD{line2}^FS",
+            f"^FT0,130^A0N,22,17^FH\\^FD{line3}^FS",
+            "^FT118,151^A0N,16,16^FH\\^FDLagerort:^FS",
+            f"^FT118,176^A0N,22,20^FH\\^FD{lagerort}^FS",
+            "^FT118,221^A0N,16,16^FH\\^FDLagerplatz^FS",
+            f"^FT118,246^A0N,22,20^FH\\^FD{lagerplatz}^FS",
+            "^FT0,261^BQN,2,5",
+            f"^FH\\^FDLA,{artnr}^FS",
+            "^PQ1,0,1,Y",
+            "^XZ",
+        ]
+        zpl = "\n".join(zpl_parts)
+
+        # Kompletten ZPL-Befehl in der Konsole ausgeben (für Debugging)
+        print("===== ERSATZTEIL LABEL ZPL =====")
+        print(zpl)
+        print("===== END ERSATZTEIL LABEL ZPL =====")
+
+        try:
+            send_zpl_to_printer(printer['ip_address'], zpl)
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'Fehler beim Senden an Drucker: {e}'}), 500
+
+    return jsonify({'success': True, 'message': f'Etikett für Artikel {artnr} gedruckt.'})
 
 
 @ersatzteile_bp.route('/<int:ersatzteil_id>')

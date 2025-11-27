@@ -1,0 +1,53 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+  <h1 class="mb-4">Zebra – Testetikett drucken</h1>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="mb-3">
+        {% for category, message in messages %}
+          <div class="alert alert-{{ 'danger' if category == 'error' else category }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <div class="card mb-4">
+    <div class="card-header">Testdruck</div>
+    <div class="card-body">
+      <form method="post" action="{{ url_for('admin.zebra_test') }}" class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label fw-bold">Drucker</label>
+          <select name="printer_id" class="form-select" required>
+            <option value="">-- Bitte wählen --</option>
+            {% for p in printers %}
+              <option value="{{ p.id }}" {% if not p.active %}disabled{% endif %}>
+                {{ p.name }} ({{ p.ip_address }}){% if not p.active %} – inaktiv{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-bold">Etikettenformat</label>
+          <select name="label_id" class="form-select" required>
+            <option value="">-- Bitte wählen --</option>
+            {% for l in labels %}
+              <option value="{{ l.id }}">{{ l.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+          <button type="submit" class="btn btn-primary">
+            Testetikett drucken
+          </button>
+          <a href="{{ url_for('admin.dashboard') }}" class="btn btn-link ms-2">Zurück zum Admin-Dashboard</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+
