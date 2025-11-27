@@ -36,6 +36,7 @@
     /* --- Globale Skalierung: 100% Zoom ≈ bisherige 80% --- */
     html {
       font-size: 80%;
+      -webkit-text-size-adjust: 100%; /* iOS: automatische Textvergrößerung verhindern */
     }
 
     /* --- Seitenlayout --- */
@@ -234,6 +235,15 @@
       /* Sicherstellen, dass alle Sidebar-Elemente scrollbar sind */
       .sidebar > * {
         flex-shrink: 0;
+      }
+    }
+    
+    /* --- iOS-Zoom auf Eingabefelder verhindern (Wareneingang, Formulare) --- */
+    @media (max-width: 768px) {
+      input,
+      select,
+      textarea {
+        font-size: 16px !important; /* verhindert Auto-Zoom beim Fokus auf iOS */
       }
     }
     
