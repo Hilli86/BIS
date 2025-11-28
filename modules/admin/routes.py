@@ -114,6 +114,13 @@ def dashboard():
             FROM label_formats
             ORDER BY name
         ''').fetchall()
+        
+        # Etiketten laden
+        etiketten = conn.execute('''
+            SELECT id, bezeichnung, drucker_id, etikettformat_id, druckbefehle
+            FROM Etikett
+            ORDER BY bezeichnung
+        ''').fetchall()
 
     return render_template('admin.html',
                            mitarbeiter=mitarbeiter,
@@ -132,7 +139,8 @@ def dashboard():
                            firmendaten=firmendaten,
                            berechtigungen=berechtigungen,
                            zebra_printers=zebra_printers,
-                           label_formats=label_formats)
+                           label_formats=label_formats,
+                           etiketten=etiketten)
 
 
 # ========== Zebra-Drucker Verwaltung ==========
@@ -281,6 +289,52 @@ def zebra_test():
             return redirect(url_for('admin.zebra_test'))
 
     return render_template('admin_zebra_test.html', printers=printers, labels=labels)
+
+
+# ========== Etiketten-Verwaltung ==========
+
+@admin_bp.route('/zebra/etiketten/save', methods=['POST'])
+@admin_required
+def zebra_etikett_save():
+    """
+    Etikett anlegen oder aktualisieren.
+    Wenn eine ID übergeben wird, wird aktualisiert, sonst neu angelegt.
+    """
+    etikett_id = request.form.get('id')
+    bezeichnung = request.form.get('bezeichnung', '').strip()
+    drucker_id = request.form.get('drucker_id', type=int)
+    etikettformat_id = request.form.get('etikettformat_id', type=int)
+    druckbefehle = request.form.get('druckbefehle', '').strip()
+
+    if not bezeichnung or not drucker_id or not etikettformat_id or not druckbefehle:
+        return ajax_response('Bitte alle Felder ausfüllen.', success=False)
+
+    try:
+        with get_db_connection() as conn:
+            # Prüfe ob Drucker und Format existieren
+            printer = conn.execute('SELECT id FROM zebra_printers WHERE id = ?', (drucker_id,)).fetchone()
+            label_format = conn.execute('SELECT id FROM label_formats WHERE id = ?', (etikettformat_id,)).fetchone()
+            
+            if not printer:
+                return ajax_response('Ausgewählter Drucker nicht gefunden.', success=False)
+            if not label_format:
+                return ajax_response('Ausgewähltes Etikettenformat nicht gefunden.', success=False)
+            
+            if etikett_id:
+                conn.execute('''
+                    UPDATE Etikett
+                    SET bezeichnung = ?, drucker_id = ?, etikettformat_id = ?, druckbefehle = ?, updated_at = datetime('now')
+                    WHERE id = ?
+                ''', (bezeichnung, drucker_id, etikettformat_id, druckbefehle, etikett_id))
+            else:
+                conn.execute('''
+                    INSERT INTO Etikett (bezeichnung, drucker_id, etikettformat_id, druckbefehle, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+                ''', (bezeichnung, drucker_id, etikettformat_id, druckbefehle))
+            conn.commit()
+        return ajax_response('Etikett gespeichert.')
+    except Exception as e:
+        return ajax_response(f'Fehler beim Speichern des Etiketts: {str(e)}', success=False, status_code=500)
 
 
 # ========== Mitarbeiter-Verwaltung ==========

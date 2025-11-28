@@ -155,7 +155,10 @@ def get_required_tables():
         'BestellungPosition',
         'BestellungSichtbarkeit',
         'Berechtigung',
-        'MitarbeiterBerechtigung'
+        'MitarbeiterBerechtigung',
+        'zebra_printers',
+        'label_formats',
+        'Etikett'
     ]
 
 
@@ -1229,6 +1232,57 @@ def init_database_schema(db_path, verbose=False):
                     ('30x30 mm', 'Quadratisches Etikett 30x30 mm', 30, 30, 'portrait', zpl_30x30),
                     ('40x160 mm', 'Langes Etikett 40x160 mm', 40, 160, 'portrait', zpl_40x160),
                 ])
+
+        # ========== 33. Etikett (vorkonfigurierte Etiketten-Templates) ==========
+        created_etikett = create_table_if_not_exists(conn, 'Etikett', '''
+            CREATE TABLE Etikett (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                bezeichnung TEXT NOT NULL,
+                drucker_id INTEGER NOT NULL,
+                etikettformat_id INTEGER NOT NULL,
+                druckbefehle TEXT NOT NULL,
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now')),
+                FOREIGN KEY (drucker_id) REFERENCES zebra_printers(id),
+                FOREIGN KEY (etikettformat_id) REFERENCES label_formats(id)
+            )
+        ''', [
+            'CREATE INDEX idx_etikett_drucker ON Etikett(drucker_id)',
+            'CREATE INDEX idx_etikett_format ON Etikett(etikettformat_id)'
+        ])
+
+        # Seed-Daten: Standard-Etikett "ErsatzteilLabel" anlegen
+        if created_etikett:
+            cursor.execute('SELECT COUNT(*) AS count FROM Etikett')
+            if cursor.fetchone()['count'] == 0:
+                # Ersten aktiven Drucker und 30x30-Format holen
+                printer_row = cursor.execute('SELECT id FROM zebra_printers WHERE active = 1 ORDER BY id LIMIT 1').fetchone()
+                label_row = cursor.execute('SELECT id FROM label_formats WHERE name = ? LIMIT 1', ('30x30 mm',)).fetchone()
+                
+                if printer_row and label_row:
+                    # ZPL-Template mit Platzhaltern (aus ersatzteil_routes.py)
+                    zpl_template = """^XA
+{zpl_header}
+^MMT
+^CI28
+^FT0,50^A0N,28,28^FH\\^FDArtNr.^FS
+^FT80,52^A0N,35,35^FB51,1,0,R^FH\\^FD{artnr}^FS
+^FT0,80^A0N,22,17^FH\\^FD{line1}^FS
+^FT0,105^A0N,22,17^FH\\^FD{line2}^FS
+^FT0,130^A0N,22,17^FH\\^FD{line3}^FS
+^FT118,151^A0N,16,16^FH\\^FDLagerort:^FS
+^FT118,176^A0N,22,20^FH\\^FD{lagerort}^FS
+^FT118,221^A0N,16,16^FH\\^FDLagerplatz^FS
+^FT118,246^A0N,22,20^FH\\^FD{lagerplatz}^FS
+^FT0,261^BQN,2,5
+^FH\\^FDLA,{artnr}^FS
+^PQ1,0,1,Y
+^XZ"""
+                    
+                    cursor.execute('''
+                        INSERT INTO Etikett (bezeichnung, drucker_id, etikettformat_id, druckbefehle)
+                        VALUES (?, ?, ?, ?)
+                    ''', ('ErsatzteilLabel', printer_row['id'], label_row['id'], zpl_template))
 
         conn.commit()
 

@@ -18,7 +18,7 @@
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-lieferant">Lieferanten</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-firmendaten">Firmendaten</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-datenbank">Datenbank</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-zebra">Zebra-Drucker</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-etiketten">Etiketten</a></li>
   <li class="nav-item ms-auto"><a class="nav-link" href="{{ url_for('admin.login_logs') }}">Login-Logs</a></li>
   <li class="nav-item"><a class="nav-link" href="{{ url_for('dashboard.dashboard') }}">Zurück zum Dashboard</a></li>
   </ul>
@@ -898,12 +898,12 @@
     </div>
   </div>
 
-  <!-- Zebra-Drucker & Etikettenformate -->
-  <div class="tab-pane fade" id="tab-zebra">
+  <!-- Etiketten -->
+  <div class="tab-pane fade" id="tab-etiketten">
     <div class="row">
-      <div class="col-lg-6">
+      <div class="col-12">
         <div class="card mb-3">
-          <div class="card-header">Zebra-Drucker</div>
+          <div class="card-header">Zebradrucker</div>
           <div class="card-body">
             <form action="{{ url_for('admin.zebra_printer_save') }}" method="post" class="row g-2 mb-3">
               <input type="hidden" name="id" value="">
@@ -988,8 +988,10 @@
           </div>
         </div>
       </div>
+    </div>
 
-      <div class="col-lg-6">
+    <div class="row">
+      <div class="col-12">
         <div class="card mb-3">
           <div class="card-header">Etikettenformate</div>
           <div class="card-body">
@@ -1065,6 +1067,97 @@
                           <button class="btn btn-sm btn-primary w-100"><i class="bi bi-save"></i></button>
                         </div>
                       </form>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Etiketten (vorkonfigurierte Templates) -->
+    <div class="row mt-3">
+      <div class="col-12">
+        <div class="card mb-3">
+          <div class="card-header">Etiketten</div>
+          <div class="card-body">
+            <form action="{{ url_for('admin.zebra_etikett_save') }}" method="post" class="row g-2 mb-3" id="etikettForm">
+              <input type="hidden" name="id" value="" id="etikettId">
+              <div class="col-md-3">
+                <input name="bezeichnung" class="form-control" placeholder="Bezeichnung (z.B. ErsatzteilLabel)" required id="etikettBezeichnung">
+              </div>
+              <div class="col-md-3">
+                <select name="drucker_id" class="form-select" required id="etikettDrucker">
+                  <option value="">-- Drucker wählen --</option>
+                  {% for p in zebra_printers %}
+                    {% if p.active %}
+                      <option value="{{ p.id }}">{{ p.name }} ({{ p.ip_address }})</option>
+                    {% endif %}
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-3">
+                <select name="etikettformat_id" class="form-select" required id="etikettFormat">
+                  <option value="">-- Etikettenformat wählen --</option>
+                  {% for l in label_formats %}
+                    <option value="{{ l.id }}">{{ l.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-3">
+                <button type="submit" class="btn btn-success btn-sm">Neues Etikett anlegen</button>
+                <button type="button" class="btn btn-outline-info btn-sm" onclick="vorschauEtikett()">Vorschau</button>
+              </div>
+              <div class="col-12">
+                <label class="form-label fw-bold">Druckbefehle (ZPL-Template mit Platzhaltern):</label>
+                <textarea name="druckbefehle" class="form-control font-monospace" rows="15" placeholder="ZPL-Template mit Platzhaltern wie {artnr}, {line1}, {line2}, {line3}, {lagerort}, {lagerplatz}, {zpl_header}" required id="etikettDruckbefehle"></textarea>
+                <small class="text-muted">Verfügbare Platzhalter: {artnr}, {line1}, {line2}, {line3}, {lagerort}, {lagerplatz}, {zpl_header}</small>
+              </div>
+            </form>
+
+            <div class="table-responsive">
+              <table class="table table-sm table-striped align-middle">
+                <thead class="table-dark">
+                  <tr>
+                    <th>Bezeichnung</th>
+                    <th>Drucker</th>
+                    <th>Etikettenformat</th>
+                    <th>Aktionen</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for e in etiketten %}
+                  <tr>
+                    <td>{{ e.bezeichnung }}</td>
+                    <td>
+                      {% for p in zebra_printers %}
+                        {% if p.id == e.drucker_id %}{{ p.name }} ({{ p.ip_address }}){% endif %}
+                      {% endfor %}
+                    </td>
+                    <td>
+                      {% for l in label_formats %}
+                        {% if l.id == e.etikettformat_id %}{{ l.name }}{% endif %}
+                      {% endfor %}
+                    </td>
+                    <td>
+                      <button class="btn btn-sm btn-outline-primary" 
+                              data-etikett-id="{{ e.id }}"
+                              data-etikett-bezeichnung="{{ e.bezeichnung|e }}"
+                              data-etikett-drucker="{{ e.drucker_id }}"
+                              data-etikett-format="{{ e.etikettformat_id }}"
+                              data-etikett-druckbefehle="{{ e.druckbefehle|e|replace('\n', '&#10;')|replace('\r', '') }}"
+                              onclick="bearbeiteEtikettAusButton(this)">
+                        <i class="bi bi-pencil"></i> Bearbeiten
+                      </button>
+                      <button class="btn btn-sm btn-outline-info" 
+                              data-etikett-id="{{ e.id }}"
+                              data-etikett-druckbefehle="{{ e.druckbefehle|e|replace('\n', '&#10;')|replace('\r', '') }}"
+                              onclick="vorschauEtikettAusButton(this)">
+                        <i class="bi bi-eye"></i> Vorschau
+                      </button>
                     </td>
                   </tr>
                   {% endfor %}
@@ -1447,6 +1540,194 @@ function showAlert(type, message) {
   setTimeout(() => {
     alertDiv.remove();
   }, 3000);
+}
+
+// Etikett-Funktionen
+function bearbeiteEtikettAusButton(button) {
+  const id = button.getAttribute('data-etikett-id');
+  const bezeichnung = button.getAttribute('data-etikett-bezeichnung');
+  const druckerId = button.getAttribute('data-etikett-drucker');
+  const formatId = button.getAttribute('data-etikett-format');
+  let druckbefehle = button.getAttribute('data-etikett-druckbefehle');
+  
+  // HTML-Entities und Escape-Sequenzen zurückkonvertieren
+  druckbefehle = druckbefehle.replace(/&#10;/g, '\n').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
+  
+  document.getElementById('etikettId').value = id;
+  document.getElementById('etikettBezeichnung').value = bezeichnung;
+  document.getElementById('etikettDrucker').value = druckerId;
+  document.getElementById('etikettFormat').value = formatId;
+  document.getElementById('etikettDruckbefehle').value = druckbefehle;
+  
+  // Formular-Button-Text ändern
+  const submitBtn = document.querySelector('#etikettForm button[type="submit"]');
+  if (submitBtn) {
+    submitBtn.textContent = 'Etikett aktualisieren';
+  }
+  
+  // Zum Formular scrollen
+  document.getElementById('etikettForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function bearbeiteEtikett(id, bezeichnung, druckerId, formatId, druckbefehle) {
+  document.getElementById('etikettId').value = id;
+  document.getElementById('etikettBezeichnung').value = bezeichnung;
+  document.getElementById('etikettDrucker').value = druckerId;
+  document.getElementById('etikettFormat').value = formatId;
+  document.getElementById('etikettDruckbefehle').value = druckbefehle;
+  
+  // Formular-Button-Text ändern
+  const submitBtn = document.querySelector('#etikettForm button[type="submit"]');
+  if (submitBtn) {
+    submitBtn.textContent = 'Etikett aktualisieren';
+  }
+  
+  // Zum Formular scrollen
+  document.getElementById('etikettForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function vorschauEtikett() {
+  const template = document.getElementById('etikettDruckbefehle').value;
+  if (!template) {
+    alert('Bitte geben Sie zuerst ein ZPL-Template ein.');
+    return;
+  }
+  
+  // Dummy-Daten für Vorschau
+  const dummyData = {
+    artnr: '123',
+    line1: 'Beispiel-Artikel',
+    line2: 'Beschreibung Zeile 2',
+    line3: 'Beschreibung Zeile 3',
+    lagerort: 'Werkstatt',
+    lagerplatz: 'B10-B1',
+    zpl_header: '^PW240\n^LL240\n^LS0'
+  };
+  
+  let zpl = template;
+  for (const [key, value] of Object.entries(dummyData)) {
+    zpl = zpl.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
+  }
+  
+  zeigeVorschauModal(zpl);
+}
+
+function vorschauEtikettAusButton(button) {
+  const id = button.getAttribute('data-etikett-id');
+  let druckbefehle = button.getAttribute('data-etikett-druckbefehle');
+  
+  // HTML-Entities und Escape-Sequenzen zurückkonvertieren
+  druckbefehle = druckbefehle.replace(/&#10;/g, '\n').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
+  
+  vorschauEtikettMitDaten(id, druckbefehle);
+}
+
+function vorschauEtikettMitDaten(id, druckbefehle) {
+  // Dummy-Daten für Vorschau
+  const dummyData = {
+    artnr: '123',
+    line1: 'Beispiel-Artikel',
+    line2: 'Beschreibung Zeile 2',
+    line3: 'Beschreibung Zeile 3',
+    lagerort: 'Werkstatt',
+    lagerplatz: 'B10-B1',
+    zpl_header: '^PW240\n^LL240\n^LS0'
+  };
+  
+  let zpl = druckbefehle;
+  for (const [key, value] of Object.entries(dummyData)) {
+    zpl = zpl.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
+  }
+  
+  zeigeVorschauModal(zpl);
+}
+
+function zeigeVorschauModal(zpl) {
+  // Modal erstellen oder aktualisieren
+  let modal = document.getElementById('etikettVorschauModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'etikettVorschauModal';
+    modal.className = 'modal fade';
+    modal.innerHTML = `
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">ZPL-Vorschau</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <pre id="etikettVorschauZpl" class="bg-light p-3" style="max-height: 500px; overflow-y: auto; font-size: 0.85em;"></pre>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+            <button type="button" class="btn btn-primary" onclick="kopiereZplVorschau()">ZPL kopieren</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+  
+  document.getElementById('etikettVorschauZpl').textContent = zpl;
+  const bsModal = new bootstrap.Modal(modal);
+  bsModal.show();
+}
+
+function kopiereZplVorschau() {
+  const zplText = document.getElementById('etikettVorschauZpl').textContent;
+  navigator.clipboard.writeText(zplText).then(() => {
+    showToast('ZPL in Zwischenablage kopiert', 'success');
+  }).catch(() => {
+    showToast('Fehler beim Kopieren', 'error');
+  });
+}
+
+// Formular zurücksetzen nach erfolgreichem Speichern
+const etikettForm = document.getElementById('etikettForm');
+if (etikettForm) {
+  etikettForm.addEventListener('submit', function(e) {
+    const form = this;
+    const formData = new FormData(form);
+    const submitButton = form.querySelector('button[type="submit"]');
+    
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = 'Speichere...';
+    }
+    
+    fetch(form.action, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        showToast(data.message, 'success');
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      } else {
+        showToast(data.message, 'error');
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.textContent = submitButton.dataset.originalText || 'Neues Etikett anlegen';
+        }
+      }
+    })
+    .catch(error => {
+      showToast('Fehler: ' + error.message, 'error');
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = submitButton.dataset.originalText || 'Neues Etikett anlegen';
+      }
+    });
+    
+    e.preventDefault();
+  });
 }
 </script>
 {% endblock %}

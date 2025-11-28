@@ -19,6 +19,9 @@
                     title="QR-Code anzeigen">
                 <i class="bi bi-qr-code"></i> <span class="d-none d-sm-inline">QR-Code</span>
             </button>
+            <button type="button" class="btn btn-sm btn-light" onclick="druckeEtikett({{ ersatzteil.ID }}, event)" title="30x30-Etikett drucken">
+                <i class="bi bi-printer"></i> <span class="d-none d-sm-inline">Etikett drucken</span>
+            </button>
             {% if 'admin' in session.get('user_berechtigungen', []) %}
             <a href="{{ url_for('ersatzteile.ersatzteil_neu', vorlage=ersatzteil.ID) }}" class="btn btn-sm btn-light" title="Als Vorlage für neuen Artikel verwenden">
                 <i class="bi bi-copy"></i> <span class="d-none d-sm-inline">Als Vorlage verwenden</span>
@@ -602,6 +605,38 @@ function addToAngebotsanfrage(ersatzteilId, event) {
             button.innerHTML = originalContent;
             console.error('Fehler:', error);
             showToast('Fehler beim Hinzufügen zur Angebotsanfrage.', 'danger');
+        });
+}
+
+function druckeEtikett(ersatzteilId, event) {
+    if (event) {
+        event.stopPropagation();
+    }
+
+    const button = event ? event.target.closest('button') : document.querySelector(`button[onclick*="${ersatzteilId}"]`);
+    const originalContent = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+    fetch(`{{ url_for('ersatzteile.ersatzteil_druck_label', ersatzteil_id=0) }}`.replace('/0', `/${ersatzteilId}`), {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+        .then(response => response.json())
+        .then(data => {
+            button.disabled = false;
+            button.innerHTML = originalContent;
+            const toastType = data.success ? 'success' : 'danger';
+            const toastMessage = data.message || 'Unbekannter Fehler beim Drucken.';
+            showToast(toastMessage, toastType);
+        })
+        .catch(error => {
+            button.disabled = false;
+            button.innerHTML = originalContent;
+            console.error('Fehler:', error);
+            showToast('Fehler beim Drucken des Etiketts.', 'danger');
         });
 }
 

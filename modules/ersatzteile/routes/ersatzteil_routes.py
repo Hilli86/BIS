@@ -116,66 +116,54 @@ def ersatzteil_druck_label(ersatzteil_id):
         if not et:
             return jsonify({'success': False, 'message': 'Ersatzteil nicht gefunden.'}), 404
 
-        # Aktiven Zebra-Drucker nehmen (oder Fehler)
-        printer = conn.execute('SELECT * FROM zebra_printers WHERE active = 1 ORDER BY id LIMIT 1').fetchone()
-        if not printer:
-            return jsonify({'success': False, 'message': 'Kein aktiver Zebra-Drucker konfiguriert.'}), 400
+        # Etikett "ErsatzteilLabel" aus der DB laden
+        etikett = conn.execute('''
+            SELECT e.*, p.ip_address, lf.zpl_header
+            FROM Etikett e
+            JOIN zebra_printers p ON e.drucker_id = p.id
+            JOIN label_formats lf ON e.etikettformat_id = lf.id
+            WHERE e.bezeichnung = ? AND p.active = 1
+            LIMIT 1
+        ''', ('ErsatzteilLabel',)).fetchone()
 
-        # 30x30-Label-Format laden
-        label = conn.execute('SELECT * FROM label_formats WHERE name = ? LIMIT 1', ('30x30 mm',)).fetchone()
-        if not label:
-            return jsonify({'success': False, 'message': 'Etikettenformat \"30x30 mm\" nicht gefunden.'}), 400
+        if not etikett:
+            return jsonify({'success': False, 'message': 'Etikett "ErsatzteilLabel" nicht gefunden oder Drucker nicht aktiv.'}), 400
 
-        # ZPL basierend auf deiner Vorlage aufbauen
-        # ArtNr = ID, Text = Bezeichnung, QR = ID, Lagerort/platz
+        # Daten für Platzhalter vorbereiten
         artnr = str(et['ID'])
-        # Ganze Bezeichnung verwenden; der Zeilenumbruch unten begrenzt auf max. 3 Zeilen
         bezeichnung = et['Bezeichnung'] or ''
         lagerort = et['LagerortName'] or ''
         lagerplatz = et['LagerplatzName'] or ''
 
-
-        max_len = 28  # Zeichen pro Zeile (nach Bedarf anpassen)
+        # Bezeichnung auf 3 Zeilen umbrechen
+        max_len = 28
         words = (bezeichnung or "").split()
-
-        # Drei leere Zeilen vorbereiten
         lines = ["", "", ""]
         current_line = 0
 
         for w in words:
-            # Leerzeichen nur, wenn schon Text in der Zeile steht
             sep = "" if len(lines[current_line]) == 0 else " "
-
             if len(lines[current_line]) + len(sep) + len(w) <= max_len:
                 lines[current_line] += sep + w
             elif current_line < 2:
                 current_line += 1
                 lines[current_line] = w
             else:
-                break  # Keine weiteren Zeilen mehr verfügbar
+                break
 
         line1, line2, line3 = lines
 
-        zpl_parts = [
-            "^XA",
-            label['zpl_header'],
-            "^MMT",
-            "^CI28",
-            "^FT0,50^A0N,28,28^FH\\^FDArtNr.^FS",
-            f"^FT80,52^A0N,35,35^FB51,1,0,R^FH\\^FD{artnr}^FS",
-            f"^FT0,80^A0N,22,17^FH\\^FD{line1}^FS",
-            f"^FT0,105^A0N,22,17^FH\\^FD{line2}^FS",
-            f"^FT0,130^A0N,22,17^FH\\^FD{line3}^FS",
-            "^FT118,151^A0N,16,16^FH\\^FDLagerort:^FS",
-            f"^FT118,176^A0N,22,20^FH\\^FD{lagerort}^FS",
-            "^FT118,221^A0N,16,16^FH\\^FDLagerplatz^FS",
-            f"^FT118,246^A0N,22,20^FH\\^FD{lagerplatz}^FS",
-            "^FT0,261^BQN,2,5",
-            f"^FH\\^FDLA,{artnr}^FS",
-            "^PQ1,0,1,Y",
-            "^XZ",
-        ]
-        zpl = "\n".join(zpl_parts)
+        # ZPL-Template aus DB laden und Platzhalter ersetzen
+        zpl_template = etikett['druckbefehle']
+        zpl = zpl_template.format(
+            artnr=artnr,
+            line1=line1,
+            line2=line2,
+            line3=line3,
+            lagerort=lagerort,
+            lagerplatz=lagerplatz,
+            zpl_header=etikett['zpl_header']
+        )
 
         # Kompletten ZPL-Befehl in der Konsole ausgeben (für Debugging)
         print("===== ERSATZTEIL LABEL ZPL =====")
@@ -183,7 +171,7 @@ def ersatzteil_druck_label(ersatzteil_id):
         print("===== END ERSATZTEIL LABEL ZPL =====")
 
         try:
-            send_zpl_to_printer(printer['ip_address'], zpl)
+            send_zpl_to_printer(etikett['ip_address'], zpl)
         except Exception as e:
             return jsonify({'success': False, 'message': f'Fehler beim Senden an Drucker: {e}'}), 500
 
