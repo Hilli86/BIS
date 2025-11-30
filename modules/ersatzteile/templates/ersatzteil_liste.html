@@ -228,21 +228,21 @@
                 </thead>
                 <tbody>
                     {% for e in ersatzteile %}
-                    <tr {% if not e.EndOfLife and e.Mindestbestand > 0 and e.AktuellerBestand < e.Mindestbestand %}class="table-warning"{% endif %} style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}';">
+                    <tr {% if not e.EndOfLife and e.Mindestbestand > 0 and e.AktuellerBestand < e.Mindestbestand %}class="table-warning"{% endif %} style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID, kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', lagerort=lagerort_filter or '', lagerplatz=lagerplatz_filter or '', q=q_filter or '', sort=sort_by, dir=sort_dir, bestandswarnung=1 if bestandswarnung else '', kennzeichen=kennzeichen_filter or '') }}';">
                         <td>
                             {% if e.Kennzeichen %}
                             <span class="badge bg-info me-1" style="width: 30px; display: inline-block; text-align: center;">{{ e.Kennzeichen }}</span>
                             {% else %}
                             <span class="badge me-1" style="width: 30px; display: inline-block; visibility: hidden;"></span>
                             {% endif %}
-                            <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none fw-bold" onclick="event.stopPropagation();">
+                            <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID, kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', lagerort=lagerort_filter or '', lagerplatz=lagerplatz_filter or '', q=q_filter or '', sort=sort_by, dir=sort_dir, bestandswarnung=1 if bestandswarnung else '', kennzeichen=kennzeichen_filter or '') }}" class="text-decoration-none fw-bold" onclick="event.stopPropagation();">
                                 {{ e.ID }}
                             </a>
                         </td>
-                        <td><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none text-dark">{{ e.Kategorie or '-' }}</a></td>
-                        <td><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none text-dark">{{ e.Bezeichnung }}</a></td>
-                        <td><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none text-dark">{{ e.Lieferant or '-' }}</a></td>
-                        <td><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none text-dark">{{ e.Bestellnummer }}</a></td>
+                        <td><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID, kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', lagerort=lagerort_filter or '', lagerplatz=lagerplatz_filter or '', q=q_filter or '', sort=sort_by, dir=sort_dir, bestandswarnung=1 if bestandswarnung else '', kennzeichen=kennzeichen_filter or '') }}" class="text-decoration-none text-dark">{{ e.Kategorie or '-' }}</a></td>
+                        <td><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID, kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', lagerort=lagerort_filter or '', lagerplatz=lagerplatz_filter or '', q=q_filter or '', sort=sort_by, dir=sort_dir, bestandswarnung=1 if bestandswarnung else '', kennzeichen=kennzeichen_filter or '') }}" class="text-decoration-none text-dark">{{ e.Bezeichnung }}</a></td>
+                        <td><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID, kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', lagerort=lagerort_filter or '', lagerplatz=lagerplatz_filter or '', q=q_filter or '', sort=sort_by, dir=sort_dir, bestandswarnung=1 if bestandswarnung else '', kennzeichen=kennzeichen_filter or '') }}" class="text-decoration-none text-dark">{{ e.Lieferant or '-' }}</a></td>
+                        <td><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID, kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', lagerort=lagerort_filter or '', lagerplatz=lagerplatz_filter or '', q=q_filter or '', sort=sort_by, dir=sort_dir, bestandswarnung=1 if bestandswarnung else '', kennzeichen=kennzeichen_filter or '') }}" class="text-decoration-none text-dark">{{ e.Bestellnummer }}</a></td>
                         <td>
                             <span class="badge {% if not e.EndOfLife and e.Mindestbestand > 0 and e.AktuellerBestand < e.Mindestbestand %}bg-warning{% elif e.AktuellerBestand > 0 %}bg-success{% else %}bg-secondary{% endif %}">
                                 {{ e.AktuellerBestand }} {{ e.Einheit }}
@@ -251,8 +251,8 @@
                             <br><small class="text-muted">Min: {{ e.Mindestbestand }}</small>
                             {% endif %}
                         </td>
-                        <td><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none text-dark">{{ e.LagerortName or '-' }}</a></td>
-                        <td><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none text-dark">{{ e.LagerplatzName or '-' }}</a></td>
+                        <td><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID, kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', lagerort=lagerort_filter or '', lagerplatz=lagerplatz_filter or '', q=q_filter or '', sort=sort_by, dir=sort_dir, bestandswarnung=1 if bestandswarnung else '', kennzeichen=kennzeichen_filter or '') }}" class="text-decoration-none text-dark">{{ e.LagerortName or '-' }}</a></td>
+                        <td><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID, kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', lagerort=lagerort_filter or '', lagerplatz=lagerplatz_filter or '', q=q_filter or '', sort=sort_by, dir=sort_dir, bestandswarnung=1 if bestandswarnung else '', kennzeichen=kennzeichen_filter or '') }}" class="text-decoration-none text-dark">{{ e.LagerplatzName or '-' }}</a></td>
                         {% if is_admin %}
                         <td class="text-center">
                             <span class="badge bg-info">{{ e.AbteilungenAnzahl or 0 }}</span>
@@ -284,7 +284,7 @@
         <!-- Mobile-Version: Cards (nur auf sm und kleiner sichtbar) -->
         <div class="d-md-none">
             {% for e in ersatzteile %}
-            <div class="card mb-3 {% if not e.EndOfLife and e.Mindestbestand > 0 and e.AktuellerBestand < e.Mindestbestand %}border-warning{% endif %}" style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}';">
+            <div class="card mb-3 {% if not e.EndOfLife and e.Mindestbestand > 0 and e.AktuellerBestand < e.Mindestbestand %}border-warning{% endif %}" style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID, kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', lagerort=lagerort_filter or '', lagerplatz=lagerplatz_filter or '', q=q_filter or '', sort=sort_by, dir=sort_dir, bestandswarnung=1 if bestandswarnung else '', kennzeichen=kennzeichen_filter or '') }}';">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                         <div>
@@ -293,7 +293,7 @@
                                 <span class="badge bg-info me-1">{{ e.Kennzeichen }}</span>
                                 {% endif %}
                                 <strong>Art.Nr.:</strong> 
-                                <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID) }}" class="text-decoration-none fw-bold" onclick="event.stopPropagation();">
+                                <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID, kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', lagerort=lagerort_filter or '', lagerplatz=lagerplatz_filter or '', q=q_filter or '', sort=sort_by, dir=sort_dir, bestandswarnung=1 if bestandswarnung else '', kennzeichen=kennzeichen_filter or '') }}" class="text-decoration-none fw-bold" onclick="event.stopPropagation();">
                                     {{ e.ID }}
                                 </a>
                             </div>

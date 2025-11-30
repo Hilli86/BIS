@@ -184,6 +184,17 @@ def ersatzteil_detail(ersatzteil_id):
     """Ersatzteil-Detailansicht"""
     mitarbeiter_id = session.get('user_id')
     
+    # Filter-Parameter aus URL lesen (für "Zurück zur Liste" Button)
+    kategorie_filter = request.args.get('kategorie')
+    lieferant_filter = request.args.get('lieferant')
+    lagerort_filter = request.args.get('lagerort')
+    lagerplatz_filter = request.args.get('lagerplatz')
+    kennzeichen_filter = request.args.get('kennzeichen')
+    bestandswarnung = request.args.get('bestandswarnung')
+    q_filter = request.args.get('q')
+    sort_by = request.args.get('sort')
+    sort_dir = request.args.get('dir')
+    
     with get_db_connection() as conn:
         # Berechtigung prüfen
         if not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
@@ -238,7 +249,17 @@ def ersatzteil_detail(ersatzteil_id):
         verknuepfungen=detail_data['verknuepfungen'],
         zugriffe=detail_data['zugriffe'],
         kostenstellen=detail_data['kostenstellen'],
-        is_admin=is_admin
+        is_admin=is_admin,
+        # Filter-Parameter für "Zurück zur Liste" Button
+        kategorie_filter=kategorie_filter,
+        lieferant_filter=lieferant_filter,
+        lagerort_filter=lagerort_filter,
+        lagerplatz_filter=lagerplatz_filter,
+        kennzeichen_filter=kennzeichen_filter,
+        bestandswarnung=bestandswarnung,
+        q_filter=q_filter,
+        sort_by=sort_by,
+        sort_dir=sort_dir
     )
 
 
@@ -477,8 +498,16 @@ def ersatzteil_bearbeiten(ersatzteil_id):
     mitarbeiter_id = session.get('user_id')
     is_admin = 'admin' in session.get('user_berechtigungen', [])
     
-    # Next-Parameter lesen (für Redirect nach Speichern)
-    next_url = request.args.get('next') or request.form.get('next')
+    # Filter-Parameter aus URL oder Formular lesen (für "Zurück zur Liste" Button)
+    kategorie_filter = request.args.get('kategorie') or request.form.get('kategorie')
+    lieferant_filter = request.args.get('lieferant') or request.form.get('lieferant')
+    lagerort_filter = request.args.get('lagerort') or request.form.get('lagerort')
+    lagerplatz_filter = request.args.get('lagerplatz') or request.form.get('lagerplatz')
+    kennzeichen_filter = request.args.get('kennzeichen') or request.form.get('kennzeichen')
+    bestandswarnung = request.args.get('bestandswarnung') or request.form.get('bestandswarnung')
+    q_filter = request.args.get('q') or request.form.get('q')
+    sort_by = request.args.get('sort') or request.form.get('sort')
+    sort_dir = request.args.get('dir') or request.form.get('dir')
     
     with get_db_connection() as conn:
         # Berechtigung prüfen
@@ -565,10 +594,18 @@ def ersatzteil_bearbeiten(ersatzteil_id):
                 
                 conn.commit()
                 flash('Ersatzteil erfolgreich aktualisiert.', 'success')
-                # Zurück zur Artikelliste, wenn man von dort kam, sonst zur Detail-Seite
-                if next_url:
-                    return redirect(next_url)
-                return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+                # Immer zurück zum Artikeldetail mit Filter-Parametern
+                return redirect(url_for('ersatzteile.ersatzteil_detail', 
+                    ersatzteil_id=ersatzteil_id,
+                    kategorie=kategorie_filter or '',
+                    lieferant=lieferant_filter or '',
+                    lagerort=lagerort_filter or '',
+                    lagerplatz=lagerplatz_filter or '',
+                    q=q_filter or '',
+                    sort=sort_by or '',
+                    dir=sort_dir or '',
+                    bestandswarnung=bestandswarnung or '',
+                    kennzeichen=kennzeichen_filter or ''))
                 
             except Exception as e:
                 flash(f'Fehler beim Aktualisieren: {str(e)}', 'danger')
@@ -597,7 +634,16 @@ def ersatzteil_bearbeiten(ersatzteil_id):
         lagerorte=lagerorte,
         lagerplaetze=lagerplaetze,
         zugriff_ids=zugriff_ids,
-        next_url=next_url
+        # Filter-Parameter für "Zurück zur Liste" Button
+        kategorie_filter=kategorie_filter,
+        lieferant_filter=lieferant_filter,
+        lagerort_filter=lagerort_filter,
+        lagerplatz_filter=lagerplatz_filter,
+        kennzeichen_filter=kennzeichen_filter,
+        bestandswarnung=bestandswarnung,
+        q_filter=q_filter,
+        sort_by=sort_by,
+        sort_dir=sort_dir
     )
 
 

@@ -127,23 +127,24 @@
       color: #495057;
     }
 
+    /* --- Mobile Header-Leiste --- */
+    .mobile-header {
+      display: none;
+    }
+
     /* --- Hamburger-Menü --- */
     .menu-toggle {
       display: none;
-      position: fixed;
-      top: 1rem;
-      left: 1rem;
-      z-index: 1050;
-      background-color: #e9ecef;
+      background-color: transparent;
       border: none;
       padding: 0.5rem;
       border-radius: 0.5rem;
       cursor: pointer;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      flex-shrink: 0;
     }
 
     .menu-toggle:hover {
-      background-color: #dee2e6;
+      background-color: rgba(0, 0, 0, 0.05);
     }
 
     .menu-toggle span {
@@ -169,12 +170,45 @@
 
     /* --- Mobile Ansicht --- */
     /* Seitenleiste ausblenden bei kleinen Bildschirmen ODER bei geringer Höhe (Querformat) */
-    @media (max-width: 768px), (max-height: 600px) {
+    @media (max-width: 786px), (max-height: 600px) {
+      /* Mobile Header-Leiste */
+      .mobile-header {
+        display: flex;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 56px;
+        background-color: #e9ecef;
+        border-bottom: 1px solid #dee2e6;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        z-index: 1050;
+        align-items: center;
+        padding: 0 1rem;
+        gap: 1rem;
+      }
+
+      .mobile-header-title {
+        flex: 1;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #212529;
+        margin: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .mobile-header .menu-toggle {
+        display: block;
+      }
+
       .sidebar {
         transform: translateX(-100%);
         height: 100vh;
         max-height: 100vh;
         width: 280px;
+        top: 56px; /* Unter der Header-Leiste starten */
       }
 
       .sidebar.open {
@@ -183,19 +217,20 @@
 
       .main-content {
         margin-left: 0 !important;
-        padding: 4rem 1rem 1rem 1rem;
+        padding-top: calc(56px + 1rem) !important; /* Header-Höhe + Padding */
+        padding-left: 1rem;
+        padding-right: 1rem;
+        padding-bottom: 1rem;
       }
 
       .main-content.with-sidebar {
         margin-left: 0 !important;
       }
 
-      .menu-toggle {
-        display: block;
-      }
-
       .sidebar-overlay.show {
         display: block;
+        top: 56px; /* Unter der Header-Leiste starten */
+        height: calc(100vh - 56px);
       }
 
       /* Sidebar-Footer im Querformat besser positionieren */
@@ -239,7 +274,7 @@
     }
     
     /* --- iOS-Zoom auf Eingabefelder verhindern (Wareneingang, Formulare) --- */
-    @media (max-width: 768px) {
+    @media (max-width: 786px) {
       input,
       select,
       textarea {
@@ -252,7 +287,8 @@
       /* Navigation komplett ausblenden */
       .sidebar,
       .menu-toggle,
-      .sidebar-overlay {
+      .sidebar-overlay,
+      .mobile-header {
         display: none !important;
       }
       
@@ -276,12 +312,16 @@
 <body>
 
   {% if session.user_id %}
-  <!-- 🔹 Hamburger-Menü für Mobile -->
-  <button class="menu-toggle" id="menuToggle" aria-label="Menü">
-    <span></span>
-    <span></span>
-    <span></span>
-  </button>
+  <!-- 🔹 Mobile Header-Leiste -->
+  <div class="mobile-header">
+    <button class="menu-toggle" id="menuToggle" aria-label="Menü">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+    <h1 class="mobile-header-title">{{ page_title or title or "BIS" }}</h1>
+    <span id="mobileNotificationBadge" class="badge bg-danger" style="display: none; flex-shrink: 0;">0</span>
+  </div>
 
   <!-- 🔹 Overlay für Mobile -->
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -308,7 +348,7 @@
     <a href="{{ url_for('schichtbuch.suche_thema') }}" class="{% if request.endpoint == 'schichtbuch.suche_thema' %}active{% endif %}">
       🔍 Suche Thema
     </a>
-    <a href="{{ url_for('schichtbuch.themaliste') }}" class="{% if request.endpoint == 'sbthemaliste' %}active{% endif %}">
+    <a href="{{ url_for('schichtbuch.themaliste') }}" class="{% if request.endpoint == 'schichtbuch.themaliste' %}active{% endif %}">
       🧾 Themenliste
     </a>
 
@@ -409,7 +449,7 @@
 
       // Funktion zum Prüfen, ob mobile Ansicht aktiv ist
       function isMobileView() {
-        return window.innerWidth <= 768 || window.innerHeight <= 600;
+        return window.innerWidth <= 786 || window.innerHeight <= 600;
       }
 
       // Menü schließen bei Klick auf einen Link (nur auf mobilen Geräten)
@@ -462,12 +502,21 @@
       .then(data => {
         if (data.success) {
           const badge = document.getElementById('notificationBadge');
+          const mobileBadge = document.getElementById('mobileNotificationBadge');
           if (badge) {
             if (data.anzahl_ungelesen > 0) {
               badge.textContent = data.anzahl_ungelesen > 99 ? '99+' : data.anzahl_ungelesen;
               badge.style.display = 'inline-block';
             } else {
               badge.style.display = 'none';
+            }
+          }
+          if (mobileBadge) {
+            if (data.anzahl_ungelesen > 0) {
+              mobileBadge.textContent = data.anzahl_ungelesen > 99 ? '99+' : data.anzahl_ungelesen;
+              mobileBadge.style.display = 'inline-block';
+            } else {
+              mobileBadge.style.display = 'none';
             }
           }
 
