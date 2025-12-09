@@ -382,6 +382,13 @@
       📋 Lagerbuchungen
     </a>
 
+    {% if 'zebra_drucker_produktion' in session.get('user_berechtigungen', []) %}
+    <h6>Diverses</h6>
+    <a href="{{ url_for('diverses.zebra_drucker') }}" class="{% if request.endpoint == 'diverses.zebra_drucker' %}active{% endif %}">
+      🖨️ Zebra-Drucker
+    </a>
+    {% endif %}
+
     <hr>
 
     <div class="sidebar-footer">

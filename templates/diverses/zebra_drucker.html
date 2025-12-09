@@ -1,0 +1,148 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">
+      <i class="bi bi-printer"></i> Zebra-Drucker
+    </h2>
+  </div>
+
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-body">
+          <!-- Dropdown zur Schnellauswahl von Druckern -->
+          <div class="mb-4">
+            <label for="druckerDropdown" class="form-label">
+              <i class="bi bi-list-ul"></i> Drucker auswählen
+            </label>
+            <select class="form-select" id="druckerDropdown">
+              <option value="">-- Bitte wählen Sie einen Drucker --</option>
+              {% for drucker in drucker_liste %}
+              <option value="{{ drucker.ip }}" 
+                      data-bezeichnung="{{ drucker.bezeichnung }}" 
+                      data-beschreibung="{{ drucker.beschreibung }}">
+                {{ drucker.ip }} - {{ drucker.bezeichnung }} - {{ drucker.beschreibung }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- Textfeld für IP-Adresse -->
+          <div class="mb-4">
+            <label for="ipAdresse" class="form-label">
+              <i class="bi bi-router"></i> IP-Adresse
+            </label>
+            <input type="text" class="form-control" id="ipAdresse" placeholder="192.168.1.100">
+          </div>
+
+          <!-- Buttons -->
+          <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-primary" id="kalibrierenBtn">
+              <i class="bi bi-gear"></i> Kalibrieren
+            </button>
+            <button type="button" class="btn btn-secondary" id="druckerkonfigBtn">
+              <i class="bi bi-file-earmark-text"></i> Druckerkonfig drucken
+            </button>
+            <button type="button" class="btn btn-info" id="netzwerkkonfigBtn">
+              <i class="bi bi-wifi"></i> Netzwerkkonfig drucken
+            </button>
+            <button type="button" class="btn btn-success" id="browserOeffnenBtn">
+              <i class="bi bi-browser"></i> Öffne im Browser
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const druckerDropdown = document.getElementById('druckerDropdown');
+  const ipAdresseInput = document.getElementById('ipAdresse');
+
+  // Dropdown-Change-Event: Fülle IP-Adresse
+  druckerDropdown.addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    if (selectedOption.value) {
+      ipAdresseInput.value = selectedOption.value;
+    } else {
+      ipAdresseInput.value = '';
+    }
+  });
+
+  // Hilfsfunktion zum Senden von ZPL-Befehlen
+  function sendZplCommand(url, ip, buttonElement) {
+    const originalText = buttonElement.innerHTML;
+    buttonElement.disabled = true;
+    buttonElement.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird gesendet...';
+
+    fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ ip: ip })
+    })
+      .then(response => response.json())
+      .then(data => {
+        buttonElement.disabled = false;
+        buttonElement.innerHTML = originalText;
+        if (data.success) {
+          alert('✅ ' + data.message);
+        } else {
+          alert('❌ Fehler: ' + (data.message || 'Unbekannter Fehler'));
+        }
+      })
+      .catch(error => {
+        buttonElement.disabled = false;
+        buttonElement.innerHTML = originalText;
+        console.error('Fehler:', error);
+        alert('❌ Fehler beim Senden: ' + error.message);
+      });
+  }
+
+  // Button-Event-Listener
+  document.getElementById('kalibrierenBtn').addEventListener('click', function() {
+    const ip = ipAdresseInput.value.trim();
+    if (!ip) {
+      alert('Bitte wählen Sie zuerst einen Drucker aus oder geben Sie eine IP-Adresse ein.');
+      return;
+    }
+    sendZplCommand('{{ url_for("diverses.zebra_drucker_kalibrieren") }}', ip, this);
+  });
+
+  document.getElementById('druckerkonfigBtn').addEventListener('click', function() {
+    const ip = ipAdresseInput.value.trim();
+    if (!ip) {
+      alert('Bitte wählen Sie zuerst einen Drucker aus oder geben Sie eine IP-Adresse ein.');
+      return;
+    }
+    sendZplCommand('{{ url_for("diverses.zebra_drucker_druckerkonfig") }}', ip, this);
+  });
+
+  document.getElementById('netzwerkkonfigBtn').addEventListener('click', function() {
+    const ip = ipAdresseInput.value.trim();
+    if (!ip) {
+      alert('Bitte wählen Sie zuerst einen Drucker aus oder geben Sie eine IP-Adresse ein.');
+      return;
+    }
+    sendZplCommand('{{ url_for("diverses.zebra_drucker_netzwerkkonfig") }}', ip, this);
+  });
+
+  // Button "Öffne im Browser"
+  document.getElementById('browserOeffnenBtn').addEventListener('click', function() {
+    const ip = ipAdresseInput.value.trim();
+    if (!ip) {
+      alert('Bitte wählen Sie zuerst einen Drucker aus oder geben Sie eine IP-Adresse ein.');
+      return;
+    }
+    // Öffne IP-Adresse im neuen Tab
+    window.open('http://' + ip, '_blank');
+  });
+});
+</script>
+{% endblock %}
+
