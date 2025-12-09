@@ -271,7 +271,7 @@
                         {% endif %}
                         <td onclick="event.stopPropagation();">
                             <div class="btn-group" role="group">
-                                <a href="{{ url_for('ersatzteile.ersatzteil_bearbeiten', ersatzteil_id=e.ID, next=url_for('ersatzteile.ersatzteil_liste', kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', lagerort=lagerort_filter or '', lagerplatz=lagerplatz_filter or '', q=q_filter or '', sort=sort_by, dir=sort_dir, bestandswarnung=1 if bestandswarnung else '', kennzeichen=kennzeichen_filter or '')) }}" class="btn btn-sm btn-outline-warning" title="Artikel bearbeiten">
+                                <a href="{{ url_for('ersatzteile.ersatzteil_bearbeiten', ersatzteil_id=e.ID, kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', lagerort=lagerort_filter or '', lagerplatz=lagerplatz_filter or '', q=q_filter or '', sort=sort_by, dir=sort_dir, bestandswarnung=1 if bestandswarnung else '', kennzeichen=kennzeichen_filter or '', from='list') }}" class="btn btn-sm btn-outline-warning" title="Artikel bearbeiten">
                                     <i class="bi bi-pencil"></i>
                                 </a>
                                 {% if e.LieferantID %}
@@ -352,7 +352,7 @@
                     
                     <div class="mt-3" onclick="event.stopPropagation();">
                         <div class="btn-group w-100" role="group">
-                            <a href="{{ url_for('ersatzteile.ersatzteil_bearbeiten', ersatzteil_id=e.ID, next=url_for('ersatzteile.ersatzteil_liste', kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', lagerort=lagerort_filter or '', lagerplatz=lagerplatz_filter or '', q=q_filter or '', sort=sort_by, dir=sort_dir, bestandswarnung=1 if bestandswarnung else '', kennzeichen=kennzeichen_filter or '')) }}" class="btn btn-sm btn-outline-warning" title="Artikel bearbeiten">
+                            <a href="{{ url_for('ersatzteile.ersatzteil_bearbeiten', ersatzteil_id=e.ID, kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', lagerort=lagerort_filter or '', lagerplatz=lagerplatz_filter or '', q=q_filter or '', sort=sort_by, dir=sort_dir, bestandswarnung=1 if bestandswarnung else '', kennzeichen=kennzeichen_filter or '', from='list') }}" class="btn btn-sm btn-outline-warning" title="Artikel bearbeiten">
                                 <i class="bi bi-pencil"></i> Bearbeiten
                             </a>
                             {% if e.LieferantID %}

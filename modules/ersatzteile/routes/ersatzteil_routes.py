@@ -526,6 +526,9 @@ def ersatzteil_bearbeiten(ersatzteil_id):
         'dir': request.args.get('dir', '')
     }
     
+    # Prüfen, ob man von der Liste oder vom Detail kommt
+    from_page = request.args.get('from') or 'list'  # Standard: Liste
+    
     with get_db_connection() as conn:
         # Berechtigung prüfen
         if not is_admin and not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
@@ -611,13 +614,24 @@ def ersatzteil_bearbeiten(ersatzteil_id):
                 
                 conn.commit()
                 flash('Ersatzteil erfolgreich aktualisiert.', 'success')
-                # Zur Detail-Seite mit Filter-Parametern zurückleiten
-                detail_url = url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id)
-                # Filter-Parameter hinzufügen (nur wenn vorhanden)
-                filter_query = '&'.join([f'{k}={v}' for k, v in filter_params.items() if v])
-                if filter_query:
-                    detail_url += '?' + filter_query
-                return redirect(detail_url)
+                
+                # Prüfen, ob man von der Liste oder vom Detail kommt
+                from_page = request.form.get('from', 'list')
+                
+                if from_page == 'detail':
+                    # Zurück zum Detail mit Filter-Parametern
+                    detail_url = url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id)
+                    filter_query = '&'.join([f'{k}={v}' for k, v in filter_params.items() if v])
+                    if filter_query:
+                        detail_url += '?' + filter_query
+                    return redirect(detail_url)
+                else:
+                    # Zurück zur gefilterten Liste
+                    liste_url = url_for('ersatzteile.ersatzteil_liste')
+                    filter_query = '&'.join([f'{k}={v}' for k, v in filter_params.items() if v])
+                    if filter_query:
+                        liste_url += '?' + filter_query
+                    return redirect(liste_url)
                 
             except Exception as e:
                 flash(f'Fehler beim Aktualisieren: {str(e)}', 'danger')
@@ -646,7 +660,8 @@ def ersatzteil_bearbeiten(ersatzteil_id):
         lagerorte=lagerorte,
         lagerplaetze=lagerplaetze,
         zugriff_ids=zugriff_ids,
-        filter_params=filter_params
+        filter_params=filter_params,
+        from_page=from_page
     )
 
 

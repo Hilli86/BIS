@@ -1,12 +1,18 @@
 {% extends "layout/base.html" %}
 
 {% block content %}
-<div class="mb-3">
-    <a href="{% if next_url %}{{ next_url }}{% else %}{{ url_for('ersatzteile.ersatzteil_liste', kategorie=filter_params.kategorie or '', lieferant=filter_params.lieferant or '', lagerort=filter_params.lagerort or '', lagerplatz=filter_params.lagerplatz or '', q=filter_params.q or '', bestandswarnung=filter_params.bestandswarnung or '', kennzeichen=filter_params.kennzeichen or '', sort=filter_params.sort or '', dir=filter_params.dir or '') }}{% endif %}" class="btn btn-secondary">
-        <i class="bi bi-arrow-left"></i> Zurück
-    </a>
-</div>
 <h1 class="mb-4">🔧 Ersatzteil bearbeiten</h1>
+<div class="mb-3">
+    {% if from_page == 'detail' %}
+    <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil.ID, kategorie=filter_params.kategorie or '', lieferant=filter_params.lieferant or '', lagerort=filter_params.lagerort or '', lagerplatz=filter_params.lagerplatz or '', q=filter_params.q or '', bestandswarnung=filter_params.bestandswarnung or '', kennzeichen=filter_params.kennzeichen or '', sort=filter_params.sort or '', dir=filter_params.dir or '') }}" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Zurück zum Detail
+    </a>
+    {% else %}
+    <a href="{{ url_for('ersatzteile.ersatzteil_liste', kategorie=filter_params.kategorie or '', lieferant=filter_params.lieferant or '', lagerort=filter_params.lagerort or '', lagerplatz=filter_params.lagerplatz or '', q=filter_params.q or '', bestandswarnung=filter_params.bestandswarnung or '', kennzeichen=filter_params.kennzeichen or '', sort=filter_params.sort or '', dir=filter_params.dir or '') }}" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Zurück zur Liste
+    </a>
+    {% endif %}
+</div>
 
 <div class="card shadow-sm">
     <div class="card-header bg-primary text-white">
@@ -15,33 +21,35 @@
     <div class="card-body">
         <form method="POST">
             <!-- Filter-Parameter als versteckte Felder übergeben -->
-            {% if kategorie_filter %}
-            <input type="hidden" name="kategorie" value="{{ kategorie_filter }}">
+            {% if filter_params.kategorie %}
+            <input type="hidden" name="kategorie" value="{{ filter_params.kategorie }}">
             {% endif %}
-            {% if lieferant_filter %}
-            <input type="hidden" name="lieferant" value="{{ lieferant_filter }}">
+            {% if filter_params.lieferant %}
+            <input type="hidden" name="lieferant" value="{{ filter_params.lieferant }}">
             {% endif %}
-            {% if lagerort_filter %}
-            <input type="hidden" name="lagerort" value="{{ lagerort_filter }}">
+            {% if filter_params.lagerort %}
+            <input type="hidden" name="lagerort" value="{{ filter_params.lagerort }}">
             {% endif %}
-            {% if lagerplatz_filter %}
-            <input type="hidden" name="lagerplatz" value="{{ lagerplatz_filter }}">
+            {% if filter_params.lagerplatz %}
+            <input type="hidden" name="lagerplatz" value="{{ filter_params.lagerplatz }}">
             {% endif %}
-            {% if kennzeichen_filter %}
-            <input type="hidden" name="kennzeichen" value="{{ kennzeichen_filter }}">
+            {% if filter_params.kennzeichen %}
+            <input type="hidden" name="kennzeichen" value="{{ filter_params.kennzeichen }}">
             {% endif %}
-            {% if bestandswarnung %}
-            <input type="hidden" name="bestandswarnung" value="{{ bestandswarnung }}">
+            {% if filter_params.bestandswarnung %}
+            <input type="hidden" name="bestandswarnung" value="{{ filter_params.bestandswarnung }}">
             {% endif %}
-            {% if q_filter %}
-            <input type="hidden" name="q" value="{{ q_filter }}">
+            {% if filter_params.q %}
+            <input type="hidden" name="q" value="{{ filter_params.q }}">
             {% endif %}
-            {% if sort_by %}
-            <input type="hidden" name="sort" value="{{ sort_by }}">
+            {% if filter_params.sort %}
+            <input type="hidden" name="sort" value="{{ filter_params.sort }}">
             {% endif %}
-            {% if sort_dir %}
-            <input type="hidden" name="dir" value="{{ sort_dir }}">
+            {% if filter_params.dir %}
+            <input type="hidden" name="dir" value="{{ filter_params.dir }}">
             {% endif %}
+            <!-- From-Parameter: Woher kommt man? (list oder detail) -->
+            <input type="hidden" name="from" value="{{ from_page or 'list' }}">
             <div class="row g-3">
                 <!-- 1. Kategorie | Lieferant | Hersteller -->
                 <div class="col-md-6">
@@ -196,18 +204,15 @@
                     <button type="submit" class="btn btn-primary">
                         <i class="bi bi-save"></i> Speichern
                     </button>
-                    <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil.ID, 
-                        kategorie=kategorie_filter or '', 
-                        lieferant=lieferant_filter or '', 
-                        lagerort=lagerort_filter or '', 
-                        lagerplatz=lagerplatz_filter or '', 
-                        q=q_filter or '', 
-                        sort=sort_by or '', 
-                        dir=sort_dir or '', 
-                        bestandswarnung=bestandswarnung or '', 
-                        kennzeichen=kennzeichen_filter or '') }}" class="btn btn-secondary">
+                    {% if from_page == 'detail' %}
+                    <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil.ID, kategorie=filter_params.kategorie or '', lieferant=filter_params.lieferant or '', lagerort=filter_params.lagerort or '', lagerplatz=filter_params.lagerplatz or '', q=filter_params.q or '', bestandswarnung=filter_params.bestandswarnung or '', kennzeichen=filter_params.kennzeichen or '', sort=filter_params.sort or '', dir=filter_params.dir or '') }}" class="btn btn-secondary">
                         <i class="bi bi-x-lg"></i> Abbrechen
                     </a>
+                    {% else %}
+                    <a href="{{ url_for('ersatzteile.ersatzteil_liste', kategorie=filter_params.kategorie or '', lieferant=filter_params.lieferant or '', lagerort=filter_params.lagerort or '', lagerplatz=filter_params.lagerplatz or '', q=filter_params.q or '', bestandswarnung=filter_params.bestandswarnung or '', kennzeichen=filter_params.kennzeichen or '', sort=filter_params.sort or '', dir=filter_params.dir or '') }}" class="btn btn-secondary">
+                        <i class="bi bi-x-lg"></i> Abbrechen
+                    </a>
+                    {% endif %}
                 </div>
             </div>
         </form>
