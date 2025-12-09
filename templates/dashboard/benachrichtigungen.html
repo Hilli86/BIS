@@ -6,9 +6,14 @@
     <h2 class="mb-0">
       <i class="bi bi-bell"></i> Alle Benachrichtigungen
     </h2>
-    <button id="alleGelesenBtn" class="btn btn-primary">
-      <i class="bi bi-check-all"></i> Alle als gelesen markieren
-    </button>
+    <div class="d-flex gap-2">
+      <button id="alleGelesenBtn" class="btn btn-primary">
+        <i class="bi bi-check-all"></i> Alle als gelesen markieren
+      </button>
+      <button id="alleGelesenenLoeschenBtn" class="btn btn-outline-danger">
+        <i class="bi bi-trash"></i> Alle gelesenen löschen
+      </button>
+    </div>
   </div>
 
   <div class="row">
@@ -31,6 +36,7 @@
 document.addEventListener('DOMContentLoaded', function() {
   const container = document.getElementById('benachrichtigungenContainer');
   const alleGelesenBtn = document.getElementById('alleGelesenBtn');
+  const alleGelesenenLoeschenBtn = document.getElementById('alleGelesenenLoeschenBtn');
 
   // Benachrichtigungen laden
   function loadBenachrichtigungen() {
@@ -45,6 +51,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
           `;
           alleGelesenBtn.style.display = 'none';
+          alleGelesenenLoeschenBtn.style.display = 'none';
           return;
         }
 
@@ -57,6 +64,15 @@ document.addEventListener('DOMContentLoaded', function() {
           alleGelesenBtn.disabled = false;
           alleGelesenBtn.classList.add('btn-primary');
           alleGelesenBtn.classList.remove('btn-secondary');
+        }
+
+        // Prüfe ob es gelesene Benachrichtigungen gibt
+        const gelesen_count = data.benachrichtigungen.filter(n => n.Gelesen).length;
+        if (gelesen_count > 0) {
+          alleGelesenenLoeschenBtn.style.display = 'block';
+          alleGelesenenLoeschenBtn.disabled = false;
+        } else {
+          alleGelesenenLoeschenBtn.style.display = 'none';
         }
 
         let html = '<div class="list-group list-group-flush">';
@@ -80,15 +96,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     ${notif.Modul ? `<small class="text-muted"><i class="bi bi-folder"></i> ${notif.Modul}</small>` : ''}
                   </div>
                 </div>
-                ${!notif.Gelesen ? `
-                  <button class="btn btn-sm btn-outline-primary ms-3 markiereGelesenBtn" data-id="${notif.ID}">
-                    <i class="bi bi-check"></i> Als gelesen
+                <div class="d-flex gap-2 ms-3">
+                  ${!notif.Gelesen ? `
+                    <button class="btn btn-sm btn-outline-primary markiereGelesenBtn" data-id="${notif.ID}">
+                      <i class="bi bi-check"></i> Als gelesen
+                    </button>
+                  ` : `
+                    <span class="badge bg-success">
+                      <i class="bi bi-check-circle"></i> Gelesen
+                    </span>
+                  `}
+                  <button class="btn btn-sm btn-outline-danger loescheBenachrichtigungBtn" data-id="${notif.ID}" title="Löschen">
+                    <i class="bi bi-trash"></i>
                   </button>
-                ` : `
-                  <span class="badge bg-success ms-3">
-                    <i class="bi bi-check-circle"></i> Gelesen
-                  </span>
-                `}
+                </div>
               </div>
             </div>
           `;
@@ -102,6 +123,14 @@ document.addEventListener('DOMContentLoaded', function() {
           btn.addEventListener('click', function() {
             const benachrichtigungId = this.getAttribute('data-id');
             markiereAlsGelesen(benachrichtigungId);
+          });
+        });
+
+        // Event-Listener für "Löschen"-Buttons
+        document.querySelectorAll('.loescheBenachrichtigungBtn').forEach(btn => {
+          btn.addEventListener('click', function() {
+            const benachrichtigungId = this.getAttribute('data-id');
+            loescheBenachrichtigung(benachrichtigungId);
           });
         });
       })
@@ -168,6 +197,61 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
   });
+
+  // Alle gelesenen Benachrichtigungen löschen
+  alleGelesenenLoeschenBtn.addEventListener('click', function() {
+    if (confirm('Möchten Sie wirklich alle gelesenen Benachrichtigungen löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) {
+      fetch('{{ url_for("dashboard.api_alle_gelesenen_benachrichtigungen_loeschen") }}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            alert(`${data.deleted_count || 0} Benachrichtigungen wurden gelöscht.`);
+            loadBenachrichtigungen();
+            // Badge in der Navigation aktualisieren
+            if (typeof loadBenachrichtigungen === 'function' && window.loadBenachrichtigungen) {
+              window.loadBenachrichtigungen();
+            }
+          } else {
+            alert('Fehler: ' + (data.message || 'Unbekannter Fehler'));
+          }
+        })
+        .catch(error => {
+          console.error('Fehler:', error);
+          alert('Fehler beim Löschen der gelesenen Benachrichtigungen');
+        });
+    }
+  });
+
+  // Funktion zum Löschen einer einzelnen Benachrichtigung
+  function loescheBenachrichtigung(benachrichtigungId) {
+    fetch(`{{ url_for("dashboard.api_benachrichtigung_loeschen", benachrichtigung_id=0) }}`.replace('/0', '/' + benachrichtigungId), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          loadBenachrichtigungen();
+          // Badge in der Navigation aktualisieren
+          if (typeof loadBenachrichtigungen === 'function' && window.loadBenachrichtigungen) {
+            window.loadBenachrichtigungen();
+          }
+        } else {
+          alert('Fehler: ' + (data.message || 'Unbekannter Fehler'));
+        }
+      })
+      .catch(error => {
+        console.error('Fehler:', error);
+        alert('Fehler beim Löschen der Benachrichtigung');
+      });
+  }
 
   // Initial laden
   loadBenachrichtigungen();

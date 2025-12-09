@@ -155,3 +155,52 @@ def api_alle_benachrichtigungen_gelesen():
     
     return jsonify({'success': True, 'message': 'Alle Benachrichtigungen als gelesen markiert'})
 
+
+@dashboard_bp.route('/api/benachrichtigungen/<int:benachrichtigung_id>/loeschen', methods=['POST'])
+@login_required
+def api_benachrichtigung_loeschen(benachrichtigung_id):
+    """API: Einzelne Benachrichtigung löschen"""
+    user_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        # Prüfen ob Benachrichtigung dem Benutzer gehört
+        benachrichtigung = conn.execute('''
+            SELECT ID FROM Benachrichtigung 
+            WHERE ID = ? AND MitarbeiterID = ?
+        ''', (benachrichtigung_id, user_id)).fetchone()
+        
+        if not benachrichtigung:
+            return jsonify({'success': False, 'message': 'Benachrichtigung nicht gefunden'}), 404
+        
+        # Benachrichtigung löschen
+        conn.execute('''
+            DELETE FROM Benachrichtigung 
+            WHERE ID = ?
+        ''', (benachrichtigung_id,))
+        conn.commit()
+    
+    return jsonify({'success': True, 'message': 'Benachrichtigung gelöscht'})
+
+
+@dashboard_bp.route('/api/benachrichtigungen/alle-gelesenen-loeschen', methods=['POST'])
+@login_required
+def api_alle_gelesenen_benachrichtigungen_loeschen():
+    """API: Alle gelesenen Benachrichtigungen löschen"""
+    user_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        # Anzahl der gelöschten Benachrichtigungen ermitteln
+        deleted_count = conn.execute('''
+            SELECT COUNT(*) as count
+            FROM Benachrichtigung
+            WHERE MitarbeiterID = ? AND Gelesen = 1
+        ''', (user_id,)).fetchone()['count']
+        
+        # Alle gelesenen Benachrichtigungen löschen
+        conn.execute('''
+            DELETE FROM Benachrichtigung 
+            WHERE MitarbeiterID = ? AND Gelesen = 1
+        ''', (user_id,))
+        conn.commit()
+    
+    return jsonify({'success': True, 'message': f'{deleted_count} Benachrichtigungen gelöscht', 'deleted_count': deleted_count})

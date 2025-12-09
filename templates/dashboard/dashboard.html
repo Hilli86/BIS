@@ -580,15 +580,20 @@ document.addEventListener('DOMContentLoaded', function() {
                   <p class="mb-1">${notif.Nachricht}</p>
                   <small class="text-muted">${datum}</small>
                 </div>
-                ${!notif.Gelesen ? `
-                  <button class="btn btn-sm btn-outline-primary ms-3 markiereGelesenBtn" data-id="${notif.ID}" title="Als gelesen markieren">
-                    <i class="bi bi-check"></i>
+                <div class="d-flex gap-2 ms-3">
+                  ${!notif.Gelesen ? `
+                    <button class="btn btn-sm btn-outline-primary markiereGelesenBtn" data-id="${notif.ID}" title="Als gelesen markieren">
+                      <i class="bi bi-check"></i>
+                    </button>
+                  ` : `
+                    <span class="badge bg-success">
+                      <i class="bi bi-check-circle"></i>
+                    </span>
+                  `}
+                  <button class="btn btn-sm btn-outline-danger loescheBenachrichtigungBtn" data-id="${notif.ID}" title="Löschen">
+                    <i class="bi bi-trash"></i>
                   </button>
-                ` : `
-                  <span class="badge bg-success ms-3">
-                    <i class="bi bi-check-circle"></i>
-                  </span>
-                `}
+                </div>
               </div>
             </div>
           `;
@@ -614,6 +619,16 @@ document.addEventListener('DOMContentLoaded', function() {
             e.stopPropagation();
             const benachrichtigungId = this.getAttribute('data-id');
             markiereAlsGelesen(benachrichtigungId);
+          });
+        });
+
+        // Event-Listener für "Löschen"-Buttons
+        document.querySelectorAll('.loescheBenachrichtigungBtn').forEach(btn => {
+          btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const benachrichtigungId = this.getAttribute('data-id');
+            loescheBenachrichtigung(benachrichtigungId);
           });
         });
       })
@@ -668,15 +683,20 @@ document.addEventListener('DOMContentLoaded', function() {
                           <p class="mb-1">${notif.Nachricht}</p>
                           <small class="text-muted">${datum}</small>
                         </div>
-                        ${!notif.Gelesen ? `
-                          <button class="btn btn-sm btn-outline-primary ms-3 markiereGelesenBtn" data-id="${notif.ID}" title="Als gelesen markieren">
-                            <i class="bi bi-check"></i>
+                        <div class="d-flex gap-2 ms-3">
+                          ${!notif.Gelesen ? `
+                            <button class="btn btn-sm btn-outline-primary markiereGelesenBtn" data-id="${notif.ID}" title="Als gelesen markieren">
+                              <i class="bi bi-check"></i>
+                            </button>
+                          ` : `
+                            <span class="badge bg-success">
+                              <i class="bi bi-check-circle"></i>
+                            </span>
+                          `}
+                          <button class="btn btn-sm btn-outline-danger loescheBenachrichtigungBtn" data-id="${notif.ID}" title="Löschen">
+                            <i class="bi bi-trash"></i>
                           </button>
-                        ` : `
-                          <span class="badge bg-success ms-3">
-                            <i class="bi bi-check-circle"></i>
-                          </span>
-                        `}
+                        </div>
                       </div>
                     </div>
                   `;
@@ -705,6 +725,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     markiereAlsGelesen(benachrichtigungId);
                   });
                 });
+
+                // Event-Listener für "Löschen"-Buttons erneut hinzufügen
+                document.querySelectorAll('.loescheBenachrichtigungBtn').forEach(btn => {
+                  btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const benachrichtigungId = this.getAttribute('data-id');
+                    loescheBenachrichtigung(benachrichtigungId);
+                  });
+                });
               })
               .catch(error => {
                 console.error('Fehler beim Neuladen der Benachrichtigungen:', error);
@@ -720,6 +750,119 @@ document.addEventListener('DOMContentLoaded', function() {
       })
       .catch(error => {
         console.error('Fehler:', error);
+      });
+  }
+
+  // Funktion zum Löschen einer Benachrichtigung
+  function loescheBenachrichtigung(benachrichtigungId) {
+    fetch(`{{ url_for("dashboard.api_benachrichtigung_loeschen", benachrichtigung_id=0) }}`.replace('/0', '/' + benachrichtigungId), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          // Benachrichtigungen neu laden
+          const container = document.getElementById('benachrichtigungenContainer');
+          if (container) {
+            fetch('{{ url_for("dashboard.api_benachrichtigungen") }}')
+              .then(response => response.json())
+              .then(data => {
+                if (!data.benachrichtigungen || data.benachrichtigungen.length === 0) {
+                  container.innerHTML = `
+                    <div class="text-center py-3">
+                      <p class="text-muted mb-0">Keine ungelesenen Benachrichtigungen</p>
+                    </div>
+                  `;
+                  return;
+                }
+
+                let html = '<div class="list-group list-group-flush">';
+                data.benachrichtigungen.slice(0, 5).forEach(notif => {
+                  const datum = notif.ErstelltAm ? new Date(notif.ErstelltAm).toLocaleString('de-DE') : '';
+                  const gelesenClass = notif.Gelesen ? '' : 'list-group-item-warning';
+                  html += `
+                    <div class="list-group-item ${gelesenClass}">
+                      <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                          <div class="d-flex align-items-center mb-2">
+                            <h6 class="mb-0">${notif.Titel}</h6>
+                            ${!notif.Gelesen ? '<span class="badge bg-primary ms-2">Neu</span>' : ''}
+                          </div>
+                          <p class="mb-1">${notif.Nachricht}</p>
+                          <small class="text-muted">${datum}</small>
+                        </div>
+                        <div class="d-flex gap-2 ms-3">
+                          ${!notif.Gelesen ? `
+                            <button class="btn btn-sm btn-outline-primary markiereGelesenBtn" data-id="${notif.ID}" title="Als gelesen markieren">
+                              <i class="bi bi-check"></i>
+                            </button>
+                          ` : `
+                            <span class="badge bg-success">
+                              <i class="bi bi-check-circle"></i>
+                            </span>
+                          `}
+                          <button class="btn btn-sm btn-outline-danger loescheBenachrichtigungBtn" data-id="${notif.ID}" title="Löschen">
+                            <i class="bi bi-trash"></i>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  `;
+                });
+                html += '</div>';
+
+                if (data.ungelesen_count > 5) {
+                  const benachrichtigungenUrl = '{{ url_for("dashboard.benachrichtigungen") }}';
+                  html += `
+                    <div class="card-footer text-center">
+                      <a href="${benachrichtigungenUrl}" class="btn btn-sm btn-outline-primary">
+                        ${data.ungelesen_count - 5} weitere Benachrichtigungen
+                      </a>
+                    </div>
+                  `;
+                }
+
+                container.innerHTML = html;
+
+                // Event-Listener erneut hinzufügen
+                document.querySelectorAll('.markiereGelesenBtn').forEach(btn => {
+                  btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const benachrichtigungId = this.getAttribute('data-id');
+                    markiereAlsGelesen(benachrichtigungId);
+                  });
+                });
+
+                // Event-Listener für "Löschen"-Buttons erneut hinzufügen
+                document.querySelectorAll('.loescheBenachrichtigungBtn').forEach(btn => {
+                  btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const benachrichtigungId = this.getAttribute('data-id');
+                    loescheBenachrichtigung(benachrichtigungId);
+                  });
+                });
+              })
+              .catch(error => {
+                console.error('Fehler beim Neuladen der Benachrichtigungen:', error);
+              });
+          }
+          // Badge in der Navigation aktualisieren
+          if (typeof loadBenachrichtigungen === 'function' && window.loadBenachrichtigungen) {
+            window.loadBenachrichtigungen();
+          }
+        } else {
+          console.error('Fehler beim Löschen:', data.message);
+          alert('Fehler beim Löschen der Benachrichtigung: ' + (data.message || 'Unbekannter Fehler'));
+        }
+      })
+      .catch(error => {
+        console.error('Fehler:', error);
+        alert('Fehler beim Löschen der Benachrichtigung');
       });
   }
 </script>
