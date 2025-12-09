@@ -175,7 +175,6 @@ def add_bemerkung():
         return redirect(next_url)
 
     mitarbeiter_id = session.get('user_id')
-    datum = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     with get_db_connection() as conn:
         cursor = conn.cursor()
@@ -183,8 +182,8 @@ def add_bemerkung():
         # Neue Bemerkung speichern
         cursor.execute("""
             INSERT INTO SchichtbuchBemerkungen (ThemaID, MitarbeiterID, Bemerkung, Datum, TaetigkeitID)
-            VALUES (?, ?, ?, ?, ?)
-            """, (thema_id, mitarbeiter_id, bemerkung_text, datum, taetigkeit_id))
+            VALUES (?, ?, ?, datetime('now', 'localtime'), ?)
+            """, (thema_id, mitarbeiter_id, bemerkung_text, taetigkeit_id))
         
         bemerkung_id = cursor.lastrowid
         
@@ -344,15 +343,14 @@ def thema_detail(thema_id):
         bemerkung = request.form['bemerkung']
         neuer_status = request.form.get('status')
         taetigkeit_id = request.form.get("taetigkeit_id")
-        datum = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         with get_db_connection() as conn:
             # Bemerkung speichern
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO SchichtbuchBemerkungen (ThemaID, MitarbeiterID, Datum, TaetigkeitID, Bemerkung)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (thema_id, mitarbeiter_id, datum, taetigkeit_id, bemerkung))
+                VALUES (?, ?, datetime('now', 'localtime'), ?, ?)
+            ''', (thema_id, mitarbeiter_id, taetigkeit_id, bemerkung))
             
             bemerkung_id = cursor.lastrowid
             

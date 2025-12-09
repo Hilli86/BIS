@@ -88,9 +88,9 @@ def build_ersatzteil_liste_query(mitarbeiter_id, sichtbare_abteilungen, is_admin
         query += ' AND e.AktuellerBestand < e.Mindestbestand AND e.Mindestbestand > 0 AND e.EndOfLife = 0'
     
     if q_filter:
-        query += ' AND (e.Bestellnummer LIKE ? OR e.Bezeichnung LIKE ? OR e.Beschreibung LIKE ?)'
+        query += ' AND (e.Bestellnummer LIKE ? OR e.Bezeichnung LIKE ? OR e.Beschreibung LIKE ? OR e.ArtikelnummerHersteller LIKE ?)'
         search_term = f'%{q_filter}%'
-        params.extend([search_term, search_term, search_term])
+        params.extend([search_term, search_term, search_term, search_term])
     
     if lagerort_filter:
         query += ' AND e.LagerortID = ?'

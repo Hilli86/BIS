@@ -186,7 +186,7 @@ def wareneingang_bestellung(bestellung_id):
                             # Lagerbuchung erstellen
                             conn.execute('''
                                 INSERT INTO Lagerbuchung (ErsatzteilID, Typ, Menge, VerwendetVonID, Buchungsdatum, Grund, BestellungID)
-                                VALUES (?, 'Eingang', ?, ?, datetime('now'), ?, ?)
+                                VALUES (?, 'Eingang', ?, ?, datetime('now', 'localtime'), ?, ?)
                             ''', (pos['ErsatzteilID'], erhaltene_menge, mitarbeiter_id, f'Wareneingang Bestellung #{bestellung_id}', bestellung_id))
                         
                         # Status prüfen
@@ -200,14 +200,15 @@ def wareneingang_bestellung(bestellung_id):
                     except (ValueError, IndexError):
                         continue
                 
+                # Nach der Schleife: Status der Bestellung prüfen - alle Positionen erneut laden
+                alle_positionen = conn.execute('SELECT Menge, ErhalteneMenge FROM BestellungPosition WHERE BestellungID = ?', (bestellung_id,)).fetchall()
+                alle_vollstaendig = all(pos['ErhalteneMenge'] >= pos['Menge'] for pos in alle_positionen)
+                mindestens_eine_teilweise = any(pos['ErhalteneMenge'] > 0 and pos['ErhalteneMenge'] < pos['Menge'] for pos in alle_positionen)
+                
                 # Status der Bestellung aktualisieren
                 if alle_vollstaendig:
-                    # Alle Positionen vollständig erhalten
-                    conn.execute('UPDATE Bestellung SET Status = ? WHERE ID = ?', ('Erhalten', bestellung_id))
-                    # Status auf "Erledigt" setzen
                     conn.execute('UPDATE Bestellung SET Status = ? WHERE ID = ?', ('Erledigt', bestellung_id))
                 elif mindestens_eine_teilweise:
-                    # Mindestens eine Position teilweise erhalten
                     conn.execute('UPDATE Bestellung SET Status = ? WHERE ID = ?', ('Teilweise erhalten', bestellung_id))
                 
                 conn.commit()
@@ -264,23 +265,17 @@ def wareneingang_bestellung(bestellung_id):
 @login_required
 @permission_required('artikel_buchen')
 def lieferschein_upload(bestellung_id):
-    """Lieferschein-Upload für Wareneingang (PDF, JPEG, JPG, PNG)"""
+    """Lieferschein-Upload für Wareneingang (PDF, JPEG, JPG, PNG) - unterstützt mehrere Dateien"""
     mitarbeiter_id = session.get('user_id')
     beschreibung = request.form.get('beschreibung', '').strip()
     
-    if 'file' not in request.files:
+    files = request.files.getlist('file')
+    if not files or all(f.filename == '' for f in files):
         flash('Keine Datei ausgewählt.', 'danger')
         return redirect(url_for('ersatzteile.wareneingang_bestellung', bestellung_id=bestellung_id))
     
-    file = request.files['file']
-    if file.filename == '':
-        flash('Keine Datei ausgewählt.', 'danger')
-        return redirect(url_for('ersatzteile.wareneingang_bestellung', bestellung_id=bestellung_id))
-    
-    # Dateiendung prüfen
-    if not validate_file_extension(file.filename, {'pdf', 'jpg', 'jpeg', 'png'}):
-        flash('Nur PDF-, JPEG-, JPG- oder PNG-Dateien sind erlaubt.', 'danger')
-        return redirect(url_for('ersatzteile.wareneingang_bestellung', bestellung_id=bestellung_id))
+    erfolgreich = 0
+    fehler = 0
     
     try:
         with get_db_connection() as conn:
@@ -288,35 +283,56 @@ def lieferschein_upload(bestellung_id):
             lieferschein_folder = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], 'Bestellwesen', 'Lieferscheine', str(bestellung_id))
             create_upload_folder(lieferschein_folder)
             
-            # Datei speichern mit Timestamp
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
-            original_filename = file.filename
-            file.filename = timestamp + secure_filename(original_filename)
+            for file in files:
+                if file.filename == '':
+                    continue
+                
+                # Dateiendung prüfen
+                if not validate_file_extension(file.filename, {'pdf', 'jpg', 'jpeg', 'png'}):
+                    fehler += 1
+                    continue
+                
+                try:
+                    # Datei speichern mit Timestamp
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
+                    original_filename = file.filename
+                    file.filename = timestamp + secure_filename(original_filename)
+                    
+                    success_upload, filename, error_message = save_uploaded_file(
+                        file,
+                        lieferschein_folder,
+                        allowed_extensions={'pdf', 'jpg', 'jpeg', 'png'}
+                    )
+                    
+                    if not success_upload or error_message:
+                        fehler += 1
+                        continue
+                    
+                    # Datenbankeintrag in Datei-Tabelle
+                    relative_path = f'Bestellwesen/Lieferscheine/{bestellung_id}/{filename}'
+                    speichere_datei(
+                        bereich_typ='Lieferschein',
+                        bereich_id=bestellung_id,
+                        dateiname=original_filename,
+                        dateipfad=relative_path,
+                        beschreibung=beschreibung,
+                        typ=get_datei_typ_aus_dateiname(original_filename),
+                        mitarbeiter_id=mitarbeiter_id,
+                        conn=conn
+                    )
+                    
+                    erfolgreich += 1
+                except Exception as e:
+                    fehler += 1
+                    print(f"Fehler beim Hochladen von {file.filename}: {e}")
+                    import traceback
+                    traceback.print_exc()
             
-            success_upload, filename, error_message = save_uploaded_file(
-                file,
-                lieferschein_folder,
-                allowed_extensions={'pdf', 'jpg', 'jpeg', 'png'}
-            )
-            
-            if not success_upload or error_message:
-                flash(f'Fehler beim Hochladen: {error_message}', 'danger')
-                return redirect(url_for('ersatzteile.wareneingang_bestellung', bestellung_id=bestellung_id))
-            
-            # Datenbankeintrag in Datei-Tabelle
-            relative_path = f'Bestellwesen/Lieferscheine/{bestellung_id}/{filename}'
-            speichere_datei(
-                bereich_typ='Lieferschein',
-                bereich_id=bestellung_id,
-                dateiname=original_filename,
-                dateipfad=relative_path,
-                beschreibung=beschreibung,
-                typ=get_datei_typ_aus_dateiname(original_filename),
-                mitarbeiter_id=mitarbeiter_id,
-                conn=conn
-            )
-            
-            flash('Lieferschein erfolgreich hochgeladen.', 'success')
+            # Feedback-Meldungen
+            if erfolgreich > 0:
+                flash(f'{erfolgreich} Lieferschein(e) erfolgreich hochgeladen.', 'success')
+            if fehler > 0:
+                flash(f'{fehler} Datei(en) konnten nicht hochgeladen werden.', 'warning')
     except Exception as e:
         flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
         print(f"Lieferschein-Upload Fehler: {e}")

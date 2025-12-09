@@ -166,13 +166,13 @@ def zebra_printer_save():
             if printer_id:
                 conn.execute('''
                     UPDATE zebra_printers
-                    SET name = ?, ip_address = ?, description = ?, active = ?, updated_at = datetime('now')
+                    SET name = ?, ip_address = ?, description = ?, active = ?, updated_at = datetime('now', 'localtime')
                     WHERE id = ?
                 ''', (name, ip_address, description, active, printer_id))
             else:
                 conn.execute('''
                     INSERT INTO zebra_printers (name, ip_address, description, active, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+                    VALUES (?, ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'))
                 ''', (name, ip_address, description, active))
             conn.commit()
         return ajax_response('Zebra-Drucker gespeichert.')
@@ -222,13 +222,13 @@ def zebra_label_save():
             if label_id:
                 conn.execute('''
                     UPDATE label_formats
-                    SET name = ?, description = ?, width_mm = ?, height_mm = ?, orientation = ?, zpl_header = ?, updated_at = datetime('now')
+                    SET name = ?, description = ?, width_mm = ?, height_mm = ?, orientation = ?, zpl_header = ?, updated_at = datetime('now', 'localtime')
                     WHERE id = ?
                 ''', (name, description, width_mm, height_mm, orientation, zpl_header, label_id))
             else:
                 conn.execute('''
                     INSERT INTO label_formats (name, description, width_mm, height_mm, orientation, zpl_header, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                    VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'))
                 ''', (name, description, width_mm, height_mm, orientation, zpl_header))
             conn.commit()
         return ajax_response('Etikettenformat gespeichert.')
@@ -323,13 +323,13 @@ def zebra_etikett_save():
             if etikett_id:
                 conn.execute('''
                     UPDATE Etikett
-                    SET bezeichnung = ?, drucker_id = ?, etikettformat_id = ?, druckbefehle = ?, updated_at = datetime('now')
+                    SET bezeichnung = ?, drucker_id = ?, etikettformat_id = ?, druckbefehle = ?, updated_at = datetime('now', 'localtime')
                     WHERE id = ?
                 ''', (bezeichnung, drucker_id, etikettformat_id, druckbefehle, etikett_id))
             else:
                 conn.execute('''
                     INSERT INTO Etikett (bezeichnung, drucker_id, etikettformat_id, druckbefehle, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+                    VALUES (?, ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'))
                 ''', (bezeichnung, drucker_id, etikettformat_id, druckbefehle))
             conn.commit()
         return ajax_response('Etikett gespeichert.')

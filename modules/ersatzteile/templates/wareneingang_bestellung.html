@@ -135,9 +135,7 @@
                                        class="form-control form-control-sm" 
                                        min="0" 
                                        max="{{ p.Menge - p.ErhalteneMenge }}"
-                                       value="0"
-                                       inputmode="numeric"
-                                       required>
+                                       inputmode="numeric">
                                 <small class="text-muted">Max: {{ p.Menge - p.ErhalteneMenge }}</small>
                             </td>
                             <td>{{ p.Einheit or 'Stk' }}</td>
@@ -203,9 +201,7 @@
                                    class="form-control" 
                                    min="0" 
                                    max="{{ p.Menge - p.ErhalteneMenge }}"
-                                   value="0"
-                                   inputmode="numeric"
-                                   required>
+                                   inputmode="numeric">
                             <small class="text-muted">Max: {{ p.Menge - p.ErhalteneMenge }} {{ p.Einheit or 'Stk' }}</small>
                         </div>
                     </div>

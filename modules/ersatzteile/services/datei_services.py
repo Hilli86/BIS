@@ -57,8 +57,8 @@ def speichere_datei(bereich_typ, bereich_id, dateiname, dateipfad, beschreibung,
         ID der erstellten Datei
     """
     cursor = conn.execute('''
-        INSERT INTO Datei (BereichTyp, BereichID, Dateiname, Dateipfad, Beschreibung, Typ, ErstelltVonID)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO Datei (BereichTyp, BereichID, Dateiname, Dateipfad, Beschreibung, Typ, ErstelltVonID, ErstelltAm)
+        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
     ''', (bereich_typ, bereich_id, dateiname, dateipfad, beschreibung or '', typ or None, mitarbeiter_id))
     
     return cursor.lastrowid

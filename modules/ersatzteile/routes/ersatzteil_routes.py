@@ -230,6 +230,19 @@ def ersatzteil_detail(ersatzteil_id):
         
         is_admin = 'admin' in session.get('user_berechtigungen', [])
     
+    # Filter-Parameter aus Query-String lesen (für Zurück-Button)
+    filter_params = {
+        'kategorie': request.args.get('kategorie', ''),
+        'lieferant': request.args.get('lieferant', ''),
+        'lagerort': request.args.get('lagerort', ''),
+        'lagerplatz': request.args.get('lagerplatz', ''),
+        'q': request.args.get('q', ''),
+        'bestandswarnung': request.args.get('bestandswarnung', ''),
+        'kennzeichen': request.args.get('kennzeichen', ''),
+        'sort': request.args.get('sort', ''),
+        'dir': request.args.get('dir', '')
+    }
+    
     return render_template(
         'ersatzteil_detail.html',
         ersatzteil=detail_data['ersatzteil'],
@@ -238,7 +251,8 @@ def ersatzteil_detail(ersatzteil_id):
         verknuepfungen=detail_data['verknuepfungen'],
         zugriffe=detail_data['zugriffe'],
         kostenstellen=detail_data['kostenstellen'],
-        is_admin=is_admin
+        is_admin=is_admin,
+        filter_params=filter_params
     )
 
 
@@ -348,8 +362,8 @@ def ersatzteil_neu():
                         Bestellnummer, Bezeichnung, Beschreibung, KategorieID, Hersteller,
                         LieferantID, Preis, Waehrung, LagerortID, LagerplatzID, Mindestbestand,
                         AktuellerBestand, Einheit, ErstelltVonID, EndOfLife, NachfolgeartikelID,
-                        Kennzeichen, ArtikelnummerHersteller, Link
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)
+                        Kennzeichen, ArtikelnummerHersteller, Link, ErstelltAm
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
                 ''', (bestellnummer, bezeichnung, beschreibung, kategorie_id, hersteller,
                       lieferant_id, preis, waehrung, lagerort_id, lagerplatz_id, mindestbestand, 
                       einheit, mitarbeiter_id, end_of_life, nachfolgeartikel_id, kennzeichen, artikelnummer_hersteller, link))
@@ -480,6 +494,19 @@ def ersatzteil_bearbeiten(ersatzteil_id):
     # Next-Parameter lesen (für Redirect nach Speichern)
     next_url = request.args.get('next') or request.form.get('next')
     
+    # Filter-Parameter aus Query-String lesen (für Zurück-Button)
+    filter_params = {
+        'kategorie': request.args.get('kategorie', ''),
+        'lieferant': request.args.get('lieferant', ''),
+        'lagerort': request.args.get('lagerort', ''),
+        'lagerplatz': request.args.get('lagerplatz', ''),
+        'q': request.args.get('q', ''),
+        'bestandswarnung': request.args.get('bestandswarnung', ''),
+        'kennzeichen': request.args.get('kennzeichen', ''),
+        'sort': request.args.get('sort', ''),
+        'dir': request.args.get('dir', '')
+    }
+    
     with get_db_connection() as conn:
         # Berechtigung prüfen
         if not is_admin and not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
@@ -565,10 +592,16 @@ def ersatzteil_bearbeiten(ersatzteil_id):
                 
                 conn.commit()
                 flash('Ersatzteil erfolgreich aktualisiert.', 'success')
-                # Zurück zur Artikelliste, wenn man von dort kam, sonst zur Detail-Seite
+                # Zurück zur Artikelliste, wenn man von dort kam, sonst zur Detail-Seite mit Filter-Parametern
                 if next_url:
                     return redirect(next_url)
-                return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+                # Zur Detail-Seite mit Filter-Parametern zurückleiten
+                detail_url = url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id)
+                # Filter-Parameter hinzufügen (nur wenn vorhanden)
+                filter_query = '&'.join([f'{k}={v}' for k, v in filter_params.items() if v])
+                if filter_query:
+                    detail_url += '?' + filter_query
+                return redirect(detail_url)
                 
             except Exception as e:
                 flash(f'Fehler beim Aktualisieren: {str(e)}', 'danger')
@@ -597,7 +630,8 @@ def ersatzteil_bearbeiten(ersatzteil_id):
         lagerorte=lagerorte,
         lagerplaetze=lagerplaetze,
         zugriff_ids=zugriff_ids,
-        next_url=next_url
+        next_url=next_url,
+        filter_params=filter_params
     )
 
 

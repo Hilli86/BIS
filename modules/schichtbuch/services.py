@@ -416,7 +416,7 @@ def create_thema(gewerk_id, status_id, mitarbeiter_id, taetigkeit_id, bemerkung,
     # Erste Bemerkung hinzufügen
     cur.execute('''
         INSERT INTO SchichtbuchBemerkungen (ThemaID, MitarbeiterID, Datum, TaetigkeitID, Bemerkung)
-        VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?)
+        VALUES (?, ?, datetime('now', 'localtime'), ?, ?)
     ''', (thema_id, mitarbeiter_id, taetigkeit_id, bemerkung))
     
     # Sichtbarkeiten speichern
@@ -471,7 +471,7 @@ def create_thema(gewerk_id, status_id, mitarbeiter_id, taetigkeit_id, bemerkung,
             g.Bezeichnung AS Gewerk,
             s.Bezeichnung AS Status,
             ? AS LetzteBemerkung,
-            CURRENT_TIMESTAMP AS LetzteBemerkungDatum
+            datetime('now', 'localtime') AS LetzteBemerkungDatum
         FROM SchichtbuchThema t
         JOIN Gewerke g ON t.GewerkID = g.ID
         JOIN Bereich b ON g.BereichID = b.ID
@@ -571,7 +571,7 @@ def process_ersatzteile_fuer_thema(thema_id, ersatzteil_ids, ersatzteil_mengen,
                 INSERT INTO Lagerbuchung (
                     ErsatzteilID, Typ, Menge, Grund, ThemaID,
                     VerwendetVonID, Bemerkung, Preis, Waehrung, Buchungsdatum
-                ) VALUES (?, 'Ausgang', ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                ) VALUES (?, 'Ausgang', ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
             ''', (
                 ersatzteil_id, 
                 menge, 

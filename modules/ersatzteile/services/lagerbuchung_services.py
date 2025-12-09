@@ -90,7 +90,7 @@ def create_lagerbuchung(ersatzteil_id, typ, menge, grund, mitarbeiter_id, conn,
         INSERT INTO Lagerbuchung (
             ErsatzteilID, Typ, Menge, Grund, ThemaID, KostenstelleID,
             VerwendetVonID, Bemerkung, Preis, Waehrung, Buchungsdatum
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
     ''', (
         ersatzteil_id, typ, buchungsmenge, grund, thema_id, kostenstelle_id,
         mitarbeiter_id, bemerkung, artikel_preis, artikel_waehrung
@@ -140,7 +140,7 @@ def create_inventur_buchung(ersatzteil_id, neuer_bestand, mitarbeiter_id, conn, 
         INSERT INTO Lagerbuchung (
             ErsatzteilID, Typ, Menge, Grund, ThemaID, KostenstelleID,
             VerwendetVonID, Bemerkung, Preis, Waehrung, Buchungsdatum
-        ) VALUES (?, 'Inventur', ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        ) VALUES (?, 'Inventur', ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
     ''', (
         ersatzteil_id, neuer_bestand, 'Inventur aus Inventurliste', None, None,
         mitarbeiter_id, inventur_bemerkung, artikel_preis, artikel_waehrung

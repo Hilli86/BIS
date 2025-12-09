@@ -413,8 +413,8 @@ def bestellung_neu():
                 
                 # Bestellung erstellen
                 cursor = conn.execute('''
-                    INSERT INTO Bestellung (LieferantID, ErstelltVonID, ErstellerAbteilungID, Status, Bemerkung)
-                    VALUES (?, ?, ?, 'Erstellt', ?)
+                    INSERT INTO Bestellung (LieferantID, ErstelltVonID, ErstellerAbteilungID, Status, Bemerkung, ErstelltAm)
+                    VALUES (?, ?, ?, 'Erstellt', ?, datetime('now', 'localtime'))
                 ''', (lieferant_id, mitarbeiter_id, abteilung_id, bemerkung))
                 bestellung_id = cursor.lastrowid
                 
@@ -579,8 +579,8 @@ def bestellung_aus_angebot(angebotsanfrage_id):
                 
                 # Bestellung erstellen
                 cursor = conn.execute('''
-                    INSERT INTO Bestellung (AngebotsanfrageID, LieferantID, ErstelltVonID, ErstellerAbteilungID, Status, Bemerkung)
-                    VALUES (?, ?, ?, ?, 'Erstellt', ?)
+                    INSERT INTO Bestellung (AngebotsanfrageID, LieferantID, ErstelltVonID, ErstellerAbteilungID, Status, Bemerkung, ErstelltAm)
+                    VALUES (?, ?, ?, ?, 'Erstellt', ?, datetime('now', 'localtime'))
                 ''', (angebotsanfrage_id, anfrage['LieferantID'], mitarbeiter_id, abteilung_id, bemerkung))
                 bestellung_id = cursor.lastrowid
                 
@@ -749,10 +749,17 @@ def bestellung_freigeben(bestellung_id):
         # Unterschrift und Freigabe speichern
         conn.execute('''
             UPDATE Bestellung 
-            SET Status = ?, FreigegebenAm = datetime('now'), FreigegebenVonID = ?, Unterschrift = ?
+            SET Status = ?, FreigegebenAm = datetime('now', 'localtime'), FreigegebenVonID = ?, Unterschrift = ?
             WHERE ID = ?
         ''', ('Freigegeben', mitarbeiter_id, unterschrift, bestellung_id))
         conn.commit()
+        
+        # Alle bestehenden Benachrichtigungen für diese Bestellung löschen
+        conn.execute('''
+            DELETE FROM Benachrichtigung 
+            WHERE Modul = 'bestellwesen' 
+            AND Zusatzdaten LIKE ?
+        ''', (f'%bestellung_id":{bestellung_id}%',))
         
         # Benachrichtigungen erstellen
         try:
@@ -784,7 +791,7 @@ def bestellung_als_bestellt(bestellung_id):
         
         conn.execute('''
             UPDATE Bestellung 
-            SET Status = ?, BestelltAm = datetime('now'), BestelltVonID = ?
+            SET Status = ?, BestelltAm = datetime('now', 'localtime'), BestelltVonID = ?
             WHERE ID = ?
         ''', ('Bestellt', mitarbeiter_id, bestellung_id))
         conn.commit()

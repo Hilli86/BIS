@@ -2485,7 +2485,7 @@ def bestellung_freigeben(bestellung_id):
         # Unterschrift und Freigabe speichern
         conn.execute('''
             UPDATE Bestellung 
-            SET Status = ?, FreigegebenAm = datetime('now'), FreigegebenVonID = ?, Unterschrift = ?
+            SET Status = ?, FreigegebenAm = datetime('now', 'localtime'), FreigegebenVonID = ?, Unterschrift = ?
             WHERE ID = ?
         ''', ('Freigegeben', mitarbeiter_id, unterschrift, bestellung_id))
         conn.commit()
@@ -2520,7 +2520,7 @@ def bestellung_als_bestellt(bestellung_id):
         
         conn.execute('''
             UPDATE Bestellung 
-            SET Status = ?, BestelltAm = datetime('now'), BestelltVonID = ?
+            SET Status = ?, BestelltAm = datetime('now', 'localtime'), BestelltVonID = ?
             WHERE ID = ?
         ''', ('Bestellt', mitarbeiter_id, bestellung_id))
         conn.commit()

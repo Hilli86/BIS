@@ -1,6 +1,11 @@
 {% extends "layout/base.html" %}
 
 {% block content %}
+<div class="mb-3">
+    <a href="{% if next_url %}{{ next_url }}{% else %}{{ url_for('ersatzteile.ersatzteil_liste', kategorie=filter_params.kategorie or '', lieferant=filter_params.lieferant or '', lagerort=filter_params.lagerort or '', lagerplatz=filter_params.lagerplatz or '', q=filter_params.q or '', bestandswarnung=filter_params.bestandswarnung or '', kennzeichen=filter_params.kennzeichen or '', sort=filter_params.sort or '', dir=filter_params.dir or '') }}{% endif %}" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Zurück
+    </a>
+</div>
 <h1 class="mb-4">🔧 Ersatzteil bearbeiten</h1>
 
 <div class="card shadow-sm">

@@ -360,8 +360,8 @@ def angebotsanfrage_smart_add(ersatzteil_id):
                 
                 # Neue Anfrage erstellen
                 cursor = conn.execute('''
-                    INSERT INTO Angebotsanfrage (LieferantID, ErstelltVonID, ErstellerAbteilungID, Status)
-                    VALUES (?, ?, ?, 'Offen')
+                    INSERT INTO Angebotsanfrage (LieferantID, ErstelltVonID, ErstellerAbteilungID, Status, ErstelltAm)
+                    VALUES (?, ?, ?, 'Offen', datetime('now', 'localtime'))
                 ''', (lieferant_id, mitarbeiter_id, abteilung_id))
                 anfrage_id = cursor.lastrowid
                 
@@ -447,8 +447,8 @@ def angebotsanfrage_neu():
                 
                 # Angebotsanfrage erstellen
                 cursor = conn.execute('''
-                    INSERT INTO Angebotsanfrage (LieferantID, ErstelltVonID, ErstellerAbteilungID, Status, Bemerkung)
-                    VALUES (?, ?, ?, 'Offen', ?)
+                    INSERT INTO Angebotsanfrage (LieferantID, ErstelltVonID, ErstellerAbteilungID, Status, Bemerkung, ErstelltAm)
+                    VALUES (?, ?, ?, 'Offen', ?, datetime('now', 'localtime'))
                 ''', (lieferant_id, mitarbeiter_id, abteilung_id, bemerkung))
                 anfrage_id = cursor.lastrowid
                 
@@ -910,8 +910,8 @@ def angebotsanfrage_position_artikel_erstellen(angebotsanfrage_id, position_id):
             cursor = conn.execute('''
                 INSERT INTO Ersatzteil (
                     Bestellnummer, Bezeichnung, Beschreibung, LieferantID, 
-                    AktuellerBestand, Mindestbestand, Einheit, ErstelltVonID, Aktiv, Gelöscht, Link
-                ) VALUES (?, ?, ?, ?, 0, 0, 'Stück', ?, 1, 0, ?)
+                    AktuellerBestand, Mindestbestand, Einheit, ErstelltVonID, Aktiv, Gelöscht, Link, ErstelltAm
+                ) VALUES (?, ?, ?, ?, 0, 0, 'Stück', ?, 1, 0, ?, datetime('now', 'localtime'))
             ''', (position['Bestellnummer'], position['Bezeichnung'], position['Bemerkung'], 
                   anfrage['LieferantID'], mitarbeiter_id, link))
             
