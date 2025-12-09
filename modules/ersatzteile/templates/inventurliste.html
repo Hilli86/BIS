@@ -125,6 +125,15 @@
     </div>
 </div>
 
+<!-- Button zum Buchen aller Eingaben -->
+{% if inventur_gruppiert %}
+<div class="mb-4 text-center">
+    <button type="button" id="buchungAlleBtn" class="btn btn-success btn-lg">
+        <i class="bi bi-check-circle"></i> Eingaben Buchen
+    </button>
+</div>
+{% endif %}
+
 <div class="mb-3">
     <a href="{{ url_for('ersatzteile.ersatzteil_liste') }}" class="btn btn-secondary">
         <i class="bi bi-arrow-left"></i> Zurück zur Liste
@@ -203,86 +212,27 @@
 }
 </style>
 
-<!-- Bestätigungs-Modal -->
-<div class="modal fade" id="inventurConfirmModal" tabindex="-1" aria-labelledby="inventurConfirmModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title" id="inventurConfirmModalLabel">
-                    <i class="bi bi-check-circle"></i> Inventur bestätigen
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Schließen"></button>
-            </div>
-            <div class="modal-body">
-                <p>Möchten Sie die Inventur für folgenden Artikel durchführen?</p>
-                <div class="card bg-light mb-3">
-                    <div class="card-body">
-                        <p class="mb-1"><strong>ID:</strong> <span id="confirmErsatzteilId"></span></p>
-                        <p class="mb-1"><strong>Bestellnummer:</strong> <span id="confirmBestellnummer"></span></p>
-                        <p class="mb-1"><strong>Bezeichnung:</strong> <span id="confirmBezeichnung"></span></p>
-                        <hr>
-                        <p class="mb-0"><strong>Aktueller Bestand:</strong> <span id="confirmAktuellerBestand" class="text-primary"></span></p>
-                        <p class="mb-0"><strong>Neuer Bestand:</strong> <span id="confirmNeuerBestand" class="text-success fw-bold"></span></p>
-                    </div>
-                </div>
-                <div class="alert alert-info mb-0">
-                    <i class="bi bi-info-circle"></i> Es wird eine Lagerbuchung Typ "Inventur" erstellt und der Bestand aktualisiert.
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
-                <button type="button" class="btn btn-primary" id="confirmInventurBtn">
-                    <i class="bi bi-check-circle"></i> Bestätigen
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const inventurInputs = document.querySelectorAll('.inventur-input');
-    const confirmModal = new bootstrap.Modal(document.getElementById('inventurConfirmModal'));
-    let currentErsatzteilId = null;
-    let currentNeuerBestand = null;
-    let currentInput = null;
     
-    inventurInputs.forEach(input => {
-        // Enter-Taste erkennen
+    // Array aller Inputs für einfacheren Zugriff
+    const inventurInputsArray = Array.from(inventurInputs);
+    
+    inventurInputs.forEach((input, index) => {
+        // Enter-Taste: Zum nächsten Feld springen
         input.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                const neuerBestand = parseFloat(this.value);
-                const aktuellerBestand = parseFloat(this.getAttribute('data-aktueller-bestand'));
                 
-                // Validierung
-                if (isNaN(neuerBestand) || neuerBestand < 0) {
-                    alert('Bitte geben Sie einen gültigen Bestand ein (≥ 0).');
-                    this.focus();
-                    return;
+                // Zum nächsten Feld springen
+                const nextIndex = index + 1;
+                if (nextIndex < inventurInputsArray.length) {
+                    inventurInputsArray[nextIndex].focus();
+                    inventurInputsArray[nextIndex].select(); // Text markieren für einfacheres Überschreiben
                 }
-                
-                // Wenn sich nichts geändert hat, keine Aktion
-                if (neuerBestand === aktuellerBestand) {
-                    alert('Der neue Bestand entspricht dem aktuellen Bestand. Keine Änderung notwendig.');
-                    this.focus();
-                    return;
-                }
-                
-                // Daten für Bestätigungsfenster speichern
-                currentErsatzteilId = this.getAttribute('data-ersatzteil-id');
-                currentNeuerBestand = neuerBestand;
-                currentInput = this;
-                
-                // Bestätigungsfenster füllen
-                document.getElementById('confirmErsatzteilId').textContent = currentErsatzteilId;
-                document.getElementById('confirmBestellnummer').textContent = this.getAttribute('data-bestellnummer');
-                document.getElementById('confirmBezeichnung').textContent = this.getAttribute('data-bezeichnung');
-                document.getElementById('confirmAktuellerBestand').textContent = aktuellerBestand;
-                document.getElementById('confirmNeuerBestand').textContent = neuerBestand;
-                
-                // Modal anzeigen
-                confirmModal.show();
+                // Wenn ganz unten, nichts mehr machen
             }
         });
         
@@ -290,57 +240,91 @@ document.addEventListener('DOMContentLoaded', function() {
         // inventurInputs[0]?.focus();
     });
     
-    // Bestätigungs-Button
-    document.getElementById('confirmInventurBtn').addEventListener('click', function() {
-        if (!currentErsatzteilId || currentNeuerBestand === null) {
+    // Button "Eingaben Buchen" - Alle Eingaben sammeln und buchen
+    document.getElementById('buchungAlleBtn').addEventListener('click', function() {
+        const buchungen = [];
+        
+        // Alle Eingabefelder durchgehen
+        inventurInputsArray.forEach(input => {
+            const wert = input.value.trim();
+            
+            // Nur Felder mit Wert berücksichtigen
+            if (wert === '') {
+                return;
+            }
+            
+            const neuerBestand = parseFloat(wert);
+            const aktuellerBestand = parseFloat(input.getAttribute('data-aktueller-bestand'));
+            
+            // Validierung
+            if (isNaN(neuerBestand) || neuerBestand < 0) {
+                alert(`Ungültiger Wert bei Artikel ID ${input.getAttribute('data-ersatzteil-id')}: Bitte geben Sie einen gültigen Bestand ein (≥ 0).`);
+                input.focus();
+                throw new Error('Validierungsfehler');
+            }
+            
+            // Nur buchen wenn sich etwas geändert hat
+            if (neuerBestand !== aktuellerBestand) {
+                buchungen.push({
+                    ersatzteil_id: parseInt(input.getAttribute('data-ersatzteil-id')),
+                    neuer_bestand: neuerBestand,
+                    aktueller_bestand: aktuellerBestand,
+                    bezeichnung: input.getAttribute('data-bezeichnung'),
+                    bestellnummer: input.getAttribute('data-bestellnummer')
+                });
+            }
+        });
+        
+        // Prüfen ob überhaupt etwas zu buchen ist
+        if (buchungen.length === 0) {
+            alert('Keine Änderungen gefunden. Bitte geben Sie neue Bestände ein.');
             return;
         }
         
-        // Button deaktivieren während der Anfrage
+        // Bestätigung anzeigen
+        if (!confirm(`Möchten Sie ${buchungen.length} Inventur-Buchung(en) durchführen?`)) {
+            return;
+        }
+        
+        // Button deaktivieren während der Verarbeitung
         this.disabled = true;
+        const originalHtml = this.innerHTML;
         this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird verarbeitet...';
         
-        // AJAX-Request
-        fetch('{{ url_for("ersatzteile.inventurliste_buchung") }}', {
+        // AJAX-Request für Batch-Buchung
+        fetch('{{ url_for("ersatzteile.inventurliste_buchung_batch") }}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest'
             },
             body: JSON.stringify({
-                ersatzteil_id: currentErsatzteilId,
-                neuer_bestand: currentNeuerBestand
+                buchungen: buchungen
             })
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Erfolg: Modal schließen und Seite neu laden
-                confirmModal.hide();
-                
-                // Flash-Meldung anzeigen (falls vorhanden)
-                if (data.message) {
-                    // Toast-Benachrichtigung erstellen
-                    const toastHtml = `
-                        <div class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true" style="position: fixed; top: 20px; right: 20px; z-index: 9999;">
-                            <div class="d-flex">
-                                <div class="toast-body">
-                                    <i class="bi bi-check-circle"></i> ${data.message}
-                                </div>
-                                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                // Erfolg: Toast anzeigen
+                const toastHtml = `
+                    <div class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true" style="position: fixed; top: 20px; right: 20px; z-index: 9999;">
+                        <div class="d-flex">
+                            <div class="toast-body">
+                                <i class="bi bi-check-circle"></i> ${data.message || `${buchungen.length} Buchung(en) erfolgreich durchgeführt.`}
                             </div>
+                            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
                         </div>
-                    `;
-                    document.body.insertAdjacentHTML('beforeend', toastHtml);
-                    const toastElement = document.querySelector('.toast:last-child');
-                    const toast = new bootstrap.Toast(toastElement, { delay: 5000 });
-                    toast.show();
-                    
-                    // Toast nach dem Ausblenden entfernen
-                    toastElement.addEventListener('hidden.bs.toast', () => {
-                        toastElement.remove();
-                    });
-                }
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', toastHtml);
+                const toastElement = document.querySelector('.toast:last-child');
+                const toast = new bootstrap.Toast(toastElement, { delay: 5000 });
+                toast.show();
+                
+                // Toast nach dem Ausblenden entfernen
+                toastElement.addEventListener('hidden.bs.toast', () => {
+                    toastElement.remove();
+                });
                 
                 // Seite neu laden nach kurzer Verzögerung
                 setTimeout(() => {
@@ -350,25 +334,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Fehler anzeigen
                 alert('Fehler: ' + (data.message || 'Unbekannter Fehler'));
                 this.disabled = false;
-                this.innerHTML = '<i class="bi bi-check-circle"></i> Bestätigen';
+                this.innerHTML = originalHtml;
             }
         })
         .catch(error => {
             console.error('Fehler:', error);
-            alert('Fehler bei der Verbindung zum Server. Bitte versuchen Sie es erneut.');
+            if (error.message !== 'Validierungsfehler') {
+                alert('Fehler bei der Verbindung zum Server. Bitte versuchen Sie es erneut.');
+            }
             this.disabled = false;
-            this.innerHTML = '<i class="bi bi-check-circle"></i> Bestätigen';
+            this.innerHTML = originalHtml;
         });
-    });
-    
-    // Modal beim Schließen zurücksetzen
-    document.getElementById('inventurConfirmModal').addEventListener('hidden.bs.modal', function() {
-        currentErsatzteilId = null;
-        currentNeuerBestand = null;
-        currentInput = null;
-        const confirmBtn = document.getElementById('confirmInventurBtn');
-        confirmBtn.disabled = false;
-        confirmBtn.innerHTML = '<i class="bi bi-check-circle"></i> Bestätigen';
     });
 });
 </script>

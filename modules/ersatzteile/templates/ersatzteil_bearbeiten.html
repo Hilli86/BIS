@@ -14,8 +14,33 @@
     </div>
     <div class="card-body">
         <form method="POST">
-            {% if next_url %}
-            <input type="hidden" name="next" value="{{ next_url }}">
+            <!-- Filter-Parameter als versteckte Felder übergeben -->
+            {% if kategorie_filter %}
+            <input type="hidden" name="kategorie" value="{{ kategorie_filter }}">
+            {% endif %}
+            {% if lieferant_filter %}
+            <input type="hidden" name="lieferant" value="{{ lieferant_filter }}">
+            {% endif %}
+            {% if lagerort_filter %}
+            <input type="hidden" name="lagerort" value="{{ lagerort_filter }}">
+            {% endif %}
+            {% if lagerplatz_filter %}
+            <input type="hidden" name="lagerplatz" value="{{ lagerplatz_filter }}">
+            {% endif %}
+            {% if kennzeichen_filter %}
+            <input type="hidden" name="kennzeichen" value="{{ kennzeichen_filter }}">
+            {% endif %}
+            {% if bestandswarnung %}
+            <input type="hidden" name="bestandswarnung" value="{{ bestandswarnung }}">
+            {% endif %}
+            {% if q_filter %}
+            <input type="hidden" name="q" value="{{ q_filter }}">
+            {% endif %}
+            {% if sort_by %}
+            <input type="hidden" name="sort" value="{{ sort_by }}">
+            {% endif %}
+            {% if sort_dir %}
+            <input type="hidden" name="dir" value="{{ sort_dir }}">
             {% endif %}
             <div class="row g-3">
                 <!-- 1. Kategorie | Lieferant | Hersteller -->
@@ -171,7 +196,16 @@
                     <button type="submit" class="btn btn-primary">
                         <i class="bi bi-save"></i> Speichern
                     </button>
-                    <a href="{% if next_url %}{{ next_url }}{% else %}{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil.ID) }}{% endif %}" class="btn btn-secondary">
+                    <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil.ID, 
+                        kategorie=kategorie_filter or '', 
+                        lieferant=lieferant_filter or '', 
+                        lagerort=lagerort_filter or '', 
+                        lagerplatz=lagerplatz_filter or '', 
+                        q=q_filter or '', 
+                        sort=sort_by or '', 
+                        dir=sort_dir or '', 
+                        bestandswarnung=bestandswarnung or '', 
+                        kennzeichen=kennzeichen_filter or '') }}" class="btn btn-secondary">
                         <i class="bi bi-x-lg"></i> Abbrechen
                     </a>
                 </div>

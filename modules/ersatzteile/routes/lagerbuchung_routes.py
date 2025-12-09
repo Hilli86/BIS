@@ -558,3 +558,110 @@ def inventurliste_buchung():
             
     except Exception as e:
         return jsonify({'success': False, 'message': f'Fehler bei der Inventur-Buchung: {str(e)}'}), 500
+
+
+@ersatzteile_bp.route('/inventurliste/buchung/batch', methods=['POST'])
+@login_required
+@permission_required('artikel_buchen')
+def inventurliste_buchung_batch():
+    """Batch-Inventur-Buchung - Mehrere Buchungen auf einmal"""
+    mitarbeiter_id = session.get('user_id')
+    
+    try:
+        buchungen = request.json.get('buchungen', [])
+        
+        if not buchungen or not isinstance(buchungen, list):
+            return jsonify({'success': False, 'message': 'Keine Buchungen übermittelt.'}), 400
+        
+        if len(buchungen) == 0:
+            return jsonify({'success': False, 'message': 'Keine Buchungen zum Buchen vorhanden.'}), 400
+        
+        # Validierung aller Buchungen
+        for buchung in buchungen:
+            ersatzteil_id = buchung.get('ersatzteil_id')
+            neuer_bestand = buchung.get('neuer_bestand')
+            
+            if not ersatzteil_id or neuer_bestand is None:
+                return jsonify({'success': False, 'message': 'Ungültige Buchungsdaten: Ersatzteil-ID und neuer Bestand sind erforderlich.'}), 400
+            
+            try:
+                ersatzteil_id = int(ersatzteil_id)
+                neuer_bestand = float(neuer_bestand)
+            except (ValueError, TypeError):
+                return jsonify({'success': False, 'message': f'Ungültige Werte für Ersatzteil-ID {ersatzteil_id} oder Bestand.'}), 400
+            
+            if neuer_bestand < 0:
+                return jsonify({'success': False, 'message': f'Bestand kann nicht negativ sein (Ersatzteil-ID: {ersatzteil_id}).'}), 400
+        
+        # Alle Buchungen durchführen
+        erfolgreich = 0
+        fehlgeschlagen = 0
+        fehler_meldungen = []
+        
+        with get_db_connection() as conn:
+            try:
+                for buchung in buchungen:
+                    ersatzteil_id = int(buchung.get('ersatzteil_id'))
+                    neuer_bestand = float(buchung.get('neuer_bestand'))
+                    aktueller_bestand = float(buchung.get('aktueller_bestand', 0))
+                    
+                    # Berechtigung prüfen
+                    if not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
+                        fehlgeschlagen += 1
+                        bezeichnung = buchung.get('bezeichnung', f'ID {ersatzteil_id}')
+                        fehler_meldungen.append(f'{bezeichnung}: Keine Berechtigung')
+                        continue
+                    
+                    # Prüfe ob Ersatzteil existiert
+                    ersatzteil = conn.execute('SELECT AktuellerBestand, Preis, Waehrung FROM Ersatzteil WHERE ID = ? AND Gelöscht = 0', (ersatzteil_id,)).fetchone()
+                    if not ersatzteil:
+                        fehlgeschlagen += 1
+                        fehler_meldungen.append(f'ID {ersatzteil_id}: Ersatzteil nicht gefunden')
+                        continue
+                    
+                    # Nur buchen wenn sich etwas geändert hat
+                    if neuer_bestand == aktueller_bestand:
+                        continue
+                    
+                    # Inventur-Buchung über Service erstellen
+                    success, message = create_inventur_buchung(
+                        ersatzteil_id=ersatzteil_id,
+                        neuer_bestand=neuer_bestand,
+                        mitarbeiter_id=mitarbeiter_id,
+                        conn=conn,
+                        bemerkung=f'Inventur: Bestand von {aktueller_bestand} auf {neuer_bestand} geändert'
+                    )
+                    
+                    if success:
+                        erfolgreich += 1
+                    else:
+                        fehlgeschlagen += 1
+                        bezeichnung = buchung.get('bezeichnung', f'ID {ersatzteil_id}')
+                        fehler_meldungen.append(f'{bezeichnung}: {message}')
+                
+                # Alle Änderungen committen
+                conn.commit()
+                
+                # Erfolgsmeldung zusammenstellen
+                if fehlgeschlagen == 0:
+                    message = f'{erfolgreich} Buchung(en) erfolgreich durchgeführt.'
+                else:
+                    message = f'{erfolgreich} Buchung(en) erfolgreich, {fehlgeschlagen} fehlgeschlagen.'
+                    if fehler_meldungen:
+                        message += ' Fehler: ' + '; '.join(fehler_meldungen[:5])  # Max 5 Fehler anzeigen
+                        if len(fehler_meldungen) > 5:
+                            message += f' (und {len(fehler_meldungen) - 5} weitere)'
+                
+                return jsonify({
+                    'success': True,
+                    'message': message,
+                    'erfolgreich': erfolgreich,
+                    'fehlgeschlagen': fehlgeschlagen
+                })
+                
+            except Exception as e:
+                conn.rollback()
+                return jsonify({'success': False, 'message': f'Fehler bei der Batch-Buchung: {str(e)}'}), 500
+            
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Fehler bei der Batch-Inventur-Buchung: {str(e)}'}), 500

@@ -184,6 +184,17 @@ def ersatzteil_detail(ersatzteil_id):
     """Ersatzteil-Detailansicht"""
     mitarbeiter_id = session.get('user_id')
     
+    # Filter-Parameter aus URL lesen (für "Zurück zur Liste" Button)
+    kategorie_filter = request.args.get('kategorie')
+    lieferant_filter = request.args.get('lieferant')
+    lagerort_filter = request.args.get('lagerort')
+    lagerplatz_filter = request.args.get('lagerplatz')
+    kennzeichen_filter = request.args.get('kennzeichen')
+    bestandswarnung = request.args.get('bestandswarnung')
+    q_filter = request.args.get('q')
+    sort_by = request.args.get('sort')
+    sort_dir = request.args.get('dir')
+    
     with get_db_connection() as conn:
         # Berechtigung prüfen
         if not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
@@ -491,8 +502,16 @@ def ersatzteil_bearbeiten(ersatzteil_id):
     mitarbeiter_id = session.get('user_id')
     is_admin = 'admin' in session.get('user_berechtigungen', [])
     
-    # Next-Parameter lesen (für Redirect nach Speichern)
-    next_url = request.args.get('next') or request.form.get('next')
+    # Filter-Parameter aus URL oder Formular lesen (für "Zurück zur Liste" Button)
+    kategorie_filter = request.args.get('kategorie') or request.form.get('kategorie')
+    lieferant_filter = request.args.get('lieferant') or request.form.get('lieferant')
+    lagerort_filter = request.args.get('lagerort') or request.form.get('lagerort')
+    lagerplatz_filter = request.args.get('lagerplatz') or request.form.get('lagerplatz')
+    kennzeichen_filter = request.args.get('kennzeichen') or request.form.get('kennzeichen')
+    bestandswarnung = request.args.get('bestandswarnung') or request.form.get('bestandswarnung')
+    q_filter = request.args.get('q') or request.form.get('q')
+    sort_by = request.args.get('sort') or request.form.get('sort')
+    sort_dir = request.args.get('dir') or request.form.get('dir')
     
     # Filter-Parameter aus Query-String lesen (für Zurück-Button)
     filter_params = {
@@ -592,9 +611,6 @@ def ersatzteil_bearbeiten(ersatzteil_id):
                 
                 conn.commit()
                 flash('Ersatzteil erfolgreich aktualisiert.', 'success')
-                # Zurück zur Artikelliste, wenn man von dort kam, sonst zur Detail-Seite mit Filter-Parametern
-                if next_url:
-                    return redirect(next_url)
                 # Zur Detail-Seite mit Filter-Parametern zurückleiten
                 detail_url = url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id)
                 # Filter-Parameter hinzufügen (nur wenn vorhanden)
@@ -630,7 +646,6 @@ def ersatzteil_bearbeiten(ersatzteil_id):
         lagerorte=lagerorte,
         lagerplaetze=lagerplaetze,
         zugriff_ids=zugriff_ids,
-        next_url=next_url,
         filter_params=filter_params
     )
 
