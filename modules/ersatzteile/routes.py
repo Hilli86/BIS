@@ -2491,11 +2491,12 @@ def bestellung_freigeben(bestellung_id):
         conn.commit()
         
         # Alle bestehenden Benachrichtigungen für diese Bestellung löschen (egal ob gelesen oder nicht)
+        # Pattern muss sowohl "bestellung_id":123 als auch "bestellung_id": 123 matchen
         conn.execute('''
             DELETE FROM Benachrichtigung 
             WHERE Modul = 'bestellwesen' 
-            AND Zusatzdaten LIKE ?
-        ''', (f'%bestellung_id":{bestellung_id}%',))
+            AND (Zusatzdaten LIKE ? OR Zusatzdaten LIKE ?)
+        ''', (f'%"bestellung_id":{bestellung_id}%', f'%"bestellung_id": {bestellung_id}%'))
         conn.commit()
         
         # Benachrichtigungen erstellen
@@ -2534,11 +2535,12 @@ def bestellung_als_bestellt(bestellung_id):
         conn.commit()
         
         # Alle bestehenden Benachrichtigungen für diese Bestellung löschen (egal ob gelesen oder nicht)
+        # Pattern muss sowohl "bestellung_id":123 als auch "bestellung_id": 123 matchen
         conn.execute('''
             DELETE FROM Benachrichtigung 
             WHERE Modul = 'bestellwesen' 
-            AND Zusatzdaten LIKE ?
-        ''', (f'%bestellung_id":{bestellung_id}%',))
+            AND (Zusatzdaten LIKE ? OR Zusatzdaten LIKE ?)
+        ''', (f'%"bestellung_id":{bestellung_id}%', f'%"bestellung_id": {bestellung_id}%'))
         conn.commit()
         
         # Benachrichtigungen erstellen
