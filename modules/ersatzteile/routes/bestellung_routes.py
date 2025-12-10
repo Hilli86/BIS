@@ -260,6 +260,11 @@ def bestellung_detail(bestellung_id):
     """Detailansicht einer Bestellung"""
     mitarbeiter_id = session.get('user_id')
     
+    # Filter-Parameter aus URL übernehmen (für Zurück-Button)
+    status_filter_list = request.args.getlist('status')
+    lieferant_filter = request.args.get('lieferant', '')
+    abteilung_filter = request.args.get('abteilung', '')
+    
     with get_db_connection() as conn:
         # Bestellung laden
         bestellung = conn.execute('''
@@ -358,7 +363,10 @@ def bestellung_detail(bestellung_id):
         gesamtbetrag=gesamtbetrag,
         waehrung=waehrung,
         kann_freigabebemerkung_bearbeiten=kann_freigabebemerkung_bearbeiten,
-        is_admin=is_admin
+        is_admin=is_admin,
+        status_filter_list=status_filter_list,
+        lieferant_filter=lieferant_filter,
+        abteilung_filter=abteilung_filter
     )
 
 

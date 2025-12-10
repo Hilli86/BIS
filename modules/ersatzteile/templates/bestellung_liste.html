@@ -113,7 +113,7 @@
                 </thead>
                 <tbody>
                     {% for b in bestellungen %}
-                    <tr style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.bestellung_detail', bestellung_id=b.ID) }}';">
+                    <tr style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.bestellung_detail', bestellung_id=b.ID) }}{% if status_filter_list or lieferant_filter or abteilung_filter %}?{% endif %}{% for status in status_filter_list %}status={{ status|urlencode }}{% if not loop.last %}&{% endif %}{% endfor %}{% if status_filter_list and (lieferant_filter or abteilung_filter) %}&{% endif %}{% if lieferant_filter %}lieferant={{ lieferant_filter|urlencode }}{% endif %}{% if lieferant_filter and abteilung_filter %}&{% endif %}{% if abteilung_filter %}abteilung={{ abteilung_filter|urlencode }}{% endif %}';">
                         <td><strong>{{ b.ID }}</strong></td>
                         <td>{{ b.LieferantName or '-' }}</td>
                         <td>
