@@ -152,7 +152,10 @@ def wareneingang_bestellung(bestellung_id):
                     
                     try:
                         pos_id_int = int(pos_id)
-                        erhaltene_menge = int(erhaltene_mengen[i]) if erhaltene_mengen[i] else 0
+                        erhaltene_menge_str = erhaltene_mengen[i].strip() if erhaltene_mengen[i] else ''
+                        if not erhaltene_menge_str:
+                            continue  # Überspringe Positionen ohne eingegebene Menge
+                        erhaltene_menge = int(erhaltene_menge_str)
                         
                         # Position laden
                         pos = conn.execute('SELECT Menge, ErhalteneMenge, ErsatzteilID FROM BestellungPosition WHERE ID = ?', (pos_id_int,)).fetchone()
@@ -207,9 +210,16 @@ def wareneingang_bestellung(bestellung_id):
                 
                 # Status der Bestellung aktualisieren
                 if alle_vollstaendig:
-                    conn.execute('UPDATE Bestellung SET Status = ? WHERE ID = ?', ('Erledigt', bestellung_id))
+                    neuer_status = 'Erledigt'
                 elif mindestens_eine_teilweise:
-                    conn.execute('UPDATE Bestellung SET Status = ? WHERE ID = ?', ('Teilweise erhalten', bestellung_id))
+                    neuer_status = 'Teilweise erhalten'
+                else:
+                    # Keine Position teilweise und nicht alle vollständig -> Status bleibt unverändert
+                    neuer_status = None
+                
+                # Status nur aktualisieren wenn sich etwas geändert hat
+                if neuer_status:
+                    conn.execute('UPDATE Bestellung SET Status = ? WHERE ID = ?', (neuer_status, bestellung_id))
                 
                 conn.commit()
                 
