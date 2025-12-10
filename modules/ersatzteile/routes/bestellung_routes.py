@@ -762,12 +762,13 @@ def bestellung_freigeben(bestellung_id):
         ''', ('Freigegeben', mitarbeiter_id, unterschrift, bestellung_id))
         conn.commit()
         
-        # Alle bestehenden Benachrichtigungen für diese Bestellung löschen
+        # Alle bestehenden Benachrichtigungen für diese Bestellung löschen (egal ob gelesen oder nicht)
         conn.execute('''
             DELETE FROM Benachrichtigung 
             WHERE Modul = 'bestellwesen' 
             AND Zusatzdaten LIKE ?
         ''', (f'%bestellung_id":{bestellung_id}%',))
+        conn.commit()
         
         # Benachrichtigungen erstellen
         try:
