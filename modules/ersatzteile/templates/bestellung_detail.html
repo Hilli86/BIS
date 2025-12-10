@@ -85,6 +85,8 @@
                                 <span class="badge bg-success">Erhalten</span>
                                 {% elif bestellung.Status == 'Erledigt' %}
                                 <span class="badge bg-dark">Erledigt</span>
+                                {% elif bestellung.Status == 'Storniert' %}
+                                <span class="badge bg-danger">Storniert</span>
                                 {% else %}
                                 <span class="badge bg-secondary">{{ bestellung.Status }}</span>
                                 {% endif %}
@@ -206,6 +208,15 @@
             <a href="{{ url_for('ersatzteile.wareneingang_bestellung', bestellung_id=bestellung.ID) }}" class="btn btn-success">
                 <i class="bi bi-box-arrow-in-down"></i> Wareneingang buchen
             </a>
+            {% endif %}
+            
+            {% if bestellung.Status == 'Erledigt' %}
+            <form method="POST" action="{{ url_for('ersatzteile.bestellung_stornieren', bestellung_id=bestellung.ID) }}" class="d-inline" 
+                  onsubmit="return confirm('Möchten Sie diese Bestellung wirklich stornieren?');">
+                <button type="submit" class="btn btn-danger">
+                    <i class="bi bi-x-circle"></i> Bestellung stornieren
+                </button>
+            </form>
             {% endif %}
         </div>
     </div>

@@ -808,6 +808,41 @@ def bestellung_als_bestellt(bestellung_id):
     return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
 
 
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/stornieren', methods=['POST'])
+@login_required
+def bestellung_stornieren(bestellung_id):
+    """Bestellung stornieren"""
+    mitarbeiter_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ? AND Gelöscht = 0', (bestellung_id,)).fetchone()
+        if not bestellung:
+            flash('Bestellung nicht gefunden.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_liste'))
+        
+        if bestellung['Status'] != 'Erledigt':
+            flash('Bestellung kann nur im Status "Erledigt" storniert werden.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+        
+        conn.execute('''
+            UPDATE Bestellung 
+            SET Status = ?
+            WHERE ID = ?
+        ''', ('Storniert', bestellung_id))
+        conn.commit()
+        
+        # Benachrichtigungen erstellen
+        try:
+            from utils.benachrichtigungen import erstelle_benachrichtigung_fuer_bestellung
+            erstelle_benachrichtigung_fuer_bestellung(bestellung_id, 'bestellung_storniert', conn)
+        except Exception as e:
+            print(f"Fehler beim Erstellen von Benachrichtigungen: {e}")
+        
+        flash('Bestellung wurde storniert.', 'success')
+    
+    return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/position-hinzufuegen', methods=['POST'])
 @login_required
 def bestellung_position_hinzufuegen(bestellung_id):
