@@ -170,8 +170,8 @@ def bestellung_liste():
             query += f' AND b.Status IN ({placeholders})'
             params.extend(status_filter_list)
         else:
-            # Standard: Erledigt ausschließen
-            query += " AND b.Status != 'Erledigt'"
+            # Standard: Erledigt und Storniert ausschließen
+            query += " AND b.Status != 'Erledigt' AND b.Status != 'Storniert'"
         
         # Lieferant-Filter
         if lieferant_filter:
