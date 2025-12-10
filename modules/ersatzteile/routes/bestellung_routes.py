@@ -804,6 +804,14 @@ def bestellung_als_bestellt(bestellung_id):
         ''', ('Bestellt', mitarbeiter_id, bestellung_id))
         conn.commit()
         
+        # Alle bestehenden Benachrichtigungen für diese Bestellung löschen (egal ob gelesen oder nicht)
+        conn.execute('''
+            DELETE FROM Benachrichtigung 
+            WHERE Modul = 'bestellwesen' 
+            AND Zusatzdaten LIKE ?
+        ''', (f'%bestellung_id":{bestellung_id}%',))
+        conn.commit()
+        
         # Benachrichtigungen erstellen
         try:
             from utils.benachrichtigungen import erstelle_benachrichtigung_fuer_bestellung
