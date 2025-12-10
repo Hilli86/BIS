@@ -265,11 +265,12 @@ def themaneu():
             ersatzteil_ids = request.form.getlist('ersatzteil_id[]')
             ersatzteil_mengen = request.form.getlist('ersatzteil_menge[]')
             ersatzteil_bemerkungen = request.form.getlist('ersatzteil_bemerkung[]')
+            ersatzteil_kostenstellen = request.form.getlist('ersatzteil_kostenstelle[]')
             
             is_admin = 'admin' in session.get('user_berechtigungen', [])
             services.process_ersatzteile_fuer_thema(
                 thema_id, ersatzteil_ids, ersatzteil_mengen, ersatzteil_bemerkungen,
-                mitarbeiter_id, conn, is_admin=is_admin
+                mitarbeiter_id, conn, is_admin=is_admin, ersatzteil_kostenstellen=ersatzteil_kostenstellen
             )
 
             conn.commit()
@@ -288,7 +289,8 @@ def themaneu():
         status=form_data['status'],
         bereiche=form_data['bereiche'],
         auswaehlbare_abteilungen=form_data['auswaehlbare_abteilungen'],
-        primaer_abteilung_id=form_data['primaer_abteilung_id']
+        primaer_abteilung_id=form_data['primaer_abteilung_id'],
+        kostenstellen=form_data['kostenstellen']
     )
 
 

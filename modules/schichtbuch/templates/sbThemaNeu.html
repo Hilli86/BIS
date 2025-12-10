@@ -162,6 +162,13 @@
 </table>
 
 <script>
+    // Kostenstellen für JavaScript verfügbar machen
+    const kostenstellen = [
+        {% for k in kostenstellen %}
+        {id: {{ k.ID }}, bezeichnung: "{{ k.Bezeichnung|e }}"}{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+    
     const bereichSelect = document.getElementById('bereich');
     const gewerkSelect = document.getElementById('gewerk');
 
@@ -211,7 +218,7 @@
         row.className = 'row g-2 mb-2 ersatzteil-row';
         row.setAttribute('data-row-id', ersatzteilCounter);
         row.innerHTML = `
-            <div class="col-md-2">
+            <div class="col-md-3">
                 <label class="form-label small">Ersatzteil-ID:</label>
                 <div class="input-group input-group-sm">
                     <input type="number" name="ersatzteil_id[]" class="form-control form-control-sm ersatzteil-id-input" placeholder="ID" min="1">
@@ -219,20 +226,23 @@
                         <i class="bi bi-arrow-right"></i>
                     </button>
                 </div>
-            </div>
-            <div class="col-md-3">
-                <label class="form-label small">Bestellnummer:</label>
-                <input type="text" name="ersatzteil_bestellnummer[]" class="form-control form-control-sm ersatzteil-bestellnummer" readonly>
-            </div>
-            <div class="col-md-3">
-                <label class="form-label small">Bezeichnung:</label>
-                <input type="text" name="ersatzteil_bezeichnung[]" class="form-control form-control-sm ersatzteil-bezeichnung" readonly>
-            </div>
-            <div class="col-md-1">
-                <label class="form-label small">Menge:</label>
-                <input type="number" name="ersatzteil_menge[]" class="form-control form-control-sm" value="1" min="1" required>
+                <div class="mt-1">
+                    <small class="text-muted">
+                        <span class="ersatzteil-info-display">Bitte Ersatzteil-ID eingeben</span>
+                    </small>
+                </div>
             </div>
             <div class="col-md-2">
+                <label class="form-label small">Menge:</label>
+                <input type="number" name="ersatzteil_menge[]" class="form-control form-control-sm ersatzteil-menge-input" value="1" min="1" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Kostenstelle:</label>
+                <select name="ersatzteil_kostenstelle[]" class="form-select form-select-sm ersatzteil-kostenstelle-select">
+                    <option value="">-- Keine --</option>
+                </select>
+            </div>
+            <div class="col-md-3">
                 <label class="form-label small">Bemerkung:</label>
                 <input type="text" name="ersatzteil_bemerkung[]" class="form-control form-control-sm" placeholder="Optional...">
             </div>
@@ -246,6 +256,17 @@
         
         container.appendChild(row);
         emptyMessage.style.display = 'none';
+        
+        // Kostenstellen-Optionen zum Select hinzufügen
+        const kostenstelleSelect = row.querySelector('.ersatzteil-kostenstelle-select');
+        if (kostenstelleSelect && kostenstellen) {
+            kostenstellen.forEach(k => {
+                const option = document.createElement('option');
+                option.value = k.id;
+                option.textContent = k.bezeichnung;
+                kostenstelleSelect.appendChild(option);
+            });
+        }
         
         // Event-Listener für Ersatzteil-ID-Input
         const ersatzteilInput = row.querySelector('.ersatzteil-id-input');
@@ -265,6 +286,17 @@
                 }
             }
         });
+        
+        // Event-Listener für Mengen-Validierung
+        const mengeInput = row.querySelector('.ersatzteil-menge-input');
+        if (mengeInput) {
+            mengeInput.addEventListener('input', function() {
+                validateMenge(row);
+            });
+            mengeInput.addEventListener('change', function() {
+                validateMenge(row);
+            });
+        }
     }
     
     // 🔸 Ersatzteil entfernen
@@ -278,16 +310,38 @@
         }
     }
     
+    // 🔸 Menge validieren (wenn Bestand < Menge, dann Feld markieren)
+    function validateMenge(row) {
+        const mengeInput = row.querySelector('.ersatzteil-menge-input');
+        const bestandStr = row.getAttribute('data-ersatzteil-bestand');
+        
+        if (!mengeInput || !bestandStr || bestandStr === '') {
+            mengeInput?.classList.remove('is-invalid', 'border-warning');
+            return;
+        }
+        
+        const bestand = parseInt(bestandStr) || 0;
+        const menge = parseInt(mengeInput.value) || 0;
+        
+        if (menge > 0 && bestand < menge) {
+            mengeInput.classList.add('is-invalid', 'border-warning');
+        } else {
+            mengeInput.classList.remove('is-invalid', 'border-warning');
+        }
+    }
+    
     // 🔸 Ersatzteil-Informationen laden (von Input-Feld)
     function lookupErsatzteilForThema(input) {
         const row = input.closest('.ersatzteil-row');
-        const bestellnummerInput = row.querySelector('.ersatzteil-bestellnummer');
-        const bezeichnungInput = row.querySelector('.ersatzteil-bezeichnung');
+        const infoDisplay = row.querySelector('.ersatzteil-info-display');
+        const mengeInput = row.querySelector('.ersatzteil-menge-input');
         const ersatzteilId = input.value.trim();
         
         if (!ersatzteilId) {
-            bestellnummerInput.value = '';
-            bezeichnungInput.value = '';
+            infoDisplay.textContent = 'Bitte Ersatzteil-ID eingeben';
+            infoDisplay.className = 'text-muted';
+            row.setAttribute('data-ersatzteil-bestand', '');
+            validateMenge(row);
             return;
         }
         
@@ -298,18 +352,32 @@
             .then(data => {
                 input.disabled = false;
                 if (data.success) {
-                    bestellnummerInput.value = data.bestellnummer || '';
-                    bezeichnungInput.value = data.bezeichnung || '';
+                    const bestellnummer = data.bestellnummer || 'Keine Bestellnummer';
+                    const bezeichnung = data.bezeichnung || 'Keine Bezeichnung';
+                    const bestand = data.bestand || 0;
+                    const einheit = data.einheit || '';
+                    
+                    infoDisplay.innerHTML = `<strong>${bestellnummer}</strong> - ${bezeichnung}`;
+                    infoDisplay.className = 'text-muted';
+                    row.setAttribute('data-ersatzteil-bestand', bestand);
                     input.classList.remove('is-invalid');
+                    
+                    // Validierung der Menge
+                    validateMenge(row);
                 } else {
-                    bestellnummerInput.value = '';
-                    bezeichnungInput.value = '';
+                    infoDisplay.textContent = 'Ersatzteil nicht gefunden';
+                    infoDisplay.className = 'text-danger';
+                    row.setAttribute('data-ersatzteil-bestand', '');
                     input.classList.add('is-invalid');
+                    validateMenge(row);
                     alert(data.message || 'Ersatzteil nicht gefunden.');
                 }
             })
             .catch(error => {
                 input.disabled = false;
+                infoDisplay.textContent = 'Fehler beim Laden';
+                infoDisplay.className = 'text-danger';
+                row.setAttribute('data-ersatzteil-bestand', '');
                 console.error('Fehler:', error);
                 alert('Fehler beim Laden der Ersatzteil-Daten.');
             });
@@ -319,8 +387,7 @@
     function lookupErsatzteilForThemaButton(button) {
         const row = button.closest('.ersatzteil-row');
         const ersatzteilInput = row.querySelector('.ersatzteil-id-input');
-        const bestellnummerInput = row.querySelector('.ersatzteil-bestellnummer');
-        const bezeichnungInput = row.querySelector('.ersatzteil-bezeichnung');
+        const infoDisplay = row.querySelector('.ersatzteil-info-display');
         const ersatzteilId = ersatzteilInput.value.trim();
         
         // Wenn keine ID eingegeben, Modal öffnen
@@ -342,17 +409,23 @@
                 ersatzteilInput.disabled = false;
                 
                 if (data.success) {
-                    bestellnummerInput.value = data.bestellnummer || '';
-                    bezeichnungInput.value = data.bezeichnung || '';
-                    bestellnummerInput.classList.remove('is-invalid');
-                    bezeichnungInput.classList.remove('is-invalid');
+                    const bestellnummer = data.bestellnummer || 'Keine Bestellnummer';
+                    const bezeichnung = data.bezeichnung || 'Keine Bezeichnung';
+                    const bestand = data.bestand || 0;
+                    
+                    infoDisplay.innerHTML = `<strong>${bestellnummer}</strong> - ${bezeichnung}`;
+                    infoDisplay.className = 'text-muted';
+                    row.setAttribute('data-ersatzteil-bestand', bestand);
                     ersatzteilInput.classList.remove('is-invalid');
+                    
+                    // Validierung der Menge
+                    validateMenge(row);
                 } else {
-                    bestellnummerInput.value = '';
-                    bezeichnungInput.value = '';
-                    bestellnummerInput.classList.add('is-invalid');
-                    bezeichnungInput.classList.add('is-invalid');
+                    infoDisplay.textContent = 'Ersatzteil nicht gefunden';
+                    infoDisplay.className = 'text-danger';
+                    row.setAttribute('data-ersatzteil-bestand', '');
                     ersatzteilInput.classList.add('is-invalid');
+                    validateMenge(row);
                     alert(data.message || 'Ersatzteil nicht gefunden.');
                 }
             })
@@ -360,6 +433,9 @@
                 button.disabled = false;
                 button.innerHTML = '<i class="bi bi-arrow-right"></i>';
                 ersatzteilInput.disabled = false;
+                infoDisplay.textContent = 'Fehler beim Laden';
+                infoDisplay.className = 'text-danger';
+                row.setAttribute('data-ersatzteil-bestand', '');
                 console.error('Fehler:', error);
                 alert('Fehler beim Laden der Ersatzteil-Daten.');
             });
@@ -435,10 +511,11 @@
         let html = '<div class="list-group">';
         ersatzteile.forEach(ersatzteil => {
             const bestandText = `${ersatzteil.bestand || 0} ${ersatzteil.einheit || ''}`.trim();
+            const bestand = ersatzteil.bestand || 0;
             const bestellnummerEscaped = (ersatzteil.bestellnummer || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
             const bezeichnungEscaped = (ersatzteil.bezeichnung || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
             html += `
-                <a href="#" class="list-group-item list-group-item-action" onclick="selectErsatzteilThema(${ersatzteil.id}, '${bestellnummerEscaped}', '${bezeichnungEscaped}', event)">
+                <a href="#" class="list-group-item list-group-item-action" onclick="selectErsatzteilThema(${ersatzteil.id}, '${bestellnummerEscaped}', '${bezeichnungEscaped}', ${bestand}, event)">
                     <div class="d-flex w-100 justify-content-between">
                         <h6 class="mb-1">${ersatzteil.bestellnummer || 'Keine Bestellnummer'}</h6>
                         <small>${bestandText}</small>
@@ -479,7 +556,7 @@
     }
     
     // 🔸 Ersatzteil aus Modal auswählen
-    function selectErsatzteilThema(id, bestellnummer, bezeichnung, event) {
+    function selectErsatzteilThema(id, bestellnummer, bezeichnung, bestand, event) {
         event.preventDefault();
         
         const modal = bootstrap.Modal.getInstance(document.getElementById('ersatzteilModalThema'));
@@ -496,17 +573,20 @@
         
         if (targetRow) {
             const ersatzteilInput = targetRow.querySelector('.ersatzteil-id-input');
-            const bestellnummerDisplay = targetRow.querySelector('.ersatzteil-bestellnummer');
-            const bezeichnungDisplay = targetRow.querySelector('.ersatzteil-bezeichnung');
+            const infoDisplay = targetRow.querySelector('.ersatzteil-info-display');
             
             if (ersatzteilInput) ersatzteilInput.value = id;
-            if (bestellnummerDisplay) bestellnummerDisplay.value = bestellnummer || '';
-            if (bezeichnungDisplay) bezeichnungDisplay.value = bezeichnung || '';
+            if (infoDisplay) {
+                infoDisplay.innerHTML = `<strong>${bestellnummer || 'Keine Bestellnummer'}</strong> - ${bezeichnung || 'Keine Bezeichnung'}`;
+                infoDisplay.className = 'text-muted';
+            }
             
-            // Validierung entfernen
-            if (bestellnummerDisplay) bestellnummerDisplay.classList.remove('is-invalid');
-            if (bezeichnungDisplay) bezeichnungDisplay.classList.remove('is-invalid');
+            // Bestand speichern
+            targetRow.setAttribute('data-ersatzteil-bestand', bestand || 0);
+            
+            // Validierung entfernen und Menge validieren
             if (ersatzteilInput) ersatzteilInput.classList.remove('is-invalid');
+            validateMenge(targetRow);
         }
         
         modal.hide();
@@ -537,6 +617,18 @@
             // Formular leeren
             this.reset();
             gewerkSelect.disabled = true;
+
+            // Ersatzteile-Container leeren
+            const ersatzteileContainer = document.getElementById('ersatzteileContainer');
+            const ersatzteileEmptyMessage = document.getElementById('ersatzteileEmptyMessage');
+            if (ersatzteileContainer) {
+                ersatzteileContainer.innerHTML = '';
+            }
+            if (ersatzteileEmptyMessage) {
+                ersatzteileEmptyMessage.style.display = 'block';
+            }
+            // Counter zurücksetzen
+            ersatzteilCounter = 0;
 
             // Neue Zeile an den Anfang der Tabelle setzen
             const tbody = document.querySelector('#themenTabelle tbody');

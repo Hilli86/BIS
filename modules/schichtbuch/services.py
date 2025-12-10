@@ -493,7 +493,8 @@ def create_thema(gewerk_id, status_id, mitarbeiter_id, taetigkeit_id, bemerkung,
 
 
 def process_ersatzteile_fuer_thema(thema_id, ersatzteil_ids, ersatzteil_mengen, 
-                                   ersatzteil_bemerkungen, mitarbeiter_id, conn, is_admin=False):
+                                   ersatzteil_bemerkungen, mitarbeiter_id, conn, is_admin=False,
+                                   ersatzteil_kostenstellen=None):
     """
     Verarbeitet Ersatzteile bei Thema-Erstellung und erstellt Lagerbuchungen
     
@@ -505,6 +506,7 @@ def process_ersatzteile_fuer_thema(thema_id, ersatzteil_ids, ersatzteil_mengen,
         mitarbeiter_id: ID des Mitarbeiters
         conn: Datenbankverbindung
         is_admin: Ob der Mitarbeiter Admin ist
+        ersatzteil_kostenstellen: Liste von Kostenstellen-IDs (optional)
         
     Returns:
         Anzahl der erfolgreich verarbeiteten Ersatzteile
@@ -525,6 +527,7 @@ def process_ersatzteile_fuer_thema(thema_id, ersatzteil_ids, ersatzteil_mengen,
             ersatzteil_id = int(ersatzteil_id_str)
             menge = int(ersatzteil_mengen[i]) if i < len(ersatzteil_mengen) and ersatzteil_mengen[i] else 1
             bemerkung = ersatzteil_bemerkungen[i].strip() if i < len(ersatzteil_bemerkungen) and ersatzteil_bemerkungen[i] else None
+            kostenstelle_id = int(ersatzteil_kostenstellen[i]) if ersatzteil_kostenstellen and i < len(ersatzteil_kostenstellen) and ersatzteil_kostenstellen[i] and ersatzteil_kostenstellen[i].strip() else None
             
             if menge <= 0:
                 continue
@@ -570,8 +573,8 @@ def process_ersatzteile_fuer_thema(thema_id, ersatzteil_ids, ersatzteil_mengen,
             conn.execute('''
                 INSERT INTO Lagerbuchung (
                     ErsatzteilID, Typ, Menge, Grund, ThemaID,
-                    VerwendetVonID, Bemerkung, Preis, Waehrung, Buchungsdatum
-                ) VALUES (?, 'Ausgang', ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
+                    VerwendetVonID, Bemerkung, Preis, Waehrung, Buchungsdatum, KostenstelleID
+                ) VALUES (?, 'Ausgang', ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'), ?)
             ''', (
                 ersatzteil_id, 
                 menge, 
@@ -580,7 +583,8 @@ def process_ersatzteile_fuer_thema(thema_id, ersatzteil_ids, ersatzteil_mengen,
                 mitarbeiter_id,
                 bemerkung if bemerkung else None,
                 artikel_preis,
-                artikel_waehrung
+                artikel_waehrung,
+                kostenstelle_id
             ))
             
             # Bestand aktualisieren
@@ -638,6 +642,9 @@ def get_thema_erstellung_form_data(mitarbeiter_id, conn):
     
     # Auswählbare Abteilungen für Sichtbarkeitssteuerung
     auswaehlbare_abteilungen = get_auswaehlbare_abteilungen_fuer_neues_thema(mitarbeiter_id, conn)
+    
+    # Kostenstellen für Dropdown
+    kostenstellen = conn.execute('SELECT ID, Bezeichnung FROM Kostenstelle WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung').fetchall()
 
     return {
         'gewerke': gewerke,
@@ -645,7 +652,8 @@ def get_thema_erstellung_form_data(mitarbeiter_id, conn):
         'status': status,
         'bereiche': bereiche,
         'auswaehlbare_abteilungen': auswaehlbare_abteilungen,
-        'primaer_abteilung_id': primaer_abteilung_id
+        'primaer_abteilung_id': primaer_abteilung_id,
+        'kostenstellen': kostenstellen
     }
 
 
