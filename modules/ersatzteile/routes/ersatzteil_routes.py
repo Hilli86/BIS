@@ -618,6 +618,20 @@ def ersatzteil_bearbeiten(ersatzteil_id):
                 # Prüfen, ob man von der Liste oder vom Detail kommt
                 from_page = request.form.get('from', 'list')
                 
+                # Filter-Parameter für Redirect aus request.form ODER request.args lesen
+                # request.form hat Vorrang (beim POST)
+                filter_params = {
+                    'kategorie': request.form.get('kategorie') or request.args.get('kategorie', ''),
+                    'lieferant': request.form.get('lieferant') or request.args.get('lieferant', ''),
+                    'lagerort': request.form.get('lagerort') or request.args.get('lagerort', ''),
+                    'lagerplatz': request.form.get('lagerplatz') or request.args.get('lagerplatz', ''),
+                    'q': request.form.get('q') or request.args.get('q', ''),
+                    'bestandswarnung': request.form.get('bestandswarnung') or request.args.get('bestandswarnung', ''),
+                    'kennzeichen': request.form.get('kennzeichen_filter') or request.args.get('kennzeichen', ''),
+                    'sort': request.form.get('sort') or request.args.get('sort', ''),
+                    'dir': request.form.get('dir') or request.args.get('dir', '')
+                }
+                
                 if from_page == 'detail':
                     # Zurück zum Detail mit Filter-Parametern
                     detail_url = url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id)
