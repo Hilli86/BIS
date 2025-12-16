@@ -158,7 +158,8 @@ def get_required_tables():
         'MitarbeiterBerechtigung',
         'zebra_printers',
         'label_formats',
-        'Etikett'
+        'Etikett',
+        'WebAuthnCredential'
     ]
 
 
@@ -1283,6 +1284,29 @@ def init_database_schema(db_path, verbose=False):
                         INSERT INTO Etikett (bezeichnung, drucker_id, etikettformat_id, druckbefehle)
                         VALUES (?, ?, ?, ?)
                     ''', ('ErsatzteilLabel', printer_row['id'], label_row['id'], zpl_template))
+
+        # ========== 34. WebAuthnCredential (biometrische Anmeldung / Passkeys) ==========
+        # Speichert pro Mitarbeiter registrierte WebAuthn-Credentials (z.B. Windows Hello, FaceID)
+        create_table_if_not_exists(conn, 'WebAuthnCredential', '''
+            CREATE TABLE WebAuthnCredential (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                MitarbeiterID INTEGER NOT NULL,
+                CredentialID TEXT NOT NULL,
+                PublicKey TEXT NOT NULL,
+                SignCount INTEGER NOT NULL DEFAULT 0,
+                UserHandle TEXT NULL,
+                Transports TEXT NULL,
+                Label TEXT NULL,
+                ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
+                LetzteVerwendung DATETIME NULL,
+                Aktiv INTEGER NOT NULL DEFAULT 1,
+                FOREIGN KEY (MitarbeiterID) REFERENCES Mitarbeiter(ID) ON DELETE CASCADE,
+                UNIQUE(MitarbeiterID, CredentialID)
+            )
+        ''', [
+            'CREATE INDEX idx_webauthn_credential_mitarbeiter ON WebAuthnCredential(MitarbeiterID)',
+            'CREATE INDEX idx_webauthn_credential_aktiv ON WebAuthnCredential(Aktiv)'
+        ])
 
         conn.commit()
 

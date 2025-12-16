@@ -12,7 +12,7 @@
     {% endif %}
   {% endwith %}
 
-  <form method="post">
+  <form method="post" id="login-form">
     <div class="mb-3">
       <label for="personalnummer" class="form-label">Personalnummer</label>
       <input type="text" name="personalnummer" id="personalnummer" class="form-control" value="{{ personalnummer or '' }}" inputmode="numeric" pattern="[0-9]*" required>
@@ -25,7 +25,50 @@
       <input type="checkbox" name="remember_me" id="remember_me" class="form-check-input" {{ 'checked' if remember_me else '' }}>
       <label for="remember_me" class="form-check-label">Meine Zugangsdaten merken</label>
     </div>
-    <button type="submit" class="btn btn-primary w-100">Anmelden</button>
+    <button type="submit" class="btn btn-primary w-100 mb-2">Anmelden</button>
   </form>
+
+  <hr class="my-3">
+
+  <button type="button" id="webauthn-login-btn" class="btn btn-outline-secondary w-100">
+    Mit FaceID / Windows Hello anmelden
+  </button>
 </div>
+
+<script src="{{ url_for('static', filename='webauthn.js') }}"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const btn = document.getElementById('webauthn-login-btn');
+    const personalnummerInput = document.getElementById('personalnummer');
+
+    if (!btn || !personalnummerInput || !window.WebAuthnHelper) {
+      return;
+    }
+
+    btn.addEventListener('click', async function() {
+      const personalnummer = personalnummerInput.value.trim();
+      if (!personalnummer) {
+        alert('Bitte zuerst Ihre Personalnummer eingeben.');
+        personalnummerInput.focus();
+        return;
+      }
+
+      try {
+        btn.disabled = true;
+        btn.innerText = 'Bitte bestätigen Sie am Gerät...';
+
+        const success = await WebAuthnHelper.loginWithWebAuthn(personalnummer);
+        if (success) {
+          window.location.href = "{{ url_for('dashboard.dashboard') }}";
+        }
+      } catch (e) {
+        console.error(e);
+        alert(e.message || 'Biometrischer Login fehlgeschlagen.');
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'Mit FaceID / Windows Hello anmelden';
+      }
+    });
+  });
+</script>
 {% endblock %}

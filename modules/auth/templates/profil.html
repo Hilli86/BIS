@@ -367,6 +367,25 @@
                 </div>
             </div>
 
+            <!-- Biometrische Anmeldung / WebAuthn -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">🔒 Biometrische Anmeldung</h5>
+                </div>
+                <div class="card-body">
+                    <p>
+                        Richten Sie hier die Anmeldung mit einem biometrischen Authentifikator
+                        (z.B. Windows Hello, TouchID, FaceID) auf diesem Gerät ein.
+                    </p>
+                    <button type="button" class="btn btn-success" id="webauthn-register-btn">
+                        <i class="bi bi-fingerprint"></i> Biometrische Anmeldung auf diesem Gerät aktivieren
+                    </button>
+                    <small class="form-text text-muted d-block mt-2">
+                        Die Einrichtung gilt nur für dieses konkrete Gerät / diesen Browser.
+                    </small>
+                </div>
+            </div>
+
             <!-- Schnellzugriff -->
             <div class="card shadow-sm mb-4">
                 <div class="card-header bg-success text-white">
@@ -607,6 +626,46 @@
         }
       });
     }
+  })();
+
+  // WebAuthn Registrierung im Profil
+  (function() {
+    const btn = document.getElementById('webauthn-register-btn');
+    if (!btn) return;
+
+    // Wenn Browser/WebAuthn nicht unterstützt werden, Button deaktivieren und Hinweis anzeigen
+    if (!window.PublicKeyCredential) {
+      btn.disabled = true;
+      btn.classList.add('btn-secondary');
+      btn.classList.remove('btn-success');
+      btn.innerHTML = 'Biometrische Anmeldung wird von diesem Browser nicht unterstützt';
+      return;
+    }
+
+    btn.addEventListener('click', async function() {
+      // Falls das Hilfsskript (noch) nicht da ist, beim Klick Meldung zeigen
+      if (!window.WebAuthnHelper) {
+        console.error('WebAuthnHelper ist nicht verfügbar.');
+        alert('Biometrische Anmeldung ist derzeit nicht verfügbar (Script nicht geladen).');
+        return;
+      }
+
+      try {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Bitte bestätigen Sie am Gerät...';
+
+        const success = await WebAuthnHelper.registerWebAuthnCredential();
+        if (success) {
+          alert('Biometrische Anmeldung für dieses Gerät wurde eingerichtet.');
+        }
+      } catch (e) {
+        console.error(e);
+        alert(e.message || 'Ein Fehler ist bei der Einrichtung der biometrischen Anmeldung aufgetreten.');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-fingerprint"></i> Biometrische Anmeldung auf diesem Gerät aktivieren';
+      }
+    });
   })();
 </script>
 {% endblock %}

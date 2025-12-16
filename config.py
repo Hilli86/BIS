@@ -43,6 +43,13 @@ class Config:
     VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', None)
     VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY', None)
     VAPID_EMAIL = os.environ.get('VAPID_EMAIL', 'noreply@example.com')
+
+    # WebAuthn / Passkeys (für biometrische Anmeldung, z.B. Windows Hello / FaceID)
+    # Standardwerte können per Umgebungsvariablen überschrieben werden.
+    # Intranet-Produktivsystem: https://10.40.140.243
+    WEBAUTHN_RP_ID = os.environ.get('WEBAUTHN_RP_ID', 'localhost')
+    WEBAUTHN_RP_NAME = os.environ.get('WEBAUTHN_RP_NAME', 'BIS – Betriebsinformationssystem')
+    WEBAUTHN_ORIGIN = os.environ.get('WEBAUTHN_ORIGIN', 'http://localhost:5000')
     
     # Benachrichtigungen-Cleanup
     BENACHRICHTIGUNGEN_CLEANUP_AKTIV = os.environ.get('BENACHRICHTIGUNGEN_CLEANUP_AKTIV', 'True').lower() == 'true'
@@ -59,6 +66,11 @@ class ProductionConfig(Config):
     """Produktionskonfiguration"""
     DEBUG = False
     SQL_TRACING = False
+
+    # Für das Intranet-System unter https://10.40.140.243
+    WEBAUTHN_RP_ID = '10.40.140.243'
+    WEBAUTHN_RP_NAME = 'BIS – Betriebsinformationssystem'
+    WEBAUTHN_ORIGIN = 'https://10.40.140.243'
 
 # Konfiguration basierend auf Umgebungsvariable auswählen
 config = {
