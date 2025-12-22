@@ -131,6 +131,7 @@ def ersatzteil_druck_label(ersatzteil_id):
 
         # Daten für Platzhalter vorbereiten
         artnr = str(et['ID'])
+        bestellnummer = et['Bestellnummer'] or ''
         bezeichnung = et['Bezeichnung'] or ''
         lagerort = et['LagerortName'] or ''
         lagerplatz = et['LagerplatzName'] or ''
@@ -157,6 +158,7 @@ def ersatzteil_druck_label(ersatzteil_id):
         zpl_template = etikett['druckbefehle']
         zpl = zpl_template.format(
             artnr=artnr,
+            bestellnummer=bestellnummer,
             line1=line1,
             line2=line2,
             line3=line3,
