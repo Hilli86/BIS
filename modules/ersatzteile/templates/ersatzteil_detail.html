@@ -206,6 +206,61 @@
     </div>
 </div>
 
+<!-- Dateien -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">📁 Dateien</h5>
+        <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#dateiUploadCollapse">
+            <i class="bi bi-plus-circle"></i> Datei hochladen
+        </button>
+    </div>
+    <div class="collapse" id="dateiUploadCollapse">
+        <div class="card-body">
+            {{ datei_upload(
+                bereich_typ='Ersatzteil',
+                bereich_id=ersatzteil.ID,
+                erlaubte_dateitypen=['Bild', 'Dokument', 'PDF'],
+                upload_route='ersatzteile.ersatzteil_datei_upload',
+                import_route=None,
+                accept_attr='image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt',
+                upload_tab_id='datei-upload-tab',
+                import_tab_id='datei-import-tab',
+                import_function='ladeImportDateienErsatzteil()'
+            ) }}
+        </div>
+    </div>
+    <div class="card-body">
+        {{ datei_liste(
+            dateien=dateien,
+            bereich_typ='Ersatzteil',
+            bereich_id=ersatzteil.ID,
+            erlaubte_dateitypen=['Bild', 'Dokument', 'PDF'],
+            is_admin=is_admin,
+            datei_anzeigen_route='ersatzteile.datei_anzeigen',
+            datei_loeschen_route='ersatzteile.datei_loeschen',
+            nur_bilder=False
+        ) }}
+    </div>
+</div>
+
+<!-- Angebote & Bestellungen (Lazy-Load) -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">📄 Angebote & Bestellungen</h5>
+        <button type="button"
+                class="btn btn-sm btn-light"
+                onclick="ladeAngeboteUndBestellungen({{ ersatzteil.ID }}, event)">
+            <i class="bi bi-search"></i> Suche Angebote und Bestellungen
+        </button>
+    </div>
+    <div class="card-body" id="angebote-bestellungen-container">
+        <div class="text-muted">
+            Es wurden noch keine Angebote oder Bestellungen geladen.
+            Klicken Sie auf <strong>„Suche Angebote und Bestellungen“</strong>, um die Daten zu laden.
+        </div>
+    </div>
+</div>
+
 <!-- Lagerbuchung -->
 {% if 'artikel_buchen' in session.get('user_berechtigungen', []) or 'admin' in session.get('user_berechtigungen', []) %}
 <div class="card mb-4 shadow-sm">
@@ -380,43 +435,6 @@
     </div>
 </div>
 {% endif %}
-
-<!-- Dateien -->
-<div class="card mb-4 shadow-sm">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">📁 Dateien</h5>
-        <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#dateiUploadCollapse">
-            <i class="bi bi-plus-circle"></i> Datei hochladen
-        </button>
-    </div>
-    <div class="collapse" id="dateiUploadCollapse">
-        <div class="card-body">
-            {{ datei_upload(
-                bereich_typ='Ersatzteil',
-                bereich_id=ersatzteil.ID,
-                erlaubte_dateitypen=['Bild', 'Dokument', 'PDF'],
-                upload_route='ersatzteile.ersatzteil_datei_upload',
-                import_route=None,
-                accept_attr='image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt',
-                upload_tab_id='datei-upload-tab',
-                import_tab_id='datei-import-tab',
-                import_function='ladeImportDateienErsatzteil()'
-            ) }}
-        </div>
-    </div>
-    <div class="card-body">
-        {{ datei_liste(
-            dateien=dateien,
-            bereich_typ='Ersatzteil',
-            bereich_id=ersatzteil.ID,
-            erlaubte_dateitypen=['Bild', 'Dokument', 'PDF'],
-            is_admin=is_admin,
-            datei_anzeigen_route='ersatzteile.datei_anzeigen',
-            datei_loeschen_route='ersatzteile.datei_loeschen',
-            nur_bilder=False
-        ) }}
-    </div>
-</div>
 
 <!-- Modal: QR-Code anzeigen -->
 <div class="modal fade" id="qrCodeModal" tabindex="-1" aria-labelledby="qrCodeModalLabel" aria-hidden="true">
@@ -637,6 +655,139 @@ function druckeEtikett(ersatzteilId, event) {
             console.error('Fehler:', error);
             showToast('Fehler beim Drucken des Etiketts.', 'danger');
         });
+}
+
+async function ladeAngeboteUndBestellungen(ersatzteilId, event) {
+    const container = document.getElementById('angebote-bestellungen-container');
+    if (!container) {
+        console.error('angebote-bestellungen-container not found');
+        return;
+    }
+
+    // Button-Spinner anzeigen
+    const button = event ? event.target.closest('button') : null;
+    let originalButtonHtml = null;
+    if (button) {
+        originalButtonHtml = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    }
+
+    container.innerHTML = `
+        <div class="text-center my-2">
+            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                <span class="visually-hidden">Lädt...</span>
+            </div>
+        </div>
+    `;
+
+    try {
+        const response = await fetch(`{{ url_for('ersatzteile.api_ersatzteil_angebote_bestellungen', ersatzteil_id=0) }}`.replace('/0', `/${ersatzteilId}`));
+        const data = await response.json();
+
+        if (!data.success) {
+            container.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    Fehler beim Laden der Daten: ${data.message || 'Unbekannter Fehler.'}
+                </div>
+            `;
+            if (button && originalButtonHtml !== null) {
+                button.disabled = false;
+                button.innerHTML = originalButtonHtml;
+            }
+            return;
+        }
+
+        const angebote = data.angebote || [];
+        const bestellungen = data.bestellungen || [];
+
+        if (angebote.length === 0 && bestellungen.length === 0) {
+            container.innerHTML = `
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle"></i>
+                    Es wurden keine Angebotsanfragen oder Bestellungen gefunden, die dieses Ersatzteil enthalten.
+                </div>
+            `;
+        } else {
+            let html = '';
+
+            // Angebotsanfragen
+            html += '<h6 class="mb-2">Angebotsanfragen</h6>';
+            if (angebote.length === 0) {
+                html += '<p class="text-muted">Keine Angebotsanfragen gefunden.</p>';
+            } else {
+                html += '<div class="list-group mb-3">';
+                angebote.forEach(a => {
+                    const statusBadgeClass =
+                        a.status === 'Offen' ? 'bg-warning text-dark' :
+                        a.status === 'Versendet' ? 'bg-info' :
+                        a.status === 'Angebot erhalten' ? 'bg-primary' :
+                        a.status === 'Abgeschlossen' ? 'bg-success' : 'bg-secondary';
+
+                    const datum = a.erstellt_am ? a.erstellt_am.substring(0, 16) : '-';
+
+                    html += `
+                        <a href="${a.detail_url}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <div>
+                                <div><strong>Anfrage #${a.id}</strong></div>
+                                <div class="small text-muted">${a.lieferant || '-'}</div>
+                                <div class="small text-muted">${datum}</div>
+                            </div>
+                            <span class="badge ${statusBadgeClass}">${a.status || '-'}</span>
+                        </a>
+                    `;
+                });
+                html += '</div>';
+            }
+
+            // Bestellungen
+            html += '<h6 class="mb-2">Bestellungen</h6>';
+            if (bestellungen.length === 0) {
+                html += '<p class="text-muted">Keine Bestellungen gefunden.</p>';
+            } else {
+                html += '<div class="list-group">';
+                bestellungen.forEach(b => {
+                    const statusBadgeClass =
+                        b.status === 'Erstellt' ? 'bg-secondary' :
+                        b.status === 'Zur Freigabe' ? 'bg-warning text-dark' :
+                        b.status === 'Freigegeben' ? 'bg-info' :
+                        b.status === 'Bestellt' ? 'bg-primary' :
+                        ['Teilweise erhalten', 'Erhalten', 'Erledigt'].includes(b.status) ? 'bg-success' :
+                        b.status === 'Storniert' ? 'bg-danger' : 'bg-secondary';
+
+                    const datum = b.erstellt_am ? b.erstellt_am.substring(0, 16) : '-';
+
+                    html += `
+                        <a href="${b.detail_url}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <div>
+                                <div><strong>Bestellung #${b.id}</strong></div>
+                                <div class="small text-muted">${b.lieferant || '-'}</div>
+                                <div class="small text-muted">${datum}</div>
+                            </div>
+                            <span class="badge ${statusBadgeClass}">${b.status || '-'}</span>
+                        </a>
+                    `;
+                });
+                html += '</div>';
+            }
+
+            container.innerHTML = html;
+        }
+    } catch (error) {
+        console.error('Fehler beim Laden der Angebote/Bestellungen:', error);
+        container.innerHTML = `
+            <div class="alert alert-danger mb-0">
+                <i class="bi bi-exclamation-triangle"></i>
+                Fehler beim Laden der Daten.
+            </div>
+        `;
+    } finally {
+        if (button && originalButtonHtml !== null) {
+            button.disabled = false;
+            button.innerHTML = originalButtonHtml;
+        }
+    }
 }
 
 function showToast(message, type = 'info') {

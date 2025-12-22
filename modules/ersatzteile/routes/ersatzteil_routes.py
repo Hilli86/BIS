@@ -1023,6 +1023,113 @@ def api_ersatzteil_info(ersatzteil_id):
         }), 500
 
 
+@ersatzteile_bp.route('/api/ersatzteil/<int:ersatzteil_id>/angebote-bestellungen')
+@login_required
+def api_ersatzteil_angebote_bestellungen(ersatzteil_id):
+    """API: Liefert alle Angebotsanfragen und Bestellungen, die dieses Ersatzteil enthalten (Lazy-Load für Detailansicht)."""
+    mitarbeiter_id = session.get('user_id')
+
+    try:
+        with get_db_connection() as conn:
+            # Berechtigte Abteilungen und Admin-Status ermitteln
+            sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+            is_admin = 'admin' in session.get('user_berechtigungen', [])
+
+            # Angebotsanfragen mit diesem Ersatzteil
+            angebote_query = '''
+                SELECT DISTINCT
+                    a.ID,
+                    a.Status,
+                    a.ErstelltAm,
+                    l.Name AS LieferantName
+                FROM AngebotsanfragePosition p
+                JOIN Angebotsanfrage a ON p.AngebotsanfrageID = a.ID
+                LEFT JOIN Lieferant l ON a.LieferantID = l.ID
+                WHERE p.ErsatzteilID = ?
+            '''
+            angebote_params = [ersatzteil_id]
+
+            if not is_admin:
+                if sichtbare_abteilungen:
+                    placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+                    angebote_query += f' AND a.ErstellerAbteilungID IN ({placeholders})'
+                    angebote_params.extend(sichtbare_abteilungen)
+                else:
+                    # Keine sichtbaren Abteilungen -> keine Angebote
+                    angebote_query += ' AND 1=0'
+
+            angebote_query += ' ORDER BY a.ErstelltAm DESC'
+            angebote = conn.execute(angebote_query, angebote_params).fetchall()
+
+            # Bestellungen mit diesem Ersatzteil
+            bestellungen_query = '''
+                SELECT DISTINCT
+                    b.ID,
+                    b.Status,
+                    b.ErstelltAm,
+                    l.Name AS LieferantName
+                FROM BestellungPosition p
+                JOIN Bestellung b ON p.BestellungID = b.ID
+                LEFT JOIN Lieferant l ON b.LieferantID = l.ID
+                WHERE p.ErsatzteilID = ? AND b.Gelöscht = 0
+            '''
+            bestellungen_params = [ersatzteil_id]
+
+            if not is_admin:
+                if sichtbare_abteilungen:
+                    placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+                    bestellungen_query += f'''
+                        AND EXISTS (
+                            SELECT 1 FROM BestellungSichtbarkeit bs
+                            WHERE bs.BestellungID = b.ID
+                            AND bs.AbteilungID IN ({placeholders})
+                        )
+                    '''
+                    bestellungen_params.extend(sichtbare_abteilungen)
+                else:
+                    bestellungen_query += ' AND 1=0'
+
+            bestellungen_query += ' ORDER BY b.ErstelltAm DESC'
+            bestellungen = conn.execute(bestellungen_query, bestellungen_params).fetchall()
+
+            # In JSON-konvertierbares Format bringen
+            angebote_list = []
+            for a in angebote:
+                angebote_list.append({
+                    'id': a['ID'],
+                    'status': a['Status'],
+                    'erstellt_am': a['ErstelltAm'],
+                    'lieferant': a['LieferantName'],
+                    'detail_url': url_for('ersatzteile.angebotsanfrage_detail', angebotsanfrage_id=a['ID'])
+                })
+
+            bestellungen_list = []
+            for b in bestellungen:
+                bestellungen_list.append({
+                    'id': b['ID'],
+                    'status': b['Status'],
+                    'erstellt_am': b['ErstelltAm'],
+                    'lieferant': b['LieferantName'],
+                    'detail_url': url_for('ersatzteile.bestellung_detail', bestellung_id=b['ID'])
+                })
+
+            return jsonify({
+                'success': True,
+                'angebote': angebote_list,
+                'bestellungen': bestellungen_list
+            })
+
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"Fehler in api_ersatzteil_angebote_bestellungen: {e}")
+        print(error_trace)
+        return jsonify({
+            'success': False,
+            'message': f'Fehler: {str(e)}'
+        }), 500
+
+
 @ersatzteile_bp.route('/api/ersatzteile/alle')
 @login_required
 def api_ersatzteile_alle():
