@@ -58,17 +58,28 @@
 </div>
 {% endif %}
 
-<!-- Filter -->
-<div class="card mb-4 shadow-sm">
-    <div class="card-header d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#filterCollapse" aria-expanded="false" aria-controls="filterCollapse">
-        <strong>Filter</strong>
-        <span class="btn btn-sm btn-outline-primary">
-            Anzeigen / Ausblenden
-        </span>
+<!-- Schnellsuche + Filter -->
+<form method="get" id="filterForm">
+    <div class="row g-3 align-items-end mb-3">
+        <div class="col-md-4">
+            <label class="form-label">Textsuche</label>
+            <input type="text" name="q" class="form-control" value="{{ q_filter or '' }}" placeholder="Bestellnummer, Bezeichnung...">
+        </div>
+        <div class="col-md-4">
+            <button type="submit" class="btn btn-primary me-2">Filter anwenden</button>
+            <a href="{{ url_for('ersatzteile.ersatzteil_liste') }}" class="btn btn-secondary">Zurücksetzen</a>
+        </div>
     </div>
-    <div class="collapse" id="filterCollapse">
-        <div class="card-body">
-            <form method="get" id="filterForm">
+
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#filterCollapse" aria-expanded="false" aria-controls="filterCollapse">
+            <strong>Filter</strong>
+            <span class="btn btn-sm btn-outline-primary">
+                Anzeigen / Ausblenden
+            </span>
+        </div>
+        <div class="collapse" id="filterCollapse">
+            <div class="card-body">
                 <div class="row g-3">
                     <div class="col-md-4">
                         <label class="form-label">Kategorie</label>
@@ -89,8 +100,13 @@
                         </select>
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label">Textsuche</label>
-                        <input type="text" name="q" class="form-control" value="{{ q_filter or '' }}" placeholder="Bestellnummer, Bezeichnung...">
+                        <label class="form-label">Kennzeichen</label>
+                        <select name="kennzeichen" class="form-select">
+                            <option value="">-- Alle Kennzeichen --</option>
+                            {% for kz in kennzeichen_liste %}
+                            <option value="{{ kz.Kennzeichen }}" {% if kz.Kennzeichen == kennzeichen_filter %}selected{% endif %}>{{ kz.Kennzeichen }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Lagerort</label>
@@ -110,15 +126,6 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Kennzeichen</label>
-                        <select name="kennzeichen" class="form-select">
-                            <option value="">-- Alle Kennzeichen --</option>
-                            {% for kz in kennzeichen_liste %}
-                            <option value="{{ kz.Kennzeichen }}" {% if kz.Kennzeichen == kennzeichen_filter %}selected{% endif %}>{{ kz.Kennzeichen }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
                     <div class="col-md-12">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" name="bestandswarnung" value="1" id="bestandswarnung" {% if bestandswarnung %}checked{% endif %}>
@@ -134,10 +141,10 @@
                         <input type="hidden" name="dir" value="{{ sort_dir }}">
                     </div>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
-</div>
+</form>
 
 <!-- Ersatzteil-Liste -->
 {% set detail_url_params = {

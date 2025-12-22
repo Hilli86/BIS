@@ -63,37 +63,37 @@
                 </div>
                 <div class="col-md-3">
                     <label class="form-label"><strong>Hersteller: </strong><small class="text-muted">(Optional)</small></label>
-                    <input type="text" name="hersteller" class="form-control" value="{{ vorlage.Hersteller if vorlage else '' }}">
+                    <input type="text" name="hersteller" class="form-control" value="{{ (vorlage.Hersteller or '') if vorlage else '' }}">
                 </div>
 
                 <!-- 2. Zeile - Kennzeichen(schmal), Bezeichnung | Artikelnummer, Artikelnummer Hersteller(Optional) -->
                 <div class="col-md-1">
                     <label class="form-label"><strong>Kennzeichen:</strong></label>
-                    <input type="text" name="kennzeichen" class="form-control" maxlength="1" pattern="[A-Za-z]" placeholder="A-Z" value="{{ vorlage.Kennzeichen if vorlage else '' }}">
+                    <input type="text" name="kennzeichen" class="form-control" maxlength="1" pattern="[A-Za-z]" placeholder="A-Z" value="{{ (vorlage.Kennzeichen or '') if vorlage else '' }}">
                 </div>
                 <div class="col-md-5">
                     <label class="form-label"><strong>Bezeichnung:</strong> <span class="text-danger">*</span></label>
-                    <input type="text" name="bezeichnung" class="form-control" value="{{ vorlage.Bezeichnung if vorlage else '' }}" required>
+                    <input type="text" name="bezeichnung" class="form-control" value="{{ (vorlage.Bezeichnung or '') if vorlage else '' }}" required>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label"><strong>Bestellnummer:</strong> <span class="text-danger">*</span></label>
-                    <input type="text" name="bestellnummer" class="form-control" value="{{ vorlage.Bestellnummer if vorlage else '' }}" required>
+                    <input type="text" name="bestellnummer" class="form-control" value="{{ (vorlage.Bestellnummer or '') if vorlage else '' }}" required>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label"><strong>Artikelnummer Hersteller:</strong> <small class="text-muted">(Optional)</small></label>
-                    <input type="text" name="artikelnummer_hersteller" class="form-control" value="{{ vorlage.ArtikelnummerHersteller if vorlage else '' }}">
+                    <input type="text" name="artikelnummer_hersteller" class="form-control" value="{{ (vorlage.ArtikelnummerHersteller or '') if vorlage else '' }}">
                 </div>
 
                 <!-- Link -->
                 <div class="col-12">
                     <label class="form-label"><strong>Link:</strong> <small class="text-muted">(Optional)</small></label>
-                    <input type="url" name="link" class="form-control" placeholder="https://..." value="{{ vorlage.Link if vorlage else '' }}">
+                    <input type="url" name="link" class="form-control" placeholder="https://..." value="{{ (vorlage.Link or '') if vorlage else '' }}">
                 </div>
 
                 <!-- 3. Beschreibung -->
                 <div class="col-12">
                     <label class="form-label"><strong>Beschreibung:</strong></label>
-                    <textarea name="beschreibung" class="form-control" rows="3">{{ vorlage.Beschreibung if vorlage else '' }}</textarea>
+                    <textarea name="beschreibung" class="form-control" rows="3">{{ (vorlage.Beschreibung or '') if vorlage else '' }}</textarea>
                 </div>
 
                 <!-- 4. Lagerort, Lagerplatz | Mindestbestand, Einheit -->
@@ -117,22 +117,22 @@
                 </div>
                 <div class="col-md-3">
                     <label class="form-label"><strong>Mindestbestand:</strong></label>
-                    <input type="number" name="mindestbestand" class="form-control" value="{{ vorlage.Mindestbestand if vorlage else '0' }}" min="0">
+                    <input type="number" name="mindestbestand" class="form-control" value="{{ vorlage.Mindestbestand if vorlage and vorlage.Mindestbestand is not none else '0' }}" min="0">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label"><strong>Einheit:</strong></label>
-                    <input type="text" name="einheit" class="form-control" value="{{ vorlage.Einheit if vorlage else 'Stück' }}">
+                    <input type="text" name="einheit" class="form-control" value="{{ vorlage.Einheit if vorlage and vorlage.Einheit is not none else 'Stück' }}">
                 </div>
 
                 <!-- 5. Preis, Währung | EndofLife, Nachfolgeartikel -->
                 <div class="col-md-3">
                     <label class="form-label"><strong>Preis:</strong></label>
-                    <input type="number" name="preis" class="form-control" step="0.01" min="0" value="{{ vorlage.Preis if vorlage else '' }}">
+                    <input type="number" name="preis" class="form-control" step="0.01" min="0" value="{{ vorlage.Preis if vorlage and vorlage.Preis is not none else '' }}">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label"><strong>Währung:</strong></label>
                     <select name="waehrung" class="form-select">
-                        <option value="EUR" {% if not vorlage or vorlage.Waehrung == 'EUR' %}selected{% endif %}>EUR</option>
+                        <option value="EUR" {% if not vorlage or not vorlage.Waehrung or vorlage.Waehrung == 'EUR' %}selected{% endif %}>EUR</option>
                         <option value="USD" {% if vorlage and vorlage.Waehrung == 'USD' %}selected{% endif %}>USD</option>
                         <option value="CHF" {% if vorlage and vorlage.Waehrung == 'CHF' %}selected{% endif %}>CHF</option>
                     </select>
@@ -148,7 +148,7 @@
                 </div>
                 <div class="col-md-3">
                     <label class="form-label"><strong>Nachfolgeartikel ID:</strong> <small class="text-muted">(Optional)</small></label>
-                    <input type="number" name="nachfolgeartikel_id" class="form-control" min="1" placeholder="ID des Nachfolgeartikels" value="{{ vorlage.NachfolgeartikelID if vorlage else '' }}">
+                    <input type="number" name="nachfolgeartikel_id" class="form-control" min="1" placeholder="ID des Nachfolgeartikels" value="{{ vorlage.NachfolgeartikelID if vorlage and vorlage.NachfolgeartikelID is not none else '' }}">
                 </div>
 
                 <!-- 6. Sichtbarkeit -->

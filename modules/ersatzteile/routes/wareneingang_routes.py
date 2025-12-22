@@ -206,15 +206,17 @@ def wareneingang_bestellung(bestellung_id):
                 # Nach der Schleife: Status der Bestellung prüfen - alle Positionen erneut laden
                 alle_positionen = conn.execute('SELECT Menge, ErhalteneMenge FROM BestellungPosition WHERE BestellungID = ?', (bestellung_id,)).fetchall()
                 alle_vollstaendig = all(pos['ErhalteneMenge'] >= pos['Menge'] for pos in alle_positionen)
-                mindestens_eine_teilweise = any(pos['ErhalteneMenge'] > 0 and pos['ErhalteneMenge'] < pos['Menge'] for pos in alle_positionen)
+                mindestens_eine_erhalten = any(pos['ErhalteneMenge'] > 0 for pos in alle_positionen)
                 
                 # Status der Bestellung aktualisieren
                 if alle_vollstaendig:
                     neuer_status = 'Erledigt'
-                elif mindestens_eine_teilweise:
+                elif mindestens_eine_erhalten:
+                    # Mindestens eine Position wurde (teilweise oder vollständig) geliefert,
+                    # aber nicht alle Positionen sind vollständig -> teilweise erhalten
                     neuer_status = 'Teilweise erhalten'
                 else:
-                    # Keine Position teilweise und nicht alle vollständig -> Status bleibt unverändert
+                    # Noch keine Mengen gebucht -> Status bleibt unverändert
                     neuer_status = None
                 
                 # Status nur aktualisieren wenn sich etwas geändert hat
