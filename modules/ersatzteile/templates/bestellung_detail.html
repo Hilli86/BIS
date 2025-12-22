@@ -314,9 +314,7 @@
                         <th>Gesamt</th>
                         <th>Bemerkung</th>
                         <th>Link</th>
-                        {% if bestellung.Status in ['Erstellt', 'Zur Freigabe'] %}
                         <th>Aktionen</th>
-                        {% endif %}
                     </tr>
                 </thead>
                 <tbody>
@@ -368,19 +366,29 @@
                             -
                             {% endif %}
                         </td>
-                        {% if bestellung.Status in ['Erstellt', 'Zur Freigabe'] %}
                         <td>
-                            <button class="btn btn-sm btn-outline-primary" onclick="openEditPositionModal({{ p.ID }}, '{{ p.Bestellnummer|replace("'", "\\'") or '' }}', '{{ p.Bezeichnung|replace("'", "\\'") or '' }}', {{ p.Menge }}, '{{ p.Einheit|replace("'", "\\'") or 'Stück' }}', {{ p.Preis or 0 }}, '{{ p.Waehrung or 'EUR' }}', '{{ p.Bemerkung|replace("'", "\\'") or '' }}', {% if p.Link %}'{{ p.Link|replace("'", "\\'") }}'{% else %}''{% endif %})">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <form method="POST" action="{{ url_for('ersatzteile.bestellung_position_loeschen', bestellung_id=bestellung.ID, position_id=p.ID) }}" 
-                                  onsubmit="return confirm('Position wirklich löschen?');" class="d-inline">
-                                <button type="submit" class="btn btn-sm btn-outline-danger">
-                                    <i class="bi bi-trash"></i>
+                            <div class="d-flex gap-1">
+                                {% if bestellung.Status in ['Erstellt', 'Zur Freigabe'] %}
+                                <button class="btn btn-sm btn-outline-primary" onclick="openEditPositionModal({{ p.ID }}, '{{ p.Bestellnummer|replace("'", "\\'") or '' }}', '{{ p.Bezeichnung|replace("'", "\\'") or '' }}', {{ p.Menge }}, '{{ p.Einheit|replace("'", "\\'") or 'Stück' }}', {{ p.Preis or 0 }}, '{{ p.Waehrung or 'EUR' }}', '{{ p.Bemerkung|replace("'", "\\'") or '' }}', {% if p.Link %}'{{ p.Link|replace("'", "\\'") }}'{% else %}''{% endif %})">
+                                    <i class="bi bi-pencil"></i>
                                 </button>
-                            </form>
+                                <form method="POST" action="{{ url_for('ersatzteile.bestellung_position_loeschen', bestellung_id=bestellung.ID, position_id=p.ID) }}" 
+                                      onsubmit="return confirm('Position wirklich löschen?');" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                                {% if bestellung.Status in ['Freigegeben', 'Bestellt'] and not p.ErsatzteilID and p.Bestellnummer and p.Bezeichnung %}
+                                <form method="POST" action="{{ url_for('ersatzteile.bestellung_position_artikel_erstellen', bestellung_id=bestellung.ID, position_id=p.ID) }}" 
+                                      onsubmit="return confirm('Artikel aus dieser Position erstellen?');" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Artikel erstellen">
+                                        <i class="bi bi-plus-circle"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
                         </td>
-                        {% endif %}
                     </tr>
                     {% endfor %}
                 </tbody>

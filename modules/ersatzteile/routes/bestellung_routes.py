@@ -5,11 +5,32 @@ Bestellung Routes - Bestellungs-Verwaltung
 from flask import render_template, request, redirect, url_for, session, jsonify, flash, current_app, make_response, send_from_directory
 from datetime import datetime
 import os
+import json
 from werkzeug.utils import secure_filename
 from .. import ersatzteile_bp
 from utils import get_db_connection, login_required, permission_required, get_sichtbare_abteilungen_fuer_mitarbeiter, ist_admin
 from utils.file_handling import save_uploaded_file, validate_file_extension, create_upload_folder
 from ..services import generate_bestellung_pdf, get_dateien_fuer_bereich
+
+
+# region agent log
+def _agent_log(payload: dict) -> None:
+    """Kleine Debug-Log-Hilfe für Debug-Session (schreibt NDJSON nach .cursor/debug.log)."""
+    try:
+        import time
+
+        base = {
+            "sessionId": "debug-session",
+            "runId": payload.get("runId", "pre-fix"),
+            "timestamp": int(time.time() * 1000),
+        }
+        base.update(payload)
+        with open(r"c:\Projekte\BIS\BIS\.cursor\debug.log", "a", encoding="utf-8") as f:
+            f.write(json.dumps(base, ensure_ascii=False) + "\n")
+    except Exception:
+        # Logging darf niemals die eigentliche Funktion stören
+        pass
+# endregion
 
 
 def get_bestellung_dateien(bestellung_id):
@@ -1016,6 +1037,242 @@ def bestellung_position_loeschen(bestellung_id, position_id):
         flash(f'Fehler beim Löschen: {str(e)}', 'danger')
         print(f"Position löschen Fehler: {e}")
     
+    return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/position/<int:position_id>/artikel-erstellen', methods=['POST'])
+@login_required
+def bestellung_position_artikel_erstellen(bestellung_id, position_id):
+    """Erstellt einen neuen Artikel aus einer Bestellposition (wenn keine ErsatzteilID vorhanden).
+
+    Der neue Artikel wird analog zur Logik bei Angebotsanfragen aus der Position erzeugt und
+    die neue Artikel-ID direkt in der Position eingetragen.
+    Erlaubt ist dies nur für Bestellungen im Status 'Freigegeben' oder 'Bestellt'.
+    """
+    mitarbeiter_id = session.get('user_id')
+
+    # region agent log
+    _agent_log(
+        {
+            "hypothesisId": "H1",
+            "location": "bestellung_routes.bestellung_position_artikel_erstellen:entry",
+            "message": "Enter bestellung_position_artikel_erstellen",
+            "data": {"bestellung_id": bestellung_id, "position_id": position_id, "mitarbeiter_id": mitarbeiter_id},
+        }
+    )
+    # endregion
+
+    try:
+        with get_db_connection() as conn:
+            # Bestellung laden und Status prüfen
+            bestellung = conn.execute(
+                '''
+                SELECT Status, LieferantID, ErstellerAbteilungID
+                FROM Bestellung
+                WHERE ID = ? AND Gelöscht = 0
+                ''',
+                (bestellung_id,),
+            ).fetchone()
+
+            # region agent log
+            _agent_log(
+                {
+                    "hypothesisId": "H1",
+                    "location": "bestellung_routes.bestellung_position_artikel_erstellen:bestellung_loaded",
+                    "message": "Bestellung geladen",
+                    "data": {
+                        "bestellung_id": bestellung_id,
+                        "status": bestellung["Status"] if bestellung else None,
+                    },
+                }
+            )
+            # endregion
+
+            if not bestellung:
+                flash('Bestellung nicht gefunden.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_liste'))
+
+            if bestellung['Status'] not in ['Freigegeben', 'Bestellt']:
+                flash(
+                    'Artikel können nur für Bestellungen im Status "Freigegeben" oder "Bestellt" aus Positionen erstellt werden.',
+                    'danger',
+                )
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+            # Position laden (inkl. Preis/Währung)
+            position = conn.execute(
+                '''
+                SELECT ID, ErsatzteilID, Bestellnummer, Bezeichnung, Menge, Bemerkung, Link, Preis, Waehrung
+                FROM BestellungPosition
+                WHERE ID = ? AND BestellungID = ?
+                ''',
+                (position_id, bestellung_id),
+            ).fetchone()
+
+            # region agent log
+            _agent_log(
+                {
+                    "hypothesisId": "H2",
+                    "location": "bestellung_routes.bestellung_position_artikel_erstellen:position_loaded",
+                    "message": "Bestellposition geladen",
+                    "data": {
+                        "position_id": position_id,
+                        "has_position": bool(position),
+                        "keys": list(position.keys()) if position else None,
+                    },
+                }
+            )
+            # endregion
+
+            if not position:
+                flash('Position nicht gefunden.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+            # Prüfungen
+            if position['ErsatzteilID']:
+                flash('Position hat bereits eine ErsatzteilID.', 'warning')
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+            if not position['Bestellnummer'] or not position['Bezeichnung']:
+                flash('Bestellnummer und Bezeichnung müssen vorhanden sein.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+            # Prüfe ob Bestellnummer bereits als Artikel existiert
+            duplikat = conn.execute(
+                '''
+                SELECT ID, Bezeichnung
+                FROM Ersatzteil
+                WHERE Bestellnummer = ? AND Gelöscht = 0
+                ''',
+                (position['Bestellnummer'],),
+            ).fetchone()
+
+            if duplikat:
+                flash(
+                    f'Bestellnummer "{position["Bestellnummer"]}" ist bereits vergeben '
+                    f'(Artikel #{duplikat["ID"]}: {duplikat["Bezeichnung"]}).',
+                    'danger',
+                )
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+            # Stammabteilung ermitteln: ErstellerAbteilungID der Bestellung oder PrimaerAbteilungID des Mitarbeiters
+            stammabteilung_id = bestellung['ErstellerAbteilungID']
+            if not stammabteilung_id:
+                mitarbeiter = conn.execute(
+                    'SELECT PrimaerAbteilungID FROM Mitarbeiter WHERE ID = ?',
+                    (mitarbeiter_id,),
+                ).fetchone()
+                if mitarbeiter:
+                    stammabteilung_id = mitarbeiter['PrimaerAbteilungID']
+
+            # Neuen Artikel erstellen
+            preis = position['Preis'] if 'Preis' in position.keys() else None
+            waehrung = position['Waehrung'] if 'Waehrung' in position.keys() and position['Waehrung'] else 'EUR'
+            link = position['Link'] if 'Link' in position.keys() else None
+
+            # region agent log
+            _agent_log(
+                {
+                    "hypothesisId": "H3",
+                    "location": "bestellung_routes.bestellung_position_artikel_erstellen:before_insert",
+                    "message": "Daten vor INSERT in Ersatzteil",
+                    "data": {
+                        "bestellnummer": position["Bestellnummer"],
+                        "bezeichnung": position["Bezeichnung"],
+                        "beschreibung": position["Bemerkung"],
+                        "lieferant_id": bestellung["LieferantID"],
+                        "preis": preis,
+                        "waehrung": waehrung,
+                    },
+                }
+            )
+
+            # Zusätzlich tatsächliche Spalten der Ersatzteil-Tabelle loggen
+            try:
+                pragma_rows = conn.execute("PRAGMA table_info(Ersatzteil)").fetchall()
+                ersatzteil_columns = [r["name"] for r in pragma_rows]
+            except Exception:
+                ersatzteil_columns = []
+
+            _agent_log(
+                {
+                    "hypothesisId": "H1",
+                    "location": "bestellung_routes.bestellung_position_artikel_erstellen:ersatzteil_schema",
+                    "message": "Schema der Ersatzteil-Tabelle",
+                    "data": {
+                        "column_count": len(ersatzteil_columns),
+                        "columns": ersatzteil_columns,
+                    },
+                }
+            )
+            # endregion
+            cursor = conn.execute(
+                '''
+                INSERT INTO Ersatzteil (
+                    Bestellnummer,
+                    Bezeichnung,
+                    Beschreibung,
+                    LieferantID,
+                    Preis,
+                    Waehrung,
+                    AktuellerBestand,
+                    Mindestbestand,
+                    Einheit,
+                    ErstelltVonID,
+                    Aktiv,
+                    Gelöscht,
+                    Link,
+                    ErstelltAm
+                )
+                VALUES (?, ?, ?, ?, ?, ?, 0, 0, 'Stück', ?, 1, 0, ?, datetime('now', 'localtime'))
+                ''',
+                (
+                    position['Bestellnummer'],
+                    position['Bezeichnung'],
+                    position['Bemerkung'],
+                    bestellung['LieferantID'],
+                    preis,
+                    waehrung,
+                    mitarbeiter_id,
+                    link,
+                ),
+            )
+
+            neuer_artikel_id = cursor.lastrowid
+
+            # Stammabteilung setzen (ErsatzteilAbteilungZugriff)
+            if stammabteilung_id:
+                try:
+                    conn.execute(
+                        '''
+                        INSERT INTO ErsatzteilAbteilungZugriff (ErsatzteilID, AbteilungID)
+                        VALUES (?, ?)
+                        ''',
+                        (neuer_artikel_id, stammabteilung_id),
+                    )
+                except Exception:
+                    # Duplikat oder andere Probleme hier nicht kritisch
+                    pass
+
+            # Position mit neuer ErsatzteilID aktualisieren
+            conn.execute(
+                '''
+                UPDATE BestellungPosition
+                SET ErsatzteilID = ?
+                WHERE ID = ? AND BestellungID = ?
+                ''',
+                (neuer_artikel_id, position_id, bestellung_id),
+            )
+
+            conn.commit()
+            flash(f'Artikel #{neuer_artikel_id} erfolgreich erstellt und mit Position verknüpft.', 'success')
+    except Exception as e:
+        flash(f'Fehler beim Erstellen: {str(e)}', 'danger')
+        print(f"Artikel aus Bestellposition erstellen Fehler: {e}")
+        import traceback
+
+        traceback.print_exc()
+
     return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
 
 
