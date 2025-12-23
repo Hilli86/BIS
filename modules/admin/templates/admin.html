@@ -1103,7 +1103,7 @@
                 <select name="etikettformat_id" class="form-select" required id="etikettFormat">
                   <option value="">-- Etikettenformat wählen --</option>
                   {% for l in label_formats %}
-                    <option value="{{ l.id }}">{{ l.name }}</option>
+                    <option value="{{ l.id }}" data-zpl-header="{{ l.zpl_header|e|replace('\n', '&#10;')|replace('\r', '') }}">{{ l.name }}</option>
                   {% endfor %}
                 </select>
               </div>
@@ -1155,9 +1155,21 @@
                       <button class="btn btn-sm btn-outline-info" 
                               data-etikett-id="{{ e.id }}"
                               data-etikett-druckbefehle="{{ e.druckbefehle|e|replace('\n', '&#10;')|replace('\r', '') }}"
+                              data-etikett-zpl-header="{{ e.zpl_header|e|replace('\n', '&#10;')|replace('\r', '') if e.zpl_header else '' }}"
+                              data-etikett-ip-address="{{ e.ip_address|e if e.ip_address else '' }}"
                               onclick="vorschauEtikettAusButton(this)">
                         <i class="bi bi-eye"></i> Vorschau
                       </button>
+                      {% if e.ip_address %}
+                      <button class="btn btn-sm btn-outline-success" 
+                              data-etikett-id="{{ e.id }}"
+                              data-etikett-druckbefehle="{{ e.druckbefehle|e|replace('\n', '&#10;')|replace('\r', '') }}"
+                              data-etikett-zpl-header="{{ e.zpl_header|e|replace('\n', '&#10;')|replace('\r', '') if e.zpl_header else '' }}"
+                              data-etikett-ip-address="{{ e.ip_address|e if e.ip_address else '' }}"
+                              onclick="druckeEtikettAusButton(this)">
+                        <i class="bi bi-printer"></i> Drucken
+                      </button>
+                      {% endif %}
                     </td>
                   </tr>
                   {% endfor %}
@@ -1212,9 +1224,15 @@ function showToast(message, type = 'success') {
 
 // AJAX-Formular-Handling
 function handleFormSubmit(event) {
+  const form = event.target;
+  
+  // Etiketten-Formular explizit ausschließen (hat eigenen Handler)
+  if (form.id === 'etikettForm' || form.classList.contains('etikett-form')) {
+    return; // Lass den speziellen Handler das übernehmen
+  }
+  
   event.preventDefault();
   
-  const form = event.target;
   const formData = new FormData(form);
   const submitButton = form.querySelector('button[type="submit"]');
   
@@ -1493,8 +1511,82 @@ function formatRepairResult(data) {
 
 // Event Listener für alle Formulare hinzufügen
 document.addEventListener('DOMContentLoaded', function() {
-  // Alle Formulare im Admin-Bereich
+  // ZUERST: Etiketten-Formular separat behandeln (mit Flag gegen doppelte Ausführung)
+  // Dies muss VOR dem globalen Handler registriert werden, damit es zuerst ausgeführt wird
+  const etikettForm = document.getElementById('etikettForm');
+  if (etikettForm && !etikettForm.dataset.listenerAttached) {
+    etikettForm.dataset.listenerAttached = 'true';
+    let isSubmitting = false;
+    
+    // Event-Listener mit capture:true registrieren, damit er vor anderen Listenern ausgeführt wird
+    etikettForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation(); // Stoppt alle weiteren Event-Listener
+      
+      // Verhindere mehrfache Ausführung
+      if (isSubmitting) {
+        console.log('Etikett-Formular: Bereits in Bearbeitung, ignoriere erneuten Submit');
+        return false;
+      }
+      isSubmitting = true;
+      
+      const form = this;
+      const formData = new FormData(form);
+      const submitButton = form.querySelector('button[type="submit"]');
+      
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.dataset.originalText = submitButton.textContent;
+        submitButton.textContent = 'Speichere...';
+      }
+      
+      console.log('Etikett-Formular: Sende Request...');
+      
+      fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        isSubmitting = false;
+        console.log('Etikett-Formular: Response erhalten', data);
+        if (data.success) {
+          showToast(data.message, 'success');
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        } else {
+          showToast(data.message, 'error');
+          if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = submitButton.dataset.originalText || 'Neues Etikett anlegen';
+          }
+        }
+      })
+      .catch(error => {
+        isSubmitting = false;
+        console.error('Etikett-Formular: Fehler', error);
+        showToast('Fehler: ' + error.message, 'error');
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.textContent = submitButton.dataset.originalText || 'Neues Etikett anlegen';
+        }
+      });
+      
+      return false;
+    }, true); // capture:true für frühere Ausführung
+  }
+  
+  // DANACH: Alle anderen Formulare im Admin-Bereich
   document.querySelectorAll('form[action*="/admin/"]').forEach(form => {
+    // Etiketten-Formular explizit ausschließen
+    if (form.id === 'etikettForm') {
+      return;
+    }
     form.addEventListener('submit', handleFormSubmit);
   });
   
@@ -1593,15 +1685,24 @@ function vorschauEtikett() {
     return;
   }
   
+  // zpl_header aus dem ausgewählten Format holen
+  const formatSelect = document.getElementById('etikettFormat');
+  const selectedOption = formatSelect.options[formatSelect.selectedIndex];
+  let zpl_header = selectedOption.getAttribute('data-zpl-header') || '';
+  
+  // HTML-Entities zurückkonvertieren
+  zpl_header = zpl_header.replace(/&#10;/g, '\n').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
+  
   // Dummy-Daten für Vorschau
   const dummyData = {
     artnr: '123',
+    bestellnummer: 'BEST-123',
     line1: 'Beispiel-Artikel',
     line2: 'Beschreibung Zeile 2',
     line3: 'Beschreibung Zeile 3',
     lagerort: 'Werkstatt',
     lagerplatz: 'B10-B1',
-    zpl_header: '^PW240\n^LL240\n^LS0'
+    zpl_header: zpl_header || '^PW240\n^LL240\n^LS0'
   };
   
   let zpl = template;
@@ -1615,23 +1716,26 @@ function vorschauEtikett() {
 function vorschauEtikettAusButton(button) {
   const id = button.getAttribute('data-etikett-id');
   let druckbefehle = button.getAttribute('data-etikett-druckbefehle');
+  let zpl_header = button.getAttribute('data-etikett-zpl-header') || '';
   
   // HTML-Entities und Escape-Sequenzen zurückkonvertieren
   druckbefehle = druckbefehle.replace(/&#10;/g, '\n').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
+  zpl_header = zpl_header.replace(/&#10;/g, '\n').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
   
-  vorschauEtikettMitDaten(id, druckbefehle);
+  vorschauEtikettMitDaten(id, druckbefehle, zpl_header);
 }
 
-function vorschauEtikettMitDaten(id, druckbefehle) {
+function vorschauEtikettMitDaten(id, druckbefehle, zpl_header) {
   // Dummy-Daten für Vorschau
   const dummyData = {
     artnr: '123',
+    bestellnummer: 'BEST-123',
     line1: 'Beispiel-Artikel',
     line2: 'Beschreibung Zeile 2',
     line3: 'Beschreibung Zeile 3',
     lagerort: 'Werkstatt',
     lagerplatz: 'B10-B1',
-    zpl_header: '^PW240\n^LL240\n^LS0'
+    zpl_header: zpl_header || '^PW240\n^LL240\n^LS0'
   };
   
   let zpl = druckbefehle;
@@ -1640,6 +1744,75 @@ function vorschauEtikettMitDaten(id, druckbefehle) {
   }
   
   zeigeVorschauModal(zpl);
+}
+
+function druckeEtikettAusButton(button) {
+  const id = button.getAttribute('data-etikett-id');
+  let druckbefehle = button.getAttribute('data-etikett-druckbefehle');
+  let zpl_header = button.getAttribute('data-etikett-zpl-header') || '';
+  const ip_address = button.getAttribute('data-etikett-ip-address');
+  
+  if (!ip_address) {
+    alert('Keine Drucker-IP-Adresse gefunden.');
+    return;
+  }
+  
+  // HTML-Entities und Escape-Sequenzen zurückkonvertieren
+  druckbefehle = druckbefehle.replace(/&#10;/g, '\n').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
+  zpl_header = zpl_header.replace(/&#10;/g, '\n').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
+  
+  // Dummy-Daten für Testdruck
+  const dummyData = {
+    artnr: '123',
+    bestellnummer: 'BEST-123',
+    line1: 'Beispiel-Artikel',
+    line2: 'Beschreibung Zeile 2',
+    line3: 'Beschreibung Zeile 3',
+    lagerort: 'Werkstatt',
+    lagerplatz: 'B10-B1',
+    zpl_header: zpl_header || '^PW240\n^LL240\n^LS0'
+  };
+  
+  let zpl = druckbefehle;
+  for (const [key, value] of Object.entries(dummyData)) {
+    zpl = zpl.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
+  }
+  
+  // Button während des Drucks deaktivieren
+  button.disabled = true;
+  const originalHtml = button.innerHTML;
+  button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Druckt...';
+  
+  // AJAX-Request zum Drucken
+  fetch('{{ url_for("admin.zebra_etikett_testdruck") }}', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest'
+    },
+    body: JSON.stringify({
+      etikett_id: id,
+      zpl: zpl,
+      ip_address: ip_address
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showToast(data.message || 'Etikett erfolgreich gedruckt.', 'success');
+    } else {
+      showToast(data.message || 'Fehler beim Drucken.', 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Fehler:', error);
+    showToast('Fehler bei der Verbindung zum Server.', 'error');
+  })
+  .finally(() => {
+    // Button wieder aktivieren
+    button.disabled = false;
+    button.innerHTML = originalHtml;
+  });
 }
 
 function zeigeVorschauModal(zpl) {
@@ -1683,52 +1856,8 @@ function kopiereZplVorschau() {
   });
 }
 
-// Formular zurücksetzen nach erfolgreichem Speichern
-const etikettForm = document.getElementById('etikettForm');
-if (etikettForm) {
-  etikettForm.addEventListener('submit', function(e) {
-    const form = this;
-    const formData = new FormData(form);
-    const submitButton = form.querySelector('button[type="submit"]');
-    
-    if (submitButton) {
-      submitButton.disabled = true;
-      submitButton.textContent = 'Speichere...';
-    }
-    
-    fetch(form.action, {
-      method: 'POST',
-      body: formData,
-      headers: {
-        'X-Requested-With': 'XMLHttpRequest'
-      }
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        showToast(data.message, 'success');
-        setTimeout(() => {
-          window.location.reload();
-        }, 1000);
-      } else {
-        showToast(data.message, 'error');
-        if (submitButton) {
-          submitButton.disabled = false;
-          submitButton.textContent = submitButton.dataset.originalText || 'Neues Etikett anlegen';
-        }
-      }
-    })
-    .catch(error => {
-      showToast('Fehler: ' + error.message, 'error');
-      if (submitButton) {
-        submitButton.disabled = false;
-        submitButton.textContent = submitButton.dataset.originalText || 'Neues Etikett anlegen';
-      }
-    });
-    
-    e.preventDefault();
-  });
-}
+// Der Event-Listener für das Etiketten-Formular wurde in DOMContentLoaded verschoben
+// um sicherzustellen, dass er nur einmal registriert wird und nicht mit dem globalen Handler kollidiert
 </script>
 {% endblock %}
 

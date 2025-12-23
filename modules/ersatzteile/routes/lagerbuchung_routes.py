@@ -6,6 +6,7 @@ from flask import render_template, request, redirect, url_for, session, flash, j
 from .. import ersatzteile_bp
 from utils import get_db_connection, login_required, permission_required, get_sichtbare_abteilungen_fuer_mitarbeiter
 from utils.helpers import build_ersatzteil_zugriff_filter
+from utils.zebra_client import send_zpl_to_printer
 from ..services import create_lagerbuchung, create_inventur_buchung
 from ..utils import hat_ersatzteil_zugriff
 
@@ -665,3 +666,116 @@ def inventurliste_buchung_batch():
             
     except Exception as e:
         return jsonify({'success': False, 'message': f'Fehler bei der Batch-Inventur-Buchung: {str(e)}'}), 500
+
+
+@ersatzteile_bp.route('/lagerplatz/<int:lagerplatz_id>/druck_label', methods=['POST'])
+@login_required
+def lagerplatz_druck_label(lagerplatz_id):
+    """Druckt ein Etikett für einen Lagerplatz über Zebra."""
+    mitarbeiter_id = session.get('user_id')
+
+    with get_db_connection() as conn:
+        # Lagerplatz-Daten laden
+        lagerplatz = conn.execute('''
+            SELECT ID, Bezeichnung AS LagerplatzName
+            FROM Lagerplatz
+            WHERE ID = ?
+        ''', (lagerplatz_id,)).fetchone()
+
+        if not lagerplatz:
+            return jsonify({'success': False, 'message': 'Lagerplatz nicht gefunden.'}), 404
+        
+        # Lagerort über Ersatzteile finden, die diesem Lagerplatz zugeordnet sind
+        lagerort = conn.execute('''
+            SELECT DISTINCT lo.Bezeichnung AS LagerortName
+            FROM Ersatzteil e
+            LEFT JOIN Lagerort lo ON e.LagerortID = lo.ID
+            WHERE e.LagerplatzID = ? AND e.Gelöscht = 0
+            LIMIT 1
+        ''', (lagerplatz_id,)).fetchone()
+        
+        lagerort_name = lagerort['LagerortName'] if lagerort else ''
+
+        # Etikett "LagerplatzLabel" aus der DB laden (falls vorhanden, sonst "ErsatzteilLabel" verwenden)
+        etikett = conn.execute('''
+            SELECT e.*, p.ip_address, lf.zpl_header
+            FROM Etikett e
+            JOIN zebra_printers p ON e.drucker_id = p.id
+            JOIN label_formats lf ON e.etikettformat_id = lf.id
+            WHERE e.bezeichnung = ? AND p.active = 1
+            LIMIT 1
+        ''', ('LagerplatzLabel',)).fetchone()
+
+        # Falls kein spezifisches LagerplatzLabel existiert, verwende ErsatzteilLabel
+        if not etikett:
+            etikett = conn.execute('''
+                SELECT e.*, p.ip_address, lf.zpl_header
+                FROM Etikett e
+                JOIN zebra_printers p ON e.drucker_id = p.id
+                JOIN label_formats lf ON e.etikettformat_id = lf.id
+                WHERE e.bezeichnung = ? AND p.active = 1
+                LIMIT 1
+            ''', ('ErsatzteilLabel',)).fetchone()
+
+        if not etikett:
+            return jsonify({'success': False, 'message': 'Kein Etikett-Template gefunden oder Drucker nicht aktiv.'}), 400
+
+        # Daten für Platzhalter vorbereiten
+        lagerplatz_name = lagerplatz['LagerplatzName'] or ''
+        
+        # Lagerplatz-Name auf 3 Zeilen umbrechen (falls nötig)
+        max_len = 28
+        words = (lagerplatz_name or "").split()
+        lines = ["", "", ""]
+        current_line = 0
+
+        for w in words:
+            sep = "" if len(lines[current_line]) == 0 else " "
+            if len(lines[current_line]) + len(sep) + len(w) <= max_len:
+                lines[current_line] += sep + w
+            elif current_line < 2:
+                current_line += 1
+                lines[current_line] = w
+            else:
+                break
+
+        line1, line2, line3 = lines
+
+        # ZPL-Template aus DB laden und Platzhalter ersetzen
+        zpl_template = etikett['druckbefehle']
+        
+        # Versuche Platzhalter zu ersetzen - verwende Lagerplatz-spezifische Werte
+        try:
+            zpl = zpl_template.format(
+                artnr=str(lagerplatz_id),
+                bestellnummer='',
+                line1=line1,
+                line2=line2,
+                line3=line3,
+                lagerort=lagerort_name,
+                lagerplatz=lagerplatz_name,
+                zpl_header=etikett['zpl_header']
+            )
+        except KeyError as e:
+            # Falls Platzhalter fehlen, verwende einfaches Template
+            zpl = f"""^XA
+{etikett['zpl_header']}
+^MMT
+^CI28
+^FO10,50^A0N,28,28^FH\\^FDLagerplatz^FS
+^FO10,90^A0N,35,35^FB200,3,0,C^FH\\^FD{lagerplatz_name}^FS
+^FO10,150^A0N,22,17^FH\\^FDLagerort: {lagerort_name}^FS
+^PQ1,0,1,Y
+^XZ"""
+
+        # Kompletten ZPL-Befehl in der Konsole ausgeben (für Debugging)
+        print("===== LAGERPLATZ LABEL ZPL =====")
+        print(zpl)
+        print("===== END LAGERPLATZ LABEL ZPL =====")
+
+        try:
+            send_zpl_to_printer(etikett['ip_address'], zpl)
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'Fehler beim Senden an Drucker: {e}'}), 500
+
+    return jsonify({'success': True, 'message': f'Etikett für Lagerplatz {lagerplatz_name} gedruckt.'})

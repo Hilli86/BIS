@@ -115,11 +115,14 @@ def dashboard():
             ORDER BY name
         ''').fetchall()
         
-        # Etiketten laden
+        # Etiketten laden mit zpl_header aus label_formats
         etiketten = conn.execute('''
-            SELECT id, bezeichnung, drucker_id, etikettformat_id, druckbefehle
-            FROM Etikett
-            ORDER BY bezeichnung
+            SELECT e.id, e.bezeichnung, e.drucker_id, e.etikettformat_id, e.druckbefehle,
+                   lf.zpl_header, p.ip_address
+            FROM Etikett e
+            LEFT JOIN label_formats lf ON e.etikettformat_id = lf.id
+            LEFT JOIN zebra_printers p ON e.drucker_id = p.id
+            ORDER BY e.bezeichnung
         ''').fetchall()
 
     return render_template('admin.html',
@@ -320,6 +323,16 @@ def zebra_etikett_save():
             if not label_format:
                 return ajax_response('Ausgewähltes Etikettenformat nicht gefunden.', success=False)
             
+            # Falls keine ID mitkommt, aber bereits ein Etikett mit gleicher Bezeichnung existiert,
+            # interpretieren wir den Aufruf als "Aktualisieren" statt "neu anlegen".
+            if not etikett_id:
+                existing = conn.execute(
+                    'SELECT id FROM Etikett WHERE bezeichnung = ? LIMIT 1',
+                    (bezeichnung,)
+                ).fetchone()
+                if existing:
+                    etikett_id = existing['id']
+            
             if etikett_id:
                 conn.execute('''
                     UPDATE Etikett
@@ -335,6 +348,31 @@ def zebra_etikett_save():
         return ajax_response('Etikett gespeichert.')
     except Exception as e:
         return ajax_response(f'Fehler beim Speichern des Etiketts: {str(e)}', success=False, status_code=500)
+
+
+@admin_bp.route('/zebra/etiketten/testdruck', methods=['POST'])
+@admin_required
+def zebra_etikett_testdruck():
+    """
+    Testdruck eines Etiketts - sendet ZPL direkt an den Drucker.
+    """
+    try:
+        data = request.get_json()
+        zpl = data.get('zpl', '').strip()
+        ip_address = data.get('ip_address', '').strip()
+        
+        if not zpl:
+            return ajax_response('Kein ZPL-Code übermittelt.', success=False)
+        
+        if not ip_address:
+            return ajax_response('Keine Drucker-IP-Adresse übermittelt.', success=False)
+        
+        # ZPL an Drucker senden
+        send_zpl_to_printer(ip_address, zpl)
+        
+        return ajax_response('Etikett erfolgreich gedruckt.')
+    except Exception as e:
+        return ajax_response(f'Fehler beim Drucken: {str(e)}', success=False, status_code=500)
 
 
 # ========== Mitarbeiter-Verwaltung ==========
