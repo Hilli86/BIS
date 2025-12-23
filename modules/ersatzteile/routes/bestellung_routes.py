@@ -5,32 +5,11 @@ Bestellung Routes - Bestellungs-Verwaltung
 from flask import render_template, request, redirect, url_for, session, jsonify, flash, current_app, make_response, send_from_directory
 from datetime import datetime
 import os
-import json
 from werkzeug.utils import secure_filename
 from .. import ersatzteile_bp
 from utils import get_db_connection, login_required, permission_required, get_sichtbare_abteilungen_fuer_mitarbeiter, ist_admin
 from utils.file_handling import save_uploaded_file, validate_file_extension, create_upload_folder
 from ..services import generate_bestellung_pdf, get_dateien_fuer_bereich
-
-
-# region agent log
-def _agent_log(payload: dict) -> None:
-    """Kleine Debug-Log-Hilfe für Debug-Session (schreibt NDJSON nach .cursor/debug.log)."""
-    try:
-        import time
-
-        base = {
-            "sessionId": "debug-session",
-            "runId": payload.get("runId", "pre-fix"),
-            "timestamp": int(time.time() * 1000),
-        }
-        base.update(payload)
-        with open(r"c:\Projekte\BIS\BIS\.cursor\debug.log", "a", encoding="utf-8") as f:
-            f.write(json.dumps(base, ensure_ascii=False) + "\n")
-    except Exception:
-        # Logging darf niemals die eigentliche Funktion stören
-        pass
-# endregion
 
 
 def get_bestellung_dateien(bestellung_id):
@@ -1051,17 +1030,6 @@ def bestellung_position_artikel_erstellen(bestellung_id, position_id):
     """
     mitarbeiter_id = session.get('user_id')
 
-    # region agent log
-    _agent_log(
-        {
-            "hypothesisId": "H1",
-            "location": "bestellung_routes.bestellung_position_artikel_erstellen:entry",
-            "message": "Enter bestellung_position_artikel_erstellen",
-            "data": {"bestellung_id": bestellung_id, "position_id": position_id, "mitarbeiter_id": mitarbeiter_id},
-        }
-    )
-    # endregion
-
     try:
         with get_db_connection() as conn:
             # Bestellung laden und Status prüfen
@@ -1073,20 +1041,6 @@ def bestellung_position_artikel_erstellen(bestellung_id, position_id):
                 ''',
                 (bestellung_id,),
             ).fetchone()
-
-            # region agent log
-            _agent_log(
-                {
-                    "hypothesisId": "H1",
-                    "location": "bestellung_routes.bestellung_position_artikel_erstellen:bestellung_loaded",
-                    "message": "Bestellung geladen",
-                    "data": {
-                        "bestellung_id": bestellung_id,
-                        "status": bestellung["Status"] if bestellung else None,
-                    },
-                }
-            )
-            # endregion
 
             if not bestellung:
                 flash('Bestellung nicht gefunden.', 'danger')
@@ -1108,21 +1062,6 @@ def bestellung_position_artikel_erstellen(bestellung_id, position_id):
                 ''',
                 (position_id, bestellung_id),
             ).fetchone()
-
-            # region agent log
-            _agent_log(
-                {
-                    "hypothesisId": "H2",
-                    "location": "bestellung_routes.bestellung_position_artikel_erstellen:position_loaded",
-                    "message": "Bestellposition geladen",
-                    "data": {
-                        "position_id": position_id,
-                        "has_position": bool(position),
-                        "keys": list(position.keys()) if position else None,
-                    },
-                }
-            )
-            # endregion
 
             if not position:
                 flash('Position nicht gefunden.', 'danger')
@@ -1169,43 +1108,6 @@ def bestellung_position_artikel_erstellen(bestellung_id, position_id):
             preis = position['Preis'] if 'Preis' in position.keys() else None
             waehrung = position['Waehrung'] if 'Waehrung' in position.keys() and position['Waehrung'] else 'EUR'
             link = position['Link'] if 'Link' in position.keys() else None
-
-            # region agent log
-            _agent_log(
-                {
-                    "hypothesisId": "H3",
-                    "location": "bestellung_routes.bestellung_position_artikel_erstellen:before_insert",
-                    "message": "Daten vor INSERT in Ersatzteil",
-                    "data": {
-                        "bestellnummer": position["Bestellnummer"],
-                        "bezeichnung": position["Bezeichnung"],
-                        "beschreibung": position["Bemerkung"],
-                        "lieferant_id": bestellung["LieferantID"],
-                        "preis": preis,
-                        "waehrung": waehrung,
-                    },
-                }
-            )
-
-            # Zusätzlich tatsächliche Spalten der Ersatzteil-Tabelle loggen
-            try:
-                pragma_rows = conn.execute("PRAGMA table_info(Ersatzteil)").fetchall()
-                ersatzteil_columns = [r["name"] for r in pragma_rows]
-            except Exception:
-                ersatzteil_columns = []
-
-            _agent_log(
-                {
-                    "hypothesisId": "H1",
-                    "location": "bestellung_routes.bestellung_position_artikel_erstellen:ersatzteil_schema",
-                    "message": "Schema der Ersatzteil-Tabelle",
-                    "data": {
-                        "column_count": len(ersatzteil_columns),
-                        "columns": ersatzteil_columns,
-                    },
-                }
-            )
-            # endregion
             cursor = conn.execute(
                 '''
                 INSERT INTO Ersatzteil (
