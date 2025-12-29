@@ -1,0 +1,254 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<h1 class="mb-4">🏷️ Etiketten drucken</h1>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Label Lagerbehälter drucken</h5>
+    </div>
+    <div class="card-body">
+        <form id="labelForm">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="titel" class="form-label fw-bold">Titel <span class="text-danger">*</span></label>
+                    <input type="text" 
+                           class="form-control" 
+                           id="titel" 
+                           name="titel" 
+                           placeholder="z.B. Lagerbehälter A1" 
+                           required
+                           autofocus>
+                    <small class="text-muted">Geben Sie den Titel für das Label ein</small>
+                </div>
+                <div class="col-md-6">
+                    <label for="info" class="form-label fw-bold">Info</label>
+                    <input type="text" 
+                           class="form-control" 
+                           id="info" 
+                           name="info" 
+                           placeholder="z.B. Werkstatt Nord">
+                    <small class="text-muted">Zusätzliche Informationen (optional)</small>
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary btn-lg" id="druckBtn">
+                        <i class="bi bi-printer"></i> Label drucken
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-lg" onclick="document.getElementById('labelForm').reset(); document.getElementById('titel').focus();">
+                        <i class="bi bi-arrow-clockwise"></i> Zurücksetzen
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0">Ersatzteil-Labels über Artikel-IDs drucken</h5>
+    </div>
+    <div class="card-body">
+        <form id="artikelForm">
+            <div class="mb-3">
+                <label for="artikelIds" class="form-label fw-bold">Artikelnummern (IDs)</label>
+                <textarea class="form-control"
+                          id="artikelIds"
+                          name="artikelIds"
+                          rows="3"
+                          placeholder="z.B. 123, 456#789 oder Zeilenweise"></textarea>
+                <small class="text-muted">
+                    Mehrere IDs mit <code>,</code>, <code>#</code>, Semikolon oder Zeilenumbruch trennen.
+                </small>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <button type="submit" class="btn btn-primary btn-lg" id="artikelDruckBtn">
+                    <i class="bi bi-printer"></i> Ersatzteil-Labels drucken
+                </button>
+                <button type="button" class="btn btn-secondary btn-lg"
+                        onclick="document.getElementById('artikelForm').reset(); document.getElementById('artikelIds').focus();">
+                    <i class="bi bi-arrow-clockwise"></i> Zurücksetzen
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('labelForm');
+    const druckBtn = document.getElementById('druckBtn');
+    const titelInput = document.getElementById('titel');
+    const infoInput = document.getElementById('info');
+
+    const artikelForm = document.getElementById('artikelForm');
+    const artikelDruckBtn = document.getElementById('artikelDruckBtn');
+    const artikelIdsInput = document.getElementById('artikelIds');
+    
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const titel = titelInput.value.trim();
+        const info = infoInput.value.trim();
+        
+        if (!titel) {
+            alert('Bitte geben Sie einen Titel ein.');
+            titelInput.focus();
+            return;
+        }
+        
+        // Button deaktivieren während der Verarbeitung
+        druckBtn.disabled = true;
+        const originalHtml = druckBtn.innerHTML;
+        druckBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird gedruckt...';
+        
+        // AJAX-Request zum Drucken
+        fetch('{{ url_for("ersatzteile.lagerbehaelter_label_druck") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                titel: titel,
+                info: info
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Erfolg: Toast anzeigen
+                const toastHtml = `
+                    <div class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true" style="position: fixed; top: 20px; right: 20px; z-index: 9999;">
+                        <div class="d-flex">
+                            <div class="toast-body">
+                                <i class="bi bi-check-circle"></i> ${data.message || 'Label erfolgreich gedruckt.'}
+                            </div>
+                            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', toastHtml);
+                const toastElement = document.querySelector('.toast:last-child');
+                const toast = new bootstrap.Toast(toastElement, { delay: 5000 });
+                toast.show();
+                
+                // Toast nach dem Ausblenden entfernen
+                toastElement.addEventListener('hidden.bs.toast', () => {
+                    toastElement.remove();
+                });
+                
+                // Formular zurücksetzen und Fokus auf Titel setzen
+                form.reset();
+                titelInput.focus();
+            } else {
+                // Fehler anzeigen
+                const toastHtml = `
+                    <div class="toast align-items-center text-white bg-danger border-0" role="alert" aria-live="assertive" aria-atomic="true" style="position: fixed; top: 20px; right: 20px; z-index: 9999;">
+                        <div class="d-flex">
+                            <div class="toast-body">
+                                <i class="bi bi-exclamation-triangle"></i> ${data.message || 'Fehler beim Drucken.'}
+                            </div>
+                            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', toastHtml);
+                const toastElement = document.querySelector('.toast:last-child');
+                const toast = new bootstrap.Toast(toastElement, { delay: 7000 });
+                toast.show();
+                
+                toastElement.addEventListener('hidden.bs.toast', () => {
+                    toastElement.remove();
+                });
+            }
+            
+            druckBtn.disabled = false;
+            druckBtn.innerHTML = originalHtml;
+        })
+        .catch(error => {
+            console.error('Fehler:', error);
+            alert('Fehler bei der Verbindung zum Server. Bitte versuchen Sie es erneut.');
+            druckBtn.disabled = false;
+            druckBtn.innerHTML = originalHtml;
+        });
+    });
+    
+    // Enter-Taste im Info-Feld soll auch drucken
+    infoInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            form.dispatchEvent(new Event('submit'));
+        }
+    });
+
+    // Formular für Artikel-IDs
+    artikelForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const rawIds = artikelIdsInput.value.trim();
+        if (!rawIds) {
+            alert('Bitte geben Sie mindestens eine Artikel-ID ein.');
+            artikelIdsInput.focus();
+            return;
+        }
+
+        artikelDruckBtn.disabled = true;
+        const originalHtml = artikelDruckBtn.innerHTML;
+        artikelDruckBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird gedruckt...';
+
+        fetch('{{ url_for("ersatzteile.lagerbehaelter_label_druck_artikel") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                artikel_ids: rawIds
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            const success = !!data.success;
+            const toastType = success ? 'success' : 'danger';
+            const message = data.message || (success ? 'Etiketten erfolgreich gedruckt.' : 'Fehler beim Drucken der Etiketten.');
+
+            const bgClass = toastType === 'success' ? 'bg-success' : 'bg-danger';
+            const icon = toastType === 'success' ? 'bi-check-circle' : 'bi-exclamation-triangle';
+
+            const toastHtml = `
+                <div class="toast align-items-center text-white ${bgClass} border-0" role="alert" aria-live="assertive" aria-atomic="true" style="position: fixed; top: 20px; right: 20px; z-index: 9999;">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            <i class="bi ${icon}"></i> ${message}
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', toastHtml);
+            const toastElement = document.querySelector('.toast:last-child');
+            const toast = new bootstrap.Toast(toastElement, { delay: 7000 });
+            toast.show();
+
+            toastElement.addEventListener('hidden.bs.toast', () => {
+                toastElement.remove();
+            });
+
+            if (success) {
+                artikelForm.reset();
+            }
+
+            artikelDruckBtn.disabled = false;
+            artikelDruckBtn.innerHTML = originalHtml;
+        })
+        .catch(error => {
+            console.error('Fehler:', error);
+            alert('Fehler bei der Verbindung zum Server. Bitte versuchen Sie es erneut.');
+            artikelDruckBtn.disabled = false;
+            artikelDruckBtn.innerHTML = originalHtml;
+        });
+    });
+});
+</script>
+{% endblock %}
+

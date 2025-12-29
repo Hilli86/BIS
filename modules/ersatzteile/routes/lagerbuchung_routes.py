@@ -668,46 +668,95 @@ def inventurliste_buchung_batch():
         return jsonify({'success': False, 'message': f'Fehler bei der Batch-Inventur-Buchung: {str(e)}'}), 500
 
 
-@ersatzteile_bp.route('/lagerplatz/<int:lagerplatz_id>/druck_label', methods=['POST'])
+@ersatzteile_bp.route('/lagerbehaelter_label')
 @login_required
-def lagerplatz_druck_label(lagerplatz_id):
-    """Druckt ein Etikett für einen Lagerplatz über Zebra."""
+def lagerbehaelter_label():
+    """Seite zum Drucken von Lagerbehälter-Labels"""
+    return render_template('lagerbehaelter_label.html')
+
+
+@ersatzteile_bp.route('/lagerbehaelter_label/druck', methods=['POST'])
+@login_required
+def lagerbehaelter_label_druck():
+    """Druckt ein Lagerbehälter-Label mit manuell eingegebenen Titel und Info"""
+    titel = request.json.get('titel', '').strip()
+    info = request.json.get('info', '').strip()
+    
+    if not titel:
+        return jsonify({'success': False, 'message': 'Titel ist erforderlich.'}), 400
+    
+    try:
+        with get_db_connection() as conn:
+            # Etikett "LagerbehaelterLabel" aus der DB laden
+            etikett = conn.execute('''
+                SELECT e.*, p.ip_address, lf.zpl_header
+                FROM Etikett e
+                JOIN zebra_printers p ON e.drucker_id = p.id
+                JOIN label_formats lf ON e.etikettformat_id = lf.id
+                WHERE e.bezeichnung = ? AND p.active = 1
+                LIMIT 1
+            ''', ('LagerbehaelterLabel',)).fetchone()
+            
+            if not etikett:
+                return jsonify({'success': False, 'message': 'Etikett "LagerbehaelterLabel" nicht gefunden oder Drucker nicht aktiv.'}), 400
+            
+            # ZPL-Template aus DB laden und Platzhalter ersetzen
+            zpl_template = etikett['druckbefehle']
+            zpl = zpl_template.format(
+                titel=titel,
+                info=info,
+                zpl_header=etikett['zpl_header']
+            )
+            
+            # Kompletten ZPL-Befehl in der Konsole ausgeben (für Debugging)
+            print("===== LAGERBEHAELTER LABEL ZPL =====")
+            print(zpl)
+            print("===== END LAGERBEHAELTER LABEL ZPL =====")
+            
+            try:
+                send_zpl_to_printer(etikett['ip_address'], zpl)
+            except Exception as e:
+                return jsonify({'success': False, 'message': f'Fehler beim Senden an Drucker: {e}'}), 500
+            
+        return jsonify({'success': True, 'message': f'Lagerbehälter-Label mit Titel \"{titel}\" gedruckt.'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Fehler beim Drucken: {str(e)}'}), 500
+
+
+@ersatzteile_bp.route('/lagerbehaelter_label/druck_artikel', methods=['POST'])
+@login_required
+def lagerbehaelter_label_druck_artikel():
+    """Druckt für mehrere Artikel-IDs das Ersatzteil-Label (ErsatzteilLabel)."""
     mitarbeiter_id = session.get('user_id')
 
-    with get_db_connection() as conn:
-        # Lagerplatz-Daten laden
-        lagerplatz = conn.execute('''
-            SELECT ID, Bezeichnung AS LagerplatzName
-            FROM Lagerplatz
-            WHERE ID = ?
-        ''', (lagerplatz_id,)).fetchone()
+    raw_ids = (request.json or {}).get('artikel_ids', '').strip()
+    if not raw_ids:
+        return jsonify({'success': False, 'message': 'Bitte geben Sie mindestens eine Artikel-ID ein.'}), 400
 
-        if not lagerplatz:
-            return jsonify({'success': False, 'message': 'Lagerplatz nicht gefunden.'}), 404
-        
-        # Lagerort über Ersatzteile finden, die diesem Lagerplatz zugeordnet sind
-        lagerort = conn.execute('''
-            SELECT DISTINCT lo.Bezeichnung AS LagerortName
-            FROM Ersatzteil e
-            LEFT JOIN Lagerort lo ON e.LagerortID = lo.ID
-            WHERE e.LagerplatzID = ? AND e.Gelöscht = 0
-            LIMIT 1
-        ''', (lagerplatz_id,)).fetchone()
-        
-        lagerort_name = lagerort['LagerortName'] if lagerort else ''
+    # IDs anhand verschiedener Trennzeichen (# , ; Leerzeichen, Zeilenumbruch) aufsplitten
+    import re
+    # Erst Zeilenumbrüche normalisieren, dann anhand aller Trennzeichen splitten
+    # Ersetze alle möglichen Zeilenumbrüche durch ein einheitliches Trennzeichen
+    normalized = re.sub(r'[\r\n]+', ',', raw_ids)
+    # Dann anhand aller Trennzeichen splitten
+    teile = re.split(r'[#,;\s]+', normalized)
+    ids = []
+    for teil in teile:
+        teil = teil.strip()
+        if not teil:
+            continue
+        try:
+            ids.append(int(teil))
+        except ValueError:
+            return jsonify({'success': False, 'message': f'\"{teil}\" ist keine gültige Artikel-ID.'}), 400
 
-        # Etikett "LagerplatzLabel" aus der DB laden (falls vorhanden, sonst "ErsatzteilLabel" verwenden)
-        etikett = conn.execute('''
-            SELECT e.*, p.ip_address, lf.zpl_header
-            FROM Etikett e
-            JOIN zebra_printers p ON e.drucker_id = p.id
-            JOIN label_formats lf ON e.etikettformat_id = lf.id
-            WHERE e.bezeichnung = ? AND p.active = 1
-            LIMIT 1
-        ''', ('LagerplatzLabel',)).fetchone()
+    if not ids:
+        return jsonify({'success': False, 'message': 'Keine gültigen Artikel-IDs gefunden.'}), 400
 
-        # Falls kein spezifisches LagerplatzLabel existiert, verwende ErsatzteilLabel
-        if not etikett:
+    try:
+        with get_db_connection() as conn:
+            # Etikett "ErsatzteilLabel" aus der DB laden (einmal für alle)
             etikett = conn.execute('''
                 SELECT e.*, p.ip_address, lf.zpl_header
                 FROM Etikett e
@@ -717,65 +766,100 @@ def lagerplatz_druck_label(lagerplatz_id):
                 LIMIT 1
             ''', ('ErsatzteilLabel',)).fetchone()
 
-        if not etikett:
-            return jsonify({'success': False, 'message': 'Kein Etikett-Template gefunden oder Drucker nicht aktiv.'}), 400
+            if not etikett:
+                return jsonify({'success': False, 'message': 'Etikett \"ErsatzteilLabel\" nicht gefunden oder Drucker nicht aktiv.'}), 400
 
-        # Daten für Platzhalter vorbereiten
-        lagerplatz_name = lagerplatz['LagerplatzName'] or ''
-        
-        # Lagerplatz-Name auf 3 Zeilen umbrechen (falls nötig)
-        max_len = 28
-        words = (lagerplatz_name or "").split()
-        lines = ["", "", ""]
-        current_line = 0
+            erfolgreich = 0
+            fehlgeschlagen = 0
+            fehler_meldungen = []
 
-        for w in words:
-            sep = "" if len(lines[current_line]) == 0 else " "
-            if len(lines[current_line]) + len(sep) + len(w) <= max_len:
-                lines[current_line] += sep + w
-            elif current_line < 2:
-                current_line += 1
-                lines[current_line] = w
-            else:
-                break
+            for ersatzteil_id in ids:
+                # Berechtigung prüfen
+                if not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
+                    fehlgeschlagen += 1
+                    fehler_meldungen.append(f'ID {ersatzteil_id}: Keine Berechtigung')
+                    continue
 
-        line1, line2, line3 = lines
+                # Ersatzteil-Daten laden (für Inhalt)
+                et = conn.execute('''
+                    SELECT e.ID, e.Bezeichnung, e.Bestellnummer, lo.Bezeichnung AS LagerortName, lp.Bezeichnung AS LagerplatzName
+                    FROM Ersatzteil e
+                    LEFT JOIN Lagerort lo ON e.LagerortID = lo.ID
+                    LEFT JOIN Lagerplatz lp ON e.LagerplatzID = lp.ID
+                    WHERE e.ID = ? AND e.Gelöscht = 0
+                ''', (ersatzteil_id,)).fetchone()
 
-        # ZPL-Template aus DB laden und Platzhalter ersetzen
-        zpl_template = etikett['druckbefehle']
-        
-        # Versuche Platzhalter zu ersetzen - verwende Lagerplatz-spezifische Werte
-        try:
-            zpl = zpl_template.format(
-                artnr=str(lagerplatz_id),
-                bestellnummer='',
-                line1=line1,
-                line2=line2,
-                line3=line3,
-                lagerort=lagerort_name,
-                lagerplatz=lagerplatz_name,
-                zpl_header=etikett['zpl_header']
-            )
-        except KeyError as e:
-            # Falls Platzhalter fehlen, verwende einfaches Template
-            zpl = f"""^XA
-{etikett['zpl_header']}
-^MMT
-^CI28
-^FO10,50^A0N,28,28^FH\\^FDLagerplatz^FS
-^FO10,90^A0N,35,35^FB200,3,0,C^FH\\^FD{lagerplatz_name}^FS
-^FO10,150^A0N,22,17^FH\\^FDLagerort: {lagerort_name}^FS
-^PQ1,0,1,Y
-^XZ"""
+                if not et:
+                    fehlgeschlagen += 1
+                    fehler_meldungen.append(f'ID {ersatzteil_id}: Ersatzteil nicht gefunden')
+                    continue
 
-        # Kompletten ZPL-Befehl in der Konsole ausgeben (für Debugging)
-        print("===== LAGERPLATZ LABEL ZPL =====")
-        print(zpl)
-        print("===== END LAGERPLATZ LABEL ZPL =====")
+                # Daten für Platzhalter vorbereiten
+                artnr = str(et['ID'])
+                bestellnummer = et['Bestellnummer'] or ''
+                bezeichnung = et['Bezeichnung'] or ''
+                lagerort = et['LagerortName'] or ''
+                lagerplatz = et['LagerplatzName'] or ''
 
-        try:
-            send_zpl_to_printer(etikett['ip_address'], zpl)
-        except Exception as e:
-            return jsonify({'success': False, 'message': f'Fehler beim Senden an Drucker: {e}'}), 500
+                # Bezeichnung auf 3 Zeilen umbrechen (wie im bestehenden Einzel-Label-Druck)
+                max_len = 28
+                words = (bezeichnung or '').split()
+                lines = ['', '', '']
+                current_line = 0
 
-    return jsonify({'success': True, 'message': f'Etikett für Lagerplatz {lagerplatz_name} gedruckt.'})
+                for w in words:
+                    sep = '' if len(lines[current_line]) == 0 else ' '
+                    if len(lines[current_line]) + len(sep) + len(w) <= max_len:
+                        lines[current_line] += sep + w
+                    elif current_line < 2:
+                        current_line += 1
+                        lines[current_line] = w
+                    else:
+                        break
+
+                line1, line2, line3 = lines
+
+                # ZPL-Template aus DB laden und Platzhalter ersetzen
+                zpl_template = etikett['druckbefehle']
+                zpl = zpl_template.format(
+                    artnr=artnr,
+                    bestellnummer=bestellnummer,
+                    line1=line1,
+                    line2=line2,
+                    line3=line3,
+                    lagerort=lagerort,
+                    lagerplatz=lagerplatz,
+                    zpl_header=etikett['zpl_header']
+                )
+
+                # ZPL-Befehl für Debugging ausgeben
+                print('===== ERSATZTEIL LABEL ZPL (Batch) =====')
+                print(zpl)
+                print('===== END ERSATZTEIL LABEL ZPL (Batch) =====')
+
+                try:
+                    send_zpl_to_printer(etikett['ip_address'], zpl)
+                    erfolgreich += 1
+                except Exception as e:
+                    fehlgeschlagen += 1
+                    fehler_meldungen.append(f'ID {ersatzteil_id}: Fehler beim Senden an Drucker ({e})')
+
+        # Zusammenfassung zurückgeben
+        if fehlgeschlagen == 0:
+            message = f'{erfolgreich} Etikett(e) erfolgreich gedruckt.'
+        else:
+            message = f'{erfolgreich} Etikett(e) erfolgreich, {fehlgeschlagen} fehlgeschlagen.'
+            if fehler_meldungen:
+                message += ' Fehler: ' + '; '.join(fehler_meldungen[:5])
+                if len(fehler_meldungen) > 5:
+                    message += f' (und {len(fehler_meldungen) - 5} weitere)'
+
+        return jsonify({
+            'success': erfolgreich > 0,
+            'message': message,
+            'erfolgreich': erfolgreich,
+            'fehlgeschlagen': fehlgeschlagen
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Fehler beim Drucken der Artikel-Labels: {str(e)}'}), 500

@@ -369,7 +369,7 @@
     <a href="{{ url_for('ersatzteile.suche_artikel') }}" class="{% if request.endpoint and 'suche' in request.endpoint %}active{% endif %}">
       🔍 Suche Artikel
     </a>
-    <a href="{{ url_for('ersatzteile.ersatzteil_liste') }}" class="{% if request.endpoint and 'ersatzteile' in request.endpoint and 'lieferant' not in request.endpoint and 'lagerbuchung' not in request.endpoint and 'suche' not in request.endpoint and 'inventur' not in request.endpoint and 'angebotsanfrage' not in request.endpoint and 'bestellung' not in request.endpoint and 'wareneingang' not in request.endpoint %}active{% endif %}">
+    <a href="{{ url_for('ersatzteile.ersatzteil_liste') }}" class="{% if request.endpoint and 'ersatzteile' in request.endpoint and 'lieferant' not in request.endpoint and 'lagerbuchung' not in request.endpoint and 'suche' not in request.endpoint and 'inventur' not in request.endpoint and 'angebotsanfrage' not in request.endpoint and 'bestellung' not in request.endpoint and 'wareneingang' not in request.endpoint and 'lagerbehaelter_label' not in request.endpoint %}active{% endif %}">
       🔧 Artikelliste
     </a>
     <a href="{{ url_for('ersatzteile.inventurliste') }}" class="{% if request.endpoint and 'inventur' in request.endpoint %}active{% endif %}">
@@ -380,6 +380,9 @@
     </a>
     <a href="{{ url_for('ersatzteile.lagerbuchungen_liste') }}" class="{% if request.endpoint and 'lagerbuchung' in request.endpoint %}active{% endif %}">
       📋 Lagerbuchungen
+    </a>
+    <a href="{{ url_for('ersatzteile.lagerbehaelter_label') }}" class="{% if request.endpoint and 'lagerbehaelter_label' in request.endpoint %}active{% endif %}">
+      🏷️ Etiketten drucken
     </a>
 
     {% if 'zebra_drucker_produktion' in session.get('user_berechtigungen', []) %}
