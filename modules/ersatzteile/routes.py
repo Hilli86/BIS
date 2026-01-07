@@ -15,7 +15,7 @@ from werkzeug.utils import secure_filename
 from . import ersatzteile_bp
 from utils import get_db_connection, login_required, permission_required, get_sichtbare_abteilungen_fuer_mitarbeiter, ist_admin
 from utils.firmendaten import get_firmendaten
-from utils.helpers import build_sichtbarkeits_filter_query, build_ersatzteil_zugriff_filter, row_to_dict
+from utils.helpers import build_sichtbarkeits_filter_query, build_ersatzteil_zugriff_filter, row_to_dict, safe_get
 from utils.file_handling import save_uploaded_file, validate_file_extension, create_upload_folder
 from .services import (
     build_ersatzteil_liste_query, 
@@ -206,22 +206,6 @@ def convert_docx_to_pdf(docx_path, pdf_path):
         traceback.print_exc()
     
     return False
-
-
-def safe_get(row, key, default=None):
-    """Sichere Zugriff auf sqlite3.Row oder dict Objekte"""
-    if row is None:
-        return default
-    if hasattr(row, 'get'):
-        return row.get(key, default)
-    else:
-        # sqlite3.Row - prüfe ob Key existiert und Wert nicht None ist
-        try:
-            value = row[key]
-            return value if value is not None else default
-        except (KeyError, IndexError):
-            return default
-
 
 # Hilfsfunktionen wurden nach utils.py verschoben
 from .utils import hat_ersatzteil_zugriff, get_datei_anzahl, allowed_file

@@ -4,6 +4,31 @@ Hilfsfunktionen für Datenkonvertierung, Query-Building etc.
 """
 
 
+def safe_get(row, key, default=None):
+    """
+    Sichere Zugriff auf sqlite3.Row oder dict Objekte
+    
+    Args:
+        row: SQLite Row-Objekt oder Dictionary oder None
+        key: Schlüssel/Spaltenname
+        default: Standardwert wenn Schlüssel nicht existiert oder None
+        
+    Returns:
+        Wert des Schlüssels oder default
+    """
+    if row is None:
+        return default
+    if hasattr(row, 'get'):
+        return row.get(key, default)
+    else:
+        # sqlite3.Row - prüfe ob Key existiert und Wert nicht None ist
+        try:
+            value = row[key]
+            return value if value is not None else default
+        except (KeyError, IndexError):
+            return default
+
+
 def row_to_dict(row):
     """
     Konvertiert eine SQLite Row zu einem Dictionary

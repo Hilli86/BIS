@@ -9,12 +9,12 @@
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0">📋 Thema-Details</h5>
             <div class="d-flex gap-2">
-                <a href="{{ url_for('schichtbuch.thema_pdf_export', thema_id=thema.ID) }}" 
-                   class="btn btn-sm btn-light" 
-                   title="Als PDF exportieren"
-                   target="_blank">
+                <button class="btn btn-sm btn-light" 
+                        type="button"
+                        onclick="exportThemaPDF({{ thema.ID }})"
+                        title="Als PDF exportieren">
                     <i class="bi bi-file-pdf"></i> <span class="d-none d-sm-inline">PDF</span>
-                </a>
+                </button>
                 <button class="btn btn-sm btn-light" type="button"
                         onclick="openSichtbarkeitModal({{ thema.ID }})"
                         title="Sichtbarkeit bearbeiten">
@@ -1348,6 +1348,77 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- PDF-Export JavaScript -->
+<script>
+// PDF-Export mit Ladeanzeige
+async function exportThemaPDF(themaId) {
+    // Modal öffnen
+    const modal = new bootstrap.Modal(document.getElementById('pdfExportModal'));
+    modal.show();
+    
+    try {
+        const url = '{{ url_for("schichtbuch.thema_pdf_export", thema_id=0) }}'.replace('/0', `/${themaId}`);
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        // Blob aus Response erstellen
+        const blob = await response.blob();
+        
+        // Dateiname aus Content-Disposition Header extrahieren oder generieren
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = `Thema_${themaId}_${new Date().toISOString().split('T')[0]}.pdf`;
+        if (contentDisposition) {
+            // Regex für filename="..." oder filename=...
+            const filenameMatch = contentDisposition.match(/filename[*]?=['"]?([^'";]+)['"]?/i);
+            if (filenameMatch && filenameMatch[1]) {
+                filename = filenameMatch[1].trim();
+            }
+        }
+        
+        // Download starten
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+        
+        // Modal schließen
+        modal.hide();
+        
+        // Erfolgs-Toast anzeigen (falls vorhanden)
+        if (typeof showToast === 'function') {
+            showToast('PDF erfolgreich erstellt und heruntergeladen.', 'success');
+        }
+    } catch (error) {
+        console.error('Fehler beim PDF-Export:', error);
+        modal.hide();
+        alert('Fehler beim Erstellen des PDFs. Bitte versuchen Sie es erneut.');
+    }
+}
+</script>
+
+<!-- Modal für PDF-Export -->
+<div class="modal fade" id="pdfExportModal" tabindex="-1" aria-labelledby="pdfExportModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                    <span class="visually-hidden">Lädt...</span>
+                </div>
+                <h5 class="mb-2">PDF wird erstellt...</h5>
+                <p class="text-muted mb-0">Bitte warten Sie, während der Bericht generiert wird.</p>
             </div>
         </div>
     </div>

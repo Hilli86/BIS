@@ -790,21 +790,21 @@ def thema_pdf_export(thema_id):
     mitarbeiter_id = session.get('user_id')
     
     try:
-    # Berechtigungsprüfung
-    with get_db_connection() as conn:
-        sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
-        
-        if sichtbare_abteilungen:
-            # Prüfe ob Thema für Benutzer sichtbar ist
-            placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
-            berechtigt = conn.execute(f'''
-                SELECT COUNT(*) as count FROM SchichtbuchThemaSichtbarkeit
-                WHERE ThemaID = ? AND AbteilungID IN ({placeholders})
-            ''', [thema_id] + sichtbare_abteilungen).fetchone()
+        # Berechtigungsprüfung
+        with get_db_connection() as conn:
+            sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
             
-            if berechtigt['count'] == 0:
-                flash('Sie haben keine Berechtigung, dieses Thema zu exportieren.', 'danger')
-                return redirect(url_for('schichtbuch.themaliste'))
+            if sichtbare_abteilungen:
+                # Prüfe ob Thema für Benutzer sichtbar ist
+                placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+                berechtigt = conn.execute(f'''
+                    SELECT COUNT(*) as count FROM SchichtbuchThemaSichtbarkeit
+                    WHERE ThemaID = ? AND AbteilungID IN ({placeholders})
+                ''', [thema_id] + sichtbare_abteilungen).fetchone()
+                
+                if berechtigt['count'] == 0:
+                    flash('Sie haben keine Berechtigung, dieses Thema zu exportieren.', 'danger')
+                    return redirect(url_for('schichtbuch.themaliste'))
         
             # Bericht generieren
             content, filename, mimetype, is_pdf = generate_thema_pdf(thema_id, conn)
@@ -816,7 +816,7 @@ def thema_pdf_export(thema_id):
             
     except ValueError as e:
         flash(str(e), 'danger')
-            return redirect(url_for('schichtbuch.themaliste'))
+        return redirect(url_for('schichtbuch.themaliste'))
     except FileNotFoundError as e:
         flash(str(e), 'danger')
         return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))

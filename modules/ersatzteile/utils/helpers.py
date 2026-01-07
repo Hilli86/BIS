@@ -4,21 +4,7 @@ Helper Utilities für Ersatzteile-Modul
 
 from flask import session
 from utils import get_sichtbare_abteilungen_fuer_mitarbeiter
-
-
-def safe_get(row, key, default=None):
-    """Sichere Zugriff auf sqlite3.Row oder dict Objekte"""
-    if row is None:
-        return default
-    if hasattr(row, 'get'):
-        return row.get(key, default)
-    else:
-        # sqlite3.Row - prüfe ob Key existiert und Wert nicht None ist
-        try:
-            value = row[key]
-            return value if value is not None else default
-        except (KeyError, IndexError):
-            return default
+from utils.helpers import safe_get
 
 
 def hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):

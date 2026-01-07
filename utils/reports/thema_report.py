@@ -10,7 +10,7 @@ from io import BytesIO
 from flask import current_app
 from docxtpl import DocxTemplate
 from utils.firmendaten import get_firmendaten
-from modules.ersatzteile.utils.helpers import safe_get
+from utils.helpers import safe_get
 from .pdf_export import convert_docx_to_pdf
 
 try:
