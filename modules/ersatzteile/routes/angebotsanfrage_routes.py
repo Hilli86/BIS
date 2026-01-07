@@ -9,7 +9,8 @@ from werkzeug.utils import secure_filename
 from .. import ersatzteile_bp
 from utils import get_db_connection, login_required
 from utils.file_handling import save_uploaded_file, create_upload_folder
-from ..services import generate_angebotsanfrage_pdf, get_dateien_fuer_bereich, speichere_datei, get_datei_typ_aus_dateiname
+from utils.reports import generate_angebotsanfrage_pdf
+from ..services import get_dateien_fuer_bereich, speichere_datei, get_datei_typ_aus_dateiname
 
 
 def log_info(message):

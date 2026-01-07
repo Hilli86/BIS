@@ -57,25 +57,12 @@
             {% for lagerort, lagerplaetze in inventur_gruppiert.items() %}
                 {% for lagerplatz, ersatzteile in lagerplaetze.items() %}
                     <div class="inventur-gruppe mb-4">
-                        <h4 class="border-bottom pb-2 mb-3 d-flex justify-content-between align-items-center">
-                            <span>
-                                <i class="bi bi-geo-alt"></i> {{ lagerort }}
-                                {% if lagerplatz != 'Ohne Lagerplatz' %}
-                                    <span class="text-muted">→ {{ lagerplatz }}</span>
-                                {% endif %}
-                                <small class="text-muted">({{ ersatzteile|length }} Artikel)</small>
-                            </span>
-                            {% if lagerplatz != 'Ohne Lagerplatz' and ersatzteile|length > 0 %}
-                                {% set lagerplatz_id = ersatzteile[0].LagerplatzID %}
-                                {% if lagerplatz_id %}
-                                    <button class="btn btn-sm btn-outline-primary druck-lagerplatz-label-btn" 
-                                            data-lagerplatz-id="{{ lagerplatz_id }}"
-                                            data-lagerplatz-name="{{ lagerplatz }}"
-                                            title="Lagerplatz-Label drucken">
-                                        <i class="bi bi-printer"></i> Label drucken
-                                    </button>
-                                {% endif %}
+                        <h4 class="border-bottom pb-2 mb-3">
+                            <i class="bi bi-geo-alt"></i> {{ lagerort }}
+                            {% if lagerplatz != 'Ohne Lagerplatz' %}
+                                <span class="text-muted">→ {{ lagerplatz }}</span>
                             {% endif %}
+                            <small class="text-muted">({{ ersatzteile|length }} Artikel)</small>
                         </h4>
                         
                         <div class="table-responsive">
@@ -357,70 +344,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             this.disabled = false;
             this.innerHTML = originalHtml;
-        });
-    });
-    
-    // Lagerplatz-Label drucken
-    document.querySelectorAll('.druck-lagerplatz-label-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const lagerplatzId = this.getAttribute('data-lagerplatz-id');
-            const lagerplatzName = this.getAttribute('data-lagerplatz-name');
-            
-            if (!lagerplatzId) {
-                alert('Lagerplatz-ID nicht gefunden.');
-                return;
-            }
-            
-            // Button während des Drucks deaktivieren
-            this.disabled = true;
-            const originalHtml = this.innerHTML;
-            this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Druckt...';
-            
-            // AJAX-Request zum Drucken des Labels
-            fetch(`/ersatzteile/lagerplatz/${lagerplatzId}/druck_label`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Erfolg: Toast anzeigen
-                    const toastHtml = `
-                        <div class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true" style="position: fixed; top: 20px; right: 20px; z-index: 9999;">
-                            <div class="d-flex">
-                                <div class="toast-body">
-                                    <i class="bi bi-check-circle"></i> ${data.message || `Label für Lagerplatz ${lagerplatzName} gedruckt.`}
-                                </div>
-                                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-                            </div>
-                        </div>
-                    `;
-                    document.body.insertAdjacentHTML('beforeend', toastHtml);
-                    const toastElement = document.querySelector('.toast:last-child');
-                    const toast = new bootstrap.Toast(toastElement, { delay: 3000 });
-                    toast.show();
-                    
-                    // Toast nach dem Ausblenden entfernen
-                    toastElement.addEventListener('hidden.bs.toast', () => {
-                        toastElement.remove();
-                    });
-                } else {
-                    // Fehler anzeigen
-                    alert('Fehler: ' + (data.message || 'Unbekannter Fehler'));
-                }
-            })
-            .catch(error => {
-                console.error('Fehler:', error);
-                alert('Fehler bei der Verbindung zum Server. Bitte versuchen Sie es erneut.');
-            })
-            .finally(() => {
-                // Button wieder aktivieren
-                this.disabled = false;
-                this.innerHTML = originalHtml;
-            });
         });
     });
 });

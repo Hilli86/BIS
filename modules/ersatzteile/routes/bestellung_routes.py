@@ -9,7 +9,8 @@ from werkzeug.utils import secure_filename
 from .. import ersatzteile_bp
 from utils import get_db_connection, login_required, permission_required, get_sichtbare_abteilungen_fuer_mitarbeiter, ist_admin
 from utils.file_handling import save_uploaded_file, validate_file_extension, create_upload_folder
-from ..services import generate_bestellung_pdf, get_dateien_fuer_bereich
+from utils.reports import generate_bestellung_pdf
+from ..services import get_dateien_fuer_bereich
 
 
 def get_bestellung_dateien(bestellung_id):
