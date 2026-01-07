@@ -173,6 +173,7 @@ def generate_thema_pdf(thema_id, conn):
         ersatzteile_liste.append({
             'datum': ersatzteil['Buchungsdatum'],
             'datum_formatiert': datum_formatiert,
+            'ersatzteil_id': ersatzteil['ErsatzteilID'],
             'ersatzteil_bezeichnung': ersatzteil['ErsatzteilBezeichnung'] or '',
             'bestellnummer': ersatzteil['Bestellnummer'] or '',
             'typ': ersatzteil['Typ'] or '',

@@ -221,13 +221,14 @@ Diese Dokumentation listet alle verfügbaren Platzhalter für die Word-Vorlagen 
 **Schleife für Ersatzteile:**
 ```
 {% for ersatzteil in ersatzteile %}
-| {{ersatzteil.datum_formatiert}} | {{ersatzteil.ersatzteil_bezeichnung}} | {{ersatzteil.typ}} | {{ersatzteil.menge_mit_einheit}} | {{ersatzteil.verwendet_von}} |
+| {{ersatzteil.datum_formatiert}} | {{ersatzteil.ersatzteil_id}} | {{ersatzteil.ersatzteil_bezeichnung}} | {{ersatzteil.typ}} | {{ersatzteil.menge_mit_einheit}} | {{ersatzteil.verwendet_von}} |
 {% endfor %}
 ```
 
 **Felder pro Ersatzteil:**
 - `{{ersatzteil.datum}}` - Buchungsdatum (Rohformat) | YYYY-MM-DD HH:MM:SS
 - `{{ersatzteil.datum_formatiert}}` - Buchungsdatum formatiert | DD.MM.YYYY
+- `{{ersatzteil.ersatzteil_id}}` - ID des Ersatzteils | Zahl
 - `{{ersatzteil.ersatzteil_bezeichnung}}` - Bezeichnung des Ersatzteils
 - `{{ersatzteil.bestellnummer}}` - Bestellnummer des Ersatzteils
 - `{{ersatzteil.typ}}` - Typ der Buchung (Ausgang, Eingang, Inventur)
@@ -331,9 +332,9 @@ Bemerkung {{loop.index}}: {{bemerkung.bemerkung}}
 ### Thema - Ersatzteile-Tabelle
 
 ```
-| Datum | Ersatzteil | Typ | Menge | Verwendet von |
-|-------|------------|-----|-------|---------------|
-{% for ersatzteil in ersatzteile %}| {{ersatzteil.datum_formatiert}} | {{ersatzteil.ersatzteil_bezeichnung}} | {{ersatzteil.typ}} | {{ersatzteil.menge_mit_einheit}} | {{ersatzteil.verwendet_von}} |{% endfor %}
+| Datum | Ersatzteil-ID | Ersatzteil | Typ | Menge | Verwendet von |
+|-------|---------------|------------|-----|-------|---------------|
+{% for ersatzteil in ersatzteile %}| {{ersatzteil.datum_formatiert}} | {{ersatzteil.ersatzteil_id}} | {{ersatzteil.ersatzteil_bezeichnung}} | {{ersatzteil.typ}} | {{ersatzteil.menge_mit_einheit}} | {{ersatzteil.verwendet_von}} |{% endfor %}
 ```
 
 ---
