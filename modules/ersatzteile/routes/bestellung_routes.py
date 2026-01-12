@@ -132,6 +132,7 @@ def bestellung_liste():
                 b.ErstelltAm,
                 b.FreigegebenAm,
                 b.BestelltAm,
+                b.FreigabeBemerkung,
                 l.Name AS LieferantName,
                 m1.Vorname || ' ' || m1.Nachname AS ErstelltVon,
                 m2.Vorname || ' ' || m2.Nachname AS FreigegebenVon,
@@ -188,6 +189,33 @@ def bestellung_liste():
         
         bestellungen = conn.execute(query, params).fetchall()
         
+        # Positionen für alle Bestellungen laden
+        positionen_dict = {}
+        if bestellungen:
+            bestellung_ids = [str(b['ID']) for b in bestellungen]
+            placeholders = ','.join(['?'] * len(bestellung_ids))
+            positionen_query = f'''
+                SELECT 
+                    p.BestellungID,
+                    p.*,
+                    e.ID AS ErsatzteilID,
+                    COALESCE(p.Bestellnummer, e.Bestellnummer) AS Bestellnummer,
+                    COALESCE(p.Bezeichnung, e.Bezeichnung) AS Bezeichnung,
+                    COALESCE(p.Einheit, e.Einheit, 'Stück') AS Einheit
+                FROM BestellungPosition p
+                LEFT JOIN Ersatzteil e ON p.ErsatzteilID = e.ID
+                WHERE p.BestellungID IN ({placeholders})
+                ORDER BY p.BestellungID, p.ID
+            '''
+            positionen = conn.execute(positionen_query, bestellung_ids).fetchall()
+            
+            # Positionen nach BestellungID gruppieren
+            for pos in positionen:
+                bestellung_id = pos['BestellungID']
+                if bestellung_id not in positionen_dict:
+                    positionen_dict[bestellung_id] = []
+                positionen_dict[bestellung_id].append(pos)
+        
         # Lieferanten für Filter laden
         lieferanten = conn.execute('SELECT ID, Name FROM Lieferant WHERE Aktiv = 1 AND Gelöscht = 0 ORDER BY Name').fetchall()
         
@@ -197,6 +225,7 @@ def bestellung_liste():
     return render_template(
         'bestellung_liste.html',
         bestellungen=bestellungen,
+        positionen_dict=positionen_dict,
         status_filter_list=status_filter_list,
         lieferant_filter=lieferant_filter,
         abteilung_filter=abteilung_filter,

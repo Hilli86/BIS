@@ -97,18 +97,23 @@
             <table class="table table-hover">
                 <thead>
                     <tr>
-                        <th>Nr.</th>
-                        <th>Lieferant</th>
-                        <th>Status</th>
+                        <th style="width: 60px;">Nr.</th>
+                        <th style="min-width: 200px;">Lieferant</th>
+                        <th style="min-width: 250px;">Status</th>
                         <th style="width: 80px;">Positionen</th>
                         <th>Gesamtbetrag</th>
                         <th>Erstellt am</th>
-                        <th>Freigegeben am</th>
-                        <th>Freigegeben von</th>
-                        <th>Bestellt am</th>
-                        <th>Bestellt von</th>
+                        <th class="column-freigegeben-am" style="display: none;">Freigegeben am</th>
+                        <th class="column-freigegeben-von" style="display: none;">Freigegeben von</th>
+                        <th class="column-bestellt-am" style="display: none;">Bestellt am</th>
+                        <th class="column-bestellt-von" style="display: none;">Bestellt von</th>
                         <th>Abteilung</th>
-                        <th>Aktionen</th>
+                        <th style="min-width: 70px;">Aktionen</th>
+                        <th style="width: 50px;">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#spaltenModal" title="Spalten anzeigen/ausblenden" onclick="event.stopPropagation();">
+                                <i class="bi bi-columns-gap"></i>
+                            </button>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
@@ -120,7 +125,14 @@
                             {% if b.Status == 'Erstellt' %}
                             <span class="badge bg-secondary">Erstellt</span>
                             {% elif b.Status == 'Zur Freigabe' %}
-                            <span class="badge bg-warning">Zur Freigabe</span>
+                            <div>
+                                <span class="badge bg-warning">Zur Freigabe</span>
+                                {% if b.FreigabeBemerkung %}
+                                <div class="mt-1 small text-muted" style="max-width: 500px; word-wrap: break-word; white-space: normal;">
+                                    <i class="bi bi-chat-left-text"></i> {{ b.FreigabeBemerkung }}
+                                </div>
+                                {% endif %}
+                            </div>
                             {% elif b.Status == 'Freigegeben' %}
                             <span class="badge bg-info">Freigegeben</span>
                             {% elif b.Status == 'Bestellt' %}
@@ -137,31 +149,119 @@
                             <span class="badge bg-secondary">{{ b.Status }}</span>
                             {% endif %}
                         </td>
-                        <td class="text-center">{{ b.PositionenAnzahl or 0 }}</td>
-                        <td>{{ "%.2f"|format(b.Gesamtbetrag) }} EUR</td>
-                        <td>{{ b.ErstelltAm[:16] if b.ErstelltAm else '-' }}</td>
-                        <td>{{ b.FreigegebenAm[:16] if b.FreigegebenAm else '-' }}</td>
-                        <td>{{ b.FreigegebenVon or '-' }}</td>
-                        <td>{{ b.BestelltAm[:16] if b.BestelltAm else '-' }}</td>
-                        <td>{{ b.BestelltVon or '-' }}</td>
-                        <td>{{ b.Abteilung or '-' }}</td>
-                        <td onclick="event.stopPropagation();">
-                            {% if b.Status in ['Freigegeben', 'Bestellt'] %}
-                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="exportBestellungPDF({{ b.ID }})" title="Als PDF exportieren">
-                                <i class="bi bi-file-pdf"></i>
+                        <td class="text-center" onclick="event.stopPropagation();">
+                            {% if b.PositionenAnzahl and b.PositionenAnzahl > 0 %}
+                            <button class="btn btn-sm btn-outline-info" onclick="event.stopPropagation(); togglePositionen({{ b.ID }})" title="Positionen anzeigen/ausblenden">
+                                <i class="bi bi-list-ul"></i> {{ b.PositionenAnzahl }}
                             </button>
                             {% else %}
-                            <button type="button" class="btn btn-sm btn-outline-danger invisible" disabled>
-                                <i class="bi bi-file-pdf"></i>
-                            </button>
-                            {% endif %}
-                            {% if ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) and b.Status in ['Erstellt', 'Zur Freigabe', 'Freigegeben'] %}
-                            <button type="button" class="btn btn-sm btn-outline-danger ms-2" onclick="loescheBestellung({{ b.ID }})" title="Bestellung löschen">
-                                <i class="bi bi-trash"></i>
-                            </button>
+                            <span class="text-muted">0</span>
                             {% endif %}
                         </td>
+                        <td>{{ "%.2f"|format(b.Gesamtbetrag) }} EUR</td>
+                        <td style="white-space: nowrap;">{{ b.ErstelltAm[:10] if b.ErstelltAm else '-' }}</td>
+                        <td class="column-freigegeben-am" style="display: none;">{{ b.FreigegebenAm[:16] if b.FreigegebenAm else '-' }}</td>
+                        <td class="column-freigegeben-von" style="display: none;">{{ b.FreigegebenVon or '-' }}</td>
+                        <td class="column-bestellt-am" style="display: none;">{{ b.BestelltAm[:16] if b.BestelltAm else '-' }}</td>
+                        <td class="column-bestellt-von" style="display: none;">{{ b.BestelltVon or '-' }}</td>
+                        <td>{{ b.Abteilung or '-' }}</td>
+                        <td onclick="event.stopPropagation();" style="white-space: nowrap;">
+                            <div class="d-flex flex-nowrap gap-1">
+                                {% if b.Status in ['Freigegeben', 'Bestellt'] %}
+                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="exportBestellungPDF({{ b.ID }})" title="Als PDF exportieren">
+                                    <i class="bi bi-file-pdf"></i>
+                                </button>
+                                {% else %}
+                                <button type="button" class="btn btn-sm btn-outline-danger invisible" disabled>
+                                    <i class="bi bi-file-pdf"></i>
+                                </button>
+                                {% endif %}
+                                {% if ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) and b.Status in ['Erstellt', 'Zur Freigabe', 'Freigegeben'] %}
+                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="loescheBestellung({{ b.ID }})" title="Bestellung löschen">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td onclick="event.stopPropagation();"></td>
                     </tr>
+                    {% if b.PositionenAnzahl and b.PositionenAnzahl > 0 %}
+                    <tr id="positionen-{{ b.ID }}" class="positionen-row" style="display: none;">
+                        <td colspan="13" class="bg-light p-0" onclick="event.stopPropagation();">
+                            <div class="p-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <strong><i class="bi bi-list-ul"></i> Positionen ({{ b.PositionenAnzahl }})</strong>
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation(); togglePositionen({{ b.ID }})">
+                                        <i class="bi bi-chevron-up"></i> Ausblenden
+                                    </button>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th style="width: 80px;">Artikel</th>
+                                                <th style="width: 120px;">Bestellnummer</th>
+                                                <th>Bezeichnung</th>
+                                                <th style="width: 80px;" class="text-center">Menge</th>
+                                                <th style="width: 80px;">Einheit</th>
+                                                <th style="width: 100px;" class="text-end">Preis</th>
+                                                <th style="width: 100px;" class="text-end">Gesamt</th>
+                                                {% if b.Status in ['Bestellt', 'Teilweise erhalten', 'Erhalten', 'Erledigt'] %}
+                                                <th style="width: 100px;" class="text-center">Erhalten</th>
+                                                {% endif %}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% set positionen = positionen_dict.get(b.ID, []) %}
+                                            {% for pos in positionen %}
+                                            <tr>
+                                                <td>
+                                                    {% if pos.ErsatzteilID %}
+                                                    <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=pos.ErsatzteilID) }}" class="text-decoration-none" onclick="event.stopPropagation();">
+                                                        {{ pos.ErsatzteilID }}
+                                                    </a>
+                                                    {% else %}
+                                                    <span class="text-muted">-</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ pos.Bestellnummer or '-' }}</td>
+                                                <td>{{ pos.Bezeichnung or '-' }}</td>
+                                                <td class="text-center">{{ pos.Menge }}</td>
+                                                <td>{{ pos.Einheit or 'Stück' }}</td>
+                                                <td class="text-end">
+                                                    {% if pos.Preis %}
+                                                    {{ "%.2f"|format(pos.Preis) }} {{ pos.Waehrung or 'EUR' }}
+                                                    {% else %}
+                                                    <span class="text-muted">-</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="text-end">
+                                                    {% if pos.Preis %}
+                                                    {{ "%.2f"|format(pos.Preis * pos.Menge) }} {{ pos.Waehrung or 'EUR' }}
+                                                    {% else %}
+                                                    <span class="text-muted">-</span>
+                                                    {% endif %}
+                                                </td>
+                                                {% if b.Status in ['Bestellt', 'Teilweise erhalten', 'Erhalten', 'Erledigt'] %}
+                                                <td class="text-center">
+                                                    {% if pos.ErhalteneMenge > 0 %}
+                                                    <span class="badge {% if pos.ErhalteneMenge < pos.Menge %}bg-warning{% else %}bg-success{% endif %}">
+                                                        {{ pos.ErhalteneMenge }} / {{ pos.Menge }}
+                                                    </span>
+                                                    {% else %}
+                                                    <span class="badge bg-secondary">0 / {{ pos.Menge }}</span>
+                                                    {% endif %}
+                                                </td>
+                                                {% endif %}
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
                     {% endfor %}
                 </tbody>
             </table>
@@ -175,6 +275,83 @@
 </div>
 
 <script>
+// Positionen ein-/ausklappen
+function togglePositionen(bestellungId) {
+    const row = document.getElementById(`positionen-${bestellungId}`);
+    if (row) {
+        const isVisible = row.style.display !== 'none';
+        row.style.display = isVisible ? 'none' : '';
+        
+        // Icon im Button ändern (finde alle Buttons für diese Bestellung)
+        const buttons = document.querySelectorAll(`button[onclick*="togglePositionen(${bestellungId})"]`);
+        buttons.forEach(button => {
+            const icon = button.querySelector('i');
+            if (icon) {
+                if (isVisible) {
+                    icon.className = 'bi bi-list-ul';
+                } else {
+                    icon.className = 'bi bi-chevron-down';
+                }
+            }
+        });
+    }
+}
+
+// Spalten-Ein-/Ausblenden-Funktionalität
+document.addEventListener('DOMContentLoaded', function() {
+    // Spalten-Toggle-Event-Listener
+    const columnToggles = document.querySelectorAll('.column-toggle');
+    
+    // Einstellungen aus localStorage laden
+    function loadColumnSettings() {
+        const settings = localStorage.getItem('bestellung_liste_columns');
+        if (settings) {
+            try {
+                const parsed = JSON.parse(settings);
+                columnToggles.forEach(toggle => {
+                    const column = toggle.dataset.column;
+                    if (parsed[column] !== undefined) {
+                        toggle.checked = parsed[column];
+                        toggleColumn(column, parsed[column]);
+                    }
+                });
+            } catch (e) {
+                console.error('Fehler beim Laden der Spalten-Einstellungen:', e);
+            }
+        }
+    }
+    
+    // Einstellungen in localStorage speichern
+    function saveColumnSettings() {
+        const settings = {};
+        columnToggles.forEach(toggle => {
+            settings[toggle.dataset.column] = toggle.checked;
+        });
+        localStorage.setItem('bestellung_liste_columns', JSON.stringify(settings));
+    }
+    
+    // Spalte ein-/ausblenden
+    function toggleColumn(column, show) {
+        const elements = document.querySelectorAll(`.column-${column}`);
+        elements.forEach(el => {
+            el.style.display = show ? '' : 'none';
+        });
+    }
+    
+    // Event-Listener für Checkboxen
+    columnToggles.forEach(toggle => {
+        toggle.addEventListener('change', function() {
+            const column = this.dataset.column;
+            const show = this.checked;
+            toggleColumn(column, show);
+            saveColumnSettings();
+        });
+    });
+    
+    // Einstellungen beim Laden anwenden
+    loadColumnSettings();
+});
+
 // PDF-Export mit Ladeanzeige
 async function exportBestellungPDF(bestellungId) {
     // Modal öffnen
@@ -248,6 +425,47 @@ function loescheBestellung(bestellungId) {
                 </div>
                 <h5 class="mb-2">PDF wird erstellt...</h5>
                 <p class="text-muted mb-0">Bitte warten Sie, während der Bericht generiert wird.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal für Spalten-Einstellungen -->
+<div class="modal fade" id="spaltenModal" tabindex="-1" aria-labelledby="spaltenModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="spaltenModalLabel">
+                    <i class="bi bi-columns-gap"></i> Spalten anzeigen
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="form-check">
+                            <input class="form-check-input column-toggle" type="checkbox" id="col_freigegeben_am" data-column="freigegeben-am">
+                            <label class="form-check-label" for="col_freigegeben_am">Freigegeben am</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input column-toggle" type="checkbox" id="col_freigegeben_von" data-column="freigegeben-von">
+                            <label class="form-check-label" for="col_freigegeben_von">Freigegeben von</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-check">
+                            <input class="form-check-input column-toggle" type="checkbox" id="col_bestellt_am" data-column="bestellt-am">
+                            <label class="form-check-label" for="col_bestellt_am">Bestellt am</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input column-toggle" type="checkbox" id="col_bestellt_von" data-column="bestellt-von">
+                            <label class="form-check-label" for="col_bestellt_von">Bestellt von</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
             </div>
         </div>
     </div>
