@@ -8,7 +8,7 @@ from utils import get_db_connection, login_required, permission_required, get_si
 from utils.helpers import build_ersatzteil_zugriff_filter
 from utils.zebra_client import send_zpl_to_printer
 from ..services import create_lagerbuchung, create_inventur_buchung
-from ..utils import hat_ersatzteil_zugriff
+from ..utils import hat_ersatzteil_zugriff, validate_thema_ersatzteil_buchung, prepare_thema_ersatzteil_data
 
 
 @ersatzteile_bp.route('/lagerbuchungen')
@@ -293,18 +293,25 @@ def lagerbuchung(ersatzteil_id):
                 flash('Sie haben keine Berechtigung für dieses Ersatzteil.', 'danger')
                 return redirect(url_for('ersatzteile.ersatzteil_liste'))
             
-            # Prüfe ob Thema existiert (wenn ThemaID angegeben)
+            # Wenn Thema angegeben ist, verwende Helper-Funktion für Validierung
             if thema_id:
-                thema = conn.execute('SELECT ID FROM SchichtbuchThema WHERE ID = ? AND Gelöscht = 0', (thema_id,)).fetchone()
-                if not thema:
-                    flash(f'Thema-ID {thema_id} wurde nicht gefunden oder ist nicht aktiv. Bitte überprüfen Sie die Eingabe.', 'danger')
+                is_valid, error_message, ersatzteil_data, thema_data = validate_thema_ersatzteil_buchung(
+                    ersatzteil_id, menge, thema_id, mitarbeiter_id, conn
+                )
+                if not is_valid:
+                    flash(error_message, 'danger')
                     return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
-            
-            # Aktuellen Bestand ermitteln
-            ersatzteil = conn.execute('SELECT AktuellerBestand, Preis, Waehrung FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
-            if not ersatzteil:
-                flash('Ersatzteil nicht gefunden.', 'danger')
-                return redirect(url_for('ersatzteile.ersatzteil_liste'))
+            else:
+                # Ohne Thema: Standard-Berechtigungsprüfung
+                if not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
+                    flash('Sie haben keine Berechtigung für dieses Ersatzteil.', 'danger')
+                    return redirect(url_for('ersatzteile.ersatzteil_liste'))
+                
+                # Prüfe ob Ersatzteil existiert
+                ersatzteil = conn.execute('SELECT AktuellerBestand, Preis, Waehrung FROM Ersatzteil WHERE ID = ? AND Gelöscht = 0', (ersatzteil_id,)).fetchone()
+                if not ersatzteil:
+                    flash('Ersatzteil nicht gefunden.', 'danger')
+                    return redirect(url_for('ersatzteile.ersatzteil_liste'))
             
             # Lagerbuchung über Service erstellen
             success, message, neuer_bestand = create_lagerbuchung(
@@ -341,32 +348,30 @@ def thema_verknuepfen(thema_id):
     """Ersatzteil mit Thema verknüpfen (mit automatischer Lagerbuchung)"""
     mitarbeiter_id = session.get('user_id')
     
-    ersatzteil_id = request.form.get('ersatzteil_id', type=int)
-    menge = request.form.get('menge', type=int)
+    # Daten vorbereiten
+    ersatzteil_id_raw = request.form.get('ersatzteil_id')
+    menge_raw = request.form.get('menge')
     bemerkung = request.form.get('bemerkung', '').strip()
-    kostenstelle_id = request.form.get('kostenstelle_id') or None
+    kostenstelle_id_raw = request.form.get('kostenstelle_id')
     
-    if not ersatzteil_id or not menge or menge <= 0:
-        flash('Ersatzteil und Menge sind erforderlich.', 'danger')
+    # Daten normalisieren
+    ersatzteil_id, menge, bemerkung, kostenstelle_id, error = prepare_thema_ersatzteil_data(
+        ersatzteil_id_raw, menge_raw, thema_id, bemerkung, kostenstelle_id_raw
+    )
+    
+    if error:
+        flash(error, 'danger')
         return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
     
     try:
         with get_db_connection() as conn:
-            # Berechtigung prüfen
-            if not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
-                flash('Sie haben keine Berechtigung für dieses Ersatzteil.', 'danger')
-                return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
+            # Validierung mit Helper-Funktion
+            is_valid, error_message, ersatzteil_data, thema_data = validate_thema_ersatzteil_buchung(
+                ersatzteil_id, menge, thema_id, mitarbeiter_id, conn
+            )
             
-            # Prüfe ob Thema existiert
-            thema = conn.execute('SELECT ID FROM SchichtbuchThema WHERE ID = ? AND Gelöscht = 0', (thema_id,)).fetchone()
-            if not thema:
-                flash('Thema nicht gefunden.', 'danger')
-                return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
-            
-            # Prüfe ob Ersatzteil existiert
-            ersatzteil = conn.execute('SELECT AktuellerBestand, Preis, Waehrung FROM Ersatzteil WHERE ID = ? AND Gelöscht = 0', (ersatzteil_id,)).fetchone()
-            if not ersatzteil:
-                flash('Ersatzteil nicht gefunden.', 'danger')
+            if not is_valid:
+                flash(error_message, 'danger')
                 return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
             
             # Lagerbuchung über Service erstellen (Ausgang, da Ersatzteil für Thema verwendet wird)
@@ -374,7 +379,7 @@ def thema_verknuepfen(thema_id):
                 ersatzteil_id=ersatzteil_id,
                 typ='Ausgang',
                 menge=menge,
-                grund='Thema-Verknüpfung',
+                grund=f'Verwendung für Thema {thema_id}',
                 mitarbeiter_id=mitarbeiter_id,
                 conn=conn,
                 thema_id=thema_id,
