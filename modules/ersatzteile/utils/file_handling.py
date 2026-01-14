@@ -3,6 +3,7 @@ File Handling Utilities für Ersatzteile-Modul
 """
 
 import os
+from datetime import datetime
 from flask import current_app
 
 
@@ -10,10 +11,6 @@ def allowed_file(filename):
     """Prüft ob Dateityp erlaubt ist"""
     allowed_extensions = current_app.config.get('ALLOWED_EXTENSIONS', {'.png', '.jpg', '.jpeg', '.gif', '.pdf', '.doc', '.docx'})
     return '.' in filename and os.path.splitext(filename)[1].lower() in allowed_extensions
-
-import os
-from datetime import datetime
-from flask import current_app
 
 
 def get_datei_anzahl(ersatzteil_id, typ='bild'):
@@ -24,7 +21,8 @@ def get_datei_anzahl(ersatzteil_id, typ='bild'):
     try:
         files = os.listdir(ersatzteil_folder)
         return len([f for f in files if os.path.isfile(os.path.join(ersatzteil_folder, f))])
-    except:
+    except Exception as e:
+        print(f"Fehler beim Ermitteln der Dateianzahl für Ersatzteil {ersatzteil_id} ({typ}): {e}")
         return 0
 
 

@@ -496,7 +496,7 @@ def process_ersatzteile_fuer_thema(thema_id, ersatzteil_ids, ersatzteil_mengen,
                                    ersatzteil_bemerkungen, mitarbeiter_id, conn, is_admin=False,
                                    ersatzteil_kostenstellen=None):
     """
-    Verarbeitet Ersatzteile bei Thema-Erstellung und erstellt Lagerbuchungen
+    Verarbeitet Ersatzteile bei Thema-Erstellung und erstellt Lagerbuchungen über Service-Layer
     
     Args:
         thema_id: ID des Themas
@@ -512,6 +512,7 @@ def process_ersatzteile_fuer_thema(thema_id, ersatzteil_ids, ersatzteil_mengen,
         Anzahl der erfolgreich verarbeiteten Ersatzteile
     """
     from utils import get_sichtbare_abteilungen_fuer_mitarbeiter
+    from modules.ersatzteile.services.lagerbuchung_services import create_lagerbuchung
     
     if not ersatzteil_ids:
         return 0
@@ -532,7 +533,7 @@ def process_ersatzteile_fuer_thema(thema_id, ersatzteil_ids, ersatzteil_mengen,
             if menge <= 0:
                 continue
             
-            # Ersatzteil prüfen
+            # Ersatzteil prüfen (muss aktiv sein)
             ersatzteil = conn.execute('''
                 SELECT ID, AktuellerBestand, Preis, Waehrung, Bezeichnung
                 FROM Ersatzteil
@@ -556,40 +557,26 @@ def process_ersatzteile_fuer_thema(thema_id, ersatzteil_ids, ersatzteil_mengen,
                     # Keine Berechtigung
                     continue
             
-            # Bestand prüfen
-            aktueller_bestand = ersatzteil['AktuellerBestand'] or 0
-            if aktueller_bestand < menge:
-                print(f"Warnung: Nicht genug Bestand für Ersatzteil {ersatzteil_id}. Verfügbar: {aktueller_bestand}, benötigt: {menge}")
+            # Lagerbuchung über Service erstellen (Ausgang)
+            # Der Service prüft automatisch Bestand, erstellt die Buchung und aktualisiert den Bestand
+            success, message, neuer_bestand = create_lagerbuchung(
+                ersatzteil_id=ersatzteil_id,
+                typ='Ausgang',
+                menge=menge,
+                grund=f'Verwendung für Thema {thema_id}',
+                mitarbeiter_id=mitarbeiter_id,
+                conn=conn,
+                thema_id=thema_id,
+                kostenstelle_id=kostenstelle_id,
+                bemerkung=bemerkung
+            )
+            
+            if success:
+                verarbeitet += 1
+            else:
+                # Warnung ausgeben, aber weitermachen
+                print(f"Warnung: Lagerbuchung für Ersatzteil {ersatzteil_id} fehlgeschlagen: {message}")
                 continue
-            
-            # Neuer Bestand berechnen
-            neuer_bestand = aktueller_bestand - menge
-            
-            # Preis und Währung
-            artikel_preis = ersatzteil['Preis']
-            artikel_waehrung = ersatzteil['Waehrung'] or 'EUR'
-            
-            # Lagerbuchung erstellen (Ausgang)
-            conn.execute('''
-                INSERT INTO Lagerbuchung (
-                    ErsatzteilID, Typ, Menge, Grund, ThemaID,
-                    VerwendetVonID, Bemerkung, Preis, Waehrung, Buchungsdatum, KostenstelleID
-                ) VALUES (?, 'Ausgang', ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'), ?)
-            ''', (
-                ersatzteil_id, 
-                menge, 
-                f'Verwendung für Thema {thema_id}',
-                thema_id,
-                mitarbeiter_id,
-                bemerkung if bemerkung else None,
-                artikel_preis,
-                artikel_waehrung,
-                kostenstelle_id
-            ))
-            
-            # Bestand aktualisieren
-            conn.execute('UPDATE Ersatzteil SET AktuellerBestand = ? WHERE ID = ?', (neuer_bestand, ersatzteil_id))
-            verarbeitet += 1
             
         except (ValueError, TypeError) as e:
             print(f"Fehler beim Verarbeiten von Ersatzteil {ersatzteil_id_str}: {e}")

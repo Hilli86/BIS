@@ -7,26 +7,10 @@ from datetime import datetime
 import os
 from werkzeug.utils import secure_filename
 from .. import ersatzteile_bp
-from utils import get_db_connection, login_required
+from utils import get_db_connection, login_required, log_info, log_error, log_warning
 from utils.file_handling import save_uploaded_file, create_upload_folder
 from utils.reports import generate_angebotsanfrage_pdf
 from ..services import get_dateien_fuer_bereich, speichere_datei, get_datei_typ_aus_dateiname
-
-
-def log_info(message):
-    """Loggt eine Info-Nachricht direkt an stderr (für journalctl)"""
-    import sys
-    print(f"[INFO] {message}", file=sys.stderr, flush=True)
-
-def log_error(message):
-    """Loggt eine Fehlernachricht direkt an stderr (für journalctl)"""
-    import sys
-    print(f"[ERROR] {message}", file=sys.stderr, flush=True)
-
-def log_warning(message):
-    """Loggt eine Warnung direkt an stderr (für journalctl)"""
-    import sys
-    print(f"[WARNING] {message}", file=sys.stderr, flush=True)
 
 
 def get_angebotsanfrage_dateien(angebotsanfrage_id):

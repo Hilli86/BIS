@@ -48,20 +48,7 @@ except ImportError:
     COM_INITIALIZED = False
 
 
-def log_info(message):
-    """Loggt eine Info-Nachricht direkt an stderr (für journalctl)"""
-    import sys
-    print(f"[INFO] {message}", file=sys.stderr, flush=True)
-
-def log_error(message):
-    """Loggt eine Fehlernachricht direkt an stderr (für journalctl)"""
-    import sys
-    print(f"[ERROR] {message}", file=sys.stderr, flush=True)
-
-def log_warning(message):
-    """Loggt eine Warnung direkt an stderr (für journalctl)"""
-    import sys
-    print(f"[WARNING] {message}", file=sys.stderr, flush=True)
+from utils import log_info, log_error, log_warning
 
 
 def convert_docx_to_pdf(docx_path, pdf_path):
@@ -207,8 +194,9 @@ def convert_docx_to_pdf(docx_path, pdf_path):
     
     return False
 
-# Hilfsfunktionen wurden nach utils.py verschoben
-from .utils import hat_ersatzteil_zugriff, get_datei_anzahl, allowed_file
+# Hilfsfunktionen wurden nach utils/ verschoben
+from ..utils import hat_ersatzteil_zugriff, get_datei_anzahl, allowed_file
+from utils import log_info, log_error, log_warning
 
 
 @ersatzteile_bp.route('/')
@@ -835,250 +823,13 @@ def ersatzteil_loeschen(ersatzteil_id):
     return redirect(url_for('ersatzteile.ersatzteil_liste'))
 
 
-@ersatzteile_bp.route('/lagerbuchungen/schnellbuchung', methods=['POST'])
-@login_required
-@permission_required('artikel_buchen')
-def schnellbuchung():
-    """Schnelle Lagerbuchung durch Eingabe der Ersatzteil-ID"""
-    mitarbeiter_id = session.get('user_id')
-    
-    ersatzteil_id_raw = request.form.get('ersatzteil_id', '').strip()
-    typ = request.form.get('typ')  # 'Eingang' oder 'Ausgang'
-    menge = request.form.get('menge', type=int)
-    grund = request.form.get('grund', '').strip()
-    kostenstelle_id = request.form.get('kostenstelle_id') or None
-    thema_id_raw = request.form.get('thema_id', '').strip()
-    bemerkung = request.form.get('bemerkung', '').strip()
-    
-    # Validierung
-    if not ersatzteil_id_raw:
-        flash('Ersatzteil-ID ist erforderlich.', 'danger')
-        return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
-    
-    try:
-        ersatzteil_id = int(ersatzteil_id_raw)
-    except ValueError:
-        flash('Ungültige Ersatzteil-ID. Bitte geben Sie eine Zahl ein.', 'danger')
-        return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
-    
-    if not typ:
-        flash('Typ ist erforderlich.', 'danger')
-        return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
-    
-    # Bei Inventur ist auch 0 erlaubt, sonst muss Menge > 0 sein
-    if typ == 'Inventur':
-        if menge is None or menge < 0:
-            flash('Lagerstand kann nicht negativ sein.', 'danger')
-            return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
-    else:
-        if menge is None or menge <= 0:
-            flash('Menge muss größer als 0 sein.', 'danger')
-            return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
-    
-    thema_id = None
-    if thema_id_raw:
-        try:
-            thema_id = int(thema_id_raw)
-        except ValueError:
-            flash('Ungültige Thema-ID. Bitte geben Sie eine Zahl ein.', 'danger')
-            return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
-    
-    try:
-        with get_db_connection() as conn:
-            # Berechtigung prüfen
-            if not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
-                flash('Sie haben keine Berechtigung für dieses Ersatzteil.', 'danger')
-                return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
-            
-            # Prüfe ob Ersatzteil existiert
-            ersatzteil = conn.execute('SELECT AktuellerBestand, Preis, Waehrung FROM Ersatzteil WHERE ID = ? AND Gelöscht = 0', (ersatzteil_id,)).fetchone()
-            if not ersatzteil:
-                flash('Ersatzteil nicht gefunden.', 'danger')
-                return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
-            
-            # Prüfe ob Thema existiert (wenn ThemaID angegeben)
-            if thema_id:
-                thema = conn.execute('SELECT ID FROM SchichtbuchThema WHERE ID = ? AND Gelöscht = 0', (thema_id,)).fetchone()
-                if not thema:
-                    flash(f'Thema-ID {thema_id} wurde nicht gefunden oder ist nicht aktiv. Bitte überprüfen Sie die Eingabe.', 'danger')
-                    return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
-            
-            # Lagerbuchung über Service erstellen
-            success, message, neuer_bestand = create_lagerbuchung(
-                ersatzteil_id=ersatzteil_id,
-                typ=typ,
-                menge=menge,
-                grund=grund,
-                mitarbeiter_id=mitarbeiter_id,
-                conn=conn,
-                thema_id=thema_id,
-                kostenstelle_id=kostenstelle_id,
-                bemerkung=bemerkung
-            )
-            
-            if success:
-                conn.commit()
-                flash(message, 'success')
-            else:
-                flash(message, 'danger')
-                return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
-            
-    except Exception as e:
-        flash(f'Fehler bei der Lagerbuchung: {str(e)}', 'danger')
-        print(f"Schnellbuchung Fehler: {e}")
-        import traceback
-        traceback.print_exc()
-    
-    return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+# Duplikat entfernt - siehe modules/ersatzteile/routes/lagerbuchung_routes.py
+# schnellbuchung() wurde nach lagerbuchung_routes.py verschoben
 
 
-@ersatzteile_bp.route('/<int:ersatzteil_id>/lagerbuchung', methods=['POST'])
-@login_required
-@permission_required('artikel_buchen')
-def lagerbuchung(ersatzteil_id):
-    """Lagerbuchung durchführen (Eingang/Ausgang)"""
-    mitarbeiter_id = session.get('user_id')
-    
-    typ = request.form.get('typ')  # 'Eingang' oder 'Ausgang'
-    menge = request.form.get('menge', type=int)
-    grund = request.form.get('grund', '').strip()
-    kostenstelle_id = request.form.get('kostenstelle_id') or None
-    thema_id_raw = request.form.get('thema_id', '').strip()
-    thema_id = None
-    if thema_id_raw:
-        try:
-            thema_id = int(thema_id_raw)
-        except ValueError:
-            flash('Ungültige Thema-ID. Bitte geben Sie eine Zahl ein.', 'danger')
-            return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
-    bemerkung = request.form.get('bemerkung', '').strip()
-    
-    if not typ:
-        flash('Typ ist erforderlich.', 'danger')
-        return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
-    
-    if menge is None:
-        flash('Menge ist erforderlich.', 'danger')
-        return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
-    
-    # Bei Inventur ist auch 0 erlaubt, sonst muss Menge > 0 sein
-    if typ == 'Inventur':
-        if menge < 0:
-            flash('Lagerstand kann nicht negativ sein.', 'danger')
-            return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
-    else:
-        if menge <= 0:
-            flash('Menge muss größer als 0 sein.', 'danger')
-            return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
-    
-    try:
-        with get_db_connection() as conn:
-            # Berechtigung prüfen
-            if not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
-                flash('Sie haben keine Berechtigung für dieses Ersatzteil.', 'danger')
-                return redirect(url_for('ersatzteile.ersatzteil_liste'))
-            
-            # Prüfe ob Thema existiert (wenn ThemaID angegeben)
-            if thema_id:
-                thema = conn.execute('SELECT ID FROM SchichtbuchThema WHERE ID = ? AND Gelöscht = 0', (thema_id,)).fetchone()
-                if not thema:
-                    flash(f'Thema-ID {thema_id} wurde nicht gefunden oder ist nicht aktiv. Bitte überprüfen Sie die Eingabe.', 'danger')
-                    return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
-            
-            # Aktuellen Bestand ermitteln
-            ersatzteil = conn.execute('SELECT AktuellerBestand, Preis, Waehrung FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
-            if not ersatzteil:
-                flash('Ersatzteil nicht gefunden.', 'danger')
-                return redirect(url_for('ersatzteile.ersatzteil_liste'))
-            
-            # Lagerbuchung über Service erstellen
-            success, message, neuer_bestand = create_lagerbuchung(
-                ersatzteil_id=ersatzteil_id,
-                typ=typ,
-                menge=menge,
-                grund=grund,
-                mitarbeiter_id=mitarbeiter_id,
-                conn=conn,
-                thema_id=thema_id,
-                kostenstelle_id=kostenstelle_id,
-                bemerkung=bemerkung
-            )
-            
-            if success:
-                conn.commit()
-                flash(message, 'success')
-            else:
-                flash(message, 'danger')
-                return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
-            
-    except Exception as e:
-        flash(f'Fehler bei der Lagerbuchung: {str(e)}', 'danger')
-        print(f"Lagerbuchung Fehler: {e}")
-        import traceback
-        traceback.print_exc()
-    
-    return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
-
-
-@ersatzteile_bp.route('/thema/<int:thema_id>/verknuepfen', methods=['POST'])
-@login_required
-def thema_verknuepfen(thema_id):
-    """Ersatzteil mit Thema verknüpfen (mit automatischer Lagerbuchung)"""
-    mitarbeiter_id = session.get('user_id')
-    
-    ersatzteil_id = request.form.get('ersatzteil_id', type=int)
-    menge = request.form.get('menge', type=int)
-    bemerkung = request.form.get('bemerkung', '').strip()
-    kostenstelle_id = request.form.get('kostenstelle_id') or None
-    
-    if not ersatzteil_id or not menge or menge <= 0:
-        flash('Ersatzteil und Menge sind erforderlich.', 'danger')
-        return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
-    
-    try:
-        with get_db_connection() as conn:
-            # Berechtigung prüfen
-            if not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
-                flash('Sie haben keine Berechtigung für dieses Ersatzteil.', 'danger')
-                return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
-            
-            # Prüfe ob Thema existiert
-            thema = conn.execute('SELECT ID FROM SchichtbuchThema WHERE ID = ?', (thema_id,)).fetchone()
-            if not thema:
-                flash('Thema nicht gefunden.', 'danger')
-                return redirect(url_for('schichtbuch.themaliste'))
-            
-            # Aktuellen Bestand prüfen
-            ersatzteil = conn.execute('SELECT AktuellerBestand, Preis, Waehrung FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
-            if not ersatzteil:
-                flash('Ersatzteil nicht gefunden.', 'danger')
-                return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
-            
-            # Automatische Lagerbuchung (Ausgang) mit Thema-Verknüpfung über Service
-            success, message, neuer_bestand = create_lagerbuchung(
-                ersatzteil_id=ersatzteil_id,
-                typ='Ausgang',
-                menge=menge,
-                grund=f'Verwendung für Thema {thema_id}',
-                mitarbeiter_id=mitarbeiter_id,
-                conn=conn,
-                thema_id=thema_id,
-                kostenstelle_id=kostenstelle_id,
-                bemerkung=bemerkung
-            )
-            
-            if success:
-                conn.commit()
-                flash(f'Ersatzteil erfolgreich zugeordnet. Bestand reduziert um {menge}.', 'success')
-            else:
-                flash(message, 'danger')
-                return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
-            
-    except Exception as e:
-        flash(f'Fehler bei der Verknüpfung: {str(e)}', 'danger')
-        print(f"Thema verknüpfen Fehler: {e}")
-    
-    return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
+# Duplikate Routen entfernt - siehe modules/ersatzteile/routes/lagerbuchung_routes.py
+# - lagerbuchung() wurde nach lagerbuchung_routes.py verschoben
+# - thema_verknuepfen() wurde nach lagerbuchung_routes.py verschoben
 
 
 @ersatzteile_bp.route('/inventurliste')
@@ -1185,62 +936,8 @@ def inventurliste():
                          lagerplatz_filter=lagerplatz_filter)
 
 
-@ersatzteile_bp.route('/inventurliste/buchung', methods=['POST'])
-@login_required
-@permission_required('artikel_buchen')
-def inventurliste_buchung():
-    """Inventur-Buchung direkt aus der Inventurliste"""
-    mitarbeiter_id = session.get('user_id')
-    
-    try:
-        ersatzteil_id = request.json.get('ersatzteil_id')
-        neuer_bestand = request.json.get('neuer_bestand')
-        
-        if not ersatzteil_id or neuer_bestand is None:
-            return jsonify({'success': False, 'message': 'Ersatzteil-ID und neuer Bestand sind erforderlich.'}), 400
-        
-        try:
-            ersatzteil_id = int(ersatzteil_id)
-            neuer_bestand = float(neuer_bestand)
-        except (ValueError, TypeError):
-            return jsonify({'success': False, 'message': 'Ungültige Werte für Ersatzteil-ID oder Bestand.'}), 400
-        
-        if neuer_bestand < 0:
-            return jsonify({'success': False, 'message': 'Bestand kann nicht negativ sein.'}), 400
-        
-        with get_db_connection() as conn:
-            # Berechtigung prüfen
-            if not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
-                return jsonify({'success': False, 'message': 'Sie haben keine Berechtigung für dieses Ersatzteil.'}), 403
-            
-            # Prüfe ob Ersatzteil existiert
-            ersatzteil = conn.execute('SELECT AktuellerBestand, Preis, Waehrung FROM Ersatzteil WHERE ID = ? AND Gelöscht = 0', (ersatzteil_id,)).fetchone()
-            if not ersatzteil:
-                return jsonify({'success': False, 'message': 'Ersatzteil nicht gefunden.'}), 404
-            
-            # Inventur-Buchung über Service erstellen
-            success, message = create_inventur_buchung(
-                ersatzteil_id=ersatzteil_id,
-                neuer_bestand=neuer_bestand,
-                mitarbeiter_id=mitarbeiter_id,
-                conn=conn,
-                bemerkung=f'Inventur: Bestand von {ersatzteil["AktuellerBestand"]} auf {neuer_bestand} geändert'
-            )
-            
-            if not success:
-                return jsonify({'success': False, 'message': message}), 400
-            
-            conn.commit()
-            
-            return jsonify({
-                'success': True,
-                'message': f'Inventur erfolgreich durchgeführt. Neuer Bestand: {neuer_bestand}',
-                'neuer_bestand': neuer_bestand,
-                'alter_bestand': aktueller_bestand
-            })
-            
-    except Exception as e:
-        return jsonify({'success': False, 'message': f'Fehler bei der Inventur-Buchung: {str(e)}'}), 500
+# Duplikat entfernt - siehe modules/ersatzteile/routes/lagerbuchung_routes.py
+# inventurliste_buchung() wurde nach lagerbuchung_routes.py verschoben
 
 
 @ersatzteile_bp.route('/api/ersatzteil/<int:ersatzteil_id>')
@@ -1473,10 +1170,6 @@ def suche_artikel():
 
 
 
-def allowed_file(filename):
-    """Prüft ob Dateityp erlaubt ist"""
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in current_app.config['ALLOWED_EXTENSIONS']
 
 
 @ersatzteile_bp.route('/<int:ersatzteil_id>/bild/upload', methods=['POST'])
@@ -1704,130 +1397,9 @@ def datei_anzeigen(filepath):
     )
 
 
-# ========== Angebotsanfragen ==========
-
-def get_bestellung_dateien(bestellung_id):
-    """Lädt alle PDF-Dateien für eine Bestellung"""
-    dateien = []
-    try:
-        bestellung_folder = os.path.join(current_app.config['ANGEBOTE_UPLOAD_FOLDER'], 'Bestellungen', str(bestellung_id))
-        if os.path.exists(bestellung_folder):
-            for filename in os.listdir(bestellung_folder):
-                filepath = os.path.join(bestellung_folder, filename)
-                if os.path.isfile(filepath) and filename.lower().endswith('.pdf'):
-                    stat = os.stat(filepath)
-                    # Pfad immer mit Forward-Slash für URL-Kompatibilität
-                    path_for_url = f'Bestellungen/{bestellung_id}/{filename}'
-                    dateien.append({
-                        'name': filename,
-                        'path': path_for_url,
-                        'size': stat.st_size,
-                        'modified': datetime.fromtimestamp(stat.st_mtime)
-                    })
-            # Sortiere nach Änderungsdatum (neueste zuerst)
-            dateien.sort(key=lambda x: x['modified'], reverse=True)
-    except Exception as e:
-        print(f"Fehler beim Laden der Bestellungs-Dateien: {e}")
-    return dateien
-
-
 # ========== Bestellungen ==========
-
-def get_bestellung_dateien(bestellung_id):
-    """Hilfsfunktion: Scannt Ordner nach PDF-Dateien für eine Bestellung"""
-    bestellung_folder = os.path.join(current_app.config['ANGEBOTE_UPLOAD_FOLDER'], 'Bestellungen', str(bestellung_id))
-    dateien = []
-    
-    if os.path.exists(bestellung_folder):
-        try:
-            for filename in os.listdir(bestellung_folder):
-                if filename.lower().endswith('.pdf'):
-                    filepath = os.path.join(bestellung_folder, filename)
-                    if os.path.isfile(filepath):
-                        stat = os.stat(filepath)
-                        # Pfad immer mit Forward-Slash für URL-Kompatibilität
-                        path_for_url = f'Bestellungen/{bestellung_id}/{filename}'
-                        dateien.append({
-                            'name': filename,
-                            'path': path_for_url,
-                            'size': stat.st_size,
-                            'modified': datetime.fromtimestamp(stat.st_mtime)
-                        })
-            # Sortiere nach Änderungsdatum (neueste zuerst)
-            dateien.sort(key=lambda x: x['modified'], reverse=True)
-        except Exception as e:
-            print(f"Fehler beim Scannen des Bestellung-Ordners: {e}")
-    
-    return dateien
-
-
-def get_auftragsbestätigung_dateien(bestellung_id):
-    """Hilfsfunktion: Scannt Ordner nach Auftragsbestätigungs-Dateien (PDF, JPEG, JPG, PNG) für eine Bestellung"""
-    auftragsbestätigung_folder = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], 'Bestellwesen', 'Auftragsbestätigungen', str(bestellung_id))
-    dateien = []
-    
-    if os.path.exists(auftragsbestätigung_folder):
-        try:
-            for filename in os.listdir(auftragsbestätigung_folder):
-                file_ext = filename.lower()
-                if file_ext.endswith(('.pdf', '.jpeg', '.jpg', '.png')):
-                    filepath = os.path.join(auftragsbestätigung_folder, filename)
-                    if os.path.isfile(filepath):
-                        stat = os.stat(filepath)
-                        # Pfad immer mit Forward-Slash für URL-Kompatibilität
-                        path_for_url = f'Bestellwesen/Auftragsbestätigungen/{bestellung_id}/{filename}'
-                        dateien.append({
-                            'name': filename,
-                            'path': path_for_url,
-                            'size': stat.st_size,
-                            'modified': datetime.fromtimestamp(stat.st_mtime)
-                        })
-            # Sortiere nach Änderungsdatum (neueste zuerst)
-            dateien.sort(key=lambda x: x['modified'], reverse=True)
-        except Exception as e:
-            print(f"Fehler beim Scannen des Auftragsbestätigung-Ordners: {e}")
-    
-    return dateien
-
-
-def get_lieferschein_dateien(bestellung_id):
-    """Hilfsfunktion: Scannt Ordner nach Lieferschein-Dateien (PDF, JPEG, JPG, PNG) für eine Bestellung"""
-    lieferschein_folder = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], 'Bestellwesen', 'Lieferscheine', str(bestellung_id))
-    dateien = []
-    
-    if os.path.exists(lieferschein_folder):
-        try:
-            for filename in os.listdir(lieferschein_folder):
-                file_ext = filename.lower()
-                if file_ext.endswith(('.pdf', '.jpeg', '.jpg', '.png')):
-                    filepath = os.path.join(lieferschein_folder, filename)
-                    if os.path.isfile(filepath):
-                        stat = os.stat(filepath)
-                        # Pfad immer mit Forward-Slash für URL-Kompatibilität
-                        path_for_url = f'Bestellwesen/Lieferscheine/{bestellung_id}/{filename}'
-                        # Dateityp bestimmen
-                        if file_ext.endswith('.pdf'):
-                            datei_typ = 'pdf'
-                        elif file_ext.endswith(('.jpeg', '.jpg')):
-                            datei_typ = 'jpeg'
-                        elif file_ext.endswith('.png'):
-                            datei_typ = 'png'
-                        else:
-                            datei_typ = 'unknown'
-                        
-                        dateien.append({
-                            'name': filename,
-                            'path': path_for_url,
-                            'size': stat.st_size,
-                            'modified': datetime.fromtimestamp(stat.st_mtime),
-                            'typ': datei_typ
-                        })
-            # Sortiere nach Änderungsdatum (neueste zuerst)
-            dateien.sort(key=lambda x: x['modified'], reverse=True)
-        except Exception as e:
-            print(f"Fehler beim Scannen des Lieferschein-Ordners: {e}")
-    
-    return dateien
+# Funktionen wurden nach utils/file_handling.py verschoben
+from ..utils import get_bestellung_dateien, get_auftragsbestätigung_dateien, get_lieferschein_dateien
 
 
 # ========== Wareneingang ==========

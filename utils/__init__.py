@@ -38,6 +38,12 @@ from .file_handling import (
     save_uploaded_file,
     move_file_safe
 )
+from .logging import (
+    log_info,
+    log_error,
+    log_warning,
+    log_debug
+)
 
 __all__ = [
     'get_db_connection',
@@ -67,6 +73,10 @@ __all__ = [
     'create_upload_folder',
     'get_file_list',
     'save_uploaded_file',
-    'move_file_safe'
+    'move_file_safe',
+    'log_info',
+    'log_error',
+    'log_warning',
+    'log_debug'
 ]
 

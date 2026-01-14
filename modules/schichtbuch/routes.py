@@ -23,7 +23,8 @@ def get_datei_anzahl(thema_id):
     try:
         files = os.listdir(thema_folder)
         return len([f for f in files if os.path.isfile(os.path.join(thema_folder, f))])
-    except:
+    except Exception as e:
+        print(f"Fehler beim Ermitteln der Dateianzahl für Thema {thema_id}: {e}")
         return 0
 
 
