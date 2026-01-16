@@ -9,6 +9,7 @@ from utils.helpers import build_ersatzteil_zugriff_filter
 from utils.zebra_client import send_zpl_to_printer
 from ..services import create_lagerbuchung, create_inventur_buchung
 from ..utils import hat_ersatzteil_zugriff, validate_thema_ersatzteil_buchung, prepare_thema_ersatzteil_data
+from modules.schichtbuch.services import get_thema_info_fuer_lagerbuchung
 
 
 @ersatzteile_bp.route('/lagerbuchungen')
@@ -374,6 +375,17 @@ def thema_verknuepfen(thema_id):
                 flash(error_message, 'danger')
                 return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
             
+            # Themadaten für Lagerbuchungs-Bemerkung abrufen
+            thema_info = get_thema_info_fuer_lagerbuchung(thema_id, conn)
+            
+            # Bemerkung zusammenstellen: Bereich/Gewerk + Formular-Bemerkung
+            lagerbuchung_bemerkung = thema_info if thema_info else ""
+            if bemerkung:
+                if lagerbuchung_bemerkung:
+                    lagerbuchung_bemerkung += f"\n{bemerkung}"
+                else:
+                    lagerbuchung_bemerkung = bemerkung
+            
             # Lagerbuchung über Service erstellen (Ausgang, da Ersatzteil für Thema verwendet wird)
             success, message, neuer_bestand = create_lagerbuchung(
                 ersatzteil_id=ersatzteil_id,
@@ -384,7 +396,7 @@ def thema_verknuepfen(thema_id):
                 conn=conn,
                 thema_id=thema_id,
                 kostenstelle_id=kostenstelle_id,
-                bemerkung=bemerkung
+                bemerkung=lagerbuchung_bemerkung if lagerbuchung_bemerkung else None
             )
             
             if success:

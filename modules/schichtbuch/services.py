@@ -220,6 +220,42 @@ def check_thema_berechtigung(thema_id, mitarbeiter_id, conn):
     return berechtigt['count'] > 0
 
 
+def get_thema_info_fuer_lagerbuchung(thema_id, conn):
+    """
+    Ruft Bereich und Gewerk für ein Thema ab und formatiert sie für Lagerbuchungen
+    
+    Args:
+        thema_id: ID des Themas
+        conn: Datenbankverbindung
+        
+    Returns:
+        String mit formatierten Themadaten: "{bereich} - {gewerk}"
+        oder None wenn Thema nicht gefunden
+    """
+    # Thema-Infos mit Bereich und Gewerk abrufen
+    thema = conn.execute('''
+        SELECT 
+            b.Bezeichnung AS Bereich,
+            g.Bezeichnung AS Gewerk
+        FROM SchichtbuchThema t
+        JOIN Gewerke g ON t.GewerkID = g.ID
+        JOIN Bereich b ON g.BereichID = b.ID
+        WHERE t.ID = ? AND t.Gelöscht = 0
+    ''', (thema_id,)).fetchone()
+    
+    if not thema:
+        return None
+    
+    # Formatieren
+    bereich = thema['Bereich']
+    gewerk = thema['Gewerk']
+    
+    # Formatierter String erstellen
+    result = f"{bereich} - {gewerk}"
+    
+    return result
+
+
 def get_thema_detail_data(thema_id, mitarbeiter_id, conn, is_admin=False):
     """
     Lädt alle Daten für die Thema-Detail-Seite
@@ -517,6 +553,9 @@ def process_ersatzteile_fuer_thema(thema_id, ersatzteil_ids, ersatzteil_mengen,
     if not ersatzteil_ids:
         return 0
     
+    # Themadaten für Lagerbuchungs-Bemerkung abrufen
+    thema_info = get_thema_info_fuer_lagerbuchung(thema_id, conn)
+    
     sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
     verarbeitet = 0
     
@@ -557,6 +596,14 @@ def process_ersatzteile_fuer_thema(thema_id, ersatzteil_ids, ersatzteil_mengen,
                     # Keine Berechtigung
                     continue
             
+            # Bemerkung zusammenstellen: Bereich/Gewerk + Formular-Bemerkung
+            lagerbuchung_bemerkung = thema_info if thema_info else ""
+            if bemerkung:
+                if lagerbuchung_bemerkung:
+                    lagerbuchung_bemerkung += f"\n{bemerkung}"
+                else:
+                    lagerbuchung_bemerkung = bemerkung
+            
             # Lagerbuchung über Service erstellen (Ausgang)
             # Der Service prüft automatisch Bestand, erstellt die Buchung und aktualisiert den Bestand
             success, message, neuer_bestand = create_lagerbuchung(
@@ -568,7 +615,7 @@ def process_ersatzteile_fuer_thema(thema_id, ersatzteil_ids, ersatzteil_mengen,
                 conn=conn,
                 thema_id=thema_id,
                 kostenstelle_id=kostenstelle_id,
-                bemerkung=bemerkung
+                bemerkung=lagerbuchung_bemerkung if lagerbuchung_bemerkung else None
             )
             
             if success:
