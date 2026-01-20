@@ -10,6 +10,7 @@ from . import angebotsanfrage_routes
 from . import bestellung_routes
 from . import wareneingang_routes
 from . import lieferant_routes
+from . import auswertungen_routes
 
-__all__ = ['ersatzteil_routes', 'lagerbuchung_routes', 'angebotsanfrage_routes', 'bestellung_routes', 'wareneingang_routes', 'lieferant_routes']
+__all__ = ['ersatzteil_routes', 'lagerbuchung_routes', 'angebotsanfrage_routes', 'bestellung_routes', 'wareneingang_routes', 'lieferant_routes', 'auswertungen_routes']
 

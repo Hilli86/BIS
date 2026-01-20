@@ -15,6 +15,7 @@ from .routes import (
     angebotsanfrage_routes,
     bestellung_routes,
     wareneingang_routes,
-    lieferant_routes
+    lieferant_routes,
+    auswertungen_routes
 )
 

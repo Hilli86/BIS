@@ -1,0 +1,253 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<h1 class="mb-4">📊 Auswertungen</h1>
+
+<!-- Filter -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#filterCollapse" aria-expanded="false" aria-controls="filterCollapse">
+        <strong>Filter</strong>
+        <span class="btn btn-sm btn-outline-primary">
+            Anzeigen / Ausblenden
+        </span>
+    </div>
+    <div class="collapse" id="filterCollapse">
+        <div class="card-body">
+            <form method="get" id="filterForm">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label"><strong>Abteilung</strong></label>
+                        <select name="abteilung" class="form-select">
+                            <option value="">-- Alle Abteilungen --</option>
+                            {% for a in abteilungen %}
+                            <option value="{{ a.id }}" {% if a.id == abteilung_filter %}selected{% endif %}>
+                                {% if a.level > 0 %}{% for i in range(a.level) %}&nbsp;&nbsp;&nbsp;{% endfor %}└ {% endif %}{{ a.bezeichnung }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label"><strong>Lieferant</strong></label>
+                        <select name="lieferant" class="form-select">
+                            <option value="">-- Alle Lieferanten --</option>
+                            {% for l in lieferanten %}
+                            <option value="{{ l.ID }}" {% if l.ID == lieferant_filter %}selected{% endif %}>{{ l.Name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label"><strong>Datum von</strong></label>
+                        <input type="date" name="datum_von" class="form-control" value="{{ datum_von }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label"><strong>Datum bis</strong></label>
+                        <input type="date" name="datum_bis" class="form-control" value="{{ datum_bis }}">
+                    </div>
+                    <div class="col-md-12">
+                        <button type="submit" class="btn btn-primary">Filter anwenden</button>
+                        <a href="{{ url_for('ersatzteile.auswertungen') }}" class="btn btn-secondary">Zurücksetzen</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Bestellungen-Auswertung -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-header">
+        <h5 class="mb-0">🛒 Bestellungen-Auswertung</h5>
+        <small class="text-muted">Nur erledigte Bestellungen werden berücksichtigt</small>
+    </div>
+    <div class="card-body">
+        <!-- Übersichtskarten -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2">Anzahl Bestellungen</h6>
+                        <h3 class="mb-0">{{ bestellungen_auswertung.gesamt.anzahl }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2">Gesamtsumme (EUR)</h6>
+                        <h3 class="mb-0">{{ "%.2f"|format(bestellungen_auswertung.gesamt.summe_nach_waehrung.get('EUR', 0)) }} €</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2">Durchschnitt (EUR)</h6>
+                        <h3 class="mb-0">{{ "%.2f"|format(bestellungen_auswertung.durchschnitt) }} €</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabelle nach Monat -->
+        {% if bestellungen_auswertung.nach_monat %}
+        <h6 class="mb-3">Auswertung nach Jahr/Monat</h6>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead>
+                    <tr>
+                        <th>Jahr/Monat</th>
+                        <th class="text-end">Anzahl Bestellungen</th>
+                        <th class="text-end">Summe (EUR)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for monat in bestellungen_auswertung.nach_monat %}
+                    <tr>
+                        <td>
+                            {% set parts = monat.jahr_monat.split('-') %}
+                            {% if parts|length >= 2 and parts[0] and parts[1] %}
+                            {% set jahr = parts[0] %}
+                            {% set monat_num = parts[1]|int %}
+                            {{ "%02d"|format(monat_num) }}/{{ jahr }}
+                            {% else %}
+                            {{ monat.jahr_monat }}
+                            {% endif %}
+                        </td>
+                        <td class="text-end">{{ monat.anzahl }}</td>
+                        <td class="text-end">
+                            {{ "%.2f"|format(monat.summe_nach_waehrung.get('EUR', 0)) }} €
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% for monat in bestellungen_auswertung.nach_monat %}
+        {% if monat.lieferanten %}
+        <h6 class="mb-2">
+            Lieferanten {{ monat.jahr_monat }}
+        </h6>
+        <div class="table-responsive mb-4">
+            <table class="table table-sm table-hover">
+                <thead>
+                    <tr>
+                        <th>Lieferant</th>
+                        <th class="text-end">Summe (EUR)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for lieferant in monat.lieferanten %}
+                    <tr>
+                        <td>{{ lieferant.lieferant_name }}</td>
+                        <td class="text-end">{{ "%.2f"|format(lieferant.summe_eur) }} €</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% else %}
+        <div class="alert alert-info">
+            Keine erledigten Bestellungen im gewählten Zeitraum gefunden.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Ersatzteilwert-Auswertung -->
+<div class="card mb-4 shadow-sm">
+    <div class="card-header">
+        <h5 class="mb-0">💰 Ersatzteilwert-Auswertung</h5>
+        <small class="text-muted">Aktueller Lagerwert</small>
+    </div>
+    <div class="card-body">
+        <!-- Übersichtskarten -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2">Gesamtlagerwert (EUR)</h6>
+                        <h3 class="mb-0">{{ "%.2f"|format(ersatzteilwert_auswertung.gesamt.lagerwert_nach_waehrung.get('EUR', 0)) }} €</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2">Anzahl Artikel</h6>
+                        <h3 class="mb-0">{{ ersatzteilwert_auswertung.gesamt.anzahl_artikel }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2">Artikel mit Bestand</h6>
+                        <h3 class="mb-0">{{ ersatzteilwert_auswertung.gesamt.anzahl_mit_bestand }}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabelle nach Kategorie -->
+        {% if ersatzteilwert_auswertung.nach_kategorie %}
+        <h6 class="mb-3">Lagerwert nach Artikel-Kategorie</h6>
+        <div class="table-responsive mb-4">
+            <table class="table table-sm table-hover">
+                <thead>
+                    <tr>
+                        <th>Kategorie</th>
+                        <th class="text-end">Anzahl Artikel</th>
+                        <th class="text-end">Lagerwert (EUR)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for kategorie in ersatzteilwert_auswertung.nach_kategorie %}
+                    <tr>
+                        <td>{{ kategorie.kategorie_name }}</td>
+                        <td class="text-end">{{ kategorie.anzahl_artikel }}</td>
+                        <td class="text-end">
+                            {{ "%.2f"|format(kategorie.lagerwert_nach_waehrung.get('EUR', 0)) }} €
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <!-- Tabelle nach Lieferant -->
+        {% if ersatzteilwert_auswertung.nach_lieferant %}
+        <h6 class="mb-3">Lagerwert nach Lieferant</h6>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead>
+                    <tr>
+                        <th>Lieferant</th>
+                        <th class="text-end">Anzahl Artikel</th>
+                        <th class="text-end">Lagerwert (EUR)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for lieferant in ersatzteilwert_auswertung.nach_lieferant %}
+                    <tr>
+                        <td>{{ lieferant.lieferant_name }}</td>
+                        <td class="text-end">{{ lieferant.anzahl_artikel }}</td>
+                        <td class="text-end">
+                            {{ "%.2f"|format(lieferant.lagerwert_nach_waehrung.get('EUR', 0)) }} €
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            Keine Ersatzteile gefunden.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

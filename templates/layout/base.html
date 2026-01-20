@@ -356,8 +356,11 @@
     <a href="{{ url_for('ersatzteile.angebotsanfrage_liste') }}" class="{% if request.endpoint and 'angebotsanfrage' in request.endpoint %}active{% endif %}">
       📋 Angebotsanfragen
     </a>
-    <a href="{{ url_for('ersatzteile.bestellung_liste') }}" class="{% if request.endpoint and 'bestellung' in request.endpoint and 'wareneingang' not in request.endpoint %}active{% endif %}">
+    <a href="{{ url_for('ersatzteile.bestellung_liste') }}" class="{% if request.endpoint and 'bestellung' in request.endpoint and 'wareneingang' not in request.endpoint and 'auswertung' not in request.endpoint %}active{% endif %}">
       🛒 Bestellungen
+    </a>
+    <a href="{{ url_for('ersatzteile.auswertungen') }}" class="{% if request.endpoint and 'auswertung' in request.endpoint %}active{% endif %}">
+      📊 Auswertungen
     </a>
     {% if 'admin' in session.get('user_berechtigungen', []) or 'artikel_buchen' in session.get('user_berechtigungen', []) %}
     <a href="{{ url_for('ersatzteile.wareneingang') }}" class="{% if request.endpoint and 'wareneingang' in request.endpoint %}active{% endif %}">
