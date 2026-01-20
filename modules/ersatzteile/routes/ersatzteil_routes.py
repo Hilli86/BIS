@@ -36,6 +36,7 @@ def ersatzteil_liste():
     lagerplatz_filter = request.args.get('lagerplatz')
     kennzeichen_filter = request.args.get('kennzeichen')
     bestandswarnung = request.args.get('bestandswarnung') == '1'
+    nur_ohne_preis = request.args.get('nur_ohne_preis') == '1'
     q_filter = request.args.get('q')
     sort_by = request.args.get('sort', 'kategorie')  # Standard: Kategorie
     sort_dir = request.args.get('dir', 'asc')  # Standard: aufsteigend
@@ -58,7 +59,8 @@ def ersatzteil_liste():
             bestandswarnung=bestandswarnung,
             q_filter=q_filter,
             sort_by=sort_by,
-            sort_dir=sort_dir
+            sort_dir=sort_dir,
+            nur_ohne_preis=nur_ohne_preis,
         )
         
         ersatzteile = conn.execute(query, params).fetchall()
@@ -84,6 +86,7 @@ def ersatzteil_liste():
         lagerplatz_filter=lagerplatz_filter,
         kennzeichen_filter=kennzeichen_filter,
         bestandswarnung=bestandswarnung,
+        nur_ohne_preis=nur_ohne_preis,
         q_filter=q_filter,
         sort_by=sort_by,
         sort_dir=sort_dir,
@@ -193,6 +196,7 @@ def ersatzteil_detail(ersatzteil_id):
     lagerplatz_filter = request.args.get('lagerplatz')
     kennzeichen_filter = request.args.get('kennzeichen')
     bestandswarnung = request.args.get('bestandswarnung')
+    nur_ohne_preis = request.args.get('nur_ohne_preis')
     q_filter = request.args.get('q')
     sort_by = request.args.get('sort')
     sort_dir = request.args.get('dir')
@@ -253,7 +257,8 @@ def ersatzteil_detail(ersatzteil_id):
         'bestandswarnung': request.args.get('bestandswarnung', ''),
         'kennzeichen': request.args.get('kennzeichen', ''),
         'sort': request.args.get('sort', ''),
-        'dir': request.args.get('dir', '')
+        'dir': request.args.get('dir', ''),
+        'nur_ohne_preis': request.args.get('nur_ohne_preis', '')
     }
     
     return render_template(
@@ -511,6 +516,7 @@ def ersatzteil_bearbeiten(ersatzteil_id):
     lagerplatz_filter = request.args.get('lagerplatz') or request.form.get('lagerplatz')
     kennzeichen_filter = request.args.get('kennzeichen') or request.form.get('kennzeichen')
     bestandswarnung = request.args.get('bestandswarnung') or request.form.get('bestandswarnung')
+    nur_ohne_preis_filter = request.args.get('nur_ohne_preis') or request.form.get('nur_ohne_preis')
     q_filter = request.args.get('q') or request.form.get('q')
     sort_by = request.args.get('sort') or request.form.get('sort')
     sort_dir = request.args.get('dir') or request.form.get('dir')
@@ -525,7 +531,8 @@ def ersatzteil_bearbeiten(ersatzteil_id):
         'bestandswarnung': request.args.get('bestandswarnung', ''),
         'kennzeichen': request.args.get('kennzeichen', ''),
         'sort': request.args.get('sort', ''),
-        'dir': request.args.get('dir', '')
+        'dir': request.args.get('dir', ''),
+        'nur_ohne_preis': request.args.get('nur_ohne_preis', '')
     }
     
     # Prüfen, ob man von der Liste oder vom Detail kommt
@@ -631,7 +638,8 @@ def ersatzteil_bearbeiten(ersatzteil_id):
                     'bestandswarnung': request.form.get('bestandswarnung') or request.args.get('bestandswarnung', ''),
                     'kennzeichen': request.form.get('kennzeichen_filter') or request.args.get('kennzeichen', ''),
                     'sort': request.form.get('sort') or request.args.get('sort', ''),
-                    'dir': request.form.get('dir') or request.args.get('dir', '')
+                    'dir': request.form.get('dir') or request.args.get('dir', ''),
+                    'nur_ohne_preis': request.form.get('nur_ohne_preis') or request.args.get('nur_ohne_preis', '')
                 }
                 
                 if from_page == 'detail':

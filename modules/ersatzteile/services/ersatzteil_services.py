@@ -7,11 +7,21 @@ from utils import get_sichtbare_abteilungen_fuer_mitarbeiter
 from utils.helpers import build_ersatzteil_zugriff_filter
 
 
-def build_ersatzteil_liste_query(mitarbeiter_id, sichtbare_abteilungen, is_admin,
-                                  kategorie_filter=None, lieferant_filter=None,
-                                  lagerort_filter=None, lagerplatz_filter=None,
-                                  kennzeichen_filter=None, bestandswarnung=False,
-                                  q_filter=None, sort_by='kategorie', sort_dir='asc'):
+def build_ersatzteil_liste_query(
+    mitarbeiter_id,
+    sichtbare_abteilungen,
+    is_admin,
+    kategorie_filter=None,
+    lieferant_filter=None,
+    lagerort_filter=None,
+    lagerplatz_filter=None,
+    kennzeichen_filter=None,
+    bestandswarnung=False,
+    q_filter=None,
+    sort_by='kategorie',
+    sort_dir='asc',
+    nur_ohne_preis=False,
+):
     """
     Baut die SQL-Query für Ersatzteil-Liste auf
     
@@ -50,6 +60,8 @@ def build_ersatzteil_liste_query(mitarbeiter_id, sichtbare_abteilungen, is_admin
             e.EndOfLife,
             e.Kennzeichen,
             e.LieferantID,
+            e.Preis,
+            e.Waehrung,
             k.Bezeichnung AS Kategorie,
             l.Name AS Lieferant,
             lo.Bezeichnung AS LagerortName,
@@ -86,6 +98,10 @@ def build_ersatzteil_liste_query(mitarbeiter_id, sichtbare_abteilungen, is_admin
     
     if bestandswarnung:
         query += ' AND e.AktuellerBestand < e.Mindestbestand AND e.Mindestbestand > 0 AND e.EndOfLife = 0'
+
+    if nur_ohne_preis:
+        # Nur Artikel ohne Preis (NULL oder 0)
+        query += ' AND (e.Preis IS NULL OR e.Preis = 0)'
     
     if q_filter:
         query += ' AND (CAST(e.ID AS TEXT) LIKE ? OR e.Bestellnummer LIKE ? OR e.Bezeichnung LIKE ? OR e.Beschreibung LIKE ? OR e.ArtikelnummerHersteller LIKE ?)'
@@ -112,6 +128,7 @@ def build_ersatzteil_liste_query(mitarbeiter_id, sichtbare_abteilungen, is_admin
         'bezeichnung': 'e.Bezeichnung',
         'lieferant': 'l.Name',
         'bestand': 'e.AktuellerBestand',
+        'preis': 'e.Preis',
         'lagerort': 'lo.Bezeichnung',
         'lagerplatz': 'lp.Bezeichnung'
     }
