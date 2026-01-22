@@ -24,7 +24,11 @@
                     title="QR-Code anzeigen">
                 <i class="bi bi-qr-code"></i> <span class="d-none d-sm-inline">QR-Code</span>
             </button>
-            <button type="button" class="btn btn-sm btn-light" onclick="druckeEtikett({{ ersatzteil.ID }}, event)" title="30x30-Etikett drucken">
+            <button type="button" class="btn btn-sm btn-light" 
+                    onclick="druckeEtikett({{ ersatzteil.ID }}, event)" 
+                    oncontextmenu="event.preventDefault(); oeffneEtikettKontextmenue({{ ersatzteil.ID }}, {{ ersatzteil.AktuellerBestand or 0 }}, event);"
+                    data-lagerbestand="{{ ersatzteil.AktuellerBestand or 0 }}"
+                    title="30x30-Etikett drucken (Linksklick: 1x drucken, Rechtsklick: Anzahl wählen)">
                 <i class="bi bi-printer"></i> <span class="d-none d-sm-inline">Etikett drucken</span>
             </button>
             {% if 'admin' in session.get('user_berechtigungen', []) %}
@@ -629,32 +633,259 @@ function druckeEtikett(ersatzteilId, event) {
     if (event) {
         event.stopPropagation();
     }
+    
+    // Direkt ein Etikett drucken (Standard: 1 Stück)
+    druckeEtikettDirekt(ersatzteilId, 1);
+}
 
+function oeffneEtikettModal(ersatzteilId, event) {
+    if (event) {
+        event.stopPropagation();
+    }
+    
+    // Button-Position ermitteln
     const button = event ? event.target.closest('button') : document.querySelector(`button[onclick*="${ersatzteilId}"]`);
-    const originalContent = button.innerHTML;
-    button.disabled = true;
-    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    const buttonRect = button.getBoundingClientRect();
+    const modalElement = document.getElementById('etikettAnzahlModal');
+    const modalDialog = modalElement.querySelector('.modal-dialog');
+    
+    // Modal-Dialog-Positionierung: Links vom Button positionieren
+    // Breite des Modals schätzen (ca. 400px) und etwas Abstand lassen
+    const modalWidth = 400;
+    const offset = 10;
+    
+    // Position berechnen: Links vom Button
+    const leftPosition = buttonRect.left - modalWidth - offset;
+    
+    // Sicherstellen, dass das Modal nicht außerhalb des Viewports ist
+    const viewportWidth = window.innerWidth;
+    const finalLeft = Math.max(10, Math.min(leftPosition, viewportWidth - modalWidth - 10));
+    
+    // Vertikale Position: Button-Mitte
+    const topPosition = buttonRect.top + (buttonRect.height / 2) - 100; // 100px Offset für Modal-Höhe
+    
+    // Modal-Dialog positionieren
+    modalDialog.style.position = 'fixed';
+    modalDialog.style.left = finalLeft + 'px';
+    modalDialog.style.top = Math.max(10, topPosition) + 'px';
+    modalDialog.style.margin = '0';
+    modalDialog.style.transform = 'none';
+    
+    // Modal öffnen mit der Ersatzteil-ID
+    const modal = new bootstrap.Modal(modalElement);
+    document.getElementById('etikettAnzahlErsatzteilId').value = ersatzteilId;
+    document.getElementById('etikettAnzahlInput').value = '1';
+    
+    // Position beim Öffnen nochmal setzen (falls Bootstrap es überschreibt)
+    modalElement.addEventListener('shown.bs.modal', function() {
+        modalDialog.style.position = 'fixed';
+        modalDialog.style.left = finalLeft + 'px';
+        modalDialog.style.top = Math.max(10, topPosition) + 'px';
+        modalDialog.style.margin = '0';
+        modalDialog.style.transform = 'none';
+        document.getElementById('etikettAnzahlInput').focus();
+    }, { once: true });
+    
+    modal.show();
+}
 
-    fetch(`{{ url_for('ersatzteile.ersatzteil_druck_label', ersatzteil_id=0) }}`.replace('/0', `/${ersatzteilId}`), {
-        method: 'POST',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-        .then(response => response.json())
-        .then(data => {
-            button.disabled = false;
-            button.innerHTML = originalContent;
-            const toastType = data.success ? 'success' : 'danger';
-            const toastMessage = data.message || 'Unbekannter Fehler beim Drucken.';
-            showToast(toastMessage, toastType);
+function druckeEtikettMitAnzahl() {
+    const ersatzteilId = parseInt(document.getElementById('etikettAnzahlErsatzteilId').value);
+    const anzahl = parseInt(document.getElementById('etikettAnzahlInput').value);
+    
+    // Validierung
+    if (!anzahl || anzahl < 1 || anzahl > 100) {
+        showToast('Bitte geben Sie eine Anzahl zwischen 1 und 100 ein.', 'danger');
+        return;
+    }
+    
+    // Modal schließen
+    const modal = bootstrap.Modal.getInstance(document.getElementById('etikettAnzahlModal'));
+    modal.hide();
+    
+    // Button finden und deaktivieren (falls noch sichtbar)
+    const buttons = document.querySelectorAll(`button[onclick*="druckeEtikett(${ersatzteilId}"]`);
+    buttons.forEach(button => {
+        button.disabled = true;
+        const originalContent = button.innerHTML;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        
+        fetch(`{{ url_for('ersatzteile.ersatzteil_druck_label', ersatzteil_id=0) }}`.replace('/0', `/${ersatzteilId}`), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ anzahl: anzahl })
         })
-        .catch(error => {
-            button.disabled = false;
-            button.innerHTML = originalContent;
-            console.error('Fehler:', error);
-            showToast('Fehler beim Drucken des Etiketts.', 'danger');
-        });
+            .then(response => response.json())
+            .then(data => {
+                button.disabled = false;
+                button.innerHTML = originalContent;
+                const toastType = data.success ? 'success' : 'danger';
+                const toastMessage = data.message || 'Unbekannter Fehler beim Drucken.';
+                showToast(toastMessage, toastType);
+            })
+            .catch(error => {
+                button.disabled = false;
+                button.innerHTML = originalContent;
+                console.error('Fehler:', error);
+                showToast('Fehler beim Drucken des Etiketts.', 'danger');
+            });
+    });
+}
+
+function oeffneEtikettKontextmenue(ersatzteilId, lagerbestand, event) {
+    event.stopPropagation();
+    
+    // Altes Kontextmenü entfernen falls vorhanden
+    const altesMenue = document.getElementById('etikettKontextmenue');
+    if (altesMenue) {
+        altesMenue.remove();
+    }
+    
+    // Button-Position ermitteln
+    const button = event.target.closest('button');
+    const buttonRect = button.getBoundingClientRect();
+    
+    // Kontextmenü erstellen
+    const menue = document.createElement('div');
+    menue.id = 'etikettKontextmenue';
+    menue.className = 'dropdown-menu show position-fixed';
+    menue.style.display = 'block';
+    menue.style.zIndex = '9999';
+    
+    // Menü-Breite und Höhe schätzen
+    const menueWidth = 220;
+    const offset = 5;
+    // Geschätzte Höhe: 4 Standard-Optionen + optional Lagerbestand + Trennlinien + Eigene Anzahl
+    // Ca. 40px pro Item, plus Trennlinien
+    const geschaetzteHoehe = 250; // Sicherheitspuffer für alle möglichen Optionen
+    
+    // Position berechnen: Links vom Button
+    // getBoundingClientRect() gibt Position relativ zum Viewport zurück
+    // position: fixed ist auch relativ zum Viewport, daher kein window.scrollY nötig
+    const leftPosition = buttonRect.left - menueWidth - offset;
+    
+    // Sicherstellen, dass das Menü nicht außerhalb des Viewports ist
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const finalLeft = Math.max(5, Math.min(leftPosition, viewportWidth - menueWidth - 5));
+    
+    // Vertikale Position: Prüfen ob nach unten oder oben öffnen
+    const platzUnten = viewportHeight - buttonRect.bottom;
+    const platzOben = buttonRect.top;
+    
+    let topPosition;
+    if (platzUnten >= geschaetzteHoehe || platzUnten >= platzOben) {
+        // Genug Platz nach unten oder mehr Platz nach unten als nach oben: nach unten öffnen
+        topPosition = buttonRect.bottom;
+    } else {
+        // Nicht genug Platz nach unten: nach oben öffnen (untere Kante des Menüs an oberer Kante des Buttons)
+        topPosition = buttonRect.top - geschaetzteHoehe;
+        // Sicherstellen, dass es nicht über den Viewport hinausgeht
+        if (topPosition < 5) {
+            topPosition = 5;
+        }
+    }
+    
+    menue.style.left = finalLeft + 'px';
+    menue.style.top = topPosition + 'px';
+    
+    const schnelleAnzahlen = [1, 2, 5, 10];
+    schnelleAnzahlen.forEach(anzahl => {
+        const item = document.createElement('a');
+        item.className = 'dropdown-item';
+        item.href = '#';
+        item.textContent = `${anzahl} Etikett${anzahl > 1 ? 'en' : ''} drucken`;
+        item.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            menue.remove();
+            druckeEtikettDirekt(ersatzteilId, anzahl);
+        };
+        menue.appendChild(item);
+    });
+    
+    // Lagerbestand-Option hinzufügen, wenn Lagerbestand < 20
+    if (lagerbestand && lagerbestand < 20 && lagerbestand > 0) {
+        const divider1 = document.createElement('hr');
+        divider1.className = 'dropdown-divider';
+        menue.appendChild(divider1);
+        
+        const lagerbestandItem = document.createElement('a');
+        lagerbestandItem.className = 'dropdown-item';
+        lagerbestandItem.href = '#';
+        lagerbestandItem.innerHTML = `<i class="bi bi-box-seam"></i> Lagerbestand (${lagerbestand}) drucken`;
+        lagerbestandItem.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            menue.remove();
+            druckeEtikettDirekt(ersatzteilId, lagerbestand);
+        };
+        menue.appendChild(lagerbestandItem);
+    }
+    
+    const divider = document.createElement('hr');
+    divider.className = 'dropdown-divider';
+    menue.appendChild(divider);
+    
+    const customItem = document.createElement('a');
+    customItem.className = 'dropdown-item';
+    customItem.href = '#';
+    customItem.innerHTML = '<i class="bi bi-three-dots"></i> Eigene Anzahl wählen...';
+    customItem.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        menue.remove();
+        oeffneEtikettModal(ersatzteilId, event);
+    };
+    menue.appendChild(customItem);
+    
+    document.body.appendChild(menue);
+    
+    // Menü schließen bei Klick außerhalb
+    setTimeout(() => {
+        const schliesseMenue = function(e) {
+            if (!menue.contains(e.target)) {
+                menue.remove();
+                document.removeEventListener('click', schliesseMenue);
+            }
+        };
+        document.addEventListener('click', schliesseMenue);
+    }, 10);
+}
+
+function druckeEtikettDirekt(ersatzteilId, anzahl) {
+    const buttons = document.querySelectorAll(`button[onclick*="druckeEtikett(${ersatzteilId}"]`);
+    buttons.forEach(button => {
+        button.disabled = true;
+        const originalContent = button.innerHTML;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        
+        fetch(`{{ url_for('ersatzteile.ersatzteil_druck_label', ersatzteil_id=0) }}`.replace('/0', `/${ersatzteilId}`), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ anzahl: anzahl })
+        })
+            .then(response => response.json())
+            .then(data => {
+                button.disabled = false;
+                button.innerHTML = originalContent;
+                const toastType = data.success ? 'success' : 'danger';
+                const toastMessage = data.message || 'Unbekannter Fehler beim Drucken.';
+                showToast(toastMessage, toastType);
+            })
+            .catch(error => {
+                button.disabled = false;
+                button.innerHTML = originalContent;
+                console.error('Fehler:', error);
+                showToast('Fehler beim Drucken des Etiketts.', 'danger');
+            });
+    });
 }
 
 async function ladeAngeboteUndBestellungen(ersatzteilId, event) {
@@ -932,6 +1163,66 @@ async function verschiebeAusImportErsatzteil(filename, ersatzteilId) {
         alert('Fehler beim Verschieben der Datei.');
     }
 }
+</script>
+
+<!-- Modal für Etikett-Anzahl -->
+<div class="modal fade" id="etikettAnzahlModal" tabindex="-1" aria-labelledby="etikettAnzahlModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="etikettAnzahlModalLabel">
+                    <i class="bi bi-printer"></i> Artikeletiketten drucken
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="etikettAnzahlInput" class="form-label">Anzahl der Etiketten:</label>
+                    <input type="number" class="form-control" id="etikettAnzahlInput" 
+                           min="1" max="100" value="1" 
+                           onkeypress="if(event.key === 'Enter') druckeEtikettMitAnzahl()">
+                    <div class="form-text">Geben Sie die Anzahl der zu druckenden Etiketten ein (1-100).</div>
+                </div>
+                <input type="hidden" id="etikettAnzahlErsatzteilId" value="">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-primary" onclick="druckeEtikettMitAnzahl()">
+                    <i class="bi bi-printer"></i> Drucken
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Enter-Taste im Modal unterstützen und Modal-Position zurücksetzen beim Schließen
+document.addEventListener('DOMContentLoaded', function() {
+    const anzahlInput = document.getElementById('etikettAnzahlInput');
+    if (anzahlInput) {
+        anzahlInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                druckeEtikettMitAnzahl();
+            }
+        });
+    }
+    
+    // Modal-Position zurücksetzen beim Schließen
+    const modalElement = document.getElementById('etikettAnzahlModal');
+    if (modalElement) {
+        modalElement.addEventListener('hidden.bs.modal', function() {
+            const modalDialog = this.querySelector('.modal-dialog');
+            if (modalDialog) {
+                modalDialog.style.position = '';
+                modalDialog.style.left = '';
+                modalDialog.style.top = '';
+                modalDialog.style.margin = '';
+                modalDialog.style.transform = '';
+            }
+        });
+    }
+});
 </script>
 {% endblock %}
 

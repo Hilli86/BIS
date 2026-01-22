@@ -5,6 +5,7 @@ Ersatzteil-Routen - CRUD-Operationen für Ersatzteile
 from flask import render_template, request, redirect, url_for, session, jsonify, flash, send_from_directory, current_app
 from datetime import datetime
 import os
+import re
 from werkzeug.utils import secure_filename
 from .. import ersatzteile_bp
 from utils import get_db_connection, login_required, get_sichtbare_abteilungen_fuer_mitarbeiter
@@ -101,6 +102,18 @@ def ersatzteil_liste():
 def ersatzteil_druck_label(ersatzteil_id):
     """Druckt ein 30x30-Etikett für ein Ersatzteil über Zebra."""
     mitarbeiter_id = session.get('user_id')
+    
+    # Anzahl aus Request-Body lesen (Standard: 1)
+    data = request.get_json() or {}
+    anzahl = data.get('anzahl', 1)
+    
+    # Validierung: Anzahl muss zwischen 1 und 100 sein
+    try:
+        anzahl = int(anzahl)
+        if anzahl < 1 or anzahl > 100:
+            return jsonify({'success': False, 'message': 'Anzahl muss zwischen 1 und 100 liegen.'}), 400
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'message': 'Ungültige Anzahl.'}), 400
 
     with get_db_connection() as conn:
         # Berechtigung prüfen
@@ -170,6 +183,11 @@ def ersatzteil_druck_label(ersatzteil_id):
             zpl_header=etikett['zpl_header']
         )
 
+        # Anzahl im ZPL-Befehl anpassen (^PQ Befehl)
+        # Suche nach ^PQ und ersetze die erste Zahl (Anzahl)
+        # Pattern: ^PQ gefolgt von Zahl, Komma, weitere Parameter
+        zpl = re.sub(r'\^PQ(\d+)', f'^PQ{anzahl}', zpl)
+
         # Kompletten ZPL-Befehl in der Konsole ausgeben (für Debugging)
         print("===== ERSATZTEIL LABEL ZPL =====")
         print(zpl)
@@ -180,7 +198,7 @@ def ersatzteil_druck_label(ersatzteil_id):
         except Exception as e:
             return jsonify({'success': False, 'message': f'Fehler beim Senden an Drucker: {e}'}), 500
 
-    return jsonify({'success': True, 'message': f'Etikett für Artikel {artnr} gedruckt.'})
+    return jsonify({'success': True, 'message': f'{anzahl} Etikett{"en" if anzahl > 1 else ""} für Artikel {artnr} gedruckt.'})
 
 
 @ersatzteile_bp.route('/<int:ersatzteil_id>')
