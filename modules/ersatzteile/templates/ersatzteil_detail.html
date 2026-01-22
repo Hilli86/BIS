@@ -856,36 +856,57 @@ function oeffneEtikettKontextmenue(ersatzteilId, lagerbestand, event) {
     }, 10);
 }
 
+// Flag um zu verhindern, dass der Druck mehrfach ausgeführt wird
+let druckeEtikettInProgress = false;
+
 function druckeEtikettDirekt(ersatzteilId, anzahl) {
+    // Verhindere mehrfache Ausführung
+    if (druckeEtikettInProgress) {
+        return;
+    }
+    druckeEtikettInProgress = true;
+    
     const buttons = document.querySelectorAll(`button[onclick*="druckeEtikett(${ersatzteilId}"]`);
-    buttons.forEach(button => {
+    
+    // Alle Buttons deaktivieren und Spinner anzeigen
+    const originalContents = [];
+    buttons.forEach((button, index) => {
+        originalContents[index] = button.innerHTML;
         button.disabled = true;
-        const originalContent = button.innerHTML;
         button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-        
-        fetch(`{{ url_for('ersatzteile.ersatzteil_druck_label', ersatzteil_id=0) }}`.replace('/0', `/${ersatzteilId}`), {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: JSON.stringify({ anzahl: anzahl })
-        })
-            .then(response => response.json())
-            .then(data => {
-                button.disabled = false;
-                button.innerHTML = originalContent;
-                const toastType = data.success ? 'success' : 'danger';
-                const toastMessage = data.message || 'Unbekannter Fehler beim Drucken.';
-                showToast(toastMessage, toastType);
-            })
-            .catch(error => {
-                button.disabled = false;
-                button.innerHTML = originalContent;
-                console.error('Fehler:', error);
-                showToast('Fehler beim Drucken des Etiketts.', 'danger');
-            });
     });
+    
+    // Nur einmal drucken, nicht für jeden Button
+    fetch(`{{ url_for('ersatzteile.ersatzteil_druck_label', ersatzteil_id=0) }}`.replace('/0', `/${ersatzteilId}`), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({ anzahl: anzahl })
+    })
+        .then(response => response.json())
+        .then(data => {
+            // Alle Buttons wieder aktivieren
+            buttons.forEach((button, index) => {
+                button.disabled = false;
+                button.innerHTML = originalContents[index];
+            });
+            const toastType = data.success ? 'success' : 'danger';
+            const toastMessage = data.message || 'Unbekannter Fehler beim Drucken.';
+            showToast(toastMessage, toastType);
+            druckeEtikettInProgress = false;
+        })
+        .catch(error => {
+            // Alle Buttons wieder aktivieren
+            buttons.forEach((button, index) => {
+                button.disabled = false;
+                button.innerHTML = originalContents[index];
+            });
+            console.error('Fehler:', error);
+            showToast('Fehler beim Drucken des Etiketts.', 'danger');
+            druckeEtikettInProgress = false;
+        });
 }
 
 async function ladeAngeboteUndBestellungen(ersatzteilId, event) {
