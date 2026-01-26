@@ -114,91 +114,20 @@ def ersatzteil_druck_label(ersatzteil_id):
             return jsonify({'success': False, 'message': 'Anzahl muss zwischen 1 und 100 liegen.'}), 400
     except (ValueError, TypeError):
         return jsonify({'success': False, 'message': 'Ungültige Anzahl.'}), 400
-
+    
     with get_db_connection() as conn:
         # Berechtigung prüfen
         if not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
             return jsonify({'success': False, 'message': 'Keine Berechtigung für dieses Ersatzteil.'}), 403
-
-        # Ersatzteil-Daten laden (für Inhalt)
-        et = conn.execute('''
-            SELECT e.ID, e.Bezeichnung, e.Bestellnummer, lo.Bezeichnung AS LagerortName, lp.Bezeichnung AS LagerplatzName
-            FROM Ersatzteil e
-            LEFT JOIN Lagerort lo ON e.LagerortID = lo.ID
-            LEFT JOIN Lagerplatz lp ON e.LagerplatzID = lp.ID
-            WHERE e.ID = ? AND e.Gelöscht = 0
-        ''', (ersatzteil_id,)).fetchone()
-
-        if not et:
-            return jsonify({'success': False, 'message': 'Ersatzteil nicht gefunden.'}), 404
-
-        # Etikett "ErsatzteilLabel" aus der DB laden
-        etikett = conn.execute('''
-            SELECT e.*, p.ip_address, lf.zpl_header
-            FROM Etikett e
-            JOIN zebra_printers p ON e.drucker_id = p.id
-            JOIN label_formats lf ON e.etikettformat_id = lf.id
-            WHERE e.bezeichnung = ? AND p.active = 1
-            LIMIT 1
-        ''', ('ErsatzteilLabel',)).fetchone()
-
-        if not etikett:
-            return jsonify({'success': False, 'message': 'Etikett "ErsatzteilLabel" nicht gefunden oder Drucker nicht aktiv.'}), 400
-
-        # Daten für Platzhalter vorbereiten
-        artnr = str(et['ID'])
-        bestellnummer = et['Bestellnummer'] or ''
-        bezeichnung = et['Bezeichnung'] or ''
-        lagerort = et['LagerortName'] or ''
-        lagerplatz = et['LagerplatzName'] or ''
-
-        # Bezeichnung auf 3 Zeilen umbrechen
-        max_len = 28
-        words = (bezeichnung or "").split()
-        lines = ["", "", ""]
-        current_line = 0
-
-        for w in words:
-            sep = "" if len(lines[current_line]) == 0 else " "
-            if len(lines[current_line]) + len(sep) + len(w) <= max_len:
-                lines[current_line] += sep + w
-            elif current_line < 2:
-                current_line += 1
-                lines[current_line] = w
-            else:
-                break
-
-        line1, line2, line3 = lines
-
-        # ZPL-Template aus DB laden und Platzhalter ersetzen
-        zpl_template = etikett['druckbefehle']
-        zpl = zpl_template.format(
-            artnr=artnr,
-            bestellnummer=bestellnummer,
-            line1=line1,
-            line2=line2,
-            line3=line3,
-            lagerort=lagerort,
-            lagerplatz=lagerplatz,
-            zpl_header=etikett['zpl_header']
-        )
-
-        # Anzahl im ZPL-Befehl anpassen (^PQ Befehl)
-        # Suche nach ^PQ und ersetze die erste Zahl (Anzahl)
-        # Pattern: ^PQ gefolgt von Zahl, Komma, weitere Parameter
-        zpl = re.sub(r'\^PQ(\d+)', f'^PQ{anzahl}', zpl)
-
-        # Kompletten ZPL-Befehl in der Konsole ausgeben (für Debugging)
-        print("===== ERSATZTEIL LABEL ZPL =====")
-        print(zpl)
-        print("===== END ERSATZTEIL LABEL ZPL =====")
-
-        try:
-            send_zpl_to_printer(etikett['ip_address'], zpl)
-        except Exception as e:
-            return jsonify({'success': False, 'message': f'Fehler beim Senden an Drucker: {e}'}), 500
-
-    return jsonify({'success': True, 'message': f'{anzahl} Etikett{"en" if anzahl > 1 else ""} für Artikel {artnr} gedruckt.'})
+        
+        # Wiederverwendbare Service-Funktion verwenden
+        from ..services import drucke_ersatzteil_etikett_intern
+        success, message = drucke_ersatzteil_etikett_intern(ersatzteil_id, anzahl, conn, mitarbeiter_id)
+        
+        if success:
+            return jsonify({'success': True, 'message': message})
+        else:
+            return jsonify({'success': False, 'message': message}), 500
 
 
 @ersatzteile_bp.route('/<int:ersatzteil_id>')

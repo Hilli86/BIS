@@ -9,7 +9,7 @@ from werkzeug.utils import secure_filename
 from .. import ersatzteile_bp
 from utils import get_db_connection, login_required, permission_required, get_sichtbare_abteilungen_fuer_mitarbeiter
 from utils.file_handling import save_uploaded_file, validate_file_extension, create_upload_folder
-from ..services import get_dateien_fuer_bereich, speichere_datei, get_datei_typ_aus_dateiname
+from ..services import get_dateien_fuer_bereich, speichere_datei, get_datei_typ_aus_dateiname, drucke_ersatzteil_etikett_intern
 
 
 def get_lieferschein_dateien(bestellung_id):
@@ -140,11 +140,13 @@ def wareneingang_bestellung(bestellung_id):
         # Erhaltene Mengen pro Position
         position_ids = request.form.getlist('position_id[]')
         erhaltene_mengen = request.form.getlist('erhaltene_menge[]')
+        etikett_drucken = request.form.get('etikett_drucken') == '1'
         
         try:
             with get_db_connection() as conn:
                 alle_vollstaendig = True
                 mindestens_eine_teilweise = False
+                gebuchte_ersatzteile = []  # Liste für gebuchte Ersatzteile (ID, Menge)
                 
                 for i, pos_id in enumerate(position_ids):
                     if i >= len(erhaltene_mengen):
@@ -191,6 +193,12 @@ def wareneingang_bestellung(bestellung_id):
                                 INSERT INTO Lagerbuchung (ErsatzteilID, Typ, Menge, VerwendetVonID, Buchungsdatum, Grund, BestellungID)
                                 VALUES (?, 'Eingang', ?, ?, datetime('now', 'localtime'), ?, ?)
                             ''', (pos['ErsatzteilID'], erhaltene_menge, mitarbeiter_id, f'Wareneingang Bestellung #{bestellung_id}', bestellung_id))
+                            
+                            # Für Etikettendruck merken
+                            gebuchte_ersatzteile.append({
+                                'ersatzteil_id': pos['ErsatzteilID'],
+                                'menge': erhaltene_menge
+                            })
                         
                         # Status prüfen
                         if neue_erhaltene_menge < pos['Menge']:
@@ -232,7 +240,23 @@ def wareneingang_bestellung(bestellung_id):
                 except Exception as e:
                     print(f"Fehler beim Erstellen von Benachrichtigungen: {e}")
                 
-                flash('Wareneingang erfolgreich gebucht.', 'success')
+                # Etiketten drucken, wenn Checkbox aktiviert
+                etikett_druck_fehlgeschlagen = []
+                if etikett_drucken and gebuchte_ersatzteile:
+                    for item in gebuchte_ersatzteile:
+                        erfolg, nachricht = drucke_ersatzteil_etikett_intern(item['ersatzteil_id'], item['menge'], conn)
+                        if not erfolg:
+                            etikett_druck_fehlgeschlagen.append(item['ersatzteil_id'])
+                
+                # Erfolgsmeldung
+                if etikett_drucken and gebuchte_ersatzteile:
+                    if etikett_druck_fehlgeschlagen:
+                        flash(f'Wareneingang erfolgreich gebucht. Etiketten wurden gedruckt, jedoch gab es Fehler bei Artikel: {", ".join(map(str, etikett_druck_fehlgeschlagen))}', 'warning')
+                    else:
+                        flash(f'Wareneingang erfolgreich gebucht. Etiketten für {len(gebuchte_ersatzteile)} Artikel wurden gedruckt.', 'success')
+                else:
+                    flash('Wareneingang erfolgreich gebucht.', 'success')
+                
                 return redirect(url_for('ersatzteile.wareneingang'))
                 
         except Exception as e:

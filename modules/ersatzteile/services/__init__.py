@@ -6,7 +6,8 @@ Business-Logik für Ersatzteile-Funktionen
 from .ersatzteil_services import (
     build_ersatzteil_liste_query,
     get_ersatzteil_liste_filter_options,
-    get_ersatzteil_detail_data
+    get_ersatzteil_detail_data,
+    drucke_ersatzteil_etikett_intern
 )
 from .lagerbuchung_services import (
     validate_lagerbuchung,
@@ -25,6 +26,7 @@ __all__ = [
     'build_ersatzteil_liste_query',
     'get_ersatzteil_liste_filter_options',
     'get_ersatzteil_detail_data',
+    'drucke_ersatzteil_etikett_intern',
     'validate_lagerbuchung',
     'create_lagerbuchung',
     'create_inventur_buchung',
