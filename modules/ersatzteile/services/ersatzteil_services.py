@@ -62,6 +62,7 @@ def build_ersatzteil_liste_query(
             e.LieferantID,
             e.Preis,
             e.Waehrung,
+            e.ArtikelfotoPfad,
             k.Bezeichnung AS Kategorie,
             l.Name AS Lieferant,
             lo.Bezeichnung AS LagerortName,

@@ -682,6 +682,7 @@ def init_database_schema(db_path, verbose=False):
                 Kennzeichen TEXT,
                 ArtikelnummerHersteller TEXT,
                 Link TEXT,
+                ArtikelfotoPfad TEXT,
                 Aktiv INTEGER NOT NULL DEFAULT 1,
                 Gelöscht INTEGER NOT NULL DEFAULT 0,
                 ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -716,6 +717,7 @@ def init_database_schema(db_path, verbose=False):
             create_column_if_not_exists(conn, 'Ersatzteil', 'ArtikelnummerHersteller', 'ALTER TABLE Ersatzteil ADD COLUMN ArtikelnummerHersteller TEXT NULL')
             create_column_if_not_exists(conn, 'Ersatzteil', 'Link', 'ALTER TABLE Ersatzteil ADD COLUMN Link TEXT NULL')
             create_column_if_not_exists(conn, 'Ersatzteil', 'Preisstand', 'ALTER TABLE Ersatzteil ADD COLUMN Preisstand DATETIME NULL')
+            create_column_if_not_exists(conn, 'Ersatzteil', 'ArtikelfotoPfad', 'ALTER TABLE Ersatzteil ADD COLUMN ArtikelfotoPfad TEXT NULL')
             # Prüfe auf fehlende Indexes
             create_index_if_not_exists(conn, 'idx_ersatzteil_lagerort', 'CREATE INDEX idx_ersatzteil_lagerort ON Ersatzteil(LagerortID)')
             create_index_if_not_exists(conn, 'idx_ersatzteil_lagerplatz', 'CREATE INDEX idx_ersatzteil_lagerplatz ON Ersatzteil(LagerplatzID)')

@@ -172,6 +172,48 @@
                     <input type="number" name="nachfolgeartikel_id" class="form-control" min="1" placeholder="ID" value="{{ ersatzteil.NachfolgeartikelID or '' }}">
                 </div>
 
+                <!-- Artikelfoto -->
+                <div class="col-12">
+                    <hr class="my-3">
+                    <label class="form-label fw-bold">
+                        <i class="bi bi-image"></i> Artikelfoto
+                    </label>
+                    {% if ersatzteil.ArtikelfotoPfad %}
+                    <div class="mb-3">
+                        <div class="text-center mb-2">
+                            <img src="{{ url_for('ersatzteile.datei_anzeigen', filepath=ersatzteil.ArtikelfotoPfad) }}" 
+                                 alt="Artikelfoto" 
+                                 class="img-fluid rounded" 
+                                 style="max-height: 200px; max-width: 100%; object-fit: contain;">
+                        </div>
+                        <form method="POST" action="{{ url_for('ersatzteile.ersatzteil_artikelfoto_loeschen', ersatzteil_id=ersatzteil.ID) }}" 
+                              onsubmit="return confirm('Artikelfoto wirklich löschen?');" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-danger">
+                                <i class="bi bi-trash"></i> Aktuelles Foto löschen
+                            </button>
+                        </form>
+                    </div>
+                    {% else %}
+                    <div class="text-muted mb-2">
+                        <i class="bi bi-image"></i> Kein Artikelfoto vorhanden
+                    </div>
+                    {% endif %}
+                    <div class="mb-3">
+                        <form method="POST" action="{{ url_for('ersatzteile.ersatzteil_artikelfoto_upload', ersatzteil_id=ersatzteil.ID) }}" 
+                              enctype="multipart/form-data" class="d-inline-block w-100">
+                            <label for="artikelfoto_file" class="form-label">{% if ersatzteil.ArtikelfotoPfad %}Neues Foto hochladen:{% else %}Foto hochladen:{% endif %}</label>
+                            <div class="input-group">
+                                <input type="file" class="form-control" id="artikelfoto_file" name="file" 
+                                       accept="image/png,image/jpeg,image/jpg,image/gif,image/webp" required>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-upload"></i> Hochladen
+                                </button>
+                            </div>
+                            <small class="form-text text-muted">Erlaubte Formate: PNG, JPG, JPEG, GIF, WEBP (max. 16 MB). Das Foto kann auch auf der Detail-Seite hochgeladen werden.</small>
+                        </form>
+                    </div>
+                </div>
+
                 <!-- 6. Sichtbarkeit -->
                 {% if 'admin' in session.get('user_berechtigungen', []) %}
                 <div class="col-12">

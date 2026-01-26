@@ -259,6 +259,7 @@
                         {% if is_admin %}
                         <th class="text-center column-sichtbare-abteilungen" style="display: none;">Sichtbare Abteilungen</th>
                         {% endif %}
+                        <th class="column-artikelfoto" style="display: none;">Artikelfoto</th>
                         <th>Aktionen</th>
                         <th style="width: 50px;">
                             <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#spaltenModal" title="Spalten anzeigen/ausblenden" onclick="event.stopPropagation();">
@@ -306,6 +307,18 @@
                             <span class="badge bg-info">{{ e.AbteilungenAnzahl or 0 }}</span>
                         </td>
                         {% endif %}
+                        <td class="column-artikelfoto" style="display: none;" onclick="event.stopPropagation();">
+                            {% if e.ArtikelfotoPfad %}
+                            <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID, **detail_url_params) }}" onclick="event.stopPropagation();">
+                                <img src="{{ url_for('ersatzteile.datei_anzeigen', filepath=e.ArtikelfotoPfad) }}" 
+                                     alt="Artikelfoto" 
+                                     class="rounded" 
+                                     style="width: 50px; height: 50px; object-fit: cover;">
+                            </a>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
                         <td onclick="event.stopPropagation();">
                             <div class="btn-group" role="group">
                                 <a href="{{ url_for('ersatzteile.ersatzteil_bearbeiten', ersatzteil_id=e.ID, kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', lagerort=lagerort_filter or '', lagerplatz=lagerplatz_filter or '', q=q_filter or '', sort=sort_by, dir=sort_dir, bestandswarnung=1 if bestandswarnung else '', kennzeichen=kennzeichen_filter or '', nur_ohne_preis=1 if nur_ohne_preis else '', from='list') }}" class="btn btn-sm btn-outline-warning" title="Artikel bearbeiten">
@@ -796,7 +809,8 @@ document.addEventListener('DOMContentLoaded', function() {
         'bestand': true,
         'lagerort': true,
         'lagerplatz': true,
-        'sichtbare-abteilungen': false
+        'sichtbare-abteilungen': false,
+        'artikelfoto': false
     };
 
     function applyColumnVisibility(settings) {
@@ -908,6 +922,10 @@ document.addEventListener('DOMContentLoaded', function() {
                             <label class="form-label" for="col_sichtbare_abteilungen">Sichtbare Abteilungen</label>
                         </div>
                         {% endif %}
+                        <div class="form-check mt-2">
+                            <input class="form-check-input column-toggle" type="checkbox" id="col_artikelfoto" data-column="artikelfoto">
+                            <label class="form-label" for="col_artikelfoto">Artikelfoto</label>
+                        </div>
                     </div>
                 </div>
             </div>

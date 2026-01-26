@@ -264,6 +264,8 @@ def ersatzteil_detail(ersatzteil_id):
             dateien.append(datei_dict)
         
         is_admin = 'admin' in session.get('user_berechtigungen', [])
+        # Prüfe ob Benutzer bearbeiten darf (Admin oder hat Zugriff)
+        kann_bearbeiten = is_admin or hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn)
     
     # Filter-Parameter aus Query-String lesen (für Zurück-Button)
     filter_params = {
@@ -288,6 +290,7 @@ def ersatzteil_detail(ersatzteil_id):
         zugriffe=detail_data['zugriffe'],
         kostenstellen=detail_data['kostenstellen'],
         is_admin=is_admin,
+        kann_bearbeiten=kann_bearbeiten,
         filter_params=filter_params
     )
 
@@ -840,6 +843,130 @@ def ersatzteil_datei_upload(ersatzteil_id):
     except Exception as e:
         flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
         print(f"Datei-Upload Fehler: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+
+
+@ersatzteile_bp.route('/<int:ersatzteil_id>/artikelfoto/upload', methods=['POST'])
+@login_required
+def ersatzteil_artikelfoto_upload(ersatzteil_id):
+    """Artikelfoto für Ersatzteil hochladen"""
+    mitarbeiter_id = session.get('user_id')
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
+    
+    if 'file' not in request.files:
+        flash('Keine Datei ausgewählt.', 'danger')
+        return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        flash('Keine Datei ausgewählt.', 'danger')
+        return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+    
+    try:
+        with get_db_connection() as conn:
+            # Berechtigung prüfen (gleiche wie Bearbeiten)
+            if not is_admin and not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
+                flash('Sie haben keine Berechtigung für dieses Ersatzteil.', 'danger')
+                return redirect(url_for('ersatzteile.ersatzteil_liste'))
+            
+            allowed_image_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+            
+            original_filename = file.filename
+            file_ext = os.path.splitext(original_filename)[1].lower().lstrip('.')
+            
+            # Validierung
+            if file_ext not in allowed_image_extensions:
+                flash(f'Dateityp nicht erlaubt. Erlaubt sind: {", ".join(allowed_image_extensions)}', 'danger')
+                return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+            
+            # Altes Artikelfoto laden und löschen falls vorhanden
+            altes_foto = conn.execute('SELECT ArtikelfotoPfad FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
+            if altes_foto and altes_foto['ArtikelfotoPfad']:
+                alter_pfad = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], altes_foto['ArtikelfotoPfad'].replace('/', os.sep))
+                if os.path.exists(alter_pfad):
+                    try:
+                        os.remove(alter_pfad)
+                    except Exception as e:
+                        print(f"Warnung: Konnte altes Artikelfoto nicht löschen: {e}")
+            
+            # Ordner erstellen
+            upload_folder = os.path.join(current_app.config['ERSATZTEIL_UPLOAD_FOLDER'], str(ersatzteil_id))
+            create_upload_folder(upload_folder)
+            
+            # Datei speichern als artikelfoto.{ext}
+            filename = f'artikelfoto.{file_ext}'
+            file.filename = filename
+            
+            success_upload, saved_filename, error_message = save_uploaded_file(
+                file,
+                upload_folder,
+                allowed_extensions=allowed_image_extensions
+            )
+            
+            if not success_upload or error_message:
+                flash(f'Fehler beim Hochladen: {error_message}', 'danger')
+                return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+            
+            # Datenbank aktualisieren
+            relative_path = f'Ersatzteile/{ersatzteil_id}/{saved_filename}'
+            conn.execute('UPDATE Ersatzteil SET ArtikelfotoPfad = ? WHERE ID = ?', (relative_path, ersatzteil_id))
+            conn.commit()
+            
+            flash('Artikelfoto erfolgreich hochgeladen.', 'success')
+            
+    except Exception as e:
+        flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
+        print(f"Artikelfoto-Upload Fehler: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+
+
+@ersatzteile_bp.route('/<int:ersatzteil_id>/artikelfoto/loeschen', methods=['POST'])
+@login_required
+def ersatzteil_artikelfoto_loeschen(ersatzteil_id):
+    """Artikelfoto für Ersatzteil löschen"""
+    mitarbeiter_id = session.get('user_id')
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
+    
+    try:
+        with get_db_connection() as conn:
+            # Berechtigung prüfen (gleiche wie Bearbeiten)
+            if not is_admin and not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
+                flash('Sie haben keine Berechtigung für dieses Ersatzteil.', 'danger')
+                return redirect(url_for('ersatzteile.ersatzteil_liste'))
+            
+            # Artikelfoto-Pfad laden
+            ersatzteil = conn.execute('SELECT ArtikelfotoPfad FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
+            
+            if not ersatzteil or not ersatzteil['ArtikelfotoPfad']:
+                flash('Kein Artikelfoto vorhanden.', 'warning')
+                return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+            
+            # Datei physisch löschen
+            filepath = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], ersatzteil['ArtikelfotoPfad'].replace('/', os.sep))
+            if os.path.exists(filepath):
+                try:
+                    os.remove(filepath)
+                except Exception as e:
+                    print(f"Warnung: Konnte Artikelfoto nicht löschen: {e}")
+                    flash(f'Fehler beim Löschen der Datei: {str(e)}', 'danger')
+                    return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+            
+            # Datenbank aktualisieren
+            conn.execute('UPDATE Ersatzteil SET ArtikelfotoPfad = NULL WHERE ID = ?', (ersatzteil_id,))
+            conn.commit()
+            
+            flash('Artikelfoto erfolgreich gelöscht.', 'success')
+            
+    except Exception as e:
+        flash(f'Fehler beim Löschen: {str(e)}', 'danger')
+        print(f"Artikelfoto-Lösch Fehler: {e}")
         import traceback
         traceback.print_exc()
     
