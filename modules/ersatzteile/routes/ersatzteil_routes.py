@@ -24,6 +24,37 @@ from ..utils import hat_ersatzteil_zugriff, get_datei_anzahl, allowed_file
 from utils.zebra_client import send_zpl_to_printer, build_test_label
 
 
+# Feste Kennzeichen-Optionen A-Z für Artikel
+KENNZEICHEN_OPTIONEN = [
+    {"wert": "A", "label": "A - "},
+    {"wert": "B", "label": "B - Batterien und Akkus"},
+    {"wert": "C", "label": "C - Chemische Produkte"},
+    {"wert": "D", "label": "D - Dichtungen und O-Ringe"},
+    {"wert": "E", "label": "E - Elektrische Ersatzteile"},
+    {"wert": "F", "label": "F - "},
+    {"wert": "G", "label": "G - "},
+    {"wert": "H", "label": "H - "},
+    {"wert": "I", "label": "I - "},
+    {"wert": "J", "label": "J - "},
+    {"wert": "K", "label": "K - Kabel und Leitungen"},
+    {"wert": "L", "label": "L - Kugellager"},
+    {"wert": "M", "label": "M - Mechanische Ersatzteile"},
+    {"wert": "N", "label": "N - "},
+    {"wert": "O", "label": "O - Öle und Schmierstoffe"},
+    {"wert": "P", "label": "P - Pneumatik"},
+    {"wert": "Q", "label": "Q - "},
+    {"wert": "R", "label": "R - Riemen und Ketten"},
+    {"wert": "S", "label": "S - Sonderteile"},
+    {"wert": "T", "label": "T - Transport(Bänder, Mattenketten, etc.)"},
+    {"wert": "U", "label": "U - "},
+    {"wert": "V", "label": "V - Verbrauchsmaterial"},
+    {"wert": "W", "label": "W - Wasser und Sanitär"},
+    {"wert": "X", "label": "X - "},
+    {"wert": "Y", "label": "Y - "},
+    {"wert": "Z", "label": "Z - "},
+]
+
+
 @ersatzteile_bp.route('/')
 @login_required
 def ersatzteil_liste():
@@ -373,7 +404,8 @@ def ersatzteil_neu():
         lagerorte=lagerorte,
         lagerplaetze=lagerplaetze,
         vorlage=vorlage,
-        vorlage_abteilungen=vorlage_abteilungen
+        vorlage_abteilungen=vorlage_abteilungen,
+        kennzeichen_optionen=KENNZEICHEN_OPTIONEN
     )
 
 
@@ -683,7 +715,8 @@ def ersatzteil_bearbeiten(ersatzteil_id):
         lagerplaetze=lagerplaetze,
         zugriff_ids=zugriff_ids,
         filter_params=filter_params,
-        from_page=from_page
+        from_page=from_page,
+        kennzeichen_optionen=KENNZEICHEN_OPTIONEN
     )
 
 

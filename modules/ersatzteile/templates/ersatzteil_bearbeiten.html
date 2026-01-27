@@ -81,7 +81,12 @@
                 <!-- 2. Zeile - Kennzeichen(schmal), Bezeichnung | Bestellnummer, Artikelnummer Hersteller(Optional) -->
                 <div class="col-md-1">
                     <label class="form-label"><strong>Kennzeichen:</strong></label>
-                    <input type="text" name="kennzeichen" class="form-control" maxlength="1" pattern="[A-Za-z]" placeholder="A-Z" value="{{ ersatzteil.Kennzeichen or '' }}">
+                    <select name="kennzeichen" class="form-select">
+                        <option value="">-- Kein Kennzeichen --</option>
+                        {% for kz in kennzeichen_optionen %}
+                        <option value="{{ kz.wert }}" {% if ersatzteil.Kennzeichen == kz.wert %}selected{% endif %}>{{ kz.label }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
                 <div class="col-md-5">
                     <label class="form-label"><strong>Bezeichnung:</strong> <span class="text-danger">*</span></label>
