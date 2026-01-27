@@ -19,7 +19,7 @@
         <h5 class="mb-0">Ersatzteil {{ ersatzteil.ID }} bearbeiten</h5>
     </div>
     <div class="card-body">
-        <form method="POST">
+        <form method="POST" enctype="multipart/form-data">
             <!-- Filter-Parameter als versteckte Felder übergeben -->
             {% if filter_params.kategorie %}
             <input type="hidden" name="kategorie" value="{{ filter_params.kategorie }}">
@@ -176,7 +176,7 @@
                 <div class="col-12">
                     <hr class="my-3">
                     <label class="form-label fw-bold">
-                        <i class="bi bi-image"></i> Artikelfoto
+                        <i class="bi bi-image"></i> Artikelfoto <small class="text-muted">(Optional)</small>
                     </label>
                     {% if ersatzteil.ArtikelfotoPfad %}
                     <div class="mb-3">
@@ -186,12 +186,7 @@
                                  class="img-fluid rounded" 
                                  style="max-height: 200px; max-width: 100%; object-fit: contain;">
                         </div>
-                        <form method="POST" action="{{ url_for('ersatzteile.ersatzteil_artikelfoto_loeschen', ersatzteil_id=ersatzteil.ID) }}" 
-                              onsubmit="return confirm('Artikelfoto wirklich löschen?');" class="d-inline">
-                            <button type="submit" class="btn btn-sm btn-danger">
-                                <i class="bi bi-trash"></i> Aktuelles Foto löschen
-                            </button>
-                        </form>
+                        <p class="text-muted small">Ein neues Foto wird das aktuelle Foto ersetzen.</p>
                     </div>
                     {% else %}
                     <div class="text-muted mb-2">
@@ -199,18 +194,10 @@
                     </div>
                     {% endif %}
                     <div class="mb-3">
-                        <form method="POST" action="{{ url_for('ersatzteile.ersatzteil_artikelfoto_upload', ersatzteil_id=ersatzteil.ID) }}" 
-                              enctype="multipart/form-data" class="d-inline-block w-100">
-                            <label for="artikelfoto_file" class="form-label">{% if ersatzteil.ArtikelfotoPfad %}Neues Foto hochladen:{% else %}Foto hochladen:{% endif %}</label>
-                            <div class="input-group">
-                                <input type="file" class="form-control" id="artikelfoto_file" name="file" 
-                                       accept="image/png,image/jpeg,image/jpg,image/gif,image/webp" required>
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="bi bi-upload"></i> Hochladen
-                                </button>
-                            </div>
-                            <small class="form-text text-muted">Erlaubte Formate: PNG, JPG, JPEG, GIF, WEBP (max. 16 MB). Das Foto kann auch auf der Detail-Seite hochgeladen werden.</small>
-                        </form>
+                        <label for="artikelfoto_file" class="form-label">{% if ersatzteil.ArtikelfotoPfad %}Neues Foto auswählen:{% else %}Foto auswählen:{% endif %}</label>
+                        <input type="file" class="form-control" id="artikelfoto_file" name="artikelfoto_file" 
+                               accept="image/png,image/jpeg,image/jpg,image/gif,image/webp">
+                        <small class="form-text text-muted">Erlaubte Formate: PNG, JPG, JPEG, GIF, WEBP (max. 16 MB). Das Foto wird beim Speichern hochgeladen.</small>
                     </div>
                 </div>
 

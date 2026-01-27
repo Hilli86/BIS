@@ -571,6 +571,54 @@ def ersatzteil_bearbeiten(ersatzteil_id):
                             except:
                                 pass
                 
+                # Artikelfoto hochladen (falls ausgewählt)
+                if 'artikelfoto_file' in request.files:
+                    file = request.files['artikelfoto_file']
+                    if file and file.filename != '':
+                        try:
+                            allowed_image_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+                            original_filename = file.filename
+                            file_ext = os.path.splitext(original_filename)[1].lower().lstrip('.')
+                            
+                            # Validierung
+                            if file_ext not in allowed_image_extensions:
+                                flash(f'Dateityp nicht erlaubt. Erlaubt sind: {", ".join(allowed_image_extensions)}', 'warning')
+                            else:
+                                # Altes Artikelfoto laden und löschen falls vorhanden
+                                altes_foto = conn.execute('SELECT ArtikelfotoPfad FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
+                                if altes_foto and altes_foto['ArtikelfotoPfad']:
+                                    alter_pfad = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], altes_foto['ArtikelfotoPfad'].replace('/', os.sep))
+                                    if os.path.exists(alter_pfad):
+                                        try:
+                                            os.remove(alter_pfad)
+                                        except Exception as e:
+                                            print(f"Warnung: Konnte altes Artikelfoto nicht löschen: {e}")
+                                
+                                # Ordner erstellen
+                                upload_folder = os.path.join(current_app.config['ERSATZTEIL_UPLOAD_FOLDER'], str(ersatzteil_id))
+                                create_upload_folder(upload_folder)
+                                
+                                # Datei speichern als artikelfoto.{ext}
+                                filename = f'artikelfoto.{file_ext}'
+                                file.filename = filename
+                                
+                                success_upload, saved_filename, error_message = save_uploaded_file(
+                                    file,
+                                    upload_folder,
+                                    allowed_extensions=allowed_image_extensions
+                                )
+                                
+                                if success_upload and not error_message:
+                                    # Datenbank aktualisieren
+                                    relative_path = f'Ersatzteile/{ersatzteil_id}/{saved_filename}'
+                                    conn.execute('UPDATE Ersatzteil SET ArtikelfotoPfad = ? WHERE ID = ?', (relative_path, ersatzteil_id))
+                                    flash('Artikelfoto erfolgreich hochgeladen.', 'success')
+                                else:
+                                    flash(f'Fehler beim Hochladen des Artikelfotos: {error_message}', 'warning')
+                        except Exception as e:
+                            flash(f'Fehler beim Hochladen des Artikelfotos: {str(e)}', 'warning')
+                            print(f"Artikelfoto-Upload Fehler beim Speichern: {e}")
+                
                 conn.commit()
                 flash('Ersatzteil erfolgreich aktualisiert.', 'success')
                 
@@ -785,15 +833,37 @@ def ersatzteil_artikelfoto_upload(ersatzteil_id):
     mitarbeiter_id = session.get('user_id')
     is_admin = 'admin' in session.get('user_berechtigungen', [])
     
+    # Filter-Parameter aus request.form oder request.args lesen
+    filter_params = {
+        'kategorie': request.form.get('kategorie') or request.args.get('kategorie', ''),
+        'lieferant': request.form.get('lieferant') or request.args.get('lieferant', ''),
+        'lagerort': request.form.get('lagerort') or request.args.get('lagerort', ''),
+        'lagerplatz': request.form.get('lagerplatz') or request.args.get('lagerplatz', ''),
+        'q': request.form.get('q') or request.args.get('q', ''),
+        'bestandswarnung': request.form.get('bestandswarnung') or request.args.get('bestandswarnung', ''),
+        'kennzeichen': request.form.get('kennzeichen') or request.args.get('kennzeichen', ''),
+        'sort': request.form.get('sort') or request.args.get('sort', ''),
+        'dir': request.form.get('dir') or request.args.get('dir', ''),
+        'nur_ohne_preis': request.form.get('nur_ohne_preis') or request.args.get('nur_ohne_preis', '')
+    }
+    
     if 'file' not in request.files:
         flash('Keine Datei ausgewählt.', 'danger')
-        return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+        detail_url = url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id)
+        filter_query = '&'.join([f'{k}={v}' for k, v in filter_params.items() if v])
+        if filter_query:
+            detail_url += '?' + filter_query
+        return redirect(detail_url)
     
     file = request.files['file']
     
     if file.filename == '':
         flash('Keine Datei ausgewählt.', 'danger')
-        return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+        detail_url = url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id)
+        filter_query = '&'.join([f'{k}={v}' for k, v in filter_params.items() if v])
+        if filter_query:
+            detail_url += '?' + filter_query
+        return redirect(detail_url)
     
     try:
         with get_db_connection() as conn:
@@ -810,7 +880,11 @@ def ersatzteil_artikelfoto_upload(ersatzteil_id):
             # Validierung
             if file_ext not in allowed_image_extensions:
                 flash(f'Dateityp nicht erlaubt. Erlaubt sind: {", ".join(allowed_image_extensions)}', 'danger')
-                return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+                detail_url = url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id)
+                filter_query = '&'.join([f'{k}={v}' for k, v in filter_params.items() if v])
+                if filter_query:
+                    detail_url += '?' + filter_query
+                return redirect(detail_url)
             
             # Altes Artikelfoto laden und löschen falls vorhanden
             altes_foto = conn.execute('SELECT ArtikelfotoPfad FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
@@ -838,7 +912,11 @@ def ersatzteil_artikelfoto_upload(ersatzteil_id):
             
             if not success_upload or error_message:
                 flash(f'Fehler beim Hochladen: {error_message}', 'danger')
-                return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+                detail_url = url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id)
+                filter_query = '&'.join([f'{k}={v}' for k, v in filter_params.items() if v])
+                if filter_query:
+                    detail_url += '?' + filter_query
+                return redirect(detail_url)
             
             # Datenbank aktualisieren
             relative_path = f'Ersatzteile/{ersatzteil_id}/{saved_filename}'
@@ -853,7 +931,12 @@ def ersatzteil_artikelfoto_upload(ersatzteil_id):
         import traceback
         traceback.print_exc()
     
-    return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+    # Redirect mit Filter-Parametern
+    detail_url = url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id)
+    filter_query = '&'.join([f'{k}={v}' for k, v in filter_params.items() if v])
+    if filter_query:
+        detail_url += '?' + filter_query
+    return redirect(detail_url)
 
 
 @ersatzteile_bp.route('/<int:ersatzteil_id>/artikelfoto/loeschen', methods=['POST'])
@@ -862,6 +945,20 @@ def ersatzteil_artikelfoto_loeschen(ersatzteil_id):
     """Artikelfoto für Ersatzteil löschen"""
     mitarbeiter_id = session.get('user_id')
     is_admin = 'admin' in session.get('user_berechtigungen', [])
+    
+    # Filter-Parameter aus request.form oder request.args lesen
+    filter_params = {
+        'kategorie': request.form.get('kategorie') or request.args.get('kategorie', ''),
+        'lieferant': request.form.get('lieferant') or request.args.get('lieferant', ''),
+        'lagerort': request.form.get('lagerort') or request.args.get('lagerort', ''),
+        'lagerplatz': request.form.get('lagerplatz') or request.args.get('lagerplatz', ''),
+        'q': request.form.get('q') or request.args.get('q', ''),
+        'bestandswarnung': request.form.get('bestandswarnung') or request.args.get('bestandswarnung', ''),
+        'kennzeichen': request.form.get('kennzeichen') or request.args.get('kennzeichen', ''),
+        'sort': request.form.get('sort') or request.args.get('sort', ''),
+        'dir': request.form.get('dir') or request.args.get('dir', ''),
+        'nur_ohne_preis': request.form.get('nur_ohne_preis') or request.args.get('nur_ohne_preis', '')
+    }
     
     try:
         with get_db_connection() as conn:
@@ -875,7 +972,11 @@ def ersatzteil_artikelfoto_loeschen(ersatzteil_id):
             
             if not ersatzteil or not ersatzteil['ArtikelfotoPfad']:
                 flash('Kein Artikelfoto vorhanden.', 'warning')
-                return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+                detail_url = url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id)
+                filter_query = '&'.join([f'{k}={v}' for k, v in filter_params.items() if v])
+                if filter_query:
+                    detail_url += '?' + filter_query
+                return redirect(detail_url)
             
             # Datei physisch löschen
             filepath = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], ersatzteil['ArtikelfotoPfad'].replace('/', os.sep))
@@ -885,7 +986,11 @@ def ersatzteil_artikelfoto_loeschen(ersatzteil_id):
                 except Exception as e:
                     print(f"Warnung: Konnte Artikelfoto nicht löschen: {e}")
                     flash(f'Fehler beim Löschen der Datei: {str(e)}', 'danger')
-                    return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+                    detail_url = url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id)
+                    filter_query = '&'.join([f'{k}={v}' for k, v in filter_params.items() if v])
+                    if filter_query:
+                        detail_url += '?' + filter_query
+                    return redirect(detail_url)
             
             # Datenbank aktualisieren
             conn.execute('UPDATE Ersatzteil SET ArtikelfotoPfad = NULL WHERE ID = ?', (ersatzteil_id,))
@@ -899,7 +1004,12 @@ def ersatzteil_artikelfoto_loeschen(ersatzteil_id):
         import traceback
         traceback.print_exc()
     
-    return redirect(url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id))
+    # Redirect mit Filter-Parametern
+    detail_url = url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id)
+    filter_query = '&'.join([f'{k}={v}' for k, v in filter_params.items() if v])
+    if filter_query:
+        detail_url += '?' + filter_query
+    return redirect(detail_url)
 
 
 @ersatzteile_bp.route('/datei/<int:datei_id>/loeschen', methods=['POST'])

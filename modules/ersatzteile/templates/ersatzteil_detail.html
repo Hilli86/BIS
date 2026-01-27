@@ -220,6 +220,37 @@
             {% if ersatzteil.ArtikelfotoPfad %}
             <form method="POST" action="{{ url_for('ersatzteile.ersatzteil_artikelfoto_loeschen', ersatzteil_id=ersatzteil.ID) }}" 
                   onsubmit="return confirm('Artikelfoto wirklich löschen?');" class="d-inline">
+                <!-- Filter-Parameter als versteckte Felder übergeben -->
+                {% if filter_params.kategorie %}
+                <input type="hidden" name="kategorie" value="{{ filter_params.kategorie }}">
+                {% endif %}
+                {% if filter_params.lieferant %}
+                <input type="hidden" name="lieferant" value="{{ filter_params.lieferant }}">
+                {% endif %}
+                {% if filter_params.lagerort %}
+                <input type="hidden" name="lagerort" value="{{ filter_params.lagerort }}">
+                {% endif %}
+                {% if filter_params.lagerplatz %}
+                <input type="hidden" name="lagerplatz" value="{{ filter_params.lagerplatz }}">
+                {% endif %}
+                {% if filter_params.kennzeichen %}
+                <input type="hidden" name="kennzeichen" value="{{ filter_params.kennzeichen }}">
+                {% endif %}
+                {% if filter_params.bestandswarnung %}
+                <input type="hidden" name="bestandswarnung" value="{{ filter_params.bestandswarnung }}">
+                {% endif %}
+                {% if filter_params.nur_ohne_preis %}
+                <input type="hidden" name="nur_ohne_preis" value="{{ filter_params.nur_ohne_preis }}">
+                {% endif %}
+                {% if filter_params.q %}
+                <input type="hidden" name="q" value="{{ filter_params.q }}">
+                {% endif %}
+                {% if filter_params.sort %}
+                <input type="hidden" name="sort" value="{{ filter_params.sort }}">
+                {% endif %}
+                {% if filter_params.dir %}
+                <input type="hidden" name="dir" value="{{ filter_params.dir }}">
+                {% endif %}
                 <button type="submit" class="btn btn-sm btn-danger">
                     <i class="bi bi-trash"></i> Löschen
                 </button>
@@ -251,6 +282,37 @@
             <hr>
             <form method="POST" action="{{ url_for('ersatzteile.ersatzteil_artikelfoto_upload', ersatzteil_id=ersatzteil.ID) }}" 
                   enctype="multipart/form-data">
+                <!-- Filter-Parameter als versteckte Felder übergeben -->
+                {% if filter_params.kategorie %}
+                <input type="hidden" name="kategorie" value="{{ filter_params.kategorie }}">
+                {% endif %}
+                {% if filter_params.lieferant %}
+                <input type="hidden" name="lieferant" value="{{ filter_params.lieferant }}">
+                {% endif %}
+                {% if filter_params.lagerort %}
+                <input type="hidden" name="lagerort" value="{{ filter_params.lagerort }}">
+                {% endif %}
+                {% if filter_params.lagerplatz %}
+                <input type="hidden" name="lagerplatz" value="{{ filter_params.lagerplatz }}">
+                {% endif %}
+                {% if filter_params.kennzeichen %}
+                <input type="hidden" name="kennzeichen" value="{{ filter_params.kennzeichen }}">
+                {% endif %}
+                {% if filter_params.bestandswarnung %}
+                <input type="hidden" name="bestandswarnung" value="{{ filter_params.bestandswarnung }}">
+                {% endif %}
+                {% if filter_params.nur_ohne_preis %}
+                <input type="hidden" name="nur_ohne_preis" value="{{ filter_params.nur_ohne_preis }}">
+                {% endif %}
+                {% if filter_params.q %}
+                <input type="hidden" name="q" value="{{ filter_params.q }}">
+                {% endif %}
+                {% if filter_params.sort %}
+                <input type="hidden" name="sort" value="{{ filter_params.sort }}">
+                {% endif %}
+                {% if filter_params.dir %}
+                <input type="hidden" name="dir" value="{{ filter_params.dir }}">
+                {% endif %}
                 <div class="mb-3">
                     <label for="artikelfoto_file" class="form-label">Bild auswählen:</label>
                     <input type="file" class="form-control" id="artikelfoto_file" name="file" 
