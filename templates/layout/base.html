@@ -611,7 +611,9 @@
     
     <!-- Rechtsbündiger Container für Badge und Profil -->
     <div class="header-right-container">
-      <span id="mobileNotificationBadge" class="badge bg-danger" style="display: none; flex-shrink: 0;">0</span>
+      <a href="{{ url_for('dashboard.benachrichtigungen') }}" class="text-decoration-none">
+        <span id="mobileNotificationBadge" class="badge bg-danger" style="display: none; flex-shrink: 0;">0</span>
+      </a>
       
       <!-- User-Menü -->
       <div class="header-user-menu">
