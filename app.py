@@ -44,7 +44,7 @@ def file_extension(filename):
     return parts[1].lower() if len(parts) > 1 else ''
 
 # Blueprints registrieren
-from modules import auth_bp, schichtbuch_bp, admin_bp, ersatzteile_bp, dashboard_bp, import_bp, errors_bp, diverses_bp
+from modules import auth_bp, schichtbuch_bp, admin_bp, ersatzteile_bp, dashboard_bp, import_bp, errors_bp, diverses_bp, search_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(schichtbuch_bp)
@@ -54,6 +54,7 @@ app.register_blueprint(dashboard_bp)
 app.register_blueprint(import_bp)
 app.register_blueprint(errors_bp)
 app.register_blueprint(diverses_bp)
+app.register_blueprint(search_bp)
 
 
 # ========== Main Routes ==========

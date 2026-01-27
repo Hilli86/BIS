@@ -1,0 +1,223 @@
+{% extends "layout/base.html" %}
+
+{% block styles %}
+<style>
+  .search-results-section {
+    margin-bottom: 2rem;
+  }
+  
+  .search-results-section h3 {
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+    color: #495057;
+    border-bottom: 2px solid #dee2e6;
+    padding-bottom: 0.5rem;
+  }
+  
+  .search-result-item {
+    padding: 0.75rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    margin-bottom: 0.5rem;
+    background-color: #ffffff;
+    transition: background-color 0.2s ease-in-out;
+  }
+  
+  .search-result-item:hover {
+    background-color: #f8f9fa;
+    border-color: #adb5bd;
+  }
+  
+  .search-result-item a {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+  }
+  
+  .search-result-title {
+    font-weight: 600;
+    color: #212529;
+    margin-bottom: 0.25rem;
+  }
+  
+  .search-result-preview {
+    color: #6c757d;
+    font-size: 0.9rem;
+    margin-top: 0.25rem;
+  }
+  
+  .search-result-meta {
+    font-size: 0.85rem;
+    color: #868e96;
+    margin-top: 0.25rem;
+  }
+  
+  .search-no-results {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #6c757d;
+  }
+  
+  .search-query-display {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #212529;
+    margin-bottom: 1.5rem;
+  }
+  
+  .search-result-icon {
+    margin-right: 0.5rem;
+    font-size: 1.2rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <h2 class="mb-4">Suchergebnisse</h2>
+  
+  {% if query %}
+  <div class="search-query-display">
+    Suche nach: <strong>"{{ query }}"</strong>
+  </div>
+  {% endif %}
+  
+  {% if error %}
+  <div class="alert alert-danger" role="alert">
+    <strong>Fehler:</strong> {{ error }}
+  </div>
+  {% endif %}
+  
+  {% set total_results = results.themen|length + results.ersatzteile|length + results.bestellungen|length + results.angebotsanfragen|length %}
+  
+  {% if total_results == 0 %}
+  <div class="search-no-results">
+    <i class="bi bi-search" style="font-size: 3rem; color: #dee2e6; margin-bottom: 1rem;"></i>
+    <p>Keine Ergebnisse gefunden.</p>
+    <p class="text-muted">Versuchen Sie es mit einem anderen Suchbegriff oder verwenden Sie Vorzeichen:</p>
+    <ul class="list-unstyled text-muted">
+      <li><code>t</code> - Themen (z.B. <code>t123</code> oder <code>t@123</code>)</li>
+      <li><code>e</code> - Ersatzteile (z.B. <code>eABC-123</code> oder <code>e@ABC-123</code>)</li>
+      <li><code>b</code> - Bestellungen (z.B. <code>b456</code> oder <code>b@456</code>)</li>
+      <li><code>a</code> - Angebotsanfragen (z.B. <code>a789</code> oder <code>a@789</code>)</li>
+    </ul>
+  </div>
+  {% else %}
+  
+  <!-- Themen -->
+  {% if results.themen|length > 0 %}
+  <div class="search-results-section">
+    <h3>
+      <i class="bi bi-journal-text search-result-icon"></i>
+      Themen ({{ results.themen|length }})
+    </h3>
+    {% for thema in results.themen %}
+    <div class="search-result-item">
+      <a href="{{ thema.url }}">
+        <div class="search-result-title">
+          {{ thema.title }}
+        </div>
+        {% if thema.preview %}
+        <div class="search-result-preview">
+          {{ thema.preview[:200] }}{% if thema.preview|length > 200 %}...{% endif %}
+        </div>
+        {% endif %}
+        <div class="search-result-meta">
+          {% if thema.Bereich %}{{ thema.Bereich }} / {% endif %}
+          {% if thema.Gewerk %}{{ thema.Gewerk }}{% endif %}
+          {% if thema.Status %} • Status: {{ thema.Status }}{% endif %}
+        </div>
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  
+  <!-- Ersatzteile -->
+  {% if results.ersatzteile|length > 0 %}
+  <div class="search-results-section">
+    <h3>
+      <i class="bi bi-box-seam search-result-icon"></i>
+      Ersatzteile ({{ results.ersatzteile|length }})
+    </h3>
+    {% for ersatzteil in results.ersatzteile %}
+    <div class="search-result-item">
+      <a href="{{ ersatzteil.url }}">
+        <div class="search-result-title">
+          {{ ersatzteil.title }} - {{ ersatzteil.Bezeichnung }}
+        </div>
+        {% if ersatzteil.preview %}
+        <div class="search-result-preview">
+          {{ ersatzteil.preview }}
+        </div>
+        {% endif %}
+        <div class="search-result-meta">
+          {% if ersatzteil.Kategorie %}{{ ersatzteil.Kategorie }}{% endif %}
+        </div>
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  
+  <!-- Bestellungen -->
+  {% if results.bestellungen|length > 0 %}
+  <div class="search-results-section">
+    <h3>
+      <i class="bi bi-cart-check search-result-icon"></i>
+      Bestellungen ({{ results.bestellungen|length }})
+    </h3>
+    {% for bestellung in results.bestellungen %}
+    <div class="search-result-item">
+      <a href="{{ bestellung.url }}">
+        <div class="search-result-title">
+          {{ bestellung.title }}
+        </div>
+        {% if bestellung.preview %}
+        <div class="search-result-preview">
+          {{ bestellung.preview }}
+        </div>
+        {% endif %}
+        <div class="search-result-meta">
+          {% if bestellung.LieferantName %}{{ bestellung.LieferantName }}{% endif %}
+          {% if bestellung.Status %} • Status: {{ bestellung.Status }}{% endif %}
+          {% if bestellung.Abteilung %} • Abteilung: {{ bestellung.Abteilung }}{% endif %}
+        </div>
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  
+  <!-- Angebotsanfragen -->
+  {% if results.angebotsanfragen|length > 0 %}
+  <div class="search-results-section">
+    <h3>
+      <i class="bi bi-file-earmark-text search-result-icon"></i>
+      Angebotsanfragen ({{ results.angebotsanfragen|length }})
+    </h3>
+    {% for anfrage in results.angebotsanfragen %}
+    <div class="search-result-item">
+      <a href="{{ anfrage.url }}">
+        <div class="search-result-title">
+          {{ anfrage.title }}
+        </div>
+        {% if anfrage.preview %}
+        <div class="search-result-preview">
+          {{ anfrage.preview }}
+        </div>
+        {% endif %}
+        <div class="search-result-meta">
+          {% if anfrage.LieferantName %}{{ anfrage.LieferantName }}{% endif %}
+          {% if anfrage.Status %} • Status: {{ anfrage.Status }}{% endif %}
+          {% if anfrage.Abteilung %} • Abteilung: {{ anfrage.Abteilung }}{% endif %}
+        </div>
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  
+  {% endif %}
+</div>
+{% endblock %}
