@@ -23,7 +23,7 @@ def bestellung_liste():
     status_filter_list = request.args.getlist('status')
     lieferant_filter = request.args.get('lieferant')
     abteilung_filter = request.args.get('abteilung')
-    prioritaet_filter = request.args.get('prioritaet')
+    prioritaet_filter_list = request.args.getlist('prioritaet')
     
     with get_db_connection() as conn:
         # Sichtbare Abteilungen für den Mitarbeiter ermitteln
@@ -92,10 +92,13 @@ def bestellung_liste():
             query += ' AND b.ErstellerAbteilungID = ?'
             params.append(abteilung_filter)
         
-        # Prioritäts-Filter
-        if prioritaet_filter:
-            query += ' AND COALESCE(b.Prioritaet, 3) = ?'
-            params.append(int(prioritaet_filter))
+        # Prioritäts-Filter (mehrere Prioritäten möglich)
+        if prioritaet_filter_list:
+            prioritaet_values = [int(p) for p in prioritaet_filter_list if p.isdigit() and 1 <= int(p) <= 5]
+            if prioritaet_values:
+                placeholders = ','.join(['?'] * len(prioritaet_values))
+                query += f' AND COALESCE(b.Prioritaet, 3) IN ({placeholders})'
+                params.extend(prioritaet_values)
         
         query += ' GROUP BY b.ID ORDER BY b.ErstelltAm DESC'
         
@@ -141,7 +144,7 @@ def bestellung_liste():
         status_filter_list=status_filter_list,
         lieferant_filter=lieferant_filter,
         abteilung_filter=abteilung_filter,
-        prioritaet_filter=prioritaet_filter,
+        prioritaet_filter_list=prioritaet_filter_list,
         lieferanten=lieferanten,
         abteilungen=abteilungen
     )
@@ -207,7 +210,7 @@ def bestellung_detail(bestellung_id):
     status_filter_list = request.args.getlist('status')
     lieferant_filter = request.args.get('lieferant', '')
     abteilung_filter = request.args.get('abteilung', '')
-    prioritaet_filter = request.args.get('prioritaet', '')
+    prioritaet_filter_list = request.args.getlist('prioritaet')
     
     with get_db_connection() as conn:
         # Bestellung laden
@@ -320,7 +323,7 @@ def bestellung_detail(bestellung_id):
         status_filter_list=status_filter_list,
         lieferant_filter=lieferant_filter,
         abteilung_filter=abteilung_filter,
-        prioritaet_filter=prioritaet_filter
+        prioritaet_filter_list=prioritaet_filter_list
     )
 
 
