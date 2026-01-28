@@ -96,6 +96,16 @@
         </div>
         <div class="card-body">
             <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label"><strong>Priorität:</strong></label>
+                    <select name="prioritaet" class="form-select" required>
+                        <option value="1">1 - Sehr niedrig</option>
+                        <option value="2">2 - Niedrig</option>
+                        <option value="3" selected>3 - Normal</option>
+                        <option value="4">4 - Hoch</option>
+                        <option value="5">5 - Sehr hoch</option>
+                    </select>
+                </div>
                 <div class="col-md-12">
                     <label class="form-label"><strong>Bemerkung:</strong></label>
                     <textarea name="bemerkung" class="form-control" rows="2" placeholder="Optionale Bemerkung zur Bestellung"></textarea>

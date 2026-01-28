@@ -23,6 +23,7 @@ def bestellung_liste():
     status_filter_list = request.args.getlist('status')
     lieferant_filter = request.args.get('lieferant')
     abteilung_filter = request.args.get('abteilung')
+    prioritaet_filter = request.args.get('prioritaet')
     
     with get_db_connection() as conn:
         # Sichtbare Abteilungen für den Mitarbeiter ermitteln
@@ -38,6 +39,7 @@ def bestellung_liste():
                 b.FreigegebenAm,
                 b.BestelltAm,
                 b.FreigabeBemerkung,
+                COALESCE(b.Prioritaet, 3) AS Prioritaet,
                 l.Name AS LieferantName,
                 m1.Vorname || ' ' || m1.Nachname AS ErstelltVon,
                 m2.Vorname || ' ' || m2.Nachname AS FreigegebenVon,
@@ -90,6 +92,11 @@ def bestellung_liste():
             query += ' AND b.ErstellerAbteilungID = ?'
             params.append(abteilung_filter)
         
+        # Prioritäts-Filter
+        if prioritaet_filter:
+            query += ' AND COALESCE(b.Prioritaet, 3) = ?'
+            params.append(int(prioritaet_filter))
+        
         query += ' GROUP BY b.ID ORDER BY b.ErstelltAm DESC'
         
         bestellungen = conn.execute(query, params).fetchall()
@@ -134,6 +141,7 @@ def bestellung_liste():
         status_filter_list=status_filter_list,
         lieferant_filter=lieferant_filter,
         abteilung_filter=abteilung_filter,
+        prioritaet_filter=prioritaet_filter,
         lieferanten=lieferanten,
         abteilungen=abteilungen
     )
@@ -199,6 +207,7 @@ def bestellung_detail(bestellung_id):
     status_filter_list = request.args.getlist('status')
     lieferant_filter = request.args.get('lieferant', '')
     abteilung_filter = request.args.get('abteilung', '')
+    prioritaet_filter = request.args.get('prioritaet', '')
     
     with get_db_connection() as conn:
         # Bestellung laden
@@ -310,7 +319,8 @@ def bestellung_detail(bestellung_id):
         is_admin=is_admin,
         status_filter_list=status_filter_list,
         lieferant_filter=lieferant_filter,
-        abteilung_filter=abteilung_filter
+        abteilung_filter=abteilung_filter,
+        prioritaet_filter=prioritaet_filter
     )
 
 
@@ -324,7 +334,12 @@ def bestellung_neu():
     if request.method == 'POST':
         lieferant_id = request.form.get('lieferant_id', type=int)
         bemerkung = request.form.get('bemerkung', '').strip()
+        prioritaet = request.form.get('prioritaet', type=int, default=3)
         sichtbare_abteilungen = request.form.getlist('sichtbare_abteilungen')
+        
+        # Priorität validieren (1-5)
+        if prioritaet < 1 or prioritaet > 5:
+            prioritaet = 3
         
         # Ersatzteil-Positionen aus Formular
         ersatzteil_ids = request.form.getlist('ersatzteil_id[]')
@@ -365,9 +380,9 @@ def bestellung_neu():
                 
                 # Bestellung erstellen
                 cursor = conn.execute('''
-                    INSERT INTO Bestellung (LieferantID, ErstelltVonID, ErstellerAbteilungID, Status, Bemerkung, ErstelltAm)
-                    VALUES (?, ?, ?, 'Erstellt', ?, datetime('now', 'localtime'))
-                ''', (lieferant_id, mitarbeiter_id, abteilung_id, bemerkung))
+                    INSERT INTO Bestellung (LieferantID, ErstelltVonID, ErstellerAbteilungID, Status, Bemerkung, Prioritaet, ErstelltAm)
+                    VALUES (?, ?, ?, 'Erstellt', ?, ?, datetime('now', 'localtime'))
+                ''', (lieferant_id, mitarbeiter_id, abteilung_id, bemerkung, prioritaet))
                 bestellung_id = cursor.lastrowid
                 
                 # Positionen hinzufügen
@@ -576,8 +591,13 @@ def bestellung_aus_angebot(angebotsanfrage_id):
     
     if request.method == 'POST':
         bemerkung = request.form.get('bemerkung', '').strip()
+        prioritaet = request.form.get('prioritaet', type=int, default=3)
         sichtbare_abteilungen = request.form.getlist('sichtbare_abteilungen')
         ausgewaehlte_positionen = request.form.getlist('position_id')
+        
+        # Priorität validieren (1-5)
+        if prioritaet < 1 or prioritaet > 5:
+            prioritaet = 3
         
         if not ausgewaehlte_positionen:
             flash('Bitte wählen Sie mindestens eine Position aus.', 'danger')
@@ -594,9 +614,9 @@ def bestellung_aus_angebot(angebotsanfrage_id):
                 
                 # Bestellung erstellen
                 cursor = conn.execute('''
-                    INSERT INTO Bestellung (AngebotsanfrageID, LieferantID, ErstelltVonID, ErstellerAbteilungID, Status, Bemerkung, ErstelltAm)
-                    VALUES (?, ?, ?, ?, 'Erstellt', ?, datetime('now', 'localtime'))
-                ''', (angebotsanfrage_id, anfrage['LieferantID'], mitarbeiter_id, abteilung_id, bemerkung))
+                    INSERT INTO Bestellung (AngebotsanfrageID, LieferantID, ErstelltVonID, ErstellerAbteilungID, Status, Bemerkung, Prioritaet, ErstelltAm)
+                    VALUES (?, ?, ?, ?, 'Erstellt', ?, ?, datetime('now', 'localtime'))
+                ''', (angebotsanfrage_id, anfrage['LieferantID'], mitarbeiter_id, abteilung_id, bemerkung, prioritaet))
                 bestellung_id = cursor.lastrowid
                 
                 # Ausgewählte Positionen hinzufügen
@@ -735,6 +755,41 @@ def bestellung_freigabebemerkung_bearbeiten(bestellung_id):
                     (freigabe_bemerkung if freigabe_bemerkung else None, bestellung_id))
         conn.commit()
         flash('Freigabebemerkung wurde gespeichert.', 'success')
+        return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/prioritaet/bearbeiten', methods=['POST'])
+@login_required
+def bestellung_prioritaet_bearbeiten(bestellung_id):
+    """Priorität einer Bestellung bearbeiten (nur wenn Status 'Erstellt')"""
+    mitarbeiter_id = session.get('user_id')
+    prioritaet = request.form.get('prioritaet', type=int)
+    
+    # Priorität validieren (1-5)
+    if not prioritaet or prioritaet < 1 or prioritaet > 5:
+        flash('Ungültige Priorität. Bitte wählen Sie einen Wert zwischen 1 und 5.', 'danger')
+        return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+    
+    with get_db_connection() as conn:
+        # Bestellung laden
+        bestellung = conn.execute('''
+            SELECT Status FROM Bestellung 
+            WHERE ID = ? AND Gelöscht = 0
+        ''', (bestellung_id,)).fetchone()
+        
+        if not bestellung:
+            flash('Bestellung nicht gefunden.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_liste'))
+        
+        # Prüfen, ob Status "Erstellt" ist
+        if bestellung['Status'] != 'Erstellt':
+            flash('Priorität kann nur bei Bestellungen im Status "Erstellt" bearbeitet werden.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+        
+        # Priorität aktualisieren
+        conn.execute('UPDATE Bestellung SET Prioritaet = ? WHERE ID = ?', (prioritaet, bestellung_id))
+        conn.commit()
+        flash('Priorität wurde gespeichert.', 'success')
         return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
 
 

@@ -79,6 +79,17 @@
                             {% endfor %}
                         </select>
                     </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Priorität</label>
+                        <select name="prioritaet" class="form-select">
+                            <option value="">-- Alle Prioritäten --</option>
+                            <option value="1" {% if prioritaet_filter == '1' %}selected{% endif %}>1 - Sehr niedrig</option>
+                            <option value="2" {% if prioritaet_filter == '2' %}selected{% endif %}>2 - Niedrig</option>
+                            <option value="3" {% if prioritaet_filter == '3' %}selected{% endif %}>3 - Normal</option>
+                            <option value="4" {% if prioritaet_filter == '4' %}selected{% endif %}>4 - Hoch</option>
+                            <option value="5" {% if prioritaet_filter == '5' %}selected{% endif %}>5 - Sehr hoch</option>
+                        </select>
+                    </div>
                     <div class="col-md-12">
                         <button type="submit" class="btn btn-primary">Filter anwenden</button>
                         <a href="{{ url_for('ersatzteile.bestellung_liste') }}" class="btn btn-secondary">Zurücksetzen</a>
@@ -98,6 +109,7 @@
                 <thead>
                     <tr>
                         <th style="width: 60px;">Nr.</th>
+                        <th style="width: 80px;">Priorität</th>
                         <th style="min-width: 200px;">Lieferant</th>
                         <th style="min-width: 250px;">Status</th>
                         <th style="width: 80px;">Positionen</th>
@@ -118,8 +130,24 @@
                 </thead>
                 <tbody>
                     {% for b in bestellungen %}
-                    <tr style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.bestellung_detail', bestellung_id=b.ID) }}{% if status_filter_list or lieferant_filter or abteilung_filter %}?{% endif %}{% for status in status_filter_list %}status={{ status|urlencode }}{% if not loop.last %}&{% endif %}{% endfor %}{% if status_filter_list and (lieferant_filter or abteilung_filter) %}&{% endif %}{% if lieferant_filter %}lieferant={{ lieferant_filter|urlencode }}{% endif %}{% if lieferant_filter and abteilung_filter %}&{% endif %}{% if abteilung_filter %}abteilung={{ abteilung_filter|urlencode }}{% endif %}';">
+                    <tr style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.bestellung_detail', bestellung_id=b.ID) }}{% if status_filter_list or lieferant_filter or abteilung_filter or prioritaet_filter %}?{% endif %}{% for status in status_filter_list %}status={{ status|urlencode }}{% if not loop.last %}&{% endif %}{% endfor %}{% if status_filter_list and (lieferant_filter or abteilung_filter or prioritaet_filter) %}&{% endif %}{% if lieferant_filter %}lieferant={{ lieferant_filter|urlencode }}{% endif %}{% if lieferant_filter and (abteilung_filter or prioritaet_filter) %}&{% endif %}{% if abteilung_filter %}abteilung={{ abteilung_filter|urlencode }}{% endif %}{% if abteilung_filter and prioritaet_filter %}&{% endif %}{% if prioritaet_filter %}prioritaet={{ prioritaet_filter|urlencode }}{% endif %}';">
                         <td><strong>{{ b.ID }}</strong></td>
+                        <td class="text-center">
+                            {% set prioritaet = b.Prioritaet or 3 %}
+                            {% if prioritaet == 1 %}
+                            <span class="badge bg-light text-dark" title="Sehr niedrig">1</span>
+                            {% elif prioritaet == 2 %}
+                            <span class="badge bg-secondary" title="Niedrig">2</span>
+                            {% elif prioritaet == 3 %}
+                            <span class="badge bg-info" title="Normal">3</span>
+                            {% elif prioritaet == 4 %}
+                            <span class="badge bg-warning" title="Hoch">4</span>
+                            {% elif prioritaet == 5 %}
+                            <span class="badge bg-danger" title="Sehr hoch">5</span>
+                            {% else %}
+                            <span class="badge bg-info">3</span>
+                            {% endif %}
+                        </td>
                         <td>{{ b.LieferantName or '-' }}</td>
                         <td>
                             {% if b.Status == 'Erstellt' %}
@@ -187,7 +215,7 @@
                     </tr>
                     {% if b.PositionenAnzahl and b.PositionenAnzahl > 0 %}
                     <tr id="positionen-{{ b.ID }}" class="positionen-row" style="display: none;">
-                        <td colspan="13" class="bg-light p-0" onclick="event.stopPropagation();">
+                        <td colspan="14" class="bg-light p-0" onclick="event.stopPropagation();">
                             <div class="p-3">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
                                     <strong><i class="bi bi-list-ul"></i> Positionen ({{ b.PositionenAnzahl }})</strong>

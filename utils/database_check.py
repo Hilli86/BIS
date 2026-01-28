@@ -1025,6 +1025,11 @@ def init_database_schema(db_path, verbose=False):
             # Prüfe auf fehlende Spalte Gelöscht
             if create_column_if_not_exists(conn, 'Bestellung', 'Gelöscht', 'ALTER TABLE Bestellung ADD COLUMN Gelöscht INTEGER NOT NULL DEFAULT 0'):
                 print("[INFO] Spalte 'Gelöscht' zu 'Bestellung' hinzugefügt")
+            # Prüfe auf fehlende Spalte Prioritaet
+            if create_column_if_not_exists(conn, 'Bestellung', 'Prioritaet', 'ALTER TABLE Bestellung ADD COLUMN Prioritaet INTEGER NOT NULL DEFAULT 3'):
+                print("[INFO] Spalte 'Prioritaet' zu 'Bestellung' hinzugefügt")
+                # Setze Standardwert 3 für alle bestehenden Bestellungen ohne Priorität
+                conn.execute('UPDATE Bestellung SET Prioritaet = 3 WHERE Prioritaet IS NULL')
         
         # ========== 28. BestellungPosition ==========
         created = create_table_if_not_exists(conn, 'BestellungPosition', '''
