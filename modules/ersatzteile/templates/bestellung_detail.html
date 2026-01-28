@@ -173,7 +173,7 @@
             </form>
             {% endif %}
             
-            {% if bestellung.Status == 'Zur Freigabe' and kann_freigeben %}
+            {% if bestellung.Status == 'Zur Freigabe' %}
             <div class="w-100">
                 {% if kann_freigabebemerkung_bearbeiten %}
                 <!-- Freigabebemerkung anzeigen und bearbeitbar machen (nur für Ersteller) -->
@@ -192,9 +192,25 @@
                     <p class="mb-0 mt-1">{{ bestellung.FreigabeBemerkung }}</p>
                 </div>
                 {% endif %}
-                <button type="button" class="btn btn-success" onclick="openUnterschriftModal({{ bestellung.ID }})">
-                    <i class="bi bi-check-lg"></i> Freigeben
-                </button>
+
+                <div class="d-flex flex-column flex-md-row gap-2 align-items-start">
+                    {% if kann_freigeben %}
+                    <button type="button" class="btn btn-success" onclick="openUnterschriftModal({{ bestellung.ID }})">
+                        <i class="bi bi-check-lg"></i> Freigeben
+                    </button>
+                    {% endif %}
+
+                    {% if kann_anfrage_zurueckziehen %}
+                    <form method="POST"
+                          action="{{ url_for('ersatzteile.bestellung_anfrage_zurueckziehen', bestellung_id=bestellung.ID) }}"
+                          class="d-inline"
+                          onsubmit="return confirm('Möchten Sie die Freigabeanfrage wirklich zurückziehen?');">
+                        <button type="submit" class="btn btn-outline-danger">
+                            <i class="bi bi-arrow-counterclockwise"></i> Anfrage zurückziehen
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
             </div>
             {% endif %}
             

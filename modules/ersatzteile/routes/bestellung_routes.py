@@ -281,10 +281,18 @@ def bestellung_detail(bestellung_id):
         is_admin = 'admin' in session.get('user_berechtigungen', [])
         kann_freigeben = is_admin or 'bestellungen_freigeben' in session.get('user_berechtigungen', [])
         kann_buchen = is_admin or 'artikel_buchen' in session.get('user_berechtigungen', [])
-        
+        has_bestellungen_erstellen = 'bestellungen_erstellen' in session.get('user_berechtigungen', [])
+
         # Prüfen, ob Benutzer der Ersteller ist
         ist_ersteller = bestellung['ErstelltVonID'] == mitarbeiter_id if bestellung['ErstelltVonID'] else False
         kann_freigabebemerkung_bearbeiten = ist_ersteller and bestellung['Status'] in ['Erstellt', 'Zur Freigabe']
+
+        # Anfrage zurückziehen: erlaubt für Ersteller, Admin oder Benutzer mit Bestell-Recht,
+        # und nur im Status "Zur Freigabe"
+        kann_anfrage_zurueckziehen = (
+            bestellung['Status'] == 'Zur Freigabe'
+            and (is_admin or has_bestellungen_erstellen or ist_ersteller)
+        )
     
     return render_template(
         'bestellung_detail.html',
@@ -298,6 +306,7 @@ def bestellung_detail(bestellung_id):
         gesamtbetrag=gesamtbetrag,
         waehrung=waehrung,
         kann_freigabebemerkung_bearbeiten=kann_freigabebemerkung_bearbeiten,
+        kann_anfrage_zurueckziehen=kann_anfrage_zurueckziehen,
         is_admin=is_admin,
         status_filter_list=status_filter_list,
         lieferant_filter=lieferant_filter,
@@ -459,6 +468,69 @@ def bestellung_neu():
         lieferanten=lieferanten,
         auswaehlbare_abteilungen=auswaehlbare_abteilungen
     )
+
+
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/anfrage-zurueckziehen', methods=['POST'])
+@login_required
+def bestellung_anfrage_zurueckziehen(bestellung_id):
+    """Freigabe-Anfrage für eine Bestellung zurückziehen (Status wieder auf 'Erstellt' setzen)."""
+    mitarbeiter_id = session.get('user_id')
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
+    has_bestellungen_erstellen = 'bestellungen_erstellen' in session.get('user_berechtigungen', [])
+
+    try:
+        with get_db_connection() as conn:
+            # Bestellung laden
+            bestellung = conn.execute(
+                'SELECT Status, ErstelltVonID FROM Bestellung WHERE ID = ? AND Gelöscht = 0',
+                (bestellung_id,)
+            ).fetchone()
+
+            if not bestellung:
+                flash('Bestellung nicht gefunden.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_liste'))
+
+            # Nur Bestellungen im Status "Zur Freigabe" können zurückgezogen werden
+            if bestellung['Status'] != 'Zur Freigabe':
+                flash('Nur Bestellungen im Status "Zur Freigabe" können zurückgezogen werden.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+            # Berechtigungen prüfen: Ersteller, Admin oder Benutzer mit Bestell-Recht
+            if not (is_admin or has_bestellungen_erstellen or bestellung['ErstelltVonID'] == mitarbeiter_id):
+                flash('Sie haben keine Berechtigung, diese Anfrage zurückzuziehen.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+            # Status zurück auf "Erstellt" setzen und Freigabebemerkung leeren
+            conn.execute(
+                '''
+                UPDATE Bestellung
+                SET Status = 'Erstellt',
+                    FreigabeBemerkung = NULL
+                WHERE ID = ?
+                ''',
+                (bestellung_id,)
+            )
+
+            # Alle bestehenden Benachrichtigungen für diese Bestellung löschen
+            conn.execute(
+                '''
+                DELETE FROM Benachrichtigung 
+                WHERE Modul = 'bestellwesen' 
+                AND (Zusatzdaten LIKE ? OR Zusatzdaten LIKE ?)
+                ''',
+                (f'%"bestellung_id":{bestellung_id}%', f'%"bestellung_id": {bestellung_id}%')
+            )
+
+            conn.commit()
+
+        flash('Freigabeanfrage wurde zurückgezogen. Die Bestellung befindet sich wieder im Status "Erstellt".', 'success')
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Fehler beim Zurückziehen der Freigabeanfrage: {error_details}")
+        flash(f'Fehler beim Zurückziehen der Anfrage: {str(e)}', 'danger')
+
+    return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
 
 
 @ersatzteile_bp.route('/bestellungen/aus-angebot/<int:angebotsanfrage_id>', methods=['GET', 'POST'])
