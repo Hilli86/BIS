@@ -113,8 +113,6 @@ def login():
                     
                     session['user_berechtigungen'] = [b['Schluessel'] for b in berechtigungen]
                     
-                    flash('Erfolgreich angemeldet.', 'success')
-                    
                     # Weiterleitung zur ursprünglichen URL (next-Parameter) oder zum Dashboard
                     next_page = request.args.get('next')
                     if next_page and is_safe_url(next_page):
@@ -634,8 +632,6 @@ def webauthn_login_verify():
 
         # Vorherige Flash-Messages (z.B. "Abgemeldet", "Bitte zuerst anmelden") entfernen
         session.pop("_flashes", None)
-        # Konsistente Erfolgsmeldung wie beim Passwort-Login
-        flash("Erfolgreich angemeldet.", "success")
 
         # Aufrufende Seite entscheidet über Redirect
         return jsonify({"success": True})

@@ -727,7 +727,7 @@
       {% if messages %}
         <div class="container-fluid mt-3">
           {% for category, message in messages %}
-            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert" style="z-index: 9999; position: relative;">
+            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert" style="z-index: 1000; position: relative;">
               <strong>{% if category == 'danger' or category == 'error' %}⚠️ Fehler:{% elif category == 'success' %}✅ Erfolg:{% elif category == 'warning' %}⚠️ Warnung:{% else %}ℹ️ Info:{% endif %}</strong> {{ message }}
               <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
@@ -745,6 +745,18 @@
   <script src="{{ url_for('static', filename='webauthn.js') }}"></script>
 
   <script>
+    // Automatisches Schließen von Erfolgs- und Info-Flash-Meldungen
+    document.addEventListener('DOMContentLoaded', function() {
+      const successAndInfoAlerts = document.querySelectorAll('.alert-success, .alert-info');
+      successAndInfoAlerts.forEach(function(alert) {
+        // Nach 5 Sekunden automatisch schließen
+        setTimeout(function() {
+          const bsAlert = new bootstrap.Alert(alert);
+          bsAlert.close();
+        }, 5000);
+      });
+    });
+
     // Mobile Menü Toggle (nur wenn Elemente vorhanden sind)
     const menuToggle = document.getElementById('menuToggle');
     const sidebar = document.getElementById('sidebar');
