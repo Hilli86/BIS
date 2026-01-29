@@ -168,6 +168,7 @@ def add_bemerkung():
         return redirect(next_url)
 
     mitarbeiter_id = session.get('user_id')
+    datum = None  # Initialisierung für späteren Gebrauch
 
     with get_db_connection() as conn:
         cursor = conn.cursor()
@@ -179,6 +180,11 @@ def add_bemerkung():
             """, (thema_id, mitarbeiter_id, bemerkung_text, taetigkeit_id))
         
         bemerkung_id = cursor.lastrowid
+        
+        # Datum der neuen Bemerkung abrufen
+        datum_row = conn.execute("SELECT Datum FROM SchichtbuchBemerkungen WHERE ID = ?", (bemerkung_id,)).fetchone()
+        if datum_row:
+            datum = datum_row[0]
         
         # Benachrichtigungen für andere Mitarbeiter erstellen
         from utils import erstelle_benachrichtigung_fuer_bemerkung

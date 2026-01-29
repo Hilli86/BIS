@@ -480,32 +480,29 @@
                             </span>
                         </div>
                         
-                        <!-- Card Body: Bereich – Gewerk + Bemerkungs-Vorschau -->
+                        <!-- Card Body: Bereich – Gewerk + Alle Bemerkungen -->
                         <div class="card-body">
                             <h6 class="card-title mb-2 fw-bold">{{ thema.Bereich }} – {{ thema.Gewerk }}</h6>
                             
-                            <!-- Bemerkungs-Vorschau -->
+                            <!-- Alle Bemerkungen -->
                             {% if bemerk_dict.get(thema.ID) %}
-                                {% set bemerkungen = bemerk_dict[thema.ID] %}
-                                {% set letzte_bemerkung = bemerkungen[0] %}
-                                <div class="bemerkung-preview mb-2">
-                                    <small class="text-muted d-block mb-1">
-                                        {{ letzte_bemerkung.Datum }} - <strong>{{ letzte_bemerkung.Vorname }} {{ letzte_bemerkung.Nachname }}</strong>
-                                        {% if letzte_bemerkung.Taetigkeit %}
-                                            <span class="text-secondary">({{ letzte_bemerkung.Taetigkeit }})</span>
-                                        {% endif %}
-                                    </small>
-                                    <div class="text-truncate" style="max-height: 2.5em; overflow: hidden; text-overflow: ellipsis;">
-                                        {{ letzte_bemerkung.Bemerkung }}
-                                    </div>
-                                    {% if bemerkungen|length > 1 %}
-                                        <small class="text-muted">
-                                            <i class="bi bi-chat-dots"></i> {{ bemerkungen|length - 1 }} weitere Bemerkung{{ 'en' if bemerkungen|length > 2 else '' }}
-                                        </small>
-                                    {% endif %}
-                                </div>
+                                <ul class="list-group list-group-flush bemerkung-list mb-3">
+                                    {% for b in bemerk_dict[thema.ID] %}
+                                    <li class="list-group-item bg-white px-0">
+                                        <div class="d-flex">
+                                            <small class="text-muted">
+                                                {{ b.Datum }} - <strong>{{ b.Vorname }} {{ b.Nachname }}</strong>
+                                                {% if b.Taetigkeit %}
+                                                    <span class="text-secondary">({{ b.Taetigkeit }})</span>
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                        <div class="mt-1">{{ b.Bemerkung }}</div>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
                             {% else %}
-                                <p class="text-muted fst-italic mb-0 small">Keine Bemerkungen vorhanden.</p>
+                                <p class="text-muted fst-italic mb-3 small">Keine Bemerkungen vorhanden.</p>
                             {% endif %}
                         </div>
                         
@@ -530,42 +527,20 @@
                                 </form>
                             </div>
                         </div>
-                        
-                        <!-- Bemerkungen (vollständig) direkt in der Card -->
-                        {% if bemerk_dict.get(thema.ID) %}
-                        <div class="card-body border-top pt-2">
-                            <small class="text-muted fw-bold d-block mb-2">Alle Bemerkungen:</small>
-                            <ul class="list-group list-group-flush bemerkung-list mb-0">
-                                {% for b in bemerk_dict[thema.ID] %}
-                                <li class="list-group-item bg-white px-0">
-                                    <div class="d-flex">
-                                        <small class="text-muted">
-                                            {{ b.Datum }} - <strong>{{ b.Vorname }} {{ b.Nachname }}</strong>
-                                            {% if b.Taetigkeit %}
-                                                <span class="text-secondary">({{ b.Taetigkeit }})</span>
-                                            {% endif %}
-                                        </small>
-                                    </div>
-                                    <div class="mt-1">{{ b.Bemerkung }}</div>
-                                </li>
-                                {% endfor %}
-                            </ul>
-                        </div>
-                        {% endif %}
                     </div>
                     
                     <!-- Eingeklappter Bereich für neue Bemerkung (Mobile) -->
-                    <div class="collapse mt-2" id="newBemerkungMobile{{ thema.ID }}">
+                    <div class="collapse mt-2" id="newBemerkungMobile{{ thema.ID }}" onclick="event.stopPropagation();">
                         <div class="card shadow-sm">
                             <div class="card-body">
-                                <form action="{{ url_for('schichtbuch.add_bemerkung') }}" method="post" class="mt-2">
+                                <form action="{{ url_for('schichtbuch.add_bemerkung') }}" method="post" class="mt-2" onclick="event.stopPropagation();">
                                     <input type="hidden" name="thema_id" value="{{ thema.ID }}">
                                     <input type="hidden" name="next" value="{{ request.full_path }}">
                                     
                                     <!-- Status -->
                                     <div class="mb-2">
                                         <label for="statusMobile{{ thema.ID }}" class="form-label fw-bold">Status ändern:</label>
-                                        <select name="status_id" id="statusMobile{{ thema.ID }}" class="form-select">
+                                        <select name="status_id" id="statusMobile{{ thema.ID }}" class="form-select" onclick="event.stopPropagation();">
                                             <option value="">-- unverändert --</option>
                                             {% for s in status_liste %}
                                                 <option value="{{ s.ID }}" {% if s.Bezeichnung == thema.Status %}selected{% endif %}>
@@ -578,7 +553,7 @@
                                     <!-- Tätigkeit -->
                                     <div class="mb-2">
                                         <label for="taetigkeitMobile{{ thema.ID }}" class="form-label fw-bold">Tätigkeit:</label>
-                                        <select name="taetigkeit_id" id="taetigkeitMobile{{ thema.ID }}" class="form-select" required>
+                                        <select name="taetigkeit_id" id="taetigkeitMobile{{ thema.ID }}" class="form-select" required onclick="event.stopPropagation();">
                                             <option value="">-- Tätigkeit wählen --</option>
                                             {% for t in taetigkeiten_liste %}
                                                 <option value="{{ t.ID }}">{{ t.Bezeichnung }}</option>
@@ -596,6 +571,8 @@
                                             rows="3"
                                             placeholder="Neue Bemerkung eingeben..."
                                             required
+                                            onclick="event.stopPropagation();"
+                                            onfocus="event.stopPropagation();"
                                         ></textarea>
                                     </div>
 
@@ -635,10 +612,19 @@
 {% block scripts %}
 <script>
 document.addEventListener("submit", async (e) => {
-  const form = e.target.closest("form[action='/schichtbuch/themaliste/add']");
+  // Prüfe ob es ein Formular zum Hinzufügen einer Bemerkung ist
+  const form = e.target.closest("form");
   if (!form) return;
+  
+  const formAction = form.getAttribute("action");
+  const isAddBemerkungForm = formAction && (
+    formAction.includes("/schichtbuch/themaliste/add") || 
+    formAction.includes("/schichtbuch/add_bemerkung")
+  );
+  
+  if (!isAddBemerkungForm) return;
+  
   e.preventDefault();
-  console.log("Formular abgefangen");
   
   const formData = new FormData(form);
   const themaId = formData.get("thema_id");
@@ -651,50 +637,128 @@ document.addEventListener("submit", async (e) => {
       body: formData,
       headers: { "X-Requested-With": "XMLHttpRequest" }
     });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
     const data = await response.json();
 
     if (!data.success) {
-      alert("Fehler beim Speichern.");
+      alert("Fehler beim Speichern: " + (data.message || "Unbekannter Fehler"));
+      submitBtn.disabled = false;
       return;
     }
 
-    // Rest: Bemerkung hinzufügen, Collapse schließen, Toast anzeigen
-    const collapseRow = form.closest("tr.collapse-row");
-    const bemerkungsRow = collapseRow.previousElementSibling;
-    const themaRow = bemerkungsRow.previousElementSibling;
+    const scrollY = window.scrollY;
+    const isMobile = window.innerWidth < 768;
+    
+    if (isMobile) {
+      // Mobile: Card-Struktur aktualisieren
+      const themaCard = form.closest(".thema-card-mobile");
+      if (themaCard) {
+        // Bemerkungsliste finden oder erstellen
+        let bemerkungsList = themaCard.querySelector(".bemerkung-list");
+        const cardBody = themaCard.querySelector(".card-body");
+        
+        if (!bemerkungsList && cardBody) {
+          // Wenn keine Bemerkungen vorhanden waren, erstelle die Liste
+          const titleElement = cardBody.querySelector(".card-title");
+          if (titleElement) {
+            const bemerkungenContainer = document.createElement("ul");
+            bemerkungenContainer.className = "list-group list-group-flush bemerkung-list mb-3";
+            titleElement.insertAdjacentElement("afterend", bemerkungenContainer);
+            bemerkungsList = bemerkungenContainer;
+          }
+        }
+        
+        if (bemerkungsList) {
+          // Entferne "Keine Bemerkungen"-Text falls vorhanden
+          const noBemerkungen = cardBody.querySelector("p.text-muted.fst-italic");
+          if (noBemerkungen) {
+            noBemerkungen.remove();
+          }
+          
+          const newItem = document.createElement("li");
+          newItem.className = "list-group-item bg-white px-0";
+          newItem.innerHTML = `
+            <div class="d-flex">
+              <small class="text-muted">
+                ${data.datum} - <strong>${data.vorname} ${data.nachname}</strong>
+                ${data.taetigkeit ? `<span class="text-secondary">(${data.taetigkeit})</span>` : ""}
+              </small>
+            </div>
+            <div class="mt-1">${data.bemerkung}</div>
+          `;
+          bemerkungsList.insertBefore(newItem, bemerkungsList.firstChild);
+        }
+        
+        // Status-Badge aktualisieren
+        if (data.neuer_status && data.neue_farbe) {
+          const badge = themaCard.querySelector(".badge");
+          if (badge) {
+            badge.textContent = data.neuer_status;
+            badge.style.backgroundColor = data.neue_farbe;
+          }
+        }
+      }
+      
+      // Collapse schließen
+      const collapseId = `newBemerkungMobile${themaId}`;
+      const collapseElement = document.getElementById(collapseId);
+      if (collapseElement) {
+        const collapseInstance = bootstrap.Collapse.getOrCreateInstance(collapseElement);
+        collapseInstance.hide();
+      }
+    } else {
+      // Desktop: Tabellenstruktur aktualisieren
+      const collapseRow = form.closest("tr.collapse-row");
+      if (collapseRow) {
+        const bemerkungsRow = collapseRow.previousElementSibling;
+        const themaRow = bemerkungsRow ? bemerkungsRow.previousElementSibling : null;
 
-    let bemerkungsList = bemerkungsRow.querySelector(".list-group");
-    if (!bemerkungsList) {
-      bemerkungsList = document.createElement("ul");
-      bemerkungsList.className = "list-group list-group-flush bemerkung-list";
-      bemerkungsRow.querySelector("td").innerHTML = "";
-      bemerkungsRow.querySelector("td").appendChild(bemerkungsList);
-    }
+        let bemerkungsList = bemerkungsRow ? bemerkungsRow.querySelector(".list-group") : null;
+        if (!bemerkungsList && bemerkungsRow) {
+          bemerkungsList = document.createElement("ul");
+          bemerkungsList.className = "list-group list-group-flush bemerkung-list";
+          bemerkungsRow.querySelector("td").innerHTML = "";
+          bemerkungsRow.querySelector("td").appendChild(bemerkungsList);
+        }
 
-    const newItem = document.createElement("li");
-    newItem.className = "list-group-item bg-white";
-    newItem.innerHTML = `
-      <div class="d-flex">
-        <small class="text-muted">
-          ${data.datum} – <strong>${data.vorname} ${data.nachname}</strong>
-          ${data.taetigkeit ? `<span class="text-secondary">(${data.taetigkeit})</span>` : ""}
-        </small>
-      </div>
-      <div>${data.bemerkung}</div>
-    `;
-    bemerkungsList.prepend(newItem);
+        if (bemerkungsList) {
+          const newItem = document.createElement("li");
+          newItem.className = "list-group-item bg-white";
+          newItem.innerHTML = `
+            <div class="d-flex">
+              <small class="text-muted">
+                ${data.datum} – <strong>${data.vorname} ${data.nachname}</strong>
+                ${data.taetigkeit ? `<span class="text-secondary">(${data.taetigkeit})</span>` : ""}
+              </small>
+            </div>
+            <div>${data.bemerkung}</div>
+          `;
+          bemerkungsList.prepend(newItem);
+        }
 
-    if (data.neuer_status && data.neue_farbe) {
-      const badge = themaRow.querySelector(".badge");
-      if (badge) {
-        badge.textContent = data.neuer_status;
-        badge.style.backgroundColor = data.neue_farbe;
+        if (data.neuer_status && data.neue_farbe && themaRow) {
+          const badge = themaRow.querySelector(".badge");
+          if (badge) {
+            badge.textContent = data.neuer_status;
+            badge.style.backgroundColor = data.neue_farbe;
+          }
+        }
+        
+        // Collapse schließen
+        const collapseId = `newBemerkung${themaId}`;
+        const collapseElement = document.getElementById(collapseId);
+        if (collapseElement) {
+          const collapseInstance = bootstrap.Collapse.getOrCreateInstance(collapseElement);
+          collapseInstance.hide();
+        }
       }
     }
 
-    const scrollY = window.scrollY;
     form.reset();
-    bootstrap.Collapse.getOrCreateInstance(document.querySelector(`#newBemerkung${themaId}`)).hide();
     window.scrollTo(0, scrollY);
 
     const toast = document.createElement("div");
@@ -705,8 +769,8 @@ document.addEventListener("submit", async (e) => {
     setTimeout(() => toast.remove(), 3000);
 
   } catch (err) {
-    console.error(err);
-    alert("Fehler beim Speichern.");
+    console.error("Fehler beim Speichern:", err);
+    alert("Fehler beim Speichern: " + err.message);
   } finally {
     submitBtn.disabled = false;
   }
@@ -769,22 +833,25 @@ async function loadMoreThemen() {
                 <div class="card-body">
                   <h6 class="card-title mb-2 fw-bold">${thema.Bereich} – ${thema.Gewerk}</h6>`;
           
-          // Bemerkungs-Vorschau
+          // Alle Bemerkungen
           if (bemerkungen.length > 0) {
-            const letzteBemerkung = bemerkungen[0];
             cardHtml += `
-                  <div class="bemerkung-preview mb-2">
-                    <small class="text-muted d-block mb-1">
-                      ${letzteBemerkung.Datum} - <strong>${letzteBemerkung.Vorname} ${letzteBemerkung.Nachname}</strong>
-                      ${letzteBemerkung.Taetigkeit ? `<span class="text-secondary">(${letzteBemerkung.Taetigkeit})</span>` : ''}
-                    </small>
-                    <div class="text-truncate" style="max-height: 2.5em; overflow: hidden; text-overflow: ellipsis;">
-                      ${letzteBemerkung.Bemerkung}
-                    </div>
-                    ${bemerkungen.length > 1 ? `<small class="text-muted"><i class="bi bi-chat-dots"></i> ${bemerkungen.length - 1} weitere Bemerkung${bemerkungen.length > 2 ? 'en' : ''}</small>` : ''}
-                  </div>`;
+                  <ul class="list-group list-group-flush bemerkung-list mb-3">`;
+            bemerkungen.forEach(b => {
+              cardHtml += `
+                    <li class="list-group-item bg-white px-0">
+                      <div class="d-flex">
+                        <small class="text-muted">
+                          ${b.Datum} - <strong>${b.Vorname} ${b.Nachname}</strong>
+                          ${b.Taetigkeit ? `<span class="text-secondary">(${b.Taetigkeit})</span>` : ''}
+                        </small>
+                      </div>
+                      <div class="mt-1">${b.Bemerkung}</div>
+                    </li>`;
+            });
+            cardHtml += '</ul>';
           } else {
-            cardHtml += `<p class="text-muted fst-italic mb-0 small">Keine Bemerkungen vorhanden.</p>`;
+            cardHtml += `<p class="text-muted fst-italic mb-3 small">Keine Bemerkungen vorhanden.</p>`;
           }
           
           cardHtml += `
@@ -811,50 +878,29 @@ async function loadMoreThemen() {
                 </div>
               </div>`;
           
-          // Bemerkungen vollständig direkt in der Card
-          if (bemerkungen.length > 0) {
-            cardHtml += `
-                <div class="card-body border-top pt-2">
-                  <small class="text-muted fw-bold d-block mb-2">Alle Bemerkungen:</small>
-                  <ul class="list-group list-group-flush bemerkung-list mb-0">`;
-            bemerkungen.forEach(b => {
-              cardHtml += `
-                    <li class="list-group-item bg-white px-0">
-                      <div class="d-flex">
-                        <small class="text-muted">
-                          ${b.Datum} - <strong>${b.Vorname} ${b.Nachname}</strong>
-                          ${b.Taetigkeit ? `<span class="text-secondary">(${b.Taetigkeit})</span>` : ''}
-                        </small>
-                      </div>
-                      <div class="mt-1">${b.Bemerkung}</div>
-                    </li>`;
-            });
-            cardHtml += '</ul></div>';
-          }
-          
           // Collapse für neue Bemerkung
           cardHtml += `
-              <div class="collapse mt-2" id="newBemerkungMobile${thema.ID}">
+              <div class="collapse mt-2" id="newBemerkungMobile${thema.ID}" onclick="event.stopPropagation();">
                 <div class="card shadow-sm">
                   <div class="card-body">
-                    <form action="/schichtbuch/themaliste/add" method="post" class="mt-2">
+                    <form action="/schichtbuch/themaliste/add" method="post" class="mt-2" onclick="event.stopPropagation();">
                       <input type="hidden" name="thema_id" value="${thema.ID}">
                       <input type="hidden" name="next" value="${window.location.pathname}${window.location.search}">
                       <div class="mb-2">
                         <label for="statusMobile${thema.ID}" class="form-label fw-bold">Status ändern:</label>
-                        <select name="status_id" id="statusMobile${thema.ID}" class="form-select">
+                        <select name="status_id" id="statusMobile${thema.ID}" class="form-select" onclick="event.stopPropagation();">
                           <option value="">-- unverändert --</option>
                         </select>
                       </div>
                       <div class="mb-2">
                         <label for="taetigkeitMobile${thema.ID}" class="form-label fw-bold">Tätigkeit:</label>
-                        <select name="taetigkeit_id" id="taetigkeitMobile${thema.ID}" class="form-select" required>
+                        <select name="taetigkeit_id" id="taetigkeitMobile${thema.ID}" class="form-select" required onclick="event.stopPropagation();">
                           <option value="">-- Tätigkeit wählen --</option>
                         </select>
                       </div>
                       <div class="mb-2">
                         <label for="bemerkungMobile${thema.ID}" class="form-label fw-bold">Neue Bemerkung:</label>
-                        <textarea name="bemerkung" id="bemerkungMobile${thema.ID}" class="form-control" rows="3" placeholder="Neue Bemerkung eingeben..." required></textarea>
+                        <textarea name="bemerkung" id="bemerkungMobile${thema.ID}" class="form-control" rows="3" placeholder="Neue Bemerkung eingeben..." required onclick="event.stopPropagation();" onfocus="event.stopPropagation();"></textarea>
                       </div>
                       <div class="mb-0">
                         <button type="submit" class="btn btn-success w-100">
