@@ -94,6 +94,135 @@
       width: 100%;
     }
   }
+
+  /* Mobile Card-Styles */
+  @media (max-width: 767.98px) {
+    .thema-card-mobile {
+      margin-bottom: 1rem;
+    }
+
+    .thema-card-clickable {
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .thema-card-clickable:active {
+      transform: scale(0.98);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .thema-card-mobile .card-header {
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
+    }
+
+    .thema-card-mobile .card-body {
+      padding: 1rem;
+    }
+
+    .thema-card-mobile .card-title {
+      font-size: 1rem;
+      line-height: 1.4;
+      word-break: break-word;
+    }
+
+    .thema-card-mobile .card-footer {
+      padding: 0.75rem;
+    }
+
+    .thema-card-mobile .btn {
+      min-height: 44px; /* Touch-Target Mindestgröße */
+      font-size: 0.875rem;
+      padding: 0.5rem 0.75rem;
+    }
+
+    .bemerkung-preview {
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+
+    .bemerkung-preview .text-truncate {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Bemerkungen innerhalb der Card */
+    .thema-card-mobile .card-body.border-top {
+      padding-top: 0.75rem;
+      margin-top: 0;
+    }
+
+    .thema-card-mobile .bemerkung-list {
+      margin-top: 0.5rem;
+    }
+
+    .thema-card-mobile .bemerkung-list .list-group-item {
+      padding-left: 0;
+      padding-right: 0;
+      border-left: none;
+      border-right: none;
+      padding-top: 0.5rem;
+      padding-bottom: 0.5rem;
+    }
+
+    .thema-card-mobile .bemerkung-list .list-group-item:first-child {
+      padding-top: 0;
+    }
+
+    .thema-card-mobile .bemerkung-list .list-group-item:last-child {
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+
+    /* Filter-Optimierungen für Mobile */
+    #filterCollapse {
+      /* Filter standardmäßig eingeklappt auf Mobile */
+    }
+
+    #filterCollapse .form-select,
+    #filterCollapse .form-control {
+      min-height: 44px; /* Größere Touch-Targets */
+      font-size: 1rem; /* Verhindert Zoom auf iOS */
+    }
+
+    #filterCollapse .btn {
+      min-height: 44px;
+      width: 100%;
+      margin-bottom: 0.5rem;
+    }
+
+    #filterCollapse .btn:last-child {
+      margin-bottom: 0;
+    }
+
+    /* Status-Checkboxen für Mobile */
+    .status-checkboxes-mobile .form-check {
+      padding: 0.75rem;
+      border: 1px solid #dee2e6;
+      border-radius: 0.375rem;
+      margin-bottom: 0.5rem;
+      background-color: #fff;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+    }
+
+    .status-checkboxes-mobile .form-check-input {
+      width: 1.25rem;
+      height: 1.25rem;
+      margin-right: 0.75rem;
+      margin-top: 0;
+    }
+
+    .status-checkboxes-mobile .form-check-label {
+      flex: 1;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+  }
 </style>
 {% endblock %}
 
@@ -141,12 +270,27 @@
         <div class="row g-3 mt-1">
           <div class="col-12">
             <label class="form-label">Status (Mehrfachauswahl)</label>
-            <select name="status" id="filterStatus" class="form-select" multiple>
+            <!-- Desktop: Multi-Select -->
+            <select name="status" id="filterStatus" class="form-select d-none d-md-block" multiple>
               {% for s in status_liste %}
                 <option value="{{ s.Bezeichnung }}" {% if status_filter_list and (s.Bezeichnung in status_filter_list) %}selected{% endif %}>{{ s.Bezeichnung }}</option>
               {% endfor %}
             </select>
-            <div class="form-text">STRG/CMD halten für Mehrfachauswahl</div>
+            <div class="form-text d-none d-md-block">STRG/CMD halten für Mehrfachauswahl</div>
+            
+            <!-- Mobile: Checkboxen -->
+            <div class="status-checkboxes-mobile d-md-none">
+              {% for s in status_liste %}
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="status" value="{{ s.Bezeichnung }}" 
+                         id="statusCheck{{ loop.index }}" 
+                         {% if status_filter_list and (s.Bezeichnung in status_filter_list) %}checked{% endif %}>
+                  <label class="form-check-label" for="statusCheck{{ loop.index }}">
+                    {{ s.Bezeichnung }}
+                  </label>
+                </div>
+              {% endfor %}
+            </div>
           </div>
         </div>
 
@@ -160,9 +304,17 @@
 
         <!-- Zeile 4: Buttons -->
         <div class="row g-3 mt-2">
-          <div class="col-12 d-flex">
-            <button type="submit" class="btn btn-primary me-2">Filtern</button>
-            <a href="{{ url_for('schichtbuch.themaliste') }}" class="btn btn-secondary">Alle anzeigen</a>
+          <div class="col-12">
+            <!-- Desktop: Buttons nebeneinander -->
+            <div class="d-none d-md-flex">
+              <button type="submit" class="btn btn-primary me-2">Filtern</button>
+              <a href="{{ url_for('schichtbuch.themaliste') }}" class="btn btn-secondary">Alle anzeigen</a>
+            </div>
+            <!-- Mobile: Buttons untereinander -->
+            <div class="d-md-none">
+              <button type="submit" class="btn btn-primary w-100 mb-2">Filtern</button>
+              <a href="{{ url_for('schichtbuch.themaliste') }}" class="btn btn-secondary w-100">Alle anzeigen</a>
+            </div>
           </div>
         </div>
       </form>
@@ -174,18 +326,20 @@
 <div class="card shadow-sm">
     <div class="card-body">
         {% if themen %}
-        <div class="table-responsive">
-            <table class="table align-middle">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Bereich – Gewerk</th>
-                        <th>Status</th>
-                        <th>Aktionen</th>
-                    </tr>
-                </thead>
-                <tbody>
-    {% for thema in themen %}
+        <!-- Desktop: Tabelle (ab md-Breakpoint) -->
+        <div class="d-none d-md-block">
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Bereich – Gewerk</th>
+                            <th>Status</th>
+                            <th>Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        {% for thema in themen %}
     <!-- 🔸 Themen-Zeile -->
     <tr class="thema-row" style="color: {{ thema.Farbe or 'inherit' }}; cursor: pointer;" onclick="window.location.href='{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}'">
       <td>
@@ -304,9 +458,160 @@
         </form>
       </td>
     </tr>
-    {% endfor %}
-                </tbody>
-            </table>
+        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Mobile: Cards (nur auf sm und kleiner) -->
+        <div class="d-md-none">
+            <div id="themenCardsContainer">
+                {% for thema in themen %}
+                <div class="thema-card-mobile mb-3" data-thema-id="{{ thema.ID }}" style="color: {{ thema.Farbe or 'inherit' }};">
+                    <div class="card shadow-sm thema-card-clickable" onclick="window.location.href='{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}'">
+                        <!-- Card Header: ID + Status -->
+                        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                            <a href="{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}" class="text-decoration-none fw-bold" onclick="event.stopPropagation();">
+                                #{{ thema.ID }}
+                            </a>
+                            <span class="badge rounded-pill" style="background-color: {{ thema.Farbe|default('#ccc')|trim }}; color: #fff;">
+                                {{ thema.Status }}
+                            </span>
+                        </div>
+                        
+                        <!-- Card Body: Bereich – Gewerk + Bemerkungs-Vorschau -->
+                        <div class="card-body">
+                            <h6 class="card-title mb-2 fw-bold">{{ thema.Bereich }} – {{ thema.Gewerk }}</h6>
+                            
+                            <!-- Bemerkungs-Vorschau -->
+                            {% if bemerk_dict.get(thema.ID) %}
+                                {% set bemerkungen = bemerk_dict[thema.ID] %}
+                                {% set letzte_bemerkung = bemerkungen[0] %}
+                                <div class="bemerkung-preview mb-2">
+                                    <small class="text-muted d-block mb-1">
+                                        {{ letzte_bemerkung.Datum }} - <strong>{{ letzte_bemerkung.Vorname }} {{ letzte_bemerkung.Nachname }}</strong>
+                                        {% if letzte_bemerkung.Taetigkeit %}
+                                            <span class="text-secondary">({{ letzte_bemerkung.Taetigkeit }})</span>
+                                        {% endif %}
+                                    </small>
+                                    <div class="text-truncate" style="max-height: 2.5em; overflow: hidden; text-overflow: ellipsis;">
+                                        {{ letzte_bemerkung.Bemerkung }}
+                                    </div>
+                                    {% if bemerkungen|length > 1 %}
+                                        <small class="text-muted">
+                                            <i class="bi bi-chat-dots"></i> {{ bemerkungen|length - 1 }} weitere Bemerkung{{ 'en' if bemerkungen|length > 2 else '' }}
+                                        </small>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <p class="text-muted fst-italic mb-0 small">Keine Bemerkungen vorhanden.</p>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Card Footer: Action-Buttons -->
+                        <div class="card-footer bg-white" onclick="event.stopPropagation();">
+                            <div class="d-flex gap-2 justify-content-center">
+                                <button class="btn btn-sm btn-outline-success flex-fill" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#newBemerkungMobile{{ thema.ID }}" aria-expanded="false"
+                                        title="Neue Bemerkung">
+                                    <i class="bi bi-plus-lg"></i> <span class="d-none d-sm-inline">Bemerkung</span>
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary flex-fill" type="button"
+                                        onclick="openDateienModal({{ thema.ID }})"
+                                        title="Dateien & Bilder">
+                                    <i class="bi bi-paperclip"></i> <span class="d-none d-sm-inline">Dateien</span>
+                                </button>
+                                <form action="{{ url_for('schichtbuch.delete_thema', thema_id=thema.ID) }}" method="post" class="m-0 p-0 flex-fill">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger w-100" onclick="return confirm('Thema wirklich löschen?');"
+                                            title="Thema löschen">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        
+                        <!-- Bemerkungen (vollständig) direkt in der Card -->
+                        {% if bemerk_dict.get(thema.ID) %}
+                        <div class="card-body border-top pt-2">
+                            <small class="text-muted fw-bold d-block mb-2">Alle Bemerkungen:</small>
+                            <ul class="list-group list-group-flush bemerkung-list mb-0">
+                                {% for b in bemerk_dict[thema.ID] %}
+                                <li class="list-group-item bg-white px-0">
+                                    <div class="d-flex">
+                                        <small class="text-muted">
+                                            {{ b.Datum }} - <strong>{{ b.Vorname }} {{ b.Nachname }}</strong>
+                                            {% if b.Taetigkeit %}
+                                                <span class="text-secondary">({{ b.Taetigkeit }})</span>
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                    <div class="mt-1">{{ b.Bemerkung }}</div>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Eingeklappter Bereich für neue Bemerkung (Mobile) -->
+                    <div class="collapse mt-2" id="newBemerkungMobile{{ thema.ID }}">
+                        <div class="card shadow-sm">
+                            <div class="card-body">
+                                <form action="{{ url_for('schichtbuch.add_bemerkung') }}" method="post" class="mt-2">
+                                    <input type="hidden" name="thema_id" value="{{ thema.ID }}">
+                                    <input type="hidden" name="next" value="{{ request.full_path }}">
+                                    
+                                    <!-- Status -->
+                                    <div class="mb-2">
+                                        <label for="statusMobile{{ thema.ID }}" class="form-label fw-bold">Status ändern:</label>
+                                        <select name="status_id" id="statusMobile{{ thema.ID }}" class="form-select">
+                                            <option value="">-- unverändert --</option>
+                                            {% for s in status_liste %}
+                                                <option value="{{ s.ID }}" {% if s.Bezeichnung == thema.Status %}selected{% endif %}>
+                                                    {{ s.Bezeichnung }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+
+                                    <!-- Tätigkeit -->
+                                    <div class="mb-2">
+                                        <label for="taetigkeitMobile{{ thema.ID }}" class="form-label fw-bold">Tätigkeit:</label>
+                                        <select name="taetigkeit_id" id="taetigkeitMobile{{ thema.ID }}" class="form-select" required>
+                                            <option value="">-- Tätigkeit wählen --</option>
+                                            {% for t in taetigkeiten_liste %}
+                                                <option value="{{ t.ID }}">{{ t.Bezeichnung }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+
+                                    <!-- Bemerkung -->
+                                    <div class="mb-2">
+                                        <label for="bemerkungMobile{{ thema.ID }}" class="form-label fw-bold">Neue Bemerkung:</label>
+                                        <textarea
+                                            name="bemerkung"
+                                            id="bemerkungMobile{{ thema.ID }}"
+                                            class="form-control"
+                                            rows="3"
+                                            placeholder="Neue Bemerkung eingeben..."
+                                            required
+                                        ></textarea>
+                                    </div>
+
+                                    <!-- Speichern -->
+                                    <div class="mb-0">
+                                        <button type="submit" class="btn btn-success w-100">
+                                            <i class="bi bi-save"></i> Speichern
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
         </div>
         {% else %}
         <div class="alert alert-info">
@@ -424,6 +729,8 @@ async function loadMoreThemen() {
 
   const loadingIndicator = document.getElementById('loadingIndicator');
   const tbody = document.querySelector('table tbody');
+  const cardsContainer = document.getElementById('themenCardsContainer');
+  const isMobile = window.innerWidth < 768;
   
   loadingIndicator.style.display = 'block';
 
@@ -443,119 +750,237 @@ async function loadMoreThemen() {
 
     if (data.themen && data.themen.length > 0) {
       data.themen.forEach(thema => {
-        // Themen-Zeile
-        const themaRow = document.createElement('tr');
-        themaRow.className = 'thema-row';
-        themaRow.style.color = thema.Farbe || 'inherit';
-        themaRow.style.cursor = 'pointer';
         const detailUrl = `/schichtbuch/thema/${thema.ID}?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
-        themaRow.onclick = () => { window.location.href = detailUrl; };
-        themaRow.innerHTML = `
-          <td>
-            <a href="${detailUrl}" class="text-decoration-none" onclick="event.stopPropagation();">
-              #${thema.ID}
-            </a>
-          </td>
-          <td>${thema.Bereich} – ${thema.Gewerk}</td>
-          <td>
-            <span class="badge rounded-pill" style="background-color: ${thema.Farbe || '#ccc'}; color: #fff;">
-              ${thema.Status}
-            </span>
-          </td>
-          <td class="text-center" onclick="event.stopPropagation();">
-            <div class="d-flex flex-column flex-sm-row justify-content-center gap-1">
-              <button class="btn btn-sm btn-outline-success" type="button"
-                      data-bs-toggle="collapse" data-bs-target="#newBemerkung${thema.ID}" aria-expanded="false"
-                      title="Neue Bemerkung">
-                <i class="bi bi-plus-lg"></i>
-              </button>
-              <button class="btn btn-sm btn-outline-secondary" type="button"
-                      onclick="openDateienModal(${thema.ID})"
-                      title="Dateien & Bilder">
-                <i class="bi bi-paperclip"></i>
-              </button>
-              <form action="/schichtbuch/delete_thema/${thema.ID}" method="post" class="m-0 p-0">
-                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Thema wirklich löschen?');"
-                        title="Thema löschen">
-                  <i class="bi bi-trash"></i>
-                </button>
-              </form>
-            </div>
-          </td>
-        `;
-
-        // Bemerkungen-Zeile
-        const bemerkungRow = document.createElement('tr');
-        bemerkungRow.className = 'bemerkung-row';
         const bemerkungen = data.bemerk_dict[thema.ID] || [];
-        if (bemerkungen.length > 0) {
-          let bemerkHtml = '<ul class="list-group list-group-flush bemerkung-list">';
-          bemerkungen.forEach(b => {
-            bemerkHtml += `
-              <li class="list-group-item bg-white">
-                <div class="d-flex">
-                  <small class="text-muted">
-                    ${b.Datum} - <strong>${b.Vorname} ${b.Nachname}</strong>
-                    ${b.Taetigkeit ? `<span class="text-secondary">(${b.Taetigkeit})</span>` : ''}
-                  </small>
+        
+        if (isMobile && cardsContainer) {
+          // Mobile: Card erstellen
+          let cardHtml = `
+            <div class="thema-card-mobile mb-3" data-thema-id="${thema.ID}" style="color: ${thema.Farbe || 'inherit'};">
+              <div class="card shadow-sm thema-card-clickable" onclick="window.location.href='${detailUrl}'">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                  <a href="${detailUrl}" class="text-decoration-none fw-bold" onclick="event.stopPropagation();">
+                    #${thema.ID}
+                  </a>
+                  <span class="badge rounded-pill" style="background-color: ${thema.Farbe || '#ccc'}; color: #fff;">
+                    ${thema.Status}
+                  </span>
                 </div>
-                <div>${b.Bemerkung}</div>
-              </li>
-            `;
-          });
-          bemerkHtml += '</ul>';
-          bemerkungRow.innerHTML = `<td colspan="4">${bemerkHtml}</td>`;
-        } else {
-          bemerkungRow.innerHTML = '<td colspan="4"><p class="text-muted fst-italic mb-0">Keine Bemerkungen vorhanden.</p></td>';
-        }
-
-        // Collapse-Zeile
-        const collapseRow = document.createElement('tr');
-        collapseRow.className = 'collapse collapse-row';
-        collapseRow.id = `newBemerkung${thema.ID}`;
-        collapseRow.innerHTML = `
-          <td colspan="4">
-            <form action="/schichtbuch/themaliste/add" method="post" class="mt-2">
-              <input type="hidden" name="thema_id" value="${thema.ID}">
-              <input type="hidden" name="next" value="${window.location.pathname}${window.location.search}">
-              
-              <div class="mb-1">
-                <label for="status${thema.ID}" class="form-label fw-bold">Status ändern:</label>
-                <select name="status_id" id="status${thema.ID}" class="form-select">
-                  <option value="">-- unverändert --</option>
-                  {% for s in status_liste %}
-                    <option value="{{ s.ID }}">{{ s.Bezeichnung }}</option>
-                  {% endfor %}
-                </select>
+                <div class="card-body">
+                  <h6 class="card-title mb-2 fw-bold">${thema.Bereich} – ${thema.Gewerk}</h6>`;
+          
+          // Bemerkungs-Vorschau
+          if (bemerkungen.length > 0) {
+            const letzteBemerkung = bemerkungen[0];
+            cardHtml += `
+                  <div class="bemerkung-preview mb-2">
+                    <small class="text-muted d-block mb-1">
+                      ${letzteBemerkung.Datum} - <strong>${letzteBemerkung.Vorname} ${letzteBemerkung.Nachname}</strong>
+                      ${letzteBemerkung.Taetigkeit ? `<span class="text-secondary">(${letzteBemerkung.Taetigkeit})</span>` : ''}
+                    </small>
+                    <div class="text-truncate" style="max-height: 2.5em; overflow: hidden; text-overflow: ellipsis;">
+                      ${letzteBemerkung.Bemerkung}
+                    </div>
+                    ${bemerkungen.length > 1 ? `<small class="text-muted"><i class="bi bi-chat-dots"></i> ${bemerkungen.length - 1} weitere Bemerkung${bemerkungen.length > 2 ? 'en' : ''}</small>` : ''}
+                  </div>`;
+          } else {
+            cardHtml += `<p class="text-muted fst-italic mb-0 small">Keine Bemerkungen vorhanden.</p>`;
+          }
+          
+          cardHtml += `
+                </div>
+                <div class="card-footer bg-white" onclick="event.stopPropagation();">
+                  <div class="d-flex gap-2 justify-content-center">
+                    <button class="btn btn-sm btn-outline-success flex-fill" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#newBemerkungMobile${thema.ID}" aria-expanded="false"
+                            title="Neue Bemerkung">
+                      <i class="bi bi-plus-lg"></i> <span class="d-none d-sm-inline">Bemerkung</span>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary flex-fill" type="button"
+                            onclick="openDateienModal(${thema.ID})"
+                            title="Dateien & Bilder">
+                      <i class="bi bi-paperclip"></i> <span class="d-none d-sm-inline">Dateien</span>
+                    </button>
+                    <form action="/schichtbuch/delete_thema/${thema.ID}" method="post" class="m-0 p-0 flex-fill">
+                      <button type="submit" class="btn btn-sm btn-outline-danger w-100" onclick="return confirm('Thema wirklich löschen?');"
+                              title="Thema löschen">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </div>`;
+          
+          // Bemerkungen vollständig direkt in der Card
+          if (bemerkungen.length > 0) {
+            cardHtml += `
+                <div class="card-body border-top pt-2">
+                  <small class="text-muted fw-bold d-block mb-2">Alle Bemerkungen:</small>
+                  <ul class="list-group list-group-flush bemerkung-list mb-0">`;
+            bemerkungen.forEach(b => {
+              cardHtml += `
+                    <li class="list-group-item bg-white px-0">
+                      <div class="d-flex">
+                        <small class="text-muted">
+                          ${b.Datum} - <strong>${b.Vorname} ${b.Nachname}</strong>
+                          ${b.Taetigkeit ? `<span class="text-secondary">(${b.Taetigkeit})</span>` : ''}
+                        </small>
+                      </div>
+                      <div class="mt-1">${b.Bemerkung}</div>
+                    </li>`;
+            });
+            cardHtml += '</ul></div>';
+          }
+          
+          // Collapse für neue Bemerkung
+          cardHtml += `
+              <div class="collapse mt-2" id="newBemerkungMobile${thema.ID}">
+                <div class="card shadow-sm">
+                  <div class="card-body">
+                    <form action="/schichtbuch/themaliste/add" method="post" class="mt-2">
+                      <input type="hidden" name="thema_id" value="${thema.ID}">
+                      <input type="hidden" name="next" value="${window.location.pathname}${window.location.search}">
+                      <div class="mb-2">
+                        <label for="statusMobile${thema.ID}" class="form-label fw-bold">Status ändern:</label>
+                        <select name="status_id" id="statusMobile${thema.ID}" class="form-select">
+                          <option value="">-- unverändert --</option>
+                        </select>
+                      </div>
+                      <div class="mb-2">
+                        <label for="taetigkeitMobile${thema.ID}" class="form-label fw-bold">Tätigkeit:</label>
+                        <select name="taetigkeit_id" id="taetigkeitMobile${thema.ID}" class="form-select" required>
+                          <option value="">-- Tätigkeit wählen --</option>
+                        </select>
+                      </div>
+                      <div class="mb-2">
+                        <label for="bemerkungMobile${thema.ID}" class="form-label fw-bold">Neue Bemerkung:</label>
+                        <textarea name="bemerkung" id="bemerkungMobile${thema.ID}" class="form-control" rows="3" placeholder="Neue Bemerkung eingeben..." required></textarea>
+                      </div>
+                      <div class="mb-0">
+                        <button type="submit" class="btn btn-success w-100">
+                          <i class="bi bi-save"></i> Speichern
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
               </div>
-
-              <div class="mb-1">
-                <label for="taetigkeit${thema.ID}" class="form-label fw-bold">Tätigkeit:</label>
-                <select name="taetigkeit_id" id="taetigkeit${thema.ID}" class="form-select" required>
-                  <option value="">-- Tätigkeit wählen --</option>
-                  {% for t in taetigkeiten_liste %}
-                    <option value="{{ t.ID }}">{{ t.Bezeichnung }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-
-              <div class="mb-1">
-                <label for="bemerkung${thema.ID}" class="form-label fw-bold">Neue Bemerkung:</label>
-                <textarea name="bemerkung" id="bemerkung${thema.ID}" class="form-control" rows="3" placeholder="Neue Bemerkung eingeben..." required></textarea>
-              </div>
-
-              <div class="mb-0">
-                <button type="submit" class="btn btn-success">
-                  <i class="bi bi-save"></i> Speichern
+            </div>`;
+          
+          cardsContainer.insertAdjacentHTML('beforeend', cardHtml);
+        } else if (tbody) {
+          // Desktop: Tabellenzeilen erstellen
+          const themaRow = document.createElement('tr');
+          themaRow.className = 'thema-row';
+          themaRow.style.color = thema.Farbe || 'inherit';
+          themaRow.style.cursor = 'pointer';
+          themaRow.onclick = () => { window.location.href = detailUrl; };
+          themaRow.innerHTML = `
+            <td>
+              <a href="${detailUrl}" class="text-decoration-none" onclick="event.stopPropagation();">
+                #${thema.ID}
+              </a>
+            </td>
+            <td>${thema.Bereich} – ${thema.Gewerk}</td>
+            <td>
+              <span class="badge rounded-pill" style="background-color: ${thema.Farbe || '#ccc'}; color: #fff;">
+                ${thema.Status}
+              </span>
+            </td>
+            <td class="text-center" onclick="event.stopPropagation();">
+              <div class="d-flex flex-column flex-sm-row justify-content-center gap-1">
+                <button class="btn btn-sm btn-outline-success" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#newBemerkung${thema.ID}" aria-expanded="false"
+                        title="Neue Bemerkung">
+                  <i class="bi bi-plus-lg"></i>
                 </button>
+                <button class="btn btn-sm btn-outline-secondary" type="button"
+                        onclick="openDateienModal(${thema.ID})"
+                        title="Dateien & Bilder">
+                  <i class="bi bi-paperclip"></i>
+                </button>
+                <form action="/schichtbuch/delete_thema/${thema.ID}" method="post" class="m-0 p-0">
+                  <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Thema wirklich löschen?');"
+                          title="Thema löschen">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
               </div>
-            </form>
-          </td>
-        `;
+            </td>
+          `;
 
-        tbody.appendChild(themaRow);
-        tbody.appendChild(bemerkungRow);
-        tbody.appendChild(collapseRow);
+          // Bemerkungen-Zeile
+          const bemerkungRow = document.createElement('tr');
+          bemerkungRow.className = 'bemerkung-row';
+          if (bemerkungen.length > 0) {
+            let bemerkHtml = '<ul class="list-group list-group-flush bemerkung-list">';
+            bemerkungen.forEach(b => {
+              bemerkHtml += `
+                <li class="list-group-item bg-white">
+                  <div class="d-flex">
+                    <small class="text-muted">
+                      ${b.Datum} - <strong>${b.Vorname} ${b.Nachname}</strong>
+                      ${b.Taetigkeit ? `<span class="text-secondary">(${b.Taetigkeit})</span>` : ''}
+                    </small>
+                  </div>
+                  <div>${b.Bemerkung}</div>
+                </li>
+              `;
+            });
+            bemerkHtml += '</ul>';
+            bemerkungRow.innerHTML = `<td colspan="4">${bemerkHtml}</td>`;
+          } else {
+            bemerkungRow.innerHTML = '<td colspan="4"><p class="text-muted fst-italic mb-0">Keine Bemerkungen vorhanden.</p></td>';
+          }
+
+          // Collapse-Zeile
+          const collapseRow = document.createElement('tr');
+          collapseRow.className = 'collapse collapse-row';
+          collapseRow.id = `newBemerkung${thema.ID}`;
+          collapseRow.innerHTML = `
+            <td colspan="4">
+              <form action="/schichtbuch/themaliste/add" method="post" class="mt-2">
+                <input type="hidden" name="thema_id" value="${thema.ID}">
+                <input type="hidden" name="next" value="${window.location.pathname}${window.location.search}">
+                
+                <div class="mb-1">
+                  <label for="status${thema.ID}" class="form-label fw-bold">Status ändern:</label>
+                  <select name="status_id" id="status${thema.ID}" class="form-select">
+                    <option value="">-- unverändert --</option>
+                    {% for s in status_liste %}
+                      <option value="{{ s.ID }}">{{ s.Bezeichnung }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+
+                <div class="mb-1">
+                  <label for="taetigkeit${thema.ID}" class="form-label fw-bold">Tätigkeit:</label>
+                  <select name="taetigkeit_id" id="taetigkeit${thema.ID}" class="form-select" required>
+                    <option value="">-- Tätigkeit wählen --</option>
+                    {% for t in taetigkeiten_liste %}
+                      <option value="{{ t.ID }}">{{ t.Bezeichnung }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+
+                <div class="mb-1">
+                  <label for="bemerkung${thema.ID}" class="form-label fw-bold">Neue Bemerkung:</label>
+                  <textarea name="bemerkung" id="bemerkung${thema.ID}" class="form-control" rows="3" placeholder="Neue Bemerkung eingeben..." required></textarea>
+                </div>
+
+                <div class="mb-0">
+                  <button type="submit" class="btn btn-success">
+                    <i class="bi bi-save"></i> Speichern
+                  </button>
+                </div>
+              </form>
+            </td>
+          `;
+
+          tbody.appendChild(themaRow);
+          tbody.appendChild(bemerkungRow);
+          tbody.appendChild(collapseRow);
+        }
       });
 
       currentOffset += data.themen.length;
@@ -605,6 +1030,35 @@ window.addEventListener('scroll', () => {
 if (currentOffset < 50) {
   allLoaded = true;
   document.getElementById('loadingIndicator').innerHTML = '<p class="text-muted">Alle Einträge geladen.</p>';
+}
+
+// Filter-Form Handling für Mobile Checkboxen
+const filterForm = document.getElementById('filterForm');
+if (filterForm) {
+  filterForm.addEventListener('submit', function(e) {
+    // Auf Mobile: Checkboxen-Werte in versteckte Inputs umwandeln
+    if (window.innerWidth < 768) {
+      const checkboxes = filterForm.querySelectorAll('.status-checkboxes-mobile input[type="checkbox"]:checked');
+      
+      // Alte Status-Werte entfernen
+      const oldStatusInputs = filterForm.querySelectorAll('input[name="status"][type="hidden"]');
+      oldStatusInputs.forEach(input => input.remove());
+      
+      // Neue versteckte Inputs für ausgewählte Checkboxen erstellen
+      checkboxes.forEach(checkbox => {
+        const hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.name = 'status';
+        hiddenInput.value = checkbox.value;
+        filterForm.appendChild(hiddenInput);
+      });
+      
+      // Checkboxen aus dem Submit ausschließen
+      filterForm.querySelectorAll('.status-checkboxes-mobile input[type="checkbox"]').forEach(cb => {
+        cb.disabled = true;
+      });
+    }
+  });
 }
 
 // Dynamische Gewerke nach Bereich
