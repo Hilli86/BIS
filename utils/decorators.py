@@ -32,7 +32,7 @@ def login_required(view_func):
         # Wenn Gast-Benutzer: Prüfe ob Route Gast erlaubt
         if session.get('is_guest'):
             # Whitelist von erlaubten Endpoints für Gast-Benutzer
-            ALLOWED_GUEST_ENDPOINTS = ['produktion.etikettierung']
+            ALLOWED_GUEST_ENDPOINTS = ['produktion.etikettierung', 'produktion.etikettierung_bild']
             
             # Prüfe ob aktueller Endpoint erlaubt ist
             current_endpoint = request.endpoint

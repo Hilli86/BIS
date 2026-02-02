@@ -4,11 +4,165 @@
 <div class="container-fluid">
   <h2 class="mb-4">Etikettierung</h2>
   
-  <div class="card">
+  {# Artikeleinstellungen Abschnitt #}
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="mb-0">Artikeleinstellungen</h5>
+    </div>
     <div class="card-body">
-      <p class="card-text">Inhalt folgt noch.</p>
-      <p class="text-muted">Diese Funktion wird in Kürze verfügbar sein.</p>
+      {% if struktur and struktur|length > 0 %}
+        <div class="accordion" id="linienAccordion">
+          {% for linie, artikel_dict in struktur.items() %}
+            {% set linie_id = linie|replace(' ', '_')|replace('-', '_')|lower %}
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="heading{{ loop.index }}">
+                <button class="accordion-button {% if not loop.first %}collapsed{% endif %}" type="button" 
+                        data-bs-toggle="collapse" data-bs-target="#collapse{{ loop.index }}" 
+                        aria-expanded="{% if loop.first %}true{% else %}false{% endif %}" 
+                        aria-controls="collapse{{ loop.index }}">
+                  <strong>{{ linie }}</strong>
+                  <span class="badge bg-secondary ms-2">{{ artikel_dict|length }} Artikel</span>
+                </button>
+              </h2>
+              <div id="collapse{{ loop.index }}" 
+                   class="accordion-collapse collapse {% if loop.first %}show{% endif %}" 
+                   aria-labelledby="heading{{ loop.index }}" 
+                   data-bs-parent="#linienAccordion">
+                <div class="accordion-body">
+                  <div class="accordion" id="artikelAccordion{{ loop.index }}">
+                    {% for artikel, fotos in artikel_dict.items() %}
+                      {% set artikel_id = artikel|replace(' ', '_')|replace('-', '_')|lower %}
+                      {% if fotos|length > 0 %}
+                        <div class="accordion-item">
+                          <h3 class="accordion-header" id="artikelHeading{{ loop.index }}_{{ loop.loop0 }}">
+                            <button class="accordion-button collapsed" type="button" 
+                                    data-bs-toggle="collapse" 
+                                    data-bs-target="#artikelCollapse{{ loop.index }}_{{ loop.loop0 }}" 
+                                    aria-expanded="false" 
+                                    aria-controls="artikelCollapse{{ loop.index }}_{{ loop.loop0 }}">
+                              {{ artikel }}
+                              <span class="badge bg-info ms-2">{{ fotos|length }} Foto{{ 's' if fotos|length != 1 else '' }}</span>
+                            </button>
+                          </h3>
+                          <div id="artikelCollapse{{ loop.index }}_{{ loop.loop0 }}" 
+                               class="accordion-collapse collapse" 
+                               aria-labelledby="artikelHeading{{ loop.index }}_{{ loop.loop0 }}" 
+                               data-bs-parent="#artikelAccordion{{ loop.index }}">
+                            <div class="accordion-body">
+                              {# Bildpfad für URL erstellen #}
+                              {% set bild_base_path = 'Produktion/Etikettierung/Artikeleinstellungen/' ~ linie ~ '/' ~ artikel ~ '/' %}
+                              
+                              {# Bizerba-Foto zuerst prominent anzeigen #}
+                              {% set bizerba_fotos = [] %}
+                              {% set andere_fotos = [] %}
+                              {% for foto in fotos %}
+                                {% if foto|lower|truncate(7, true, '') == 'bizerba' %}
+                                  {% set _ = bizerba_fotos.append(foto) %}
+                                {% else %}
+                                  {% set _ = andere_fotos.append(foto) %}
+                                {% endif %}
+                              {% endfor %}
+                              
+                              {% if bizerba_fotos|length > 0 %}
+                                <h6 class="mb-3">Bizerba-Parameter</h6>
+                                <div class="row g-3 mb-4">
+                                  {% for foto in bizerba_fotos %}
+                                    {% set bild_url = url_for('produktion.etikettierung_bild', filepath=bild_base_path ~ foto) %}
+                                    <div class="col-md-6 col-lg-4">
+                                      <div class="card">
+                                        <a href="{{ bild_url }}" target="_blank">
+                                          <img src="{{ bild_url }}" 
+                                               class="card-img-top" 
+                                               style="height: 200px; object-fit: contain; background-color: #f8f9fa; cursor: pointer;"
+                                               alt="{{ foto }}"
+                                               onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'200\' height=\'200\'%3E%3Crect fill=\'%23ddd\' width=\'200\' height=\'200\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'14\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'%3EBild nicht gefunden%3C/text%3E%3C/svg%3E';">
+                                        </a>
+                                        <div class="card-body p-2">
+                                          <small class="text-muted d-block text-center">{{ foto }}</small>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  {% endfor %}
+                                </div>
+                              {% endif %}
+                              
+                              {# Weitere Fotos #}
+                              {% if andere_fotos|length > 0 %}
+                                <h6 class="mb-3">Weitere Fotos</h6>
+                                <div class="row g-3">
+                                  {% for foto in andere_fotos %}
+                                    {% set bild_url = url_for('produktion.etikettierung_bild', filepath=bild_base_path ~ foto) %}
+                                    <div class="col-md-4 col-lg-3">
+                                      <div class="card">
+                                        <a href="{{ bild_url }}" target="_blank">
+                                          <img src="{{ bild_url }}" 
+                                               class="card-img-top" 
+                                               style="height: 150px; object-fit: contain; background-color: #f8f9fa; cursor: pointer;"
+                                               alt="{{ foto }}"
+                                               onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'200\' height=\'200\'%3E%3Crect fill=\'%23ddd\' width=\'200\' height=\'200\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'14\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'%3EBild nicht gefunden%3C/text%3E%3C/svg%3E';">
+                                        </a>
+                                        <div class="card-body p-2">
+                                          <small class="text-muted d-block text-center">{{ foto }}</small>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  {% endfor %}
+                                </div>
+                              {% endif %}
+                              
+                              {% if bizerba_fotos|length == 0 and andere_fotos|length == 0 %}
+                                <p class="text-muted">Keine Fotos vorhanden.</p>
+                              {% endif %}
+                            </div>
+                          </div>
+                        </div>
+                      {% endif %}
+                    {% endfor %}
+                    
+                    {% if artikel_dict|length == 0 %}
+                      <p class="text-muted">Keine Artikel in dieser Linie vorhanden.</p>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="alert alert-info">
+          <i class="bi bi-info-circle"></i> 
+          Keine Artikeleinstellungen gefunden. 
+          <br>
+          <small class="text-muted">
+            Bitte stellen Sie sicher, dass der Ordner <code>Produktion/Etikettierung/Artikeleinstellungen</code> 
+            im Upload-Verzeichnis existiert und die entsprechende Struktur enthält.
+          </small>
+        </div>
+      {% endif %}
     </div>
   </div>
 </div>
+
+<style>
+  .accordion-button:not(.collapsed) {
+    background-color: #e9ecef;
+  }
+  
+  .card-img-top {
+    transition: transform 0.2s;
+  }
+  
+  .card:hover .card-img-top {
+    transform: scale(1.05);
+  }
+  
+  .card {
+    border: 1px solid #dee2e6;
+    transition: box-shadow 0.2s;
+  }
+  
+  .card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  }
+</style>
 {% endblock %}
