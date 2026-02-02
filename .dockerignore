@@ -1,0 +1,46 @@
+# Virtuelle Umgebung und Python-Cache
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Git und IDE
+.git/
+.gitignore
+.cursor/
+.vscode/
+*.swp
+*.swo
+
+# Umgebungsdateien (werden per docker-compose/Env gesetzt)
+.env
+.env.local
+*.db
+
+# Dokumentation und Skripte (nicht für Laufzeit nötig)
+docs/
+.github/
+*.md
+!README.md
+
+# Tests und Deployment außerhalb Docker
+deployment/
+migrations/
+terminals/
+
+# Lokale Zertifikate
+*.pem
+*.key
+*.crt
+
+# Logs und temporäre Dateien
+*.log
+.DS_Store
+Thumbs.db

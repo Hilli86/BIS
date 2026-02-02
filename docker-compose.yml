@@ -1,0 +1,23 @@
+# BIS – Betriebsinformationssystem
+# Docker Compose für lokalen Betrieb (z. B. unter Windows 11 mit Docker Desktop)
+
+services:
+  bis:
+    build: .
+    container_name: bis-app
+    ports:
+      - "5000:5000"
+    environment:
+      FLASK_ENV: production
+      SECRET_KEY: ${SECRET_KEY:-bitte-in-.env-oder-umgebung-aendern}
+      DATABASE_URL: /data/database_main.db
+      UPLOAD_BASE_FOLDER: /data/Daten
+      # Optional: WEBAUTHN_ORIGIN anpassen, wenn Sie über Hostname/IP zugreifen
+      # WEBAUTHN_ORIGIN: http://localhost:5000
+    volumes:
+      # Persistente Daten (Datenbank + Uploads)
+      bis-data:/data
+    restart: unless-stopped
+
+volumes:
+  bis-data:

@@ -26,6 +26,12 @@ Willkommen zur Deployment-Dokumentation für das BIS (Betriebsinformationssystem
   - Schnellreferenz für Befehle
   - Beschreibung der einzelnen Komponenten
 
+### 🐳 Docker (Windows 11)
+- **[DOCKER_WINDOWS_ANLEITUNG.md](DOCKER_WINDOWS_ANLEITUNG.md)**
+  - BIS in einem Docker-Container unter Windows 11 betreiben
+  - Docker Desktop, WSL2, docker-compose
+  - Persistente Daten, Konfiguration, Troubleshooting
+
 ---
 
 ## 🗂 Deployment-Dateien im Überblick
