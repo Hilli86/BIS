@@ -27,6 +27,23 @@ def dashboard():
 @dashboard_bp.route('/api/dashboard')
 def api_dashboard():
     """API-Endpunkt für Dashboard-Daten"""
+    # Gast-Benutzer erhalten leere Daten
+    if session.get('is_guest'):
+        return jsonify({
+            'success': True,
+            'status_daten': [],
+            'gesamt': 0,
+            'aktuelle_themen': [],
+            'meine_themen': [],
+            'aktivitaeten': [],
+            'ersatzteil_stats': {
+                'gesamt': 0,
+                'warnungen': 0,
+                'kategorien': []
+            },
+            'ersatzteil_warnungen': []
+        })
+    
     if 'user_id' not in session:
         return jsonify({'error': 'Nicht angemeldet'}), 401
     

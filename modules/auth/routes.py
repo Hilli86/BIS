@@ -142,6 +142,29 @@ def login():
     return render_template('login.html', personalnummer=personalnummer_param, remember_me=remember_me)
 
 
+@auth_bp.route('/login/guest')
+def login_guest():
+    """Gast-Login - ermöglicht eingeschränkten Zugriff ohne Anmeldung"""
+    # Session-Variablen für Gast-Benutzer setzen
+    session['user_id'] = None
+    session['is_guest'] = True
+    session['user_name'] = 'Gast'
+    session['user_abteilung'] = None
+    session['user_abteilungen'] = []
+    session['user_berechtigungen'] = []
+    
+    # Optional: Gast-Login loggen
+    try:
+        with get_db_connection() as conn:
+            _log_login_attempt(conn, 'GAST', None, True, request, 'Gast-Login')
+    except Exception as e:
+        # Logging-Fehler sollten den Login-Prozess nicht beeinträchtigen
+        print(f"Fehler beim Loggen des Gast-Logins: {e}")
+    
+    flash('Als Gast angemeldet. Sie haben eingeschränkten Zugriff.', 'info')
+    return redirect(url_for('produktion.etikettierung'))
+
+
 @auth_bp.route('/logout')
 def logout():
     """Logout"""

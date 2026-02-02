@@ -30,9 +30,13 @@
 
   <hr class="my-3">
 
-  <button type="button" id="webauthn-login-btn" class="btn btn-outline-secondary w-100">
+  <button type="button" id="webauthn-login-btn" class="btn btn-outline-secondary w-100 mb-2">
     Mit FaceID / Windows Hello anmelden
   </button>
+
+  <a href="{{ url_for('auth.login_guest') }}" class="btn btn-outline-info w-100">
+    Als Gast anmelden
+  </a>
 </div>
 
 <script src="{{ url_for('static', filename='webauthn.js') }}"></script>

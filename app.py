@@ -44,7 +44,7 @@ def file_extension(filename):
     return parts[1].lower() if len(parts) > 1 else ''
 
 # Blueprints registrieren
-from modules import auth_bp, schichtbuch_bp, admin_bp, ersatzteile_bp, dashboard_bp, import_bp, errors_bp, diverses_bp, search_bp
+from modules import auth_bp, schichtbuch_bp, admin_bp, ersatzteile_bp, dashboard_bp, import_bp, errors_bp, diverses_bp, search_bp, produktion_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(schichtbuch_bp)
@@ -55,15 +55,21 @@ app.register_blueprint(import_bp)
 app.register_blueprint(errors_bp)
 app.register_blueprint(diverses_bp)
 app.register_blueprint(search_bp)
+app.register_blueprint(produktion_bp)
 
 
 # ========== Main Routes ==========
 
 @app.route('/')
 def index():
-    """Startseite - Redirect zu Dashboard oder Login"""
+    """Startseite - Redirect zu Dashboard, Etikettierung oder Login"""
+    # Gast-Benutzer zur Etikettierung
+    if session.get('is_guest'):
+        return redirect(url_for('produktion.etikettierung'))
+    # Normale Benutzer zum Dashboard
     if session.get('user_id'):
         return redirect(url_for('dashboard.dashboard'))
+    # Nicht angemeldet zum Login
     # URL-Parameter (z.B. personalnummer) an Login-Route weitergeben
     personalnummer = request.args.get('personalnummer')
     if personalnummer:
