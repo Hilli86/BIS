@@ -545,17 +545,74 @@
 <!-- Lieferscheine -->
 {% if bestellung.Status in ['Bestellt', 'Teilweise erhalten', 'Erhalten', 'Erledigt'] %}
 <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-secondary text-white">
+    <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0">📦 Lieferscheine</h5>
+        <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#lieferscheinUploadCollapse">
+            <i class="bi bi-plus-circle"></i> Lieferschein hochladen
+        </button>
+    </div>
+    <div class="collapse" id="lieferscheinUploadCollapse">
+        <div class="card-body">
+            {{ datei_upload(
+                bereich_typ='Lieferschein',
+                bereich_id=bestellung.ID,
+                erlaubte_dateitypen=['PDF', 'Bild'],
+                upload_route='ersatzteile.bestellung_lieferschein_upload',
+                import_route=None,
+                accept_attr='.pdf,.jpeg,.jpg,.png',
+                upload_tab_id='ls-detail-upload-tab',
+                import_tab_id='ls-detail-import-tab',
+                import_function='ladeImportDateien("ls")'
+            ) }}
+        </div>
     </div>
     <div class="card-body">
         {{ datei_liste(
             dateien=lieferscheine,
-            bereich_typ='Bestellung',
+            bereich_typ='Lieferschein',
             bereich_id=bestellung.ID,
             erlaubte_dateitypen=['PDF', 'Bild'],
             is_admin=is_admin,
             datei_anzeigen_route='ersatzteile.lieferschein_anzeigen',
+            datei_loeschen_route='ersatzteile.datei_loeschen',
+            nur_bilder=False
+        ) }}
+    </div>
+</div>
+{% endif %}
+
+<!-- Rechnungen -->
+{% if bestellung.Status in ['Bestellt', 'Teilweise erhalten', 'Erhalten', 'Erledigt'] %}
+<div class="card mb-4 shadow-sm">
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">🧾 Rechnungen</h5>
+        <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#rechnungUploadCollapse">
+            <i class="bi bi-plus-circle"></i> Rechnung hochladen
+        </button>
+    </div>
+    <div class="collapse" id="rechnungUploadCollapse">
+        <div class="card-body">
+            {{ datei_upload(
+                bereich_typ='Rechnung',
+                bereich_id=bestellung.ID,
+                erlaubte_dateitypen=['PDF', 'Bild'],
+                upload_route='ersatzteile.bestellung_rechnung_upload',
+                import_route=None,
+                accept_attr='.pdf,.jpeg,.jpg,.png',
+                upload_tab_id='re-detail-upload-tab',
+                import_tab_id='re-detail-import-tab',
+                import_function='ladeImportDateien("re")'
+            ) }}
+        </div>
+    </div>
+    <div class="card-body">
+        {{ datei_liste(
+            dateien=rechnungen,
+            bereich_typ='Rechnung',
+            bereich_id=bestellung.ID,
+            erlaubte_dateitypen=['PDF', 'Bild'],
+            is_admin=is_admin,
+            datei_anzeigen_route='ersatzteile.rechnung_anzeigen',
             datei_loeschen_route='ersatzteile.datei_loeschen',
             nur_bilder=False
         ) }}
@@ -1464,7 +1521,8 @@ document.addEventListener('DOMContentLoaded', function() {
 <!-- Import-Funktionalität JavaScript -->
 <script>
 async function ladeImportDateien(typ) {
-    const listeId = typ === 'pdf' ? 'pdf-import-dateien-liste' : 'ab-import-dateien-liste';
+    const listeIdMap = { 'pdf': 'pdf-import-dateien-liste', 'ab': 'ab-import-dateien-liste', 'ls': 'ls-detail-import-tab-dateien-liste', 're': 're-detail-import-tab-dateien-liste' };
+    const listeId = listeIdMap[typ] || 'ab-import-dateien-liste';
     const liste = document.getElementById(listeId);
     
     if (!liste) return;
@@ -1484,7 +1542,7 @@ async function ladeImportDateien(typ) {
         let erlaubteEndungen = [];
         if (typ === 'pdf') {
             erlaubteEndungen = ['.pdf'];
-        } else if (typ === 'ab') {
+        } else if (typ === 'ab' || typ === 'ls' || typ === 're') {
             erlaubteEndungen = ['.pdf', '.jpeg', '.jpg', '.png'];
         }
         
@@ -1522,11 +1580,18 @@ async function ladeImportDateien(typ) {
 
 async function verschiebeAusImport(filename, typ, bestellungId) {
     let zielOrdner = '';
+    let bereichTyp = 'Bestellung';
     if (typ === 'pdf') {
         // ANGEBOTE_UPLOAD_FOLDER ist bereits "Angebote", daher nur "Bestellungen/{id}"
         zielOrdner = `Angebote/Bestellungen/${bestellungId}`;
     } else if (typ === 'ab') {
         zielOrdner = `Bestellwesen/Auftragsbestätigungen/${bestellungId}`;
+    } else if (typ === 'ls') {
+        zielOrdner = `Bestellwesen/Lieferscheine/${bestellungId}`;
+        bereichTyp = 'Lieferschein';
+    } else if (typ === 're') {
+        zielOrdner = `Bestellwesen/Rechnungen/${bestellungId}`;
+        bereichTyp = 'Rechnung';
     }
     
     if (!zielOrdner) {
@@ -1545,7 +1610,7 @@ async function verschiebeAusImport(filename, typ, bestellungId) {
             body: JSON.stringify({
                 filename: filename, 
                 ziel_ordner: zielOrdner,
-                bereich_typ: 'Bestellung',
+                bereich_typ: bereichTyp,
                 bereich_id: bestellungId
             })
         });

@@ -78,7 +78,8 @@ def ersatzteil_liste():
         sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
         is_admin = 'admin' in session.get('user_berechtigungen', [])
         
-        # Query über Service aufbauen
+        # Query über Service aufbauen (Limit 50 für Lazy Load)
+        items_per_page = 50
         query, params = build_ersatzteil_liste_query(
             mitarbeiter_id,
             sichtbare_abteilungen,
@@ -93,6 +94,8 @@ def ersatzteil_liste():
             sort_by=sort_by,
             sort_dir=sort_dir,
             nur_ohne_preis=nur_ohne_preis,
+            limit=items_per_page,
+            offset=0,
         )
         
         ersatzteile = conn.execute(query, params).fetchall()
@@ -126,6 +129,55 @@ def ersatzteil_liste():
         default_printer=default_printer,
         default_label=default_label
     )
+
+
+@ersatzteile_bp.route('/load_more')
+@login_required
+def ersatzteil_liste_load_more():
+    """AJAX-Route zum Nachladen weiterer Ersatzteile (Lazy Load)"""
+    mitarbeiter_id = session.get('user_id')
+    offset = request.args.get('offset', 0, type=int)
+    limit = request.args.get('limit', 50, type=int)
+    
+    # Filterparameter (analog zu ersatzteil_liste)
+    kategorie_filter = request.args.get('kategorie')
+    lieferant_filter = request.args.get('lieferant')
+    lagerort_filter = request.args.get('lagerort')
+    lagerplatz_filter = request.args.get('lagerplatz')
+    kennzeichen_filter = request.args.get('kennzeichen')
+    bestandswarnung = request.args.get('bestandswarnung') == '1'
+    nur_ohne_preis = request.args.get('nur_ohne_preis') == '1'
+    q_filter = request.args.get('q')
+    sort_by = request.args.get('sort', 'kategorie')
+    sort_dir = request.args.get('dir', 'asc')
+    
+    with get_db_connection() as conn:
+        sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+        is_admin = 'admin' in session.get('user_berechtigungen', [])
+        
+        query, params = build_ersatzteil_liste_query(
+            mitarbeiter_id,
+            sichtbare_abteilungen,
+            is_admin,
+            kategorie_filter=kategorie_filter,
+            lieferant_filter=lieferant_filter,
+            lagerort_filter=lagerort_filter,
+            lagerplatz_filter=lagerplatz_filter,
+            kennzeichen_filter=kennzeichen_filter,
+            bestandswarnung=bestandswarnung,
+            q_filter=q_filter,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
+            nur_ohne_preis=nur_ohne_preis,
+            limit=limit,
+            offset=offset,
+        )
+        
+        ersatzteile = conn.execute(query, params).fetchall()
+    
+    return jsonify({
+        'ersatzteile': [dict(e) for e in ersatzteile]
+    })
 
 
 @ersatzteile_bp.route('/<int:ersatzteil_id>/druck_label', methods=['POST'])
@@ -1087,6 +1139,9 @@ def datei_loeschen(datei_id):
             elif datei['BereichTyp'] == 'Lieferschein':
                 flash('Datei erfolgreich gelöscht.', 'success')
                 return redirect(url_for('ersatzteile.wareneingang_bestellung', bestellung_id=datei['BereichID']))
+            elif datei['BereichTyp'] == 'Rechnung':
+                flash('Datei erfolgreich gelöscht.', 'success')
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=datei['BereichID']))
             elif datei['BereichTyp'] == 'Thema':
                 flash('Datei erfolgreich gelöscht.', 'success')
                 return redirect(url_for('schichtbuch.thema_detail', thema_id=datei['BereichID']))

@@ -277,17 +277,20 @@ def bestellung_detail(bestellung_id):
         # Dateien aus Datei-Tabelle laden
         alle_dateien = get_dateien_fuer_bereich('Bestellung', bestellung_id, conn)
         
-        # Lieferscheine separat laden (eigener BereichTyp)
+        # Lieferscheine und Rechnungen separat laden (eigener BereichTyp)
         lieferscheine_db = get_dateien_fuer_bereich('Lieferschein', bestellung_id, conn)
+        rechnungen_db = get_dateien_fuer_bereich('Rechnung', bestellung_id, conn)
         
         # Dateien nach Typ filtern (Pfad-basiert für Rückwärtskompatibilität)
         dateien = [d for d in alle_dateien if 'Bestellungen' in d['Dateipfad']]
         auftragsbestätigungen = []
         lieferscheine = []
+        rechnungen = []
         if bestellung['Status'] in ['Bestellt', 'Teilweise erhalten', 'Erhalten', 'Erledigt']:
             auftragsbestätigungen = [d for d in alle_dateien if 'Auftragsbestätigungen' in d['Dateipfad']]
-            # Lieferscheine aus eigenem BereichTyp verwenden
+            # Lieferscheine und Rechnungen aus eigenem BereichTyp verwenden
             lieferscheine = list(lieferscheine_db)
+            rechnungen = list(rechnungen_db)
         
         # Berechtigungen prüfen (Admin hat alle Rechte)
         is_admin = 'admin' in session.get('user_berechtigungen', [])
@@ -313,6 +316,7 @@ def bestellung_detail(bestellung_id):
         dateien=dateien,
         auftragsbestätigungen=auftragsbestätigungen,
         lieferscheine=lieferscheine,
+        rechnungen=rechnungen,
         kann_freigeben=kann_freigeben,
         kann_buchen=kann_buchen,
         gesamtbetrag=gesamtbetrag,
@@ -1540,6 +1544,209 @@ def bestellung_auftragsbestätigung_upload(bestellung_id):
         print(f"Auftragsbestätigung-Upload Fehler: {e}")
     
     return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/lieferschein/upload', methods=['POST'])
+@login_required
+def bestellung_lieferschein_upload(bestellung_id):
+    """Lieferschein-Upload für Bestellung (analog zu Auftragsbestätigungen)"""
+    mitarbeiter_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ? AND Gelöscht = 0', (bestellung_id,)).fetchone()
+        if not bestellung:
+            flash('Bestellung nicht gefunden.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_liste'))
+        
+        if bestellung['Status'] not in ['Bestellt', 'Teilweise erhalten', 'Erhalten', 'Erledigt']:
+            flash('Lieferschein kann nur für bestellte Bestellungen hochgeladen werden.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+    
+    files = request.files.getlist('file')
+    if not files or all(f.filename == '' for f in files):
+        flash('Keine Datei ausgewählt.', 'danger')
+        return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+    
+    beschreibung = request.form.get('beschreibung', '').strip()
+    erfolgreich = 0
+    fehler = 0
+    
+    try:
+        from ..services import speichere_datei, get_datei_typ_aus_dateiname
+        
+        lieferschein_folder = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], 'Bestellwesen', 'Lieferscheine', str(bestellung_id))
+        create_upload_folder(lieferschein_folder)
+        
+        for file in files:
+            if file.filename == '':
+                continue
+            
+            if not validate_file_extension(file.filename, {'pdf', 'jpg', 'jpeg', 'png'}):
+                fehler += 1
+                continue
+            
+            try:
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
+                original_filename = file.filename
+                file.filename = timestamp + secure_filename(original_filename)
+                
+                success_upload, filename, error_message = save_uploaded_file(
+                    file,
+                    lieferschein_folder,
+                    allowed_extensions={'pdf', 'jpg', 'jpeg', 'png'}
+                )
+                
+                if not success_upload or error_message:
+                    fehler += 1
+                    continue
+                
+                relative_path = f'Bestellwesen/Lieferscheine/{bestellung_id}/{filename}'
+                with get_db_connection() as conn:
+                    speichere_datei(
+                        bereich_typ='Lieferschein',
+                        bereich_id=bestellung_id,
+                        dateiname=original_filename,
+                        dateipfad=relative_path,
+                        beschreibung=beschreibung,
+                        typ=get_datei_typ_aus_dateiname(original_filename),
+                        mitarbeiter_id=mitarbeiter_id,
+                        conn=conn
+                    )
+                erfolgreich += 1
+            except Exception as e:
+                fehler += 1
+                print(f'Fehler beim Hochladen von {file.filename}: {e}')
+        
+        if erfolgreich > 0:
+            flash(f'{erfolgreich} Lieferschein(e) erfolgreich hochgeladen.', 'success')
+        if fehler > 0:
+            flash(f'{fehler} Datei(en) konnten nicht hochgeladen werden.', 'warning')
+    except Exception as e:
+        flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
+        print(f'Lieferschein-Upload Fehler: {e}')
+    
+    return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/rechnung/upload', methods=['POST'])
+@login_required
+def bestellung_rechnung_upload(bestellung_id):
+    """Rechnung-Upload für Bestellung (analog zu Lieferscheinen)"""
+    mitarbeiter_id = session.get('user_id')
+    
+    with get_db_connection() as conn:
+        bestellung = conn.execute('SELECT Status FROM Bestellung WHERE ID = ? AND Gelöscht = 0', (bestellung_id,)).fetchone()
+        if not bestellung:
+            flash('Bestellung nicht gefunden.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_liste'))
+        
+        if bestellung['Status'] not in ['Bestellt', 'Teilweise erhalten', 'Erhalten', 'Erledigt']:
+            flash('Rechnung kann nur für bestellte Bestellungen hochgeladen werden.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+    
+    files = request.files.getlist('file')
+    if not files or all(f.filename == '' for f in files):
+        flash('Keine Datei ausgewählt.', 'danger')
+        return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+    
+    beschreibung = request.form.get('beschreibung', '').strip()
+    erfolgreich = 0
+    fehler = 0
+    
+    try:
+        from ..services import speichere_datei, get_datei_typ_aus_dateiname
+        
+        rechnung_folder = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], 'Bestellwesen', 'Rechnungen', str(bestellung_id))
+        create_upload_folder(rechnung_folder)
+        
+        for file in files:
+            if file.filename == '':
+                continue
+            
+            if not validate_file_extension(file.filename, {'pdf', 'jpg', 'jpeg', 'png'}):
+                fehler += 1
+                continue
+            
+            try:
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
+                original_filename = file.filename
+                file.filename = timestamp + secure_filename(original_filename)
+                
+                success_upload, filename, error_message = save_uploaded_file(
+                    file,
+                    rechnung_folder,
+                    allowed_extensions={'pdf', 'jpg', 'jpeg', 'png'}
+                )
+                
+                if not success_upload or error_message:
+                    fehler += 1
+                    continue
+                
+                relative_path = f'Bestellwesen/Rechnungen/{bestellung_id}/{filename}'
+                with get_db_connection() as conn:
+                    speichere_datei(
+                        bereich_typ='Rechnung',
+                        bereich_id=bestellung_id,
+                        dateiname=original_filename,
+                        dateipfad=relative_path,
+                        beschreibung=beschreibung,
+                        typ=get_datei_typ_aus_dateiname(original_filename),
+                        mitarbeiter_id=mitarbeiter_id,
+                        conn=conn
+                    )
+                erfolgreich += 1
+            except Exception as e:
+                fehler += 1
+                print(f'Fehler beim Hochladen von {file.filename}: {e}')
+        
+        if erfolgreich > 0:
+            flash(f'{erfolgreich} Rechnung(en) erfolgreich hochgeladen.', 'success')
+        if fehler > 0:
+            flash(f'{fehler} Datei(en) konnten nicht hochgeladen werden.', 'warning')
+    except Exception as e:
+        flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
+        print(f'Rechnung-Upload Fehler: {e}')
+    
+    return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+
+@ersatzteile_bp.route('/rechnung/<path:filepath>')
+@login_required
+def rechnung_anzeigen(filepath):
+    """Rechnung-Datei anzeigen/herunterladen (PDF oder Bild) - für alle angemeldeten Benutzer"""
+    filepath = filepath.replace('\\', '/')
+    
+    if not filepath.startswith('Bestellwesen/Rechnungen/'):
+        flash('Ungültiger Dateipfad.', 'danger')
+        return redirect(url_for('ersatzteile.bestellung_liste'))
+    
+    try:
+        full_path = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], filepath)
+        
+        if not os.path.exists(full_path) or not os.path.abspath(full_path).startswith(os.path.abspath(current_app.config['UPLOAD_BASE_FOLDER'])):
+            flash('Datei nicht gefunden.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_liste'))
+        
+        file_ext = os.path.splitext(full_path)[1].lower()
+        if file_ext == '.pdf':
+            mimetype = 'application/pdf'
+        elif file_ext in ['.jpeg', '.jpg']:
+            mimetype = 'image/jpeg'
+        elif file_ext == '.png':
+            mimetype = 'image/png'
+        else:
+            mimetype = 'application/octet-stream'
+        
+        return send_from_directory(
+            os.path.dirname(full_path),
+            os.path.basename(full_path),
+            mimetype=mimetype,
+            as_attachment=False
+        )
+    except Exception as e:
+        flash(f'Fehler beim Laden der Datei: {str(e)}', 'danger')
+        print(f"Rechnung anzeigen Fehler: {e}")
+        return redirect(url_for('ersatzteile.bestellung_liste'))
 
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/datei/<path:filepath>')

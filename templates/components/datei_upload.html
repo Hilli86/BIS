@@ -44,6 +44,8 @@
                 {% set route_param = {'angebotsanfrage_id': bereich_id} %}
             {% elif bereich_typ == 'Lieferschein' %}
                 {% set route_param = {'bestellung_id': bereich_id} %}
+            {% elif bereich_typ == 'Rechnung' %}
+                {% set route_param = {'bestellung_id': bereich_id} %}
             {% else %}
                 {% set route_param = {} %}
             {% endif %}

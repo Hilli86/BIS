@@ -23,6 +23,8 @@ def build_ersatzteil_liste_query(
     sort_by='kategorie',
     sort_dir='asc',
     nur_ohne_preis=False,
+    limit=None,
+    offset=None,
 ):
     """
     Baut die SQL-Query für Ersatzteil-Liste auf
@@ -40,6 +42,8 @@ def build_ersatzteil_liste_query(
         q_filter: Optionaler Such-Filter
         sort_by: Sortierspalte
         sort_dir: Sortierrichtung ('asc' oder 'desc')
+        limit: Optionales Limit
+        offset: Optionales Offset
         
     Returns:
         Tuple (query, params)
@@ -144,6 +148,14 @@ def build_ersatzteil_liste_query(
         query += f' ORDER BY {sort_column} {sort_direction}, e.Bezeichnung ASC'
     else:
         query += f' ORDER BY {sort_column} {sort_direction}'
+    
+    # LIMIT und OFFSET
+    if limit is not None:
+        query += ' LIMIT ?'
+        params.append(limit)
+        if offset is not None:
+            query += ' OFFSET ?'
+            params.append(offset)
     
     return query, params
 

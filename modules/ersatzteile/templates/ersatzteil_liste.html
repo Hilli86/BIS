@@ -347,7 +347,7 @@
         </div>
         
         <!-- Mobile-Version: Cards (nur auf sm und kleiner sichtbar) -->
-        <div class="d-md-none">
+        <div class="d-md-none" id="ersatzteileCardsContainer">
             {% for e in ersatzteile %}
             <div class="card mb-3 {% if not e.EndOfLife and e.Mindestbestand > 0 and e.AktuellerBestand < e.Mindestbestand %}border-warning{% endif %}" style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID, **detail_url_params) }}';">
                 <div class="card-body">
@@ -445,6 +445,16 @@
         {% endif %}
     </div>
 </div>
+
+{% if ersatzteile %}
+<!-- Loading Indicator für Lazy Load -->
+<div id="loadingIndicator" class="text-center my-4" style="display: none;">
+  <div class="spinner-border text-primary" role="status">
+    <span class="visually-hidden">Laden...</span>
+  </div>
+  <p class="mt-2">Weitere Einträge werden geladen...</p>
+</div>
+{% endif %}
 
 <script>
 function addToAngebotsanfrage(ersatzteilId, event) {
@@ -794,6 +804,169 @@ function showToast(message, type = 'info') {
     toastElement.addEventListener('hidden.bs.toast', function() {
         toastElement.remove();
     });
+}
+
+// ========== Infinite Scroll (Lazy Load) ==========
+let ersatzteilIsLoading = false;
+let ersatzteilAllLoaded = false;
+let ersatzteilCurrentOffset = {{ ersatzteile|length if ersatzteile else 0 }};
+const ersatzteilDetailBase = '{{ url_for("ersatzteile.ersatzteil_detail", ersatzteil_id=0) }}'.replace('/0', '');
+const ersatzteilDateiBase = '{{ url_for("ersatzteile.datei_anzeigen", filepath="__PATH__") }}'.replace('__PATH__', '');
+const ersatzteilBearbeitenUrlTemplate = '{{ url_for("ersatzteile.ersatzteil_bearbeiten", ersatzteil_id=0, kategorie=kategorie_filter or "", lieferant=lieferant_filter or "", lagerort=lagerort_filter or "", lagerplatz=lagerplatz_filter or "", q=q_filter or "", sort=sort_by, dir=sort_dir, bestandswarnung="1" if bestandswarnung else "", kennzeichen=kennzeichen_filter or "", nur_ohne_preis="1" if nur_ohne_preis else "", from="list") }}';
+const ersatzteilFilterParams = {
+    kategorie: '{{ kategorie_filter or "" }}',
+    lieferant: '{{ lieferant_filter or "" }}',
+    lagerort: '{{ lagerort_filter or "" }}',
+    lagerplatz: '{{ lagerplatz_filter or "" }}',
+    q: '{{ q_filter or "" }}',
+    bestandswarnung: '{{ "1" if bestandswarnung else "" }}',
+    kennzeichen: '{{ kennzeichen_filter or "" }}',
+    nur_ohne_preis: '{{ "1" if nur_ohne_preis else "" }}',
+    sort: '{{ sort_by or "" }}',
+    dir: '{{ sort_dir or "" }}'
+};
+const ersatzteilIsAdmin = {{ 'true' if is_admin else 'false' }};
+const ersatzteilHasPrinter = {{ 'true' if default_printer and default_label else 'false' }};
+let ersatzteilScrollTimeout = null;
+
+function buildErsatzteilDetailUrl(id) {
+    const params = new URLSearchParams();
+    Object.entries(ersatzteilFilterParams).forEach(([k, v]) => { if (v) params.set(k, v); });
+    const qs = params.toString();
+    return ersatzteilDetailBase + id + (qs ? '?' + qs : '');
+}
+
+function buildErsatzteilBearbeitenUrl(id) {
+    return ersatzteilBearbeitenUrlTemplate.replace('/0', '/' + id);
+}
+
+async function loadMoreErsatzteile() {
+    if (ersatzteilIsLoading || ersatzteilAllLoaded) return;
+    ersatzteilIsLoading = true;
+
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    const tbody = document.querySelector('.table-responsive table tbody');
+    const cardsContainer = document.getElementById('ersatzteileCardsContainer');
+    const isMobile = window.innerWidth < 768;
+
+    if (loadingIndicator) loadingIndicator.style.display = 'block';
+
+    try {
+        const url = new URL('{{ url_for("ersatzteile.ersatzteil_liste_load_more") }}', window.location.origin);
+        url.searchParams.append('offset', ersatzteilCurrentOffset);
+        url.searchParams.append('limit', 50);
+        Object.entries(ersatzteilFilterParams).forEach(([k, v]) => { if (v) url.searchParams.append(k, v); });
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.ersatzteile && data.ersatzteile.length > 0) {
+            data.ersatzteile.forEach(e => {
+                const detailUrl = buildErsatzteilDetailUrl(e.ID);
+                const bearbeitenUrl = buildErsatzteilBearbeitenUrl(e.ID);
+                const warnClass = (!e.EndOfLife && e.Mindestbestand > 0 && e.AktuellerBestand < e.Mindestbestand) ? 'table-warning' : '';
+                const badgeClass = (!e.EndOfLife && e.Mindestbestand > 0 && e.AktuellerBestand < e.Mindestbestand) ? 'bg-warning' : (e.AktuellerBestand > 0 ? 'bg-success' : 'bg-secondary');
+                const preisHtml = e.Preis ? (e.Preis.toFixed(2) + ' ' + (e.Waehrung || 'EUR')) : '<span class="text-muted">-</span>';
+                const fotoUrl = e.ArtikelfotoPfad ? (ersatzteilDateiBase + (e.ArtikelfotoPfad || '')) : '';
+
+                if (isMobile && cardsContainer) {
+                    const cardHtml = `
+                        <div class="card mb-3 ${(!e.EndOfLife && e.Mindestbestand > 0 && e.AktuellerBestand < e.Mindestbestand) ? 'border-warning' : ''}" style="cursor: pointer;" onclick="window.location.href='${detailUrl}';">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <div class="mb-1">
+                                            ${e.Kennzeichen ? '<span class="badge bg-info me-1">' + e.Kennzeichen + '</span>' : ''}
+                                            <strong>Art.Nr.:</strong>
+                                            <a href="${detailUrl}" class="text-decoration-none fw-bold" onclick="event.stopPropagation();">${e.ID}</a>
+                                        </div>
+                                        <div class="mb-1"><strong>Bezeichnung:</strong> ${e.Bezeichnung || ''}</div>
+                                    </div>
+                                    <span class="badge ${badgeClass}">${e.AktuellerBestand || 0} ${e.Einheit || ''}</span>
+                                </div>
+                                <div class="mb-2 column-kategorie"><strong>Kategorie:</strong> ${e.Kategorie || '-'}</div>
+                                <div class="mb-2 column-lieferant"><strong>Lieferant:</strong> ${e.Lieferant || '-'}</div>
+                                <div class="mb-2 column-bestellnummer"><strong>Bestellnummer:</strong> ${e.Bestellnummer || ''}</div>
+                                <div class="mb-2 column-preis"><strong>Preis:</strong> ${preisHtml}</div>
+                                ${e.Mindestbestand > 0 ? '<div class="mb-2 column-bestand"><strong>Mindestbestand:</strong> ' + e.Mindestbestand + ' ' + (e.Einheit || '') + '</div>' : ''}
+                                <div class="mb-2 column-lagerort"><strong>Lagerort:</strong> ${e.LagerortName || '-'}</div>
+                                <div class="mb-2 column-lagerplatz"><strong>Lagerplatz:</strong> ${e.LagerplatzName || '-'}</div>
+                                ${ersatzteilIsAdmin ? '<div class="mb-2 column-sichtbare-abteilungen" style="display: none;"><strong>Sichtbare Abteilungen:</strong> <span class="badge bg-info">' + (e.AbteilungenAnzahl || 0) + '</span></div>' : ''}
+                                <div class="mt-3" onclick="event.stopPropagation();">
+                                    <div class="btn-group w-100" role="group">
+                                        <a href="${bearbeitenUrl}" class="btn btn-sm btn-outline-warning" title="Artikel bearbeiten"><i class="bi bi-pencil"></i> Bearbeiten</a>
+                                        ${e.LieferantID ? '<button type="button" class="btn btn-sm btn-outline-success" onclick="addToAngebotsanfrage(' + e.ID + ', event)" title="Zu Angebotsanfrage hinzufügen"><i class="bi bi-cart-plus"></i></button>' : ''}
+                                        ${ersatzteilHasPrinter ? '<button type="button" class="btn btn-sm btn-outline-primary" onclick="druckeEtikett(' + e.ID + ', event)" oncontextmenu="event.preventDefault(); oeffneEtikettKontextmenue(' + e.ID + ', ' + (e.AktuellerBestand || 0) + ', event);" data-lagerbestand="' + (e.AktuellerBestand || 0) + '" title="30x30-Etikett drucken"><i class="bi bi-printer"></i></button>' : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>`;
+                    cardsContainer.insertAdjacentHTML('beforeend', cardHtml);
+                } else if (tbody) {
+                    const abtCell = ersatzteilIsAdmin ? '<td class="text-center column-sichtbare-abteilungen" style="display: none;"><span class="badge bg-info">' + (e.AbteilungenAnzahl || 0) + '</span></td>' : '';
+                    const fotoCell = '<td class="column-artikelfoto" style="display: none;" onclick="event.stopPropagation();">' +
+                        (e.ArtikelfotoPfad ? '<a href="' + detailUrl + '" onclick="event.stopPropagation();"><img src="' + fotoUrl + '" alt="Artikelfoto" class="rounded" style="width: 50px; height: 50px; object-fit: cover;"></a>' : '<span class="text-muted">-</span>') + '</td>';
+                    const actionsHtml = '<a href="' + bearbeitenUrl + '" class="btn btn-sm btn-outline-warning" title="Artikel bearbeiten"><i class="bi bi-pencil"></i></a>' +
+                        (e.LieferantID ? '<button type="button" class="btn btn-sm btn-outline-success" onclick="addToAngebotsanfrage(' + e.ID + ', event)" title="Zu Angebotsanfrage hinzufügen"><i class="bi bi-cart-plus"></i></button>' : '') +
+                        (ersatzteilHasPrinter ? '<button type="button" class="btn btn-sm btn-outline-primary" onclick="druckeEtikett(' + e.ID + ', event)" oncontextmenu="event.preventDefault(); oeffneEtikettKontextmenue(' + e.ID + ', ' + (e.AktuellerBestand || 0) + ', event);" data-lagerbestand="' + (e.AktuellerBestand || 0) + '" title="30x30-Etikett drucken"><i class="bi bi-printer"></i></button>' : '');
+                    const tr = document.createElement('tr');
+                    tr.className = warnClass;
+                    tr.style.cursor = 'pointer';
+                    tr.onclick = () => { window.location.href = detailUrl; };
+                    tr.innerHTML = `
+                        <td>${e.Kennzeichen ? '<span class="badge bg-info me-1" style="width: 30px; display: inline-block; text-align: center;">' + e.Kennzeichen + '</span>' : '<span class="badge me-1" style="width: 30px; display: inline-block; visibility: hidden;"></span>'}
+                            <a href="${detailUrl}" class="text-decoration-none fw-bold" onclick="event.stopPropagation();">${e.ID}</a></td>
+                        <td class="column-kategorie"><a href="${detailUrl}" class="text-decoration-none text-dark">${e.Kategorie || '-'}</a></td>
+                        <td class="column-bezeichnung"><a href="${detailUrl}" class="text-decoration-none text-dark">${e.Bezeichnung || ''}</a></td>
+                        <td class="column-lieferant"><a href="${detailUrl}" class="text-decoration-none text-dark">${e.Lieferant || '-'}</a></td>
+                        <td class="column-bestellnummer"><a href="${detailUrl}" class="text-decoration-none text-dark">${e.Bestellnummer || ''}</a></td>
+                        <td class="column-preis">${preisHtml}</td>
+                        <td class="column-bestand"><span class="badge ${badgeClass}">${e.AktuellerBestand || 0} ${e.Einheit || ''}</span>${e.Mindestbestand > 0 ? '<br><small class="text-muted">Min: ' + e.Mindestbestand + '</small>' : ''}</td>
+                        <td class="column-lagerort"><a href="${detailUrl}" class="text-decoration-none text-dark">${e.LagerortName || '-'}</a></td>
+                        <td class="column-lagerplatz"><a href="${detailUrl}" class="text-decoration-none text-dark">${e.LagerplatzName || '-'}</a></td>
+                        ${abtCell}
+                        ${fotoCell}
+                        <td onclick="event.stopPropagation();"><div class="btn-group" role="group">${actionsHtml}</div></td>
+                        <td></td>`;
+                    tbody.appendChild(tr);
+                }
+            });
+
+            ersatzteilCurrentOffset += data.ersatzteile.length;
+            if (data.ersatzteile.length < 50) {
+                ersatzteilAllLoaded = true;
+                if (loadingIndicator) loadingIndicator.innerHTML = '<p class="text-muted">Alle Einträge geladen.</p>';
+            }
+        } else {
+            ersatzteilAllLoaded = true;
+            if (loadingIndicator) loadingIndicator.innerHTML = '<p class="text-muted">Alle Einträge geladen.</p>';
+        }
+    } catch (error) {
+        console.error('Fehler beim Laden:', error);
+        if (loadingIndicator) loadingIndicator.innerHTML = '<p class="text-danger">Fehler beim Laden weiterer Einträge.</p>';
+    } finally {
+        ersatzteilIsLoading = false;
+        if (loadingIndicator) loadingIndicator.style.display = 'none';
+    }
+}
+
+window.addEventListener('scroll', () => {
+    if (ersatzteilScrollTimeout) clearTimeout(ersatzteilScrollTimeout);
+    ersatzteilScrollTimeout = setTimeout(() => {
+        if (ersatzteilAllLoaded || ersatzteilIsLoading) return;
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        const windowHeight = window.innerHeight;
+        const documentHeight = document.documentElement.scrollHeight;
+        if (scrollTop + windowHeight >= documentHeight - 300) {
+            loadMoreErsatzteile();
+        }
+    }, 100);
+});
+
+if (ersatzteilCurrentOffset < 50) {
+    ersatzteilAllLoaded = true;
+    const li = document.getElementById('loadingIndicator');
+    if (li) li.innerHTML = '<p class="text-muted">Alle Einträge geladen.</p>';
 }
 
 // Spalten-Ein-/Ausblenden für Ersatzteil-Liste
