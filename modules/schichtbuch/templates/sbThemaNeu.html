@@ -27,6 +27,10 @@
             <option value="{{ g.ID }}" data-bereich="{{ g.BereichID }}">{{ g.Bezeichnung }}</option>
             {% endfor %}
         </select>
+        <div id="offeneThemenContainer" class="mt-2" style="display: none;">
+            <small class="text-muted d-block mb-1">Offene Themen zu diesem Gewerk:</small>
+            <div id="offeneThemenListe" class="list-group list-group-flush"></div>
+        </div>
     </div>
 
     <div class="mb-3">
@@ -181,6 +185,48 @@
             opt.style.display = (opt.dataset.bereich === selectedBereich) ? "block" : "none";
         });
         gewerkSelect.value = "";
+        document.getElementById('offeneThemenContainer').style.display = 'none';
+        document.getElementById('offeneThemenListe').innerHTML = '';
+    });
+
+    // 🔸 Offene Themen beim Gewerk-Wechsel laden
+    const themaDetailUrl = '{{ url_for("schichtbuch.thema_detail", thema_id=0) }}';
+    gewerkSelect.addEventListener('change', function() {
+        const container = document.getElementById('offeneThemenContainer');
+        const liste = document.getElementById('offeneThemenListe');
+        const gewerkId = this.value;
+
+        if (!gewerkId) {
+            container.style.display = 'none';
+            liste.innerHTML = '';
+            return;
+        }
+
+        liste.innerHTML = '<div class="text-muted small py-2"><span class="spinner-border spinner-border-sm"></span> Lädt...</div>';
+        container.style.display = 'block';
+
+        fetch('/schichtbuch/themaneu/themen_nach_gewerk?gewerk_id=' + encodeURIComponent(gewerkId))
+            .then(res => res.json())
+            .then(data => {
+                liste.innerHTML = '';
+                if (!data.themen || data.themen.length === 0) {
+                    liste.innerHTML = '<div class="text-muted small py-2">Keine offenen Themen zu diesem Gewerk</div>';
+                    return;
+                }
+                data.themen.forEach(t => {
+                    const a = document.createElement('a');
+                    a.href = themaDetailUrl.replace('/0', '/' + t.ID);
+                    a.className = 'list-group-item list-group-item-action list-group-item-small py-2';
+                    const mitarbeiter = t.Mitarbeiter || '-';
+                    const bemerkung = t.LetzteBemerkung || '-';
+                    a.textContent = `#${t.ID} - ${mitarbeiter} - ${t.Bereich} - ${t.Gewerk} - ${bemerkung}`;
+                    liste.appendChild(a);
+                });
+            })
+            .catch(err => {
+                console.error('Fehler beim Laden der offenen Themen:', err);
+                liste.innerHTML = '<div class="text-danger small py-2">Fehler beim Laden</div>';
+            });
     });
 
     // 🔸 Tabelle initial laden

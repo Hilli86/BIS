@@ -213,6 +213,15 @@
     box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important;
   }
 
+  .status-card-clickable {
+    cursor: pointer;
+  }
+
+  .status-card-link:hover .status-card-clickable {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+  }
+
   .list-group-item {
     border-left: none;
     border-right: none;
@@ -284,25 +293,29 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
     
+    const themalisteUrl = '{{ url_for("schichtbuch.themaliste") }}';
     let html = '<div class="row g-3">';
     statusDaten.forEach(status => {
       const prozent = gesamt > 0 ? ((status.Anzahl / gesamt * 100).toFixed(1)) : 0;
       const farbe = status.Farbe || '#6c757d';
+      const filterUrl = themalisteUrl + '?status=' + encodeURIComponent(status.Status);
       html += `
         <div class="col-md-6 col-lg-3">
-          <div class="card border-0 shadow-sm" style="border-left: 4px solid ${farbe} !important;">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-start">
-                <div>
-                  <h6 class="card-subtitle mb-2 text-muted">${status.Status}</h6>
-                  <h3 class="mb-0">${status.Anzahl}</h3>
-                </div>
-                <div class="badge rounded-pill" style="background-color: ${farbe}; color: white; opacity: 0.8;">
-                  ${prozent}%
+          <a href="${filterUrl}" class="text-decoration-none text-body status-card-link">
+            <div class="card border-0 shadow-sm status-card-clickable" style="border-left: 4px solid ${farbe} !important;">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <h6 class="card-subtitle mb-2 text-muted">${status.Status}</h6>
+                    <h3 class="mb-0">${status.Anzahl}</h3>
+                  </div>
+                  <div class="badge rounded-pill" style="background-color: ${farbe}; color: white; opacity: 0.8;">
+                    ${prozent}%
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          </a>
         </div>
       `;
     });

@@ -324,6 +324,92 @@ def aktuelle_themen():
     return jsonify({"themen": [dict(row) for row in daten]})
 
 
+@schichtbuch_bp.route('/themaneu/themen_nach_gewerk')
+@login_required
+def themen_nach_gewerk():
+    """API: Offene Themen zu einem Gewerk (Status != Erledigt)"""
+    gewerk_id = request.args.get('gewerk_id', type=int)
+    if not gewerk_id:
+        return jsonify({'themen': []})
+
+    if session.get('is_guest'):
+        return jsonify({'themen': []})
+
+    mitarbeiter_id = session.get('user_id')
+    if not mitarbeiter_id:
+        return jsonify({'error': 'Nicht angemeldet'}), 401
+
+    with get_db_connection() as conn:
+        sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+
+        base_query = '''
+            SELECT 
+                t.ID,
+                b.Bezeichnung AS Bereich,
+                g.Bezeichnung AS Gewerk,
+                (SELECT m.Vorname || ' ' || m.Nachname FROM SchichtbuchBemerkungen bm2
+                 JOIN Mitarbeiter m ON bm2.MitarbeiterID = m.ID
+                 WHERE bm2.ThemaID = t.ID AND bm2.Gelöscht = 0
+                 ORDER BY bm2.Datum DESC LIMIT 1) AS Mitarbeiter,
+                (SELECT bm2.Bemerkung FROM SchichtbuchBemerkungen bm2
+                 WHERE bm2.ThemaID = t.ID AND bm2.Gelöscht = 0
+                 ORDER BY bm2.Datum DESC LIMIT 1) AS LetzteBemerkung
+            FROM SchichtbuchThema t
+            JOIN Gewerke g ON t.GewerkID = g.ID
+            JOIN Bereich b ON g.BereichID = b.ID
+            WHERE t.GewerkID = ? AND t.Gelöscht = 0 AND t.StatusID != 1
+        '''
+        params = [gewerk_id]
+
+        if sichtbare_abteilungen:
+            placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+            base_query += f''' AND (
+                EXISTS (
+                    SELECT 1 FROM SchichtbuchThemaSichtbarkeit sv
+                    WHERE sv.ThemaID = t.ID AND sv.AbteilungID IN ({placeholders})
+                )
+                OR EXISTS (
+                    SELECT 1 FROM SchichtbuchBemerkungen b_first
+                    WHERE b_first.ThemaID = t.ID AND b_first.Gelöscht = 0
+                    AND b_first.MitarbeiterID = ?
+                    AND b_first.Datum = (
+                        SELECT MIN(b2.Datum) FROM SchichtbuchBemerkungen b2
+                        WHERE b2.ThemaID = t.ID AND b2.Gelöscht = 0
+                    )
+                )
+            )'''
+            params.extend(sichtbare_abteilungen)
+            params.append(mitarbeiter_id)
+        else:
+            base_query += ''' AND EXISTS (
+                SELECT 1 FROM SchichtbuchBemerkungen b_first
+                WHERE b_first.ThemaID = t.ID AND b_first.Gelöscht = 0
+                AND b_first.MitarbeiterID = ?
+                AND b_first.Datum = (
+                    SELECT MIN(b2.Datum) FROM SchichtbuchBemerkungen b2
+                    WHERE b2.ThemaID = t.ID AND b2.Gelöscht = 0
+                )
+            )'''
+            params.append(mitarbeiter_id)
+
+        base_query += ''' ORDER BY (
+            SELECT MAX(bm2.Datum) FROM SchichtbuchBemerkungen bm2
+            WHERE bm2.ThemaID = t.ID AND bm2.Gelöscht = 0
+        ) DESC LIMIT 20'''
+
+        rows = conn.execute(base_query, params).fetchall()
+
+        themen = []
+        for row in rows:
+            thema = dict(row)
+            if thema.get('LetzteBemerkung') and len(thema['LetzteBemerkung']) > 80:
+                thema['LetzteBemerkung'] = thema['LetzteBemerkung'][:80] + '...'
+            thema['Mitarbeiter'] = thema.get('Mitarbeiter') or ''
+            themen.append(thema)
+
+    return jsonify({'themen': themen})
+
+
 @schichtbuch_bp.route('/thema/<int:thema_id>', methods=['GET', 'POST'])
 @login_required
 def thema_detail(thema_id):
