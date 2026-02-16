@@ -47,10 +47,11 @@
     .sidebar {
       min-height: calc(100vh - 56px);
       height: calc(100vh - 56px);
+      max-height: calc(100vh - 56px);
       width: 240px;
       background-color: #e9ecef;
       padding: 1rem;
-      padding-bottom: 1rem;
+      padding-bottom: 4rem;
       position: fixed;
       top: 56px; /* Unter der Header-Leiste starten */
       left: 0;
@@ -60,6 +61,25 @@
       transition: transform 0.3s ease-in-out;
       z-index: 1040;
       box-sizing: border-box;
+    }
+
+    /* Scrollbar für Sidebar (Desktop) */
+    .sidebar::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .sidebar::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.05);
+      border-radius: 3px;
+    }
+
+    .sidebar::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 3px;
+    }
+
+    .sidebar::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 0, 0, 0.3);
     }
 
     /* Sidebar bei großen Bildschirmen ausblendbar */
@@ -520,8 +540,8 @@
         overflow-y: auto !important;
         overflow-x: hidden !important;
         -webkit-overflow-scrolling: touch;
-        height: 100vh !important;
-        max-height: 100vh !important;
+        height: calc(100vh - 56px) !important;
+        max-height: calc(100vh - 56px) !important;
         box-sizing: border-box;
         touch-action: pan-y;
         overscroll-behavior: contain;
