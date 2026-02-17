@@ -156,6 +156,7 @@
                     <thead>
                         <tr>
                             <th>Datum</th>
+                            <th>ID</th>
                             <th>Ersatzteil</th>
                             <th>Typ</th>
                             <th>Menge</th>
@@ -170,6 +171,11 @@
                         {% for v in ersatzteil_verknuepfungen %}
                         <tr>
                             <td>{{ v.Buchungsdatum[:16] if v.Buchungsdatum else '-' }}</td>
+                            <td>
+                                <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=v.ErsatzteilID) }}" class="text-decoration-none">
+                                    {{ v.ErsatzteilID }}
+                                </a>
+                            </td>
                             <td>
                                 <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=v.ErsatzteilID) }}" class="text-decoration-none">
                                     {{ v.Bestellnummer }} - {{ v.ErsatzteilBezeichnung }}
