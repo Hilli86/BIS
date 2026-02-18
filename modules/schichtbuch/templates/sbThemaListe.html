@@ -198,30 +198,6 @@
       margin-bottom: 0;
     }
 
-    /* Status-Checkboxen für Mobile */
-    .status-checkboxes-mobile .form-check {
-      padding: 0.75rem;
-      border: 1px solid #dee2e6;
-      border-radius: 0.375rem;
-      margin-bottom: 0.5rem;
-      background-color: #fff;
-      min-height: 44px;
-      display: flex;
-      align-items: center;
-    }
-
-    .status-checkboxes-mobile .form-check-input {
-      width: 1.25rem;
-      height: 1.25rem;
-      margin-right: 0.75rem;
-      margin-top: 0;
-    }
-
-    .status-checkboxes-mobile .form-check-label {
-      flex: 1;
-      cursor: pointer;
-      font-size: 1rem;
-    }
   }
 </style>
 {% endblock %}
@@ -269,20 +245,11 @@
         <!-- Zeile 2: Status (Mehrfach) -->
         <div class="row g-3 mt-1">
           <div class="col-12">
-            <label class="form-label">Status (Mehrfachauswahl)</label>
-            <!-- Desktop: Multi-Select -->
-            <select name="status" id="filterStatus" class="form-select d-none d-md-block" multiple>
-              {% for s in status_liste %}
-                <option value="{{ s.Bezeichnung }}" {% if status_filter_list and (s.Bezeichnung in status_filter_list) %}selected{% endif %}>{{ s.Bezeichnung }}</option>
-              {% endfor %}
-            </select>
-            <div class="form-text d-none d-md-block">STRG/CMD halten für Mehrfachauswahl</div>
-            
-            <!-- Mobile: Checkboxen -->
-            <div class="status-checkboxes-mobile d-md-none">
+            <label class="form-label"><strong>Status</strong> (mehrere wählbar)</label>
+            <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto; background-color: #f8f9fa;">
               {% for s in status_liste %}
                 <div class="form-check">
-                  <input class="form-check-input" type="checkbox" name="status" value="{{ s.Bezeichnung }}" 
+                  <input class="form-check-input status-filter-cb" type="checkbox" name="status" value="{{ s.Bezeichnung }}" 
                          id="statusCheck{{ loop.index }}" 
                          {% if status_filter_list and (s.Bezeichnung in status_filter_list) %}checked{% endif %}>
                   <label class="form-check-label" for="statusCheck{{ loop.index }}">
@@ -290,6 +257,11 @@
                   </label>
                 </div>
               {% endfor %}
+            </div>
+            <div class="mt-2">
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="btnAlleNichtErledigt" title="Alle Status außer „Erledigt“ auswählen">
+                <i class="bi bi-check2-square"></i> Alle nicht erledigten auswählen
+              </button>
             </div>
           </div>
         </div>
@@ -1078,35 +1050,6 @@ if (currentOffset < 50) {
   document.getElementById('loadingIndicator').innerHTML = '<p class="text-muted">Alle Einträge geladen.</p>';
 }
 
-// Filter-Form Handling für Mobile Checkboxen
-const filterForm = document.getElementById('filterForm');
-if (filterForm) {
-  filterForm.addEventListener('submit', function(e) {
-    // Auf Mobile: Checkboxen-Werte in versteckte Inputs umwandeln
-    if (window.innerWidth < 768) {
-      const checkboxes = filterForm.querySelectorAll('.status-checkboxes-mobile input[type="checkbox"]:checked');
-      
-      // Alte Status-Werte entfernen
-      const oldStatusInputs = filterForm.querySelectorAll('input[name="status"][type="hidden"]');
-      oldStatusInputs.forEach(input => input.remove());
-      
-      // Neue versteckte Inputs für ausgewählte Checkboxen erstellen
-      checkboxes.forEach(checkbox => {
-        const hiddenInput = document.createElement('input');
-        hiddenInput.type = 'hidden';
-        hiddenInput.name = 'status';
-        hiddenInput.value = checkbox.value;
-        filterForm.appendChild(hiddenInput);
-      });
-      
-      // Checkboxen aus dem Submit ausschließen
-      filterForm.querySelectorAll('.status-checkboxes-mobile input[type="checkbox"]').forEach(cb => {
-        cb.disabled = true;
-      });
-    }
-  });
-}
-
 // Dynamische Gewerke nach Bereich
 const bereichSelect = document.getElementById('filterBereich');
 const gewerkSelect = document.getElementById('filterGewerk');
@@ -1125,6 +1068,17 @@ if (bereichSelect && gewerkSelect) {
       opt.textContent = g.Bezeichnung;
       if (current && current === g.Bezeichnung) opt.selected = true;
       gewerkSelect.appendChild(opt);
+    });
+  });
+}
+
+// Schnellauswahl: Alle nicht erledigten Status anwählen
+const btnAlleNichtErledigt = document.getElementById('btnAlleNichtErledigt');
+if (btnAlleNichtErledigt) {
+  btnAlleNichtErledigt.addEventListener('click', function() {
+    const erledigtStatus = 'erledigt';
+    document.querySelectorAll('.status-filter-cb').forEach(cb => {
+      cb.checked = (cb.value !== erledigtStatus);
     });
   });
 }
