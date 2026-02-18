@@ -1117,6 +1117,11 @@ def init_database_schema(db_path, verbose=False):
             INSERT OR IGNORE INTO Berechtigung (Schluessel, Bezeichnung, Beschreibung, Aktiv)
             VALUES ('artikel_aus_abteilungen_bearbeiten', 'Darf Artikel aus Abteilungen bearbeiten', 'Erlaubt das Bearbeiten von Ersatzteilen, die über Abteilungszugriff sichtbar sind', 1)
         ''')
+        conn.execute('''
+            INSERT OR IGNORE INTO Berechtigung (Schluessel, Bezeichnung, Beschreibung, Aktiv)
+            VALUES ('foto_artikeleinstellungen_aendern', 'Darf Foto Artikeleinstellungen ändern',
+                    'Erlaubt das Hochladen und Ändern von Fotos in den Artikeleinstellungen (Produktion/Etikettierung)', 1)
+        ''')
         
         # ========== 31. MitarbeiterBerechtigung ==========
         created = create_table_if_not_exists(conn, 'MitarbeiterBerechtigung', '''

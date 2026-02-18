@@ -5,9 +5,10 @@ Routes für Produktionsfunktionen
 
 import os
 import re
-from flask import render_template, send_from_directory, current_app, abort
+from flask import render_template, send_from_directory, current_app, abort, request, flash, redirect, url_for, session
 from . import produktion_bp
-from utils.decorators import login_required, guest_allowed
+from utils.decorators import login_required, guest_allowed, permission_required
+from utils.file_handling import save_uploaded_file, create_upload_folder
 
 
 def get_artikeleinstellungen_struktur():
@@ -94,7 +95,71 @@ def get_artikeleinstellungen_struktur():
 def etikettierung():
     """Etikettierung-Seite mit Artikeleinstellungen"""
     struktur = get_artikeleinstellungen_struktur()
-    return render_template('produktion/etikettierung.html', struktur=struktur)
+    user_berechtigungen = session.get('user_berechtigungen', [])
+    kann_foto_aendern = 'foto_artikeleinstellungen_aendern' in user_berechtigungen or 'admin' in user_berechtigungen
+    return render_template('produktion/etikettierung.html', struktur=struktur, kann_foto_aendern=kann_foto_aendern)
+
+
+@produktion_bp.route('/etikettierung/foto/upload', methods=['POST'])
+@login_required
+@permission_required('foto_artikeleinstellungen_aendern')
+def etikettierung_foto_upload():
+    """bizerba.jpg für einen Artikel in den Artikeleinstellungen ersetzen"""
+    linie = (request.form.get('linie') or '').strip()
+    artikel = (request.form.get('artikel') or '').strip()
+
+    # Pfadvalidierung: Kein Path-Traversal
+    if not linie or not artikel:
+        flash('Linie und Artikel sind erforderlich.', 'danger')
+        return redirect(url_for('produktion.etikettierung'))
+    if '..' in linie or '..' in artikel or '/' in linie or '/' in artikel or '\\' in linie or '\\' in artikel:
+        flash('Ungültige Zeichen in Linie oder Artikel.', 'danger')
+        return redirect(url_for('produktion.etikettierung'))
+
+    if 'file' not in request.files:
+        flash('Keine Datei ausgewählt.', 'danger')
+        return redirect(url_for('produktion.etikettierung'))
+
+    file = request.files['file']
+    if not file or file.filename == '':
+        flash('Keine Datei ausgewählt.', 'danger')
+        return redirect(url_for('produktion.etikettierung'))
+
+    allowed_image_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+    file_ext = os.path.splitext(file.filename)[1].lower().lstrip('.')
+    if file_ext not in allowed_image_extensions:
+        flash(f'Dateityp nicht erlaubt. Erlaubt sind: {", ".join(allowed_image_extensions)}', 'danger')
+        return redirect(url_for('produktion.etikettierung'))
+
+    base_folder = current_app.config.get('UPLOAD_BASE_FOLDER')
+    target_folder = os.path.join(base_folder, 'Produktion', 'Etikettierung', 'Artikeleinstellungen', linie, artikel)
+
+    # Sicherheitsprüfung: Ziel muss im erlaubten Ordner liegen
+    abs_base = os.path.abspath(base_folder)
+    abs_target = os.path.abspath(target_folder)
+    if not abs_target.startswith(abs_base):
+        flash('Ungültiger Zielpfad.', 'danger')
+        return redirect(url_for('produktion.etikettierung'))
+
+    if not create_upload_folder(target_folder):
+        flash('Fehler beim Erstellen des Zielordners.', 'danger')
+        return redirect(url_for('produktion.etikettierung'))
+
+    # Immer als bizerba.jpg speichern (Überschreiben erlauben)
+    file.filename = 'bizerba.jpg'
+    success, saved_filename, error_message = save_uploaded_file(
+        file,
+        target_folder,
+        allowed_extensions=allowed_image_extensions,
+        create_unique_name=False
+    )
+
+    if not success or error_message:
+        flash(f'Fehler beim Hochladen: {error_message}', 'danger')
+    else:
+        flash('bizerba.jpg erfolgreich aktualisiert.', 'success')
+
+    return redirect(url_for('produktion.etikettierung'))
 
 
 @produktion_bp.route('/etikettierung/bild/<path:filepath>')

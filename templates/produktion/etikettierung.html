@@ -69,14 +69,12 @@
                                   {% for foto in bizerba_fotos %}
                                     {% set bild_url = url_for('produktion.etikettierung_bild', filepath=bild_base_path ~ foto) %}
                                     <div class="col-md-6 col-lg-4">
-                                      <div class="card">
-                                        <a href="{{ bild_url }}" target="_blank">
-                                          <img src="{{ bild_url }}" 
-                                               class="card-img-top" 
-                                               style="height: 200px; object-fit: contain; background-color: #f8f9fa; cursor: pointer;"
-                                               alt="{{ foto }}"
-                                               onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'200\' height=\'200\'%3E%3Crect fill=\'%23ddd\' width=\'200\' height=\'200\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'14\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'%3EBild nicht gefunden%3C/text%3E%3C/svg%3E';">
-                                        </a>
+                                      <div class="card foto-klickbar" role="button" tabindex="0" data-bild-url="{{ bild_url }}" data-bild-titel="{{ foto }}">
+                                        <img src="{{ bild_url }}" 
+                                             class="card-img-top" 
+                                             style="height: 200px; object-fit: contain; background-color: #f8f9fa; cursor: pointer;"
+                                             alt="{{ foto }}"
+                                             onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'200\' height=\'200\'%3E%3Crect fill=\'%23ddd\' width=\'200\' height=\'200\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'14\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'%3EBild nicht gefunden%3C/text%3E%3C/svg%3E';">
                                         <div class="card-body p-2">
                                           <small class="text-muted d-block text-center">{{ foto }}</small>
                                         </div>
@@ -93,14 +91,12 @@
                                   {% for foto in andere_fotos %}
                                     {% set bild_url = url_for('produktion.etikettierung_bild', filepath=bild_base_path ~ foto) %}
                                     <div class="col-md-4 col-lg-3">
-                                      <div class="card">
-                                        <a href="{{ bild_url }}" target="_blank">
-                                          <img src="{{ bild_url }}" 
-                                               class="card-img-top" 
-                                               style="height: 150px; object-fit: contain; background-color: #f8f9fa; cursor: pointer;"
-                                               alt="{{ foto }}"
-                                               onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'200\' height=\'200\'%3E%3Crect fill=\'%23ddd\' width=\'200\' height=\'200\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'14\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'%3EBild nicht gefunden%3C/text%3E%3C/svg%3E';">
-                                        </a>
+                                      <div class="card foto-klickbar" role="button" tabindex="0" data-bild-url="{{ bild_url }}" data-bild-titel="{{ foto }}">
+                                        <img src="{{ bild_url }}" 
+                                             class="card-img-top" 
+                                             style="height: 150px; object-fit: contain; background-color: #f8f9fa; cursor: pointer;"
+                                             alt="{{ foto }}"
+                                             onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'200\' height=\'200\'%3E%3Crect fill=\'%23ddd\' width=\'200\' height=\'200\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'14\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'%3EBild nicht gefunden%3C/text%3E%3C/svg%3E';">
                                         <div class="card-body p-2">
                                           <small class="text-muted d-block text-center">{{ foto }}</small>
                                         </div>
@@ -112,6 +108,21 @@
                               
                               {% if bizerba_fotos|length == 0 and andere_fotos|length == 0 %}
                                 <p class="text-muted">Keine Fotos vorhanden.</p>
+                              {% endif %}
+                              
+                              {# bizerba.jpg Upload - am Ende des Bereichs für berechtigte Benutzer #}
+                              {% if kann_foto_aendern|default(false) %}
+                              <div class="mt-4 p-3 bg-light rounded">
+                                <h6 class="mb-2">bizerba.jpg</h6>
+                                <form method="POST" action="{{ url_for('produktion.etikettierung_foto_upload') }}" enctype="multipart/form-data" class="d-flex flex-wrap align-items-center gap-2">
+                                  <input type="hidden" name="linie" value="{{ linie }}">
+                                  <input type="hidden" name="artikel" value="{{ artikel }}">
+                                  <input type="file" name="file" class="form-control form-control-sm" style="max-width: 220px;" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp" required>
+                                  <button type="submit" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-upload"></i> bizerba.jpg ersetzen
+                                  </button>
+                                </form>
+                              </div>
                               {% endif %}
                             </div>
                           </div>
@@ -164,5 +175,57 @@
   .card:hover {
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
   }
+  
+  #fotoModal .modal-dialog {
+    max-width: 90vw;
+  }
+  
+  #fotoModal .modal-body img {
+    max-width: 100%;
+    max-height: 85vh;
+    object-fit: contain;
+  }
 </style>
+
+{# Modal für Foto-Vorschau #}
+<div class="modal fade" id="fotoModal" tabindex="-1" aria-labelledby="fotoModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="fotoModalLabel"></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+      </div>
+      <div class="modal-body text-center p-0">
+        <img src="" alt="" id="fotoModalImg">
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var fotoModal = new bootstrap.Modal(document.getElementById('fotoModal'));
+  var modalImg = document.getElementById('fotoModalImg');
+  var modalTitle = document.getElementById('fotoModalLabel');
+  
+  document.querySelectorAll('.foto-klickbar').forEach(function(el) {
+    el.addEventListener('click', function() {
+      var url = this.getAttribute('data-bild-url');
+      var titel = this.getAttribute('data-bild-titel');
+      if (url) {
+        modalImg.src = url;
+        modalImg.alt = titel;
+        modalTitle.textContent = titel;
+        fotoModal.show();
+      }
+    });
+    el.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        this.click();
+      }
+    });
+  });
+});
+</script>
 {% endblock %}
