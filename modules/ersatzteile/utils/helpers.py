@@ -43,6 +43,21 @@ def hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
     return zugriff['count'] > 0
 
 
+def hat_ersatzteil_bearbeiten_zugriff(mitarbeiter_id, ersatzteil_id, conn):
+    """Prüft ob Mitarbeiter Ersatzteil bearbeiten darf (nicht nur anzeigen)."""
+    # Admin hat immer Bearbeitungsrecht
+    if 'admin' in session.get('user_berechtigungen', []):
+        return True
+    # Ersteller darf immer bearbeiten
+    ersatzteil = conn.execute('SELECT ErstelltVonID FROM Ersatzteil WHERE ID = ? AND Gelöscht = 0', (ersatzteil_id,)).fetchone()
+    if ersatzteil and ersatzteil['ErstelltVonID'] == mitarbeiter_id:
+        return True
+    # Abteilungsartikel: nur mit Berechtigung
+    if 'artikel_aus_abteilungen_bearbeiten' not in session.get('user_berechtigungen', []):
+        return False
+    return hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn)
+
+
 def validate_thema_ersatzteil_buchung(ersatzteil_id, menge, thema_id, mitarbeiter_id, conn):
     """
     Validiert eine Artikel-zu-Thema-Buchung

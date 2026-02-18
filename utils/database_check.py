@@ -1103,13 +1103,20 @@ def init_database_schema(db_path, verbose=False):
                 ('admin', 'Admin', 'Vollzugriff auf alle Admin-Funktionen'),
                 ('artikel_buchen', 'Darf Artikel buchen', 'Erlaubt Lagerbuchungen von Ersatzteilen'),
                 ('bestellungen_erstellen', 'Darf Bestellungen erstellen', 'Erlaubt das Erstellen von Bestellungen/Angebotsanfragen'),
-                ('bestellungen_freigeben', 'Darf Bestellungen freigeben', 'Erlaubt die Freigabe von Bestellungen')
+                ('bestellungen_freigeben', 'Darf Bestellungen freigeben', 'Erlaubt die Freigabe von Bestellungen'),
+                ('artikel_aus_abteilungen_bearbeiten', 'Darf Artikel aus Abteilungen bearbeiten', 'Erlaubt das Bearbeiten von Ersatzteilen, die über Abteilungszugriff sichtbar sind')
             ]
             for schluessel, bezeichnung, beschreibung in berechtigungen:
                 conn.execute('''
                     INSERT OR IGNORE INTO Berechtigung (Schluessel, Bezeichnung, Beschreibung, Aktiv)
                     VALUES (?, ?, ?, 1)
                 ''', (schluessel, bezeichnung, beschreibung))
+        
+        # Migration: Neue Berechtigung für bestehende Installationen
+        conn.execute('''
+            INSERT OR IGNORE INTO Berechtigung (Schluessel, Bezeichnung, Beschreibung, Aktiv)
+            VALUES ('artikel_aus_abteilungen_bearbeiten', 'Darf Artikel aus Abteilungen bearbeiten', 'Erlaubt das Bearbeiten von Ersatzteilen, die über Abteilungszugriff sichtbar sind', 1)
+        ''')
         
         # ========== 31. MitarbeiterBerechtigung ==========
         created = create_table_if_not_exists(conn, 'MitarbeiterBerechtigung', '''

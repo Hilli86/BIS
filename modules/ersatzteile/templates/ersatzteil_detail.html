@@ -35,9 +35,13 @@
             <a href="{{ url_for('ersatzteile.ersatzteil_neu', vorlage=ersatzteil.ID) }}" class="btn btn-sm btn-light" title="Als Vorlage für neuen Artikel verwenden">
                 <i class="bi bi-copy"></i> <span class="d-none d-sm-inline">Als Vorlage verwenden</span>
             </a>
+            {% endif %}
+            {% if kann_bearbeiten %}
             <a href="{{ url_for('ersatzteile.ersatzteil_bearbeiten', ersatzteil_id=ersatzteil.ID, kategorie=filter_params.kategorie or '', lieferant=filter_params.lieferant or '', lagerort=filter_params.lagerort or '', lagerplatz=filter_params.lagerplatz or '', q=filter_params.q or '', bestandswarnung=filter_params.bestandswarnung or '', kennzeichen=filter_params.kennzeichen or '', nur_ohne_preis=filter_params.nur_ohne_preis or '', sort=filter_params.sort or '', dir=filter_params.dir or '', from='detail') }}" class="btn btn-sm btn-light">
                 <i class="bi bi-pencil"></i> <span class="d-none d-sm-inline">Bearbeiten</span>
             </a>
+            {% endif %}
+            {% if 'admin' in session.get('user_berechtigungen', []) %}
             <form method="POST" action="{{ url_for('ersatzteile.ersatzteil_loeschen', ersatzteil_id=ersatzteil.ID) }}" 
                   onsubmit="return confirm('Ersatzteil wirklich löschen?');" class="d-inline">
                 <button type="submit" class="btn btn-sm btn-light">

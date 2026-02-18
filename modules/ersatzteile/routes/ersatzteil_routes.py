@@ -20,7 +20,7 @@ from ..services import (
     loesche_datei,
     get_datei_typ_aus_dateiname
 )
-from ..utils import hat_ersatzteil_zugriff, get_datei_anzahl, allowed_file
+from ..utils import hat_ersatzteil_zugriff, hat_ersatzteil_bearbeiten_zugriff, get_datei_anzahl, allowed_file
 from utils.zebra_client import send_zpl_to_printer, build_test_label
 
 
@@ -175,8 +175,24 @@ def ersatzteil_liste_load_more():
         
         ersatzteile = conn.execute(query, params).fetchall()
     
+    user_berechtigungen = session.get('user_berechtigungen', [])
+    hat_abteilungen_bearbeiten = 'artikel_aus_abteilungen_bearbeiten' in user_berechtigungen
+    
+    def kann_bearbeiten(e):
+        if is_admin:
+            return True
+        if e.get('ErstelltVonID') == mitarbeiter_id:
+            return True
+        return hat_abteilungen_bearbeiten
+    
+    result = []
+    for e in ersatzteile:
+        d = dict(e)
+        d['kann_bearbeiten'] = kann_bearbeiten(d)
+        result.append(d)
+    
     return jsonify({
-        'ersatzteile': [dict(e) for e in ersatzteile]
+        'ersatzteile': result
     })
 
 
@@ -276,8 +292,8 @@ def ersatzteil_detail(ersatzteil_id):
             dateien.append(datei_dict)
         
         is_admin = 'admin' in session.get('user_berechtigungen', [])
-        # Prüfe ob Benutzer bearbeiten darf (Admin oder hat Zugriff)
-        kann_bearbeiten = is_admin or hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn)
+        # Prüfe ob Benutzer bearbeiten darf (Admin, Ersteller oder Abteilungszugriff mit Berechtigung)
+        kann_bearbeiten = hat_ersatzteil_bearbeiten_zugriff(mitarbeiter_id, ersatzteil_id, conn)
     
     # Filter-Parameter aus Query-String lesen (für Zurück-Button)
     filter_params = {
@@ -574,7 +590,7 @@ def ersatzteil_bearbeiten(ersatzteil_id):
     
     with get_db_connection() as conn:
         # Berechtigung prüfen
-        if not is_admin and not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
+        if not hat_ersatzteil_bearbeiten_zugriff(mitarbeiter_id, ersatzteil_id, conn):
             flash('Sie haben keine Berechtigung, dieses Ersatzteil zu bearbeiten.', 'danger')
             return redirect(url_for('ersatzteile.ersatzteil_liste'))
         
@@ -818,8 +834,8 @@ def ersatzteil_datei_upload(ersatzteil_id):
     
     try:
         with get_db_connection() as conn:
-            # Berechtigung prüfen
-            if not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
+            # Berechtigung prüfen (gleiche wie Bearbeiten)
+            if not hat_ersatzteil_bearbeiten_zugriff(mitarbeiter_id, ersatzteil_id, conn):
                 flash('Sie haben keine Berechtigung für dieses Ersatzteil.', 'danger')
                 return redirect(url_for('ersatzteile.ersatzteil_liste'))
             
@@ -953,7 +969,7 @@ def ersatzteil_artikelfoto_upload(ersatzteil_id):
     try:
         with get_db_connection() as conn:
             # Berechtigung prüfen (gleiche wie Bearbeiten)
-            if not is_admin and not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
+            if not hat_ersatzteil_bearbeiten_zugriff(mitarbeiter_id, ersatzteil_id, conn):
                 flash('Sie haben keine Berechtigung für dieses Ersatzteil.', 'danger')
                 return redirect(url_for('ersatzteile.ersatzteil_liste'))
             
@@ -1048,7 +1064,7 @@ def ersatzteil_artikelfoto_loeschen(ersatzteil_id):
     try:
         with get_db_connection() as conn:
             # Berechtigung prüfen (gleiche wie Bearbeiten)
-            if not is_admin and not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
+            if not hat_ersatzteil_bearbeiten_zugriff(mitarbeiter_id, ersatzteil_id, conn):
                 flash('Sie haben keine Berechtigung für dieses Ersatzteil.', 'danger')
                 return redirect(url_for('ersatzteile.ersatzteil_liste'))
             

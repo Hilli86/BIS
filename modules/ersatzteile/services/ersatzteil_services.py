@@ -57,6 +57,7 @@ def build_ersatzteil_liste_query(
     query = f'''
         SELECT 
             e.ID,
+            e.ErstelltVonID,
             e.Bestellnummer,
             e.Bezeichnung,
             e.Hersteller,
