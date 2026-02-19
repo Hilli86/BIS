@@ -257,12 +257,17 @@ def bestellung_detail(bestellung_id):
                 COALESCE(p.Bestellnummer, e.Bestellnummer) AS Bestellnummer,
                 COALESCE(p.Bezeichnung, e.Bezeichnung) AS Bezeichnung,
                 COALESCE(p.Einheit, e.Einheit, 'Stück') AS Einheit,
-                COALESCE(p.Link, e.Link) AS Link
+                COALESCE(p.Link, e.Link) AS Link,
+                k.Bezeichnung AS Kostenstelle
             FROM BestellungPosition p
             LEFT JOIN Ersatzteil e ON p.ErsatzteilID = e.ID
+            LEFT JOIN Kostenstelle k ON p.KostenstelleID = k.ID
             WHERE p.BestellungID = ?
             ORDER BY p.ID
         ''', (bestellung_id,)).fetchall()
+        
+        # Kostenstellen für Dropdown
+        kostenstellen = conn.execute('SELECT ID, Bezeichnung FROM Kostenstelle WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung').fetchall()
         
         # Gesamtsumme berechnen
         gesamtbetrag = 0
@@ -327,7 +332,8 @@ def bestellung_detail(bestellung_id):
         status_filter_list=status_filter_list,
         lieferant_filter=lieferant_filter,
         abteilung_filter=abteilung_filter,
-        prioritaet_filter_list=prioritaet_filter_list
+        prioritaet_filter_list=prioritaet_filter_list,
+        kostenstellen=kostenstellen
     )
 
 
@@ -358,6 +364,7 @@ def bestellung_neu():
         waehrungen = request.form.getlist('waehrung[]')
         positionen_bemerkungen = request.form.getlist('position_bemerkung[]')
         links = request.form.getlist('link[]')
+        kostenstelle_ids = request.form.getlist('kostenstelle_id[]')
         
         if not lieferant_id:
             flash('Bitte wählen Sie einen Lieferanten aus.', 'danger')
@@ -408,6 +415,8 @@ def bestellung_neu():
                         waehrung = waehrungen[i].strip() if i < len(waehrungen) and waehrungen[i] else 'EUR'
                         pos_bemerkung = positionen_bemerkungen[i].strip() if i < len(positionen_bemerkungen) and positionen_bemerkungen[i] else None
                         link = links[i].strip() if i < len(links) and links[i] else None
+                        ks_id_str = kostenstelle_ids[i].strip() if i < len(kostenstelle_ids) and kostenstelle_ids[i] else ''
+                        kostenstelle_id = int(ks_id_str) if ks_id_str else None
                         
                         # Wenn ErsatzteilID vorhanden, aber Bestellnummer/Bezeichnung/Einheit fehlen, aus Ersatzteil laden
                         if ersatzteil_id and (not bestellnummer or not bezeichnung or not einheit):
@@ -433,9 +442,9 @@ def bestellung_neu():
                             einheit = 'Stück'
                         
                         conn.execute('''
-                            INSERT INTO BestellungPosition (BestellungID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung, Preis, Waehrung, Link)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ''', (bestellung_id, ersatzteil_id, menge, einheit, bestellnummer, bezeichnung, pos_bemerkung, preis, waehrung, link))
+                            INSERT INTO BestellungPosition (BestellungID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung, Preis, Waehrung, Link, KostenstelleID)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (bestellung_id, ersatzteil_id, menge, einheit, bestellnummer, bezeichnung, pos_bemerkung, preis, waehrung, link, kostenstelle_id))
                     except (ValueError, IndexError):
                         continue
                 
@@ -480,6 +489,7 @@ def bestellung_neu():
     # GET: Formular anzeigen
     with get_db_connection() as conn:
         lieferanten = conn.execute('SELECT ID, Name FROM Lieferant WHERE Aktiv = 1 AND Gelöscht = 0 ORDER BY Name').fetchall()
+        kostenstellen = conn.execute('SELECT ID, Bezeichnung FROM Kostenstelle WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung').fetchall()
         
         # Auswählbare Abteilungen für Sichtbarkeit
         from utils import get_auswaehlbare_abteilungen_fuer_neues_thema
@@ -488,6 +498,7 @@ def bestellung_neu():
     return render_template(
         'bestellung_neu.html',
         lieferanten=lieferanten,
+        kostenstellen=kostenstellen,
         auswaehlbare_abteilungen=auswaehlbare_abteilungen
     )
 
@@ -585,9 +596,11 @@ def bestellung_aus_angebot(angebotsanfrage_id):
                 COALESCE(p.Einheit, e.Einheit, 'Stück') AS Einheit,
                 COALESCE(p.Angebotspreis, e.Preis) AS Preis,
                 COALESCE(p.Angebotswaehrung, e.Waehrung, 'EUR') AS Waehrung,
-                COALESCE(p.Link, e.Link) AS Link
+                COALESCE(p.Link, e.Link) AS Link,
+                k.Bezeichnung AS Kostenstelle
             FROM AngebotsanfragePosition p
             LEFT JOIN Ersatzteil e ON p.ErsatzteilID = e.ID
+            LEFT JOIN Kostenstelle k ON p.KostenstelleID = k.ID
             WHERE p.AngebotsanfrageID = ?
             ORDER BY p.ID
         ''', (angebotsanfrage_id,)).fetchall()
@@ -634,10 +647,11 @@ def bestellung_aus_angebot(angebotsanfrage_id):
                     
                     einheit = pos['Einheit'] if 'Einheit' in pos.keys() and pos['Einheit'] else 'Stück'
                     link = pos['Link'] if 'Link' in pos.keys() else None
+                    kostenstelle_id = pos['KostenstelleID'] if 'KostenstelleID' in pos.keys() and pos['KostenstelleID'] else None
                     conn.execute('''
-                        INSERT INTO BestellungPosition (BestellungID, AngebotsanfragePositionID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung, Preis, Waehrung, Link)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ''', (bestellung_id, pos['ID'], pos['ErsatzteilID'], pos['Menge'], einheit, pos['Bestellnummer'], pos['Bezeichnung'], pos['Bemerkung'], pos['Preis'], pos['Waehrung'], link))
+                        INSERT INTO BestellungPosition (BestellungID, AngebotsanfragePositionID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung, Preis, Waehrung, Link, KostenstelleID)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (bestellung_id, pos['ID'], pos['ErsatzteilID'], pos['Menge'], einheit, pos['Bestellnummer'], pos['Bezeichnung'], pos['Bemerkung'], pos['Preis'], pos['Waehrung'], link, kostenstelle_id))
                 
                 # Sichtbarkeiten setzen (optional - wenn keine ausgewählt, wird Primärabteilung verwendet)
                 if sichtbare_abteilungen:
@@ -950,6 +964,8 @@ def bestellung_position_hinzufuegen(bestellung_id):
     # Prüfe ob link "None" als String ist und konvertiere zu None
     if link and link.lower() in ('none', 'null', 'undefined'):
         link = None
+    kostenstelle_id_str = request.form.get('kostenstelle_id', '').strip()
+    kostenstelle_id = int(kostenstelle_id_str) if kostenstelle_id_str else None
     
     if not ersatzteil_id and not bestellnummer:
         flash('Bitte geben Sie entweder eine ErsatzteilID oder eine Bestellnummer ein.', 'danger')
@@ -987,9 +1003,9 @@ def bestellung_position_hinzufuegen(bestellung_id):
             
             # Position hinzufügen
             conn.execute('''
-                INSERT INTO BestellungPosition (BestellungID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung, Preis, Waehrung, Link)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (bestellung_id, ersatzteil_id, menge, einheit, bestellnummer, bezeichnung, bemerkung, preis, waehrung, link))
+                INSERT INTO BestellungPosition (BestellungID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung, Preis, Waehrung, Link, KostenstelleID)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (bestellung_id, ersatzteil_id, menge, einheit, bestellnummer, bezeichnung, bemerkung, preis, waehrung, link, kostenstelle_id))
             conn.commit()
             flash('Position erfolgreich hinzugefügt.', 'success')
             
@@ -1016,6 +1032,8 @@ def bestellung_position_bearbeiten(bestellung_id, position_id):
     # Prüfe ob link "None" als String ist und konvertiere zu None
     if link and link.lower() in ('none', 'null', 'undefined'):
         link = None
+    kostenstelle_id_str = request.form.get('kostenstelle_id', '').strip()
+    kostenstelle_id = int(kostenstelle_id_str) if kostenstelle_id_str else None
     
     try:
         with get_db_connection() as conn:
@@ -1047,9 +1065,9 @@ def bestellung_position_bearbeiten(bestellung_id, position_id):
             # Position aktualisieren
             conn.execute('''
                 UPDATE BestellungPosition 
-                SET Menge = ?, Einheit = ?, Bestellnummer = ?, Bezeichnung = ?, Bemerkung = ?, Preis = ?, Waehrung = ?, Link = ?
+                SET Menge = ?, Einheit = ?, Bestellnummer = ?, Bezeichnung = ?, Bemerkung = ?, Preis = ?, Waehrung = ?, Link = ?, KostenstelleID = ?
                 WHERE ID = ? AND BestellungID = ?
-            ''', (menge, einheit, bestellnummer, bezeichnung, bemerkung, preis, waehrung, link, position_id, bestellung_id))
+            ''', (menge, einheit, bestellnummer, bezeichnung, bemerkung, preis, waehrung, link, kostenstelle_id, position_id, bestellung_id))
             conn.commit()
             flash('Position erfolgreich aktualisiert.', 'success')
             

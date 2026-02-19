@@ -46,6 +46,7 @@
                             <th>Einheit</th>
                             <th>Preis</th>
                             <th>Währung</th>
+                            <th>Kostenstelle</th>
                             <th>Bemerkung</th>
                         </tr>
                     </thead>
@@ -76,6 +77,7 @@
                                 {% endif %}
                             </td>
                             <td>{{ p.Waehrung or 'EUR' }}</td>
+                            <td>{{ p.Kostenstelle or '-' }}</td>
                             <td>{{ p.Bemerkung or '-' }}</td>
                         </tr>
                         {% endfor %}

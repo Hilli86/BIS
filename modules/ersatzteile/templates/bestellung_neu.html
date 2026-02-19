@@ -107,9 +107,18 @@
 </form>
 
 <script>
+const KOSTENSTELLEN = {{ (kostenstellen or [])|tojson|safe }};
+
 function addPosition() {
     const container = document.getElementById('positionenContainer');
     const emptyMessage = document.getElementById('emptyMessage');
+    
+    let kostenstelleOptions = '<option value="">-- Keine --</option>';
+    if (KOSTENSTELLEN) {
+        KOSTENSTELLEN.forEach(function(k) {
+            kostenstelleOptions += '<option value="' + k.ID + '">' + (k.Bezeichnung || '') + '</option>';
+        });
+    }
     
     const positionRow = document.createElement('div');
     positionRow.className = 'position-row mb-3 p-3 border rounded';
@@ -156,6 +165,10 @@ function addPosition() {
             <div class="col-md-2">
                 <label class="form-label">Bemerkung:</label>
                 <input type="text" name="position_bemerkung[]" class="form-control" placeholder="Optional...">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Kostenstelle:</label>
+                <select name="kostenstelle_id[]" class="form-select">${kostenstelleOptions}</select>
             </div>
             <div class="col-md-2">
                 <label class="form-label">Link:</label>

@@ -402,6 +402,7 @@ def angebotsanfrage_neu():
         bezeichnungen = request.form.getlist('bezeichnung[]')
         positionen_bemerkungen = request.form.getlist('position_bemerkung[]')
         links = request.form.getlist('link[]')
+        kostenstelle_ids = request.form.getlist('kostenstelle_id[]')
         
         if not lieferant_id:
             flash('Bitte wählen Sie einen Lieferanten aus.', 'danger')
@@ -451,6 +452,8 @@ def angebotsanfrage_neu():
                         bezeichnung = bezeichnungen[i].strip() if i < len(bezeichnungen) and bezeichnungen[i] else None
                         pos_bemerkung = positionen_bemerkungen[i].strip() if i < len(positionen_bemerkungen) and positionen_bemerkungen[i] else None
                         link = links[i].strip() if i < len(links) and links[i] else None
+                        ks_id_str = kostenstelle_ids[i].strip() if i < len(kostenstelle_ids) and kostenstelle_ids[i] else ''
+                        kostenstelle_id = int(ks_id_str) if ks_id_str else None
                         
                         # Wenn ErsatzteilID vorhanden, aber Bestellnummer/Bezeichnung/Einheit fehlen, aus Ersatzteil laden
                         if ersatzteil_id and (not bestellnummer or not bezeichnung or not einheit):
@@ -476,9 +479,9 @@ def angebotsanfrage_neu():
                             einheit = 'Stück'
                         
                         conn.execute('''
-                            INSERT INTO AngebotsanfragePosition (AngebotsanfrageID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung, Link)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                        ''', (anfrage_id, ersatzteil_id, menge, einheit, bestellnummer, bezeichnung, pos_bemerkung, link))
+                            INSERT INTO AngebotsanfragePosition (AngebotsanfrageID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung, Link, KostenstelleID)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (anfrage_id, ersatzteil_id, menge, einheit, bestellnummer, bezeichnung, pos_bemerkung, link, kostenstelle_id))
                     except (ValueError, IndexError):
                         continue
                 
@@ -503,6 +506,7 @@ def angebotsanfrage_neu():
     # GET: Formular anzeigen
     with get_db_connection() as conn:
         lieferanten = conn.execute('SELECT ID, Name FROM Lieferant WHERE Aktiv = 1 AND Gelöscht = 0 ORDER BY Name').fetchall()
+        kostenstellen = conn.execute('SELECT ID, Bezeichnung FROM Kostenstelle WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung').fetchall()
         
         # Wenn Query-Parameter vorhanden, vorausgefüllte Daten laden
         vorausgefuelltes_ersatzteil = None
@@ -520,6 +524,7 @@ def angebotsanfrage_neu():
     return render_template(
         'angebotsanfrage_neu.html',
         lieferanten=lieferanten,
+        kostenstellen=kostenstellen,
         vorausgefuelltes_ersatzteil=vorausgefuelltes_ersatzteil,
         vorausgefuellter_lieferant_id=lieferant_id_param
     )
@@ -573,12 +578,17 @@ def angebotsanfrage_detail(angebotsanfrage_id):
                 COALESCE(p.Einheit, e.Einheit, 'Stück') AS Einheit,
                 e.Preis AS AktuellerPreis,
                 e.Waehrung AS AktuelleWaehrung,
-                COALESCE(p.Link, e.Link) AS Link
+                COALESCE(p.Link, e.Link) AS Link,
+                k.Bezeichnung AS Kostenstelle
             FROM AngebotsanfragePosition p
             LEFT JOIN Ersatzteil e ON p.ErsatzteilID = e.ID
+            LEFT JOIN Kostenstelle k ON p.KostenstelleID = k.ID
             WHERE p.AngebotsanfrageID = ?
             ORDER BY p.ID
         ''', (angebotsanfrage_id,)).fetchall()
+        
+        # Kostenstellen für Dropdown
+        kostenstellen = conn.execute('SELECT ID, Bezeichnung FROM Kostenstelle WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung').fetchall()
         
         # PDF-Dateien aus Ordner laden
         # Dateien aus Datei-Tabelle laden
@@ -615,7 +625,8 @@ def angebotsanfrage_detail(angebotsanfrage_id):
         anfrage=anfrage,
         positionen=positionen,
         dateien=dateien,
-        is_admin=is_admin
+        is_admin=is_admin,
+        kostenstellen=kostenstellen
     )
 
 
@@ -685,6 +696,8 @@ def angebotsanfrage_position_hinzufuegen(angebotsanfrage_id):
     bezeichnung = request.form.get('bezeichnung', '').strip() or None
     bemerkung = request.form.get('bemerkung', '').strip() or None
     link = request.form.get('link', '').strip() or None
+    kostenstelle_id_str = request.form.get('kostenstelle_id', '').strip()
+    kostenstelle_id = int(kostenstelle_id_str) if kostenstelle_id_str else None
     
     if not ersatzteil_id and not bestellnummer:
         flash('Bitte geben Sie entweder eine ErsatzteilID oder eine Bestellnummer ein.', 'danger')
@@ -729,9 +742,9 @@ def angebotsanfrage_position_hinzufuegen(angebotsanfrage_id):
                 
                 # Position hinzufügen (Link wird aus Formular oder Ersatzteil übernommen)
                 conn.execute('''
-                    INSERT INTO AngebotsanfragePosition (AngebotsanfrageID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung, Link)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (angebotsanfrage_id, ersatzteil_id, menge, einheit, bestellnummer, bezeichnung, bemerkung, link))
+                    INSERT INTO AngebotsanfragePosition (AngebotsanfrageID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung, Link, KostenstelleID)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (angebotsanfrage_id, ersatzteil_id, menge, einheit, bestellnummer, bezeichnung, bemerkung, link, kostenstelle_id))
                 conn.commit()
                 flash('Position erfolgreich hinzugefügt.', 'success')
             
@@ -771,6 +784,8 @@ def angebotsanfrage_position_bearbeiten(angebotsanfrage_id, position_id):
             # Prüfe ob link "None" als String ist und konvertiere zu None
             if link and link.lower() in ('none', 'null', 'undefined'):
                 link = None
+            kostenstelle_id_str = request.form.get('kostenstelle_id', '').strip()
+            kostenstelle_id = int(kostenstelle_id_str) if kostenstelle_id_str else None
             
             # Validierung
             if not bestellnummer or not bezeichnung:
@@ -815,9 +830,10 @@ def angebotsanfrage_position_bearbeiten(angebotsanfrage_id, position_id):
                     Menge = ?,
                     Einheit = ?,
                     Bemerkung = ?,
-                    Link = ?
+                    Link = ?,
+                    KostenstelleID = ?
                 WHERE ID = ? AND AngebotsanfrageID = ?
-            ''', (ersatzteil_id_int, bestellnummer, bezeichnung, menge, einheit, bemerkung, link, position_id, angebotsanfrage_id))
+            ''', (ersatzteil_id_int, bestellnummer, bezeichnung, menge, einheit, bemerkung, link, kostenstelle_id, position_id, angebotsanfrage_id))
             
             conn.commit()
             flash('Position erfolgreich aktualisiert.', 'success')

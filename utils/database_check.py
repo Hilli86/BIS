@@ -983,6 +983,8 @@ def init_database_schema(db_path, verbose=False):
             if create_column_if_not_exists(conn, 'AngebotsanfragePosition', 'Einheit', 'ALTER TABLE AngebotsanfragePosition ADD COLUMN Einheit TEXT NULL'):
                 print("[INFO] Spalte 'Einheit' zu 'AngebotsanfragePosition' hinzugefügt")
             create_column_if_not_exists(conn, 'AngebotsanfragePosition', 'Link', 'ALTER TABLE AngebotsanfragePosition ADD COLUMN Link TEXT NULL')
+            if create_column_if_not_exists(conn, 'AngebotsanfragePosition', 'KostenstelleID', 'ALTER TABLE AngebotsanfragePosition ADD COLUMN KostenstelleID INTEGER NULL'):
+                print("[INFO] Spalte 'KostenstelleID' zu 'AngebotsanfragePosition' hinzugefügt")
         
         # ========== 27. Bestellung ==========
         created = create_table_if_not_exists(conn, 'Bestellung', '''
@@ -1063,6 +1065,8 @@ def init_database_schema(db_path, verbose=False):
             if create_column_if_not_exists(conn, 'BestellungPosition', 'Einheit', 'ALTER TABLE BestellungPosition ADD COLUMN Einheit TEXT NULL'):
                 print("[INFO] Spalte 'Einheit' zu 'BestellungPosition' hinzugefügt")
             create_column_if_not_exists(conn, 'BestellungPosition', 'Link', 'ALTER TABLE BestellungPosition ADD COLUMN Link TEXT NULL')
+            if create_column_if_not_exists(conn, 'BestellungPosition', 'KostenstelleID', 'ALTER TABLE BestellungPosition ADD COLUMN KostenstelleID INTEGER NULL'):
+                print("[INFO] Spalte 'KostenstelleID' zu 'BestellungPosition' hinzugefügt")
         
         # ========== 29. BestellungSichtbarkeit ==========
         created = create_table_if_not_exists(conn, 'BestellungSichtbarkeit', '''
