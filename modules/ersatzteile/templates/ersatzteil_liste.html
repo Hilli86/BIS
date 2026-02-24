@@ -906,8 +906,13 @@ async function loadMoreErsatzteile() {
                         </div>`;
                     cardsContainer.insertAdjacentHTML('beforeend', cardHtml);
                 } else if (tbody) {
-                    const abtCell = ersatzteilIsAdmin ? '<td class="text-center column-sichtbare-abteilungen" style="display: none;"><span class="badge bg-info">' + (e.AbteilungenAnzahl || 0) + '</span></td>' : '';
-                    const fotoCell = '<td class="column-artikelfoto" style="display: none;" onclick="event.stopPropagation();">' +
+                    const colSettings = JSON.parse(localStorage.getItem('ersatzteil_liste_columns') || '{}');
+                    const showFotoCol = colSettings.artikelfoto === true;
+                    const showAbtCol = colSettings['sichtbare-abteilungen'] === true;
+                    const abtCellStyle = showAbtCol ? '' : 'display: none;';
+                    const abtCell = ersatzteilIsAdmin ? '<td class="text-center column-sichtbare-abteilungen" style="' + abtCellStyle + '"><span class="badge bg-info">' + (e.AbteilungenAnzahl || 0) + '</span></td>' : '';
+                    const fotoCellStyle = showFotoCol ? '' : 'display: none;';
+                    const fotoCell = '<td class="column-artikelfoto" style="' + fotoCellStyle + '" onclick="event.stopPropagation();">' +
                         (e.ArtikelfotoPfad ? '<a href="' + detailUrl + '" onclick="event.stopPropagation();"><img src="' + fotoUrl + '" alt="Artikelfoto" class="rounded" style="width: 50px; height: 50px; object-fit: cover;"></a>' : '<span class="text-muted">-</span>') + '</td>';
                     const actionsHtml = (e.kann_bearbeiten ? '<a href="' + bearbeitenUrl + '" class="btn btn-sm btn-outline-warning" title="Artikel bearbeiten"><i class="bi bi-pencil"></i></a>' : '') +
                         (e.LieferantID ? '<button type="button" class="btn btn-sm btn-outline-success" onclick="addToAngebotsanfrage(' + e.ID + ', event)" title="Zu Angebotsanfrage hinzufügen"><i class="bi bi-cart-plus"></i></button>' : '') +

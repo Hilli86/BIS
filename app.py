@@ -6,11 +6,16 @@ Hauptdatei - nur Initialisierung und Blueprint-Registrierung
 """
 
 from flask import Flask, render_template, session, redirect, url_for, request
+from werkzeug.middleware.proxy_fix import ProxyFix
 import os
 from config import config
 
 # Flask App initialisieren
 app = Flask(__name__)
+
+# ProxyFix: Hinter nginx/reverse-proxy korrekte URLs (https statt http) für request.url etc.
+# X-Forwarded-Proto, X-Forwarded-Host, X-Forwarded-For werden von nginx gesetzt
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 # Konfiguration laden
 config_name = os.environ.get('FLASK_ENV', 'default')

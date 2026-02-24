@@ -4,7 +4,7 @@ Auth Routes - Login, Logout
 
 import base64
 import traceback
-from flask import render_template, request, redirect, url_for, session, flash, make_response, jsonify
+from flask import render_template, request, redirect, url_for, session, flash, make_response, jsonify, current_app, g
 from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import datetime, timedelta
 from . import auth_bp
@@ -21,6 +21,13 @@ from utils.webauthn import (
     serialize_authentication_options,
     extract_attested_credential,
 )
+
+
+@auth_bp.teardown_request
+def _restore_session_lifetime_after_login(exc=None):
+    """Stellt PERMANENT_SESSION_LIFETIME nach Login mit 'Zugangsdaten merken' wieder her."""
+    if hasattr(g, 'login_session_lifetime_to_restore'):
+        current_app.config['PERMANENT_SESSION_LIFETIME'] = g.login_session_lifetime_to_restore
 
 
 def _log_login_attempt(conn, personalnummer, mitarbeiter_id, erfolgreich, request, fehlermeldung):
@@ -112,6 +119,13 @@ def login():
                     ''', (user['ID'],)).fetchall()
                     
                     session['user_berechtigungen'] = [b['Schluessel'] for b in berechtigungen]
+                    
+                    # Session dauerhaft speichern (über Browser-Neustart hinweg)
+                    session.permanent = True
+                    if remember_me_checkbox:
+                        # Bei "Zugangsdaten merken": 30 Tage (Restore in teardown nach Session-Speicherung)
+                        g.login_session_lifetime_to_restore = current_app.config['PERMANENT_SESSION_LIFETIME']
+                        current_app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
                     
                     # Weiterleitung zur ursprünglichen URL (next-Parameter) oder zum Dashboard
                     next_page = request.args.get('next')
@@ -652,6 +666,12 @@ def webauthn_login_verify():
             ).fetchall()
 
             session["user_berechtigungen"] = [b["Schluessel"] for b in berechtigungen]
+
+        # Session dauerhaft speichern (30 Tage bei WebAuthn – biometrische Anmeldung auf vertrauenswürdigem Gerät)
+        session.permanent = True
+        old_lifetime = current_app.config["PERMANENT_SESSION_LIFETIME"]
+        current_app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
+        g.login_session_lifetime_to_restore = old_lifetime
 
         # Vorherige Flash-Messages (z.B. "Abgemeldet", "Bitte zuerst anmelden") entfernen
         session.pop("_flashes", None)
