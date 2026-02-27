@@ -813,7 +813,7 @@ function showToast(message, type = 'info') {
 let ersatzteilIsLoading = false;
 let ersatzteilAllLoaded = false;
 let ersatzteilCurrentOffset = {{ ersatzteile|length if ersatzteile else 0 }};
-const ersatzteilDetailBase = '{{ url_for("ersatzteile.ersatzteil_detail", ersatzteil_id=0) }}'.replace('/0', '');
+const ersatzteilDetailBase = '{{ url_for("ersatzteile.ersatzteil_detail", ersatzteil_id=0) }}'.replace('/0', '/');
 const ersatzteilDateiBase = '{{ url_for("ersatzteile.datei_anzeigen", filepath="__PATH__") }}'.replace('__PATH__', '');
 const ersatzteilBearbeitenUrlTemplate = '{{ url_for("ersatzteile.ersatzteil_bearbeiten", ersatzteil_id=0, kategorie=kategorie_filter or "", lieferant=lieferant_filter or "", lagerort=lagerort_filter or "", lagerplatz=lagerplatz_filter or "", q=q_filter or "", sort=sort_by, dir=sort_dir, bestandswarnung="1" if bestandswarnung else "", kennzeichen=kennzeichen_filter or "", nur_ohne_preis="1" if nur_ohne_preis else "", from="list") }}';
 const ersatzteilFilterParams = {
