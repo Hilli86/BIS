@@ -120,6 +120,10 @@ def login():
                     
                     session['user_berechtigungen'] = [b['Schluessel'] for b in berechtigungen]
                     
+                    # Menü-Sichtbarkeit pro Mitarbeiter laden
+                    from utils.menue_definitions import get_menue_sichtbarkeit_fuer_mitarbeiter
+                    session['user_menue_sichtbarkeit'] = get_menue_sichtbarkeit_fuer_mitarbeiter(user['ID'], conn)
+                    
                     # Session dauerhaft speichern (über Browser-Neustart hinweg)
                     session.permanent = True
                     if remember_me_checkbox:
@@ -166,6 +170,12 @@ def login_guest():
     session['user_abteilung'] = None
     session['user_abteilungen'] = []
     session['user_berechtigungen'] = []
+    # Gast sieht nur Etikettierung
+    from utils.menue_definitions import MENUE_DEFINITIONEN
+    session['user_menue_sichtbarkeit'] = {
+        m['schluessel']: (m['schluessel'] == 'produktion_etikettierung')
+        for m in MENUE_DEFINITIONEN
+    }
     
     # Optional: Gast-Login loggen
     try:

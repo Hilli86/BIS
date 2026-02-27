@@ -103,6 +103,26 @@ def dashboard():
         # Berechtigungen laden
         berechtigungen = conn.execute('SELECT ID, Schluessel, Bezeichnung, Beschreibung, Aktiv FROM Berechtigung ORDER BY Bezeichnung').fetchall()
 
+        # Menü-Sichtbarkeit pro Mitarbeiter laden
+        mitarbeiter_menue_sichtbarkeit = {}
+        if mitarbeiter:
+            placeholders = ','.join(['?'] * len([m['ID'] for m in mitarbeiter]))
+            mitarbeiter_ids = [m['ID'] for m in mitarbeiter]
+            sichtbarkeit_rows = conn.execute(f'''
+                SELECT MitarbeiterID, MenueSchluessel, Sichtbar
+                FROM MitarbeiterMenueSichtbarkeit
+                WHERE MitarbeiterID IN ({placeholders})
+            ''', mitarbeiter_ids).fetchall()
+            for row in sichtbarkeit_rows:
+                mid = row['MitarbeiterID']
+                if mid not in mitarbeiter_menue_sichtbarkeit:
+                    mitarbeiter_menue_sichtbarkeit[mid] = {}
+                mitarbeiter_menue_sichtbarkeit[mid][row['MenueSchluessel']] = bool(row['Sichtbar'])
+            # Sicherstellen, dass jeder Mitarbeiter einen Eintrag hat (leeres Dict = alles Standard)
+            for m in mitarbeiter:
+                if m['ID'] not in mitarbeiter_menue_sichtbarkeit:
+                    mitarbeiter_menue_sichtbarkeit[m['ID']] = {}
+
         # Zebra-Drucker und Etikettenformate laden
         zebra_printers = conn.execute('''
             SELECT id, name, ip_address, description, active
@@ -125,10 +145,15 @@ def dashboard():
             ORDER BY e.bezeichnung
         ''').fetchall()
 
+    from utils.menue_definitions import get_alle_menue_definitionen
+    menue_definitionen = get_alle_menue_definitionen()
+
     return render_template('admin.html',
                            mitarbeiter=mitarbeiter,
                            mitarbeiter_abteilungen=mitarbeiter_abteilungen,
                            mitarbeiter_berechtigungen=mitarbeiter_berechtigungen,
+                           mitarbeiter_menue_sichtbarkeit=mitarbeiter_menue_sichtbarkeit,
+                           menue_definitionen=menue_definitionen,
                            abteilungen=abteilungen,
                            bereiche=bereiche,
                            gewerke=gewerke,
@@ -1947,5 +1972,42 @@ def mitarbeiter_berechtigungen(mid):
             conn.commit()
         
         return ajax_response('Berechtigungen erfolgreich aktualisiert.')
+    except Exception as e:
+        return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
+
+
+@admin_bp.route('/mitarbeiter/<int:mid>/menue-sichtbarkeit', methods=['POST'])
+@admin_required
+def mitarbeiter_menue_sichtbarkeit(mid):
+    """Menü-Sichtbarkeit für einen Mitarbeiter speichern"""
+    try:
+        with get_db_connection() as conn:
+            mitarbeiter = conn.execute('SELECT ID FROM Mitarbeiter WHERE ID = ?', (mid,)).fetchone()
+            if not mitarbeiter:
+                return ajax_response('Mitarbeiter nicht gefunden.', success=False, status_code=404)
+
+            from utils.menue_definitions import get_alle_menue_definitionen
+            menue_defs = get_alle_menue_definitionen()
+
+            for m in menue_defs:
+                schluessel = m['schluessel']
+                wert = request.form.get(f'menue_{schluessel}')
+                conn.execute('''
+                    DELETE FROM MitarbeiterMenueSichtbarkeit
+                    WHERE MitarbeiterID = ? AND MenueSchluessel = ?
+                ''', (mid, schluessel))
+                if wert == '1':
+                    conn.execute('''
+                        INSERT INTO MitarbeiterMenueSichtbarkeit (MitarbeiterID, MenueSchluessel, Sichtbar)
+                        VALUES (?, ?, 1)
+                    ''', (mid, schluessel))
+                elif wert == '0':
+                    conn.execute('''
+                        INSERT INTO MitarbeiterMenueSichtbarkeit (MitarbeiterID, MenueSchluessel, Sichtbar)
+                        VALUES (?, ?, 0)
+                    ''', (mid, schluessel))
+
+            conn.commit()
+        return ajax_response('Menü-Sichtbarkeit erfolgreich aktualisiert.')
     except Exception as e:
         return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)

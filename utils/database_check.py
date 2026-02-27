@@ -159,7 +159,8 @@ def get_required_tables():
         'zebra_printers',
         'label_formats',
         'Etikett',
-        'WebAuthnCredential'
+        'WebAuthnCredential',
+        'MitarbeiterMenueSichtbarkeit'
     ]
 
 
@@ -1329,6 +1330,22 @@ def init_database_schema(db_path, verbose=False):
         ''', [
             'CREATE INDEX idx_webauthn_credential_mitarbeiter ON WebAuthnCredential(MitarbeiterID)',
             'CREATE INDEX idx_webauthn_credential_aktiv ON WebAuthnCredential(Aktiv)'
+        ])
+
+        # ========== 35. MitarbeiterMenueSichtbarkeit ==========
+        # Pro Mitarbeiter die Sichtbarkeit jedes Menüpunkts einstellbar
+        create_table_if_not_exists(conn, 'MitarbeiterMenueSichtbarkeit', '''
+            CREATE TABLE MitarbeiterMenueSichtbarkeit (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                MitarbeiterID INTEGER NOT NULL,
+                MenueSchluessel TEXT NOT NULL,
+                Sichtbar INTEGER NOT NULL DEFAULT 1,
+                FOREIGN KEY (MitarbeiterID) REFERENCES Mitarbeiter(ID) ON DELETE CASCADE,
+                UNIQUE(MitarbeiterID, MenueSchluessel)
+            )
+        ''', [
+            'CREATE INDEX idx_mitarbeiter_menue_sichtbarkeit_ma ON MitarbeiterMenueSichtbarkeit(MitarbeiterID)',
+            'CREATE INDEX idx_mitarbeiter_menue_sichtbarkeit_menue ON MitarbeiterMenueSichtbarkeit(MenueSchluessel)'
         ])
 
         conn.commit()

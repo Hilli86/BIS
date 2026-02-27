@@ -39,7 +39,7 @@ with app.app_context():
 from utils.folder_setup import create_all_upload_folders
 create_all_upload_folders(app)
 
-# Benutzerdefinierte Jinja2-Filter
+# Benutzerdefinierte Jinja2-Filter und Globals
 @app.template_filter('file_extension')
 def file_extension(filename):
     """Extrahiert die Dateierweiterung aus einem Dateinamen"""
@@ -47,6 +47,25 @@ def file_extension(filename):
         return ''
     parts = filename.rsplit('.', 1)
     return parts[1].lower() if len(parts) > 1 else ''
+
+
+@app.before_request
+def _ensure_menue_sichtbarkeit():
+    """Lädt user_menue_sichtbarkeit für eingeloggte Benutzer (auch nach Admin-Änderungen)."""
+    if session.get('user_id') and not session.get('is_guest'):
+        from utils.menue_definitions import get_menue_sichtbarkeit_fuer_mitarbeiter
+        session['user_menue_sichtbarkeit'] = get_menue_sichtbarkeit_fuer_mitarbeiter(session['user_id'])
+
+
+@app.template_global('menue_sichtbar')
+def menue_sichtbar(schluessel):
+    """
+    Prüft ob ein Menüpunkt für den aktuellen Benutzer sichtbar ist.
+    Nutzt session['user_menue_sichtbarkeit'].
+    """
+    sichtbarkeit = session.get('user_menue_sichtbarkeit', {})
+    return sichtbarkeit.get(schluessel, True)
+
 
 # Blueprints registrieren
 from modules import auth_bp, schichtbuch_bp, admin_bp, ersatzteile_bp, dashboard_bp, import_bp, errors_bp, diverses_bp, search_bp, produktion_bp
