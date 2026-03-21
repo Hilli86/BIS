@@ -1800,8 +1800,8 @@ def bestellung_neu():
         lieferanten = conn.execute('SELECT ID, Name FROM Lieferant WHERE Aktiv = 1 AND Gelöscht = 0 ORDER BY Name').fetchall()
         
         # Auswählbare Abteilungen für Sichtbarkeit
-        from utils import get_auswaehlbare_abteilungen_fuer_neues_thema
-        auswaehlbare_abteilungen = get_auswaehlbare_abteilungen_fuer_neues_thema(mitarbeiter_id, conn)
+        from utils import get_abteilungsbaum_fuer_sichtbarkeit
+        auswaehlbare_abteilungen = get_abteilungsbaum_fuer_sichtbarkeit(mitarbeiter_id, conn)
     
     return render_template(
         'bestellung_neu.html',
@@ -1936,8 +1936,8 @@ def bestellung_aus_angebot(angebotsanfrage_id):
     
     # GET: Formular anzeigen
     with get_db_connection() as conn:
-        from utils import get_auswaehlbare_abteilungen_fuer_neues_thema
-        auswaehlbare_abteilungen = get_auswaehlbare_abteilungen_fuer_neues_thema(mitarbeiter_id, conn)
+        from utils import get_abteilungsbaum_fuer_sichtbarkeit
+        auswaehlbare_abteilungen = get_abteilungsbaum_fuer_sichtbarkeit(mitarbeiter_id, conn)
     
     return render_template(
         'bestellung_aus_angebot.html',

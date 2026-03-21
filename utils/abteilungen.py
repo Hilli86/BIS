@@ -143,13 +143,15 @@ def get_auswaehlbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn):
     return result
 
 
-def get_auswaehlbare_abteilungen_fuer_neues_thema(mitarbeiter_id, conn):
+def get_abteilungsbaum_fuer_sichtbarkeit(mitarbeiter_id, conn):
     """
-    Ermittelt alle Abteilungen für die Auswahl beim Erstellen eines neuen Themas:
-    - ALLE Top-Level-Abteilungen (ParentAbteilungID IS NULL)
-    - ALLE untergeordneten Abteilungen (rekursiv) für jede Top-Level-Abteilung
-    
-    Rückgabe: Dictionary mit Gruppierung nach Parent-Abteilung
+    Vollständiger Abteilungsbaum für Sichtbarkeitsauswahl (Schichtbuch, Bestellungen, …):
+    - Alle Top-Level-Abteilungen (ParentAbteilungID IS NULL)
+    - Alle untergeordneten Abteilungen (rekursiv) je Top-Level
+
+    mitarbeiter_id wird der API wegen beibehalten, aktuell ungenutzt.
+
+    Rückgabe: Liste von Gruppen mit jeweils parent + children (mit level).
     """
     # Alle Top-Level-Abteilungen laden (keine Parent-Abteilung)
     top_level_abteilungen = conn.execute('''

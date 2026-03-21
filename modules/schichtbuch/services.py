@@ -421,14 +421,14 @@ def create_thema(gewerk_id, status_id, mitarbeiter_id, taetigkeit_id, bemerkung,
         mitarbeiter_id: ID des Mitarbeiters
         taetigkeit_id: ID der Tätigkeit
         bemerkung: Text der ersten Bemerkung
-        sichtbare_abteilungen: Liste von Abteilungs-IDs für Sichtbarkeit
+        sichtbare_abteilungen: Liste von explizit gewählter Abteilungs-IDs (ohne Auto-Unterabteilungen)
         conn: Datenbankverbindung
         
     Returns:
         Tuple (thema_id, thema_dict) mit der ID und den Thema-Daten
     """
     from utils.helpers import row_to_dict
-    from utils import get_untergeordnete_abteilungen, erstelle_benachrichtigung_fuer_neues_thema
+    from utils import erstelle_benachrichtigung_fuer_neues_thema
     import sqlite3
     
     cur = conn.cursor()
@@ -455,23 +455,13 @@ def create_thema(gewerk_id, status_id, mitarbeiter_id, taetigkeit_id, bemerkung,
         VALUES (?, ?, datetime('now', 'localtime'), ?, ?)
     ''', (thema_id, mitarbeiter_id, taetigkeit_id, bemerkung))
     
-    # Sichtbarkeiten speichern
-    # Alle Abteilungs-IDs sammeln (inkl. Unterabteilungen und Duplikate vermeiden)
+    # Sichtbarkeiten speichern: Primärabteilung (ohne Unterabteilungen) + explizit gewählte IDs
     alle_sichtbarkeits_ids = set()
-    
+    if ersteller_abteilung_id:
+        alle_sichtbarkeits_ids.add(ersteller_abteilung_id)
     if sichtbare_abteilungen:
         for abt_id in sichtbare_abteilungen:
-            abt_id_int = int(abt_id)
-            alle_sichtbarkeits_ids.add(abt_id_int)
-            # Unterabteilungen auch hinzufügen
-            unterabteilungen = get_untergeordnete_abteilungen(abt_id_int, conn)
-            alle_sichtbarkeits_ids.update(unterabteilungen)
-    else:
-        # Fallback: Wenn nichts ausgewählt, nur Ersteller-Abteilung
-        if ersteller_abteilung_id:
-            alle_sichtbarkeits_ids.add(ersteller_abteilung_id)
-            unterabteilungen = get_untergeordnete_abteilungen(ersteller_abteilung_id, conn)
-            alle_sichtbarkeits_ids.update(unterabteilungen)
+            alle_sichtbarkeits_ids.add(int(abt_id))
     
     # Benachrichtigungen für Mitarbeiter in sichtbaren Abteilungen erstellen
     import logging
@@ -652,7 +642,7 @@ def get_thema_erstellung_form_data(mitarbeiter_id, conn):
         - auswaehlbare_abteilungen: Auswählbare Abteilungen
         - primaer_abteilung_id: Primärabteilung des Mitarbeiters
     """
-    from utils import get_auswaehlbare_abteilungen_fuer_neues_thema
+    from utils import get_abteilungsbaum_fuer_sichtbarkeit
     from utils.helpers import row_to_dict
     
     gewerke = conn.execute('''
@@ -675,7 +665,7 @@ def get_thema_erstellung_form_data(mitarbeiter_id, conn):
     primaer_abteilung_id = mitarbeiter['PrimaerAbteilungID'] if mitarbeiter else None
     
     # Auswählbare Abteilungen für Sichtbarkeitssteuerung
-    auswaehlbare_abteilungen = get_auswaehlbare_abteilungen_fuer_neues_thema(mitarbeiter_id, conn)
+    auswaehlbare_abteilungen = get_abteilungsbaum_fuer_sichtbarkeit(mitarbeiter_id, conn)
     
     # Kostenstellen für Dropdown
     kostenstellen = conn.execute('SELECT ID, Bezeichnung FROM Kostenstelle WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung').fetchall()
@@ -703,74 +693,45 @@ def get_thema_sichtbarkeit_data(thema_id, mitarbeiter_id, conn):
     Returns:
         Dictionary mit Sichtbarkeits-Daten im JSON-Format
     """
-    from utils import get_auswaehlbare_abteilungen_fuer_mitarbeiter, get_mitarbeiter_abteilungen, get_untergeordnete_abteilungen
-    from utils.helpers import row_to_dict
+    from utils import get_abteilungsbaum_fuer_sichtbarkeit
     
-    # Primärabteilung des Mitarbeiters
     mitarbeiter = conn.execute(
         'SELECT PrimaerAbteilungID FROM Mitarbeiter WHERE ID = ?',
         (mitarbeiter_id,)
     ).fetchone()
     primaer_abteilung_id = mitarbeiter['PrimaerAbteilungID'] if mitarbeiter else None
     
-    # Auswählbare Abteilungen (eigene + untergeordnete)
-    auswaehlbare = get_auswaehlbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
-    eigene_abteilungen_ids = get_mitarbeiter_abteilungen(mitarbeiter_id, conn)
+    # Gesamter Abteilungsbaum (wie beim Neuanlegen)
+    auswaehlbare = get_abteilungsbaum_fuer_sichtbarkeit(mitarbeiter_id, conn)
     
-    # Aktuell ausgewählte Sichtbarkeiten mit Details
     aktuelle = conn.execute('''
-        SELECT sv.AbteilungID, a.Bezeichnung, a.ParentAbteilungID, a.Sortierung
+        SELECT sv.AbteilungID
         FROM SchichtbuchThemaSichtbarkeit sv
-        JOIN Abteilung a ON sv.AbteilungID = a.ID
         WHERE sv.ThemaID = ?
-        ORDER BY a.Sortierung, a.Bezeichnung
     ''', (thema_id,)).fetchall()
     aktuelle_ids = [a['AbteilungID'] for a in aktuelle]
     
-    # Alle eigenen Abteilungen mit allen Unterabteilungen (für Vergleich)
-    alle_eigene_mit_unter = set()
-    for abt_id in eigene_abteilungen_ids:
-        alle_eigene_mit_unter.update(get_untergeordnete_abteilungen(abt_id, conn))
-    
-    # Alle aktuell zugewiesenen Abteilungen, die NICHT in den eigenen (inkl. Unterabteilungen) sind
-    zusaetzliche_aktuelle = []
-    for akt in aktuelle:
-        if akt['AbteilungID'] not in alle_eigene_mit_unter:
-            # Parent-Abteilung finden (falls vorhanden)
-            parent_info = None
-            if akt['ParentAbteilungID']:
-                parent = conn.execute(
-                    'SELECT ID, Bezeichnung FROM Abteilung WHERE ID = ?',
-                    (akt['ParentAbteilungID'],)
-                ).fetchone()
-                if parent:
-                    parent_info = {'id': parent['ID'], 'name': parent['Bezeichnung']}
-            
-            zusaetzliche_aktuelle.append({
-                'id': akt['AbteilungID'],
-                'name': akt['Bezeichnung'],
-                'parent': parent_info,
-                'is_own': False
-            })
-    
-    # In JSON-Format umwandeln
     auswaehlbare_json = []
     for gruppe in auswaehlbare:
         children_json = []
         for c in gruppe['children']:
-            is_current = c['ID'] in aktuelle_ids
+            cid = c['ID']
+            is_current = cid in aktuelle_ids
+            level = c['level'] if 'level' in c else 0
             children_json.append({
-                'id': c['ID'], 
+                'id': cid,
                 'name': c['Bezeichnung'],
-                'is_current': is_current
+                'is_current': is_current,
+                'level': level,
             })
         
-        is_current_parent = gruppe['parent']['ID'] in aktuelle_ids
+        pid = gruppe['parent']['ID']
+        is_current_parent = pid in aktuelle_ids
         auswaehlbare_json.append({
             'parent': {
-                'id': gruppe['parent']['ID'],
+                'id': pid,
                 'name': gruppe['parent']['Bezeichnung'],
-                'is_primaer': gruppe['parent']['ID'] == primaer_abteilung_id,
+                'is_primaer': pid == primaer_abteilung_id,
                 'is_current': is_current_parent
             },
             'children': children_json
@@ -780,7 +741,7 @@ def get_thema_sichtbarkeit_data(thema_id, mitarbeiter_id, conn):
         'success': True,
         'thema_id': thema_id,
         'auswaehlbare': auswaehlbare_json,
-        'zusaetzliche': zusaetzliche_aktuelle,
+        'zusaetzliche': [],
         'aktuelle': aktuelle_ids
     }
 

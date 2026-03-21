@@ -10,7 +10,7 @@ from .abteilungen import (
     get_sichtbare_abteilungen_fuer_mitarbeiter,
     get_direkte_unterabteilungen,
     get_auswaehlbare_abteilungen_fuer_mitarbeiter,
-    get_auswaehlbare_abteilungen_fuer_neues_thema
+    get_abteilungsbaum_fuer_sichtbarkeit
 )
 from .benachrichtigungen import (
     erstelle_benachrichtigung_fuer_bemerkung,
@@ -55,7 +55,7 @@ __all__ = [
     'get_sichtbare_abteilungen_fuer_mitarbeiter',
     'get_direkte_unterabteilungen',
     'get_auswaehlbare_abteilungen_fuer_mitarbeiter',
-    'get_auswaehlbare_abteilungen_fuer_neues_thema',
+    'get_abteilungsbaum_fuer_sichtbarkeit',
     'erstelle_benachrichtigung_fuer_bemerkung',
     'erstelle_benachrichtigung_fuer_neues_thema',
     'get_firmendaten',
