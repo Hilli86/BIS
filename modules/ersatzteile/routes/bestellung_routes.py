@@ -951,6 +951,151 @@ def bestellung_stornieren(bestellung_id):
     return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
 
 
+@ersatzteile_bp.route('/bestellungen/smart-add/<int:ersatzteil_id>')
+@login_required
+@permission_required('bestellungen_erstellen')
+def bestellung_smart_add(ersatzteil_id):
+    """Smart-Link: Offene Bestellung pro Lieferant oder neue Bestellung; Ersatzteil als Position (JSON)."""
+    mitarbeiter_id = session.get('user_id')
+
+    def insert_position(conn, bestellung_id, et):
+        bestellnummer = et['Bestellnummer']
+        bezeichnung = et['Bezeichnung']
+        einheit = et['Einheit'] if et['Einheit'] else 'Stück'
+        link = et['Link'] if 'Link' in et.keys() and et['Link'] else None
+        preis = et['Preis'] if et['Preis'] is not None else None
+        if preis is not None:
+            waehrung = (et['Waehrung'] or 'EUR') if 'Waehrung' in et.keys() else 'EUR'
+        else:
+            waehrung = 'EUR'
+        conn.execute(
+            '''
+                INSERT INTO BestellungPosition (BestellungID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung, Preis, Waehrung, Link, KostenstelleID)
+                VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''',
+            (
+                bestellung_id,
+                ersatzteil_id,
+                einheit,
+                bestellnummer,
+                bezeichnung,
+                None,
+                preis,
+                waehrung,
+                link,
+                None,
+            ),
+        )
+
+    try:
+        with get_db_connection() as conn:
+            ersatzteil = conn.execute(
+                '''
+                SELECT LieferantID, Bestellnummer, Bezeichnung, Einheit, Link, Preis, Waehrung
+                FROM Ersatzteil WHERE ID = ? AND Gelöscht = 0
+                ''',
+                (ersatzteil_id,),
+            ).fetchone()
+
+            if not ersatzteil:
+                return jsonify({'success': False, 'message': 'Ersatzteil nicht gefunden.'}), 404
+
+            lieferant_id = ersatzteil['LieferantID']
+            if not lieferant_id:
+                return jsonify({'success': False, 'message': 'Dieses Ersatzteil hat keinen Lieferanten zugeordnet.'}), 400
+
+            offene_bestellung = conn.execute(
+                '''
+                SELECT ID FROM Bestellung
+                WHERE LieferantID = ? AND Gelöscht = 0 AND Status IN ('Erstellt', 'Zur Freigabe')
+                ORDER BY ErstelltAm DESC LIMIT 1
+                ''',
+                (lieferant_id,),
+            ).fetchone()
+
+            if offene_bestellung:
+                bestellung_id = offene_bestellung['ID']
+                vorhanden = conn.execute(
+                    '''
+                    SELECT ID FROM BestellungPosition
+                    WHERE BestellungID = ? AND ErsatzteilID = ?
+                    ''',
+                    (bestellung_id, ersatzteil_id),
+                ).fetchone()
+                if vorhanden:
+                    return jsonify(
+                        {
+                            'success': True,
+                            'message': 'Dieses Ersatzteil ist bereits in der offenen Bestellung enthalten.',
+                            'bestellung_id': bestellung_id,
+                            'action': 'bereits_vorhanden',
+                        }
+                    )
+                insert_position(conn, bestellung_id, ersatzteil)
+                conn.commit()
+                return jsonify(
+                    {
+                        'success': True,
+                        'message': f'Ersatzteil zur Bestellung #{bestellung_id} hinzugefügt.',
+                        'bestellung_id': bestellung_id,
+                        'action': 'hinzugefuegt',
+                    }
+                )
+
+            mitarbeiter = conn.execute(
+                'SELECT PrimaerAbteilungID FROM Mitarbeiter WHERE ID = ?',
+                (mitarbeiter_id,),
+            ).fetchone()
+            abteilung_id = mitarbeiter['PrimaerAbteilungID'] if mitarbeiter else None
+
+            cursor = conn.execute(
+                '''
+                INSERT INTO Bestellung (LieferantID, ErstelltVonID, ErstellerAbteilungID, Status, Bemerkung, Prioritaet, ErstelltAm)
+                VALUES (?, ?, ?, 'Erstellt', ?, ?, datetime('now', 'localtime'))
+                ''',
+                (lieferant_id, mitarbeiter_id, abteilung_id, '', 3),
+            )
+            bestellung_id = cursor.lastrowid
+
+            if abteilung_id:
+                try:
+                    conn.execute(
+                        '''
+                        INSERT INTO BestellungSichtbarkeit (BestellungID, AbteilungID)
+                        VALUES (?, ?)
+                        ''',
+                        (bestellung_id, abteilung_id),
+                    )
+                except Exception:
+                    pass
+
+            insert_position(conn, bestellung_id, ersatzteil)
+
+            try:
+                from utils.benachrichtigungen import erstelle_benachrichtigung_fuer_bestellung
+
+                erstelle_benachrichtigung_fuer_bestellung(bestellung_id, 'neue_bestellung', conn)
+            except Exception as e:
+                print(f"Benachrichtigung neue_bestellung (smart-add): {e}")
+
+            conn.commit()
+            return jsonify(
+                {
+                    'success': True,
+                    'message': f'Neue Bestellung #{bestellung_id} erstellt und Ersatzteil hinzugefügt.',
+                    'bestellung_id': bestellung_id,
+                    'action': 'neu_erstellt',
+                }
+            )
+
+    except Exception as e:
+        print(f"Bestellung Smart-Add Fehler: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': f'Fehler: {str(e)}'}), 500
+
+
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/position-hinzufuegen', methods=['POST'])
 @login_required
 def bestellung_position_hinzufuegen(bestellung_id):

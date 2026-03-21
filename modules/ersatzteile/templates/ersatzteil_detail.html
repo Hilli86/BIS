@@ -19,6 +19,11 @@
                 <i class="bi bi-cart-plus"></i> <span class="d-none d-sm-inline">Zu Angebotsanfrage</span>
             </button>
             {% endif %}
+            {% if ersatzteil.LieferantID and ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) %}
+            <button type="button" class="btn btn-sm btn-light" onclick="addToBestellung({{ ersatzteil.ID }}, event)" title="Zur Bestellung hinzufügen">
+                <i class="bi bi-bag-plus"></i> <span class="d-none d-sm-inline">Zur Bestellung</span>
+            </button>
+            {% endif %}
             <button class="btn btn-sm btn-light" type="button"
                     onclick="openQRCodeModal({{ ersatzteil.ID }})"
                     title="QR-Code anzeigen">
@@ -750,6 +755,30 @@ function addToAngebotsanfrage(ersatzteilId, event) {
             button.innerHTML = originalContent;
             console.error('Fehler:', error);
             showToast('Fehler beim Hinzufügen zur Angebotsanfrage.', 'danger');
+        });
+}
+
+function addToBestellung(ersatzteilId, event) {
+    const button = event ? event.target.closest('button') : document.querySelector(`button[onclick*="addToBestellung"][onclick*="${ersatzteilId}"]`);
+    const originalContent = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+    fetch(`{{ url_for('ersatzteile.bestellung_smart_add', ersatzteil_id=0) }}`.replace('/0', `/${ersatzteilId}`), {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+        .then(response => response.json())
+        .then(data => {
+            button.disabled = false;
+            button.innerHTML = originalContent;
+            const toastType = data.success ? 'success' : 'danger';
+            showToast(data.message || 'Unbekannter Fehler', toastType);
+        })
+        .catch(error => {
+            button.disabled = false;
+            button.innerHTML = originalContent;
+            console.error('Fehler:', error);
+            showToast('Fehler beim Hinzufügen zur Bestellung.', 'danger');
         });
 }
 

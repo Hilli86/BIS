@@ -329,6 +329,11 @@
                                     <i class="bi bi-cart-plus"></i>
                                 </button>
                                 {% endif %}
+                                {% if e.LieferantID and ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) %}
+                                <button type="button" class="btn btn-sm btn-outline-info" onclick="addToBestellung({{ e.ID }}, event)" title="Zur Bestellung hinzufügen">
+                                    <i class="bi bi-bag-plus"></i>
+                                </button>
+                                {% endif %}
                                 {% if default_printer and default_label %}
                                 <button type="button" class="btn btn-sm btn-outline-primary" 
                                         onclick="druckeEtikett({{ e.ID }}, event)" 
@@ -426,6 +431,11 @@
                                 <i class="bi bi-cart-plus"></i>
                             </button>
                             {% endif %}
+                            {% if e.LieferantID and ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) %}
+                            <button type="button" class="btn btn-sm btn-outline-info" onclick="addToBestellung({{ e.ID }}, event)" title="Zur Bestellung hinzufügen">
+                                <i class="bi bi-bag-plus"></i>
+                            </button>
+                            {% endif %}
                             {% if default_printer and default_label %}
                             <button type="button" class="btn btn-sm btn-outline-primary" 
                                     onclick="druckeEtikett({{ e.ID }}, event)" 
@@ -460,6 +470,8 @@
 {% endif %}
 
 <script>
+const kannBestellungSmartAdd = {{ ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', []))|tojson }};
+
 function addToAngebotsanfrage(ersatzteilId, event) {
     event.stopPropagation();
     
@@ -487,6 +499,31 @@ function addToAngebotsanfrage(ersatzteilId, event) {
             button.innerHTML = originalContent;
             console.error('Fehler:', error);
             showToast('Fehler beim Hinzufügen zur Angebotsanfrage.', 'danger');
+        });
+}
+
+function addToBestellung(ersatzteilId, event) {
+    event.stopPropagation();
+    const button = event.target.closest('button');
+    const originalContent = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+    fetch(`{{ url_for('ersatzteile.bestellung_smart_add', ersatzteil_id=0) }}`.replace('/0', `/${ersatzteilId}`), {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+        .then(response => response.json())
+        .then(data => {
+            button.disabled = false;
+            button.innerHTML = originalContent;
+            const toastType = data.success ? 'success' : 'danger';
+            showToast(data.message || 'Unbekannter Fehler', toastType);
+        })
+        .catch(error => {
+            button.disabled = false;
+            button.innerHTML = originalContent;
+            console.error('Fehler:', error);
+            showToast('Fehler beim Hinzufügen zur Bestellung.', 'danger');
         });
 }
 
@@ -899,6 +936,7 @@ async function loadMoreErsatzteile() {
                                     <div class="btn-group w-100" role="group">
                                         ${e.kann_bearbeiten ? '<a href="' + bearbeitenUrl + '" class="btn btn-sm btn-outline-warning" title="Artikel bearbeiten"><i class="bi bi-pencil"></i> Bearbeiten</a>' : ''}
                                         ${e.LieferantID ? '<button type="button" class="btn btn-sm btn-outline-success" onclick="addToAngebotsanfrage(' + e.ID + ', event)" title="Zu Angebotsanfrage hinzufügen"><i class="bi bi-cart-plus"></i></button>' : ''}
+                                        ${e.LieferantID && kannBestellungSmartAdd ? '<button type="button" class="btn btn-sm btn-outline-info" onclick="addToBestellung(' + e.ID + ', event)" title="Zur Bestellung hinzufügen"><i class="bi bi-bag-plus"></i></button>' : ''}
                                         ${ersatzteilHasPrinter ? '<button type="button" class="btn btn-sm btn-outline-primary" onclick="druckeEtikett(' + e.ID + ', event)" oncontextmenu="event.preventDefault(); oeffneEtikettKontextmenue(' + e.ID + ', ' + (e.AktuellerBestand || 0) + ', event);" data-lagerbestand="' + (e.AktuellerBestand || 0) + '" title="30x30-Etikett drucken"><i class="bi bi-printer"></i></button>' : ''}
                                     </div>
                                 </div>
@@ -916,6 +954,7 @@ async function loadMoreErsatzteile() {
                         (e.ArtikelfotoPfad ? '<a href="' + detailUrl + '" onclick="event.stopPropagation();"><img src="' + fotoUrl + '" alt="Artikelfoto" class="rounded" style="width: 50px; height: 50px; object-fit: cover;"></a>' : '<span class="text-muted">-</span>') + '</td>';
                     const actionsHtml = (e.kann_bearbeiten ? '<a href="' + bearbeitenUrl + '" class="btn btn-sm btn-outline-warning" title="Artikel bearbeiten"><i class="bi bi-pencil"></i></a>' : '') +
                         (e.LieferantID ? '<button type="button" class="btn btn-sm btn-outline-success" onclick="addToAngebotsanfrage(' + e.ID + ', event)" title="Zu Angebotsanfrage hinzufügen"><i class="bi bi-cart-plus"></i></button>' : '') +
+                        (e.LieferantID && kannBestellungSmartAdd ? '<button type="button" class="btn btn-sm btn-outline-info" onclick="addToBestellung(' + e.ID + ', event)" title="Zur Bestellung hinzufügen"><i class="bi bi-bag-plus"></i></button>' : '') +
                         (ersatzteilHasPrinter ? '<button type="button" class="btn btn-sm btn-outline-primary" onclick="druckeEtikett(' + e.ID + ', event)" oncontextmenu="event.preventDefault(); oeffneEtikettKontextmenue(' + e.ID + ', ' + (e.AktuellerBestand || 0) + ', event);" data-lagerbestand="' + (e.AktuellerBestand || 0) + '" title="30x30-Etikett drucken"><i class="bi bi-printer"></i></button>' : '');
                     const tr = document.createElement('tr');
                     tr.className = warnClass;
