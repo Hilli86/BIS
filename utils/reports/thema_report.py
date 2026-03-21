@@ -10,7 +10,7 @@ from io import BytesIO
 from flask import current_app
 from docxtpl import DocxTemplate
 from utils.firmendaten import get_firmendaten
-from utils.helpers import safe_get
+from utils.helpers import safe_get, format_schichtbuch_datum
 from .pdf_export import convert_docx_to_pdf
 
 try:
@@ -128,12 +128,7 @@ def generate_thema_pdf(thema_id, conn):
     # Bemerkungen für Template vorbereiten
     bemerkungen_liste = []
     for bemerkung in bemerkungen:
-        datum_formatiert = ''
-        if bemerkung['Datum']:
-            try:
-                datum_formatiert = datetime.strptime(bemerkung['Datum'], '%Y-%m-%d %H:%M:%S').strftime('%d.%m.%Y %H:%M')
-            except:
-                datum_formatiert = bemerkung['Datum'][:16] if bemerkung['Datum'] else ''
+        datum_formatiert = format_schichtbuch_datum(bemerkung['Datum']) if bemerkung['Datum'] else ''
         
         mitarbeiter_name = f"{bemerkung['Vorname']} {bemerkung['Nachname']}"
         

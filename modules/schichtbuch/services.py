@@ -411,7 +411,7 @@ def get_verfuegbare_ersatzteile_fuer_thema(mitarbeiter_id, conn, is_admin=False)
 
 
 def create_thema(gewerk_id, status_id, mitarbeiter_id, taetigkeit_id, bemerkung, 
-                 sichtbare_abteilungen, conn):
+                 sichtbare_abteilungen, conn, vorgang_datum=None):
     """
     Erstellt ein neues Thema mit erster Bemerkung und Sichtbarkeiten
     
@@ -423,10 +423,15 @@ def create_thema(gewerk_id, status_id, mitarbeiter_id, taetigkeit_id, bemerkung,
         bemerkung: Text der ersten Bemerkung
         sichtbare_abteilungen: Liste von explizit gewählter Abteilungs-IDs (ohne Auto-Unterabteilungen)
         conn: Datenbankverbindung
+        vorgang_datum: Optional YYYY-MM-DD; dann ErstelltAm und erste Bemerkung ohne Uhrzeit (00:00:00)
         
     Returns:
         Tuple (thema_id, thema_dict) mit der ID und den Thema-Daten
+        
+    Raises:
+        ValueError: Ungültiges Vorgangsdatum
     """
+    from datetime import datetime
     from utils.helpers import row_to_dict
     from utils import erstelle_benachrichtigung_fuer_neues_thema
     import sqlite3
@@ -442,18 +447,38 @@ def create_thema(gewerk_id, status_id, mitarbeiter_id, taetigkeit_id, bemerkung,
     
     ersteller_abteilung_id = mitarbeiter['PrimaerAbteilungID'] if mitarbeiter else None
 
+    vd = (vorgang_datum or '').strip() or None
+    datum_exact = None
+    if vd:
+        try:
+            datum_exact = datetime.strptime(vd, '%Y-%m-%d').strftime('%Y-%m-%d %H:%M:%S')
+        except ValueError as e:
+            raise ValueError('Ungültiges Vorgangsdatum.') from e
+
     # Thema mit Abteilung anlegen
-    cur.execute(
-        'INSERT INTO SchichtbuchThema (GewerkID, StatusID, ErstellerAbteilungID) VALUES (?, ?, ?)',
-        (gewerk_id, status_id, ersteller_abteilung_id)
-    )
+    if datum_exact:
+        cur.execute(
+            'INSERT INTO SchichtbuchThema (GewerkID, StatusID, ErstellerAbteilungID, ErstelltAm) VALUES (?, ?, ?, ?)',
+            (gewerk_id, status_id, ersteller_abteilung_id, datum_exact)
+        )
+    else:
+        cur.execute(
+            'INSERT INTO SchichtbuchThema (GewerkID, StatusID, ErstellerAbteilungID) VALUES (?, ?, ?)',
+            (gewerk_id, status_id, ersteller_abteilung_id)
+        )
     thema_id = cur.lastrowid
 
     # Erste Bemerkung hinzufügen
-    cur.execute('''
-        INSERT INTO SchichtbuchBemerkungen (ThemaID, MitarbeiterID, Datum, TaetigkeitID, Bemerkung)
-        VALUES (?, ?, datetime('now', 'localtime'), ?, ?)
-    ''', (thema_id, mitarbeiter_id, taetigkeit_id, bemerkung))
+    if datum_exact:
+        cur.execute('''
+            INSERT INTO SchichtbuchBemerkungen (ThemaID, MitarbeiterID, Datum, TaetigkeitID, Bemerkung)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (thema_id, mitarbeiter_id, datum_exact, taetigkeit_id, bemerkung))
+    else:
+        cur.execute('''
+            INSERT INTO SchichtbuchBemerkungen (ThemaID, MitarbeiterID, Datum, TaetigkeitID, Bemerkung)
+            VALUES (?, ?, datetime('now', 'localtime'), ?, ?)
+        ''', (thema_id, mitarbeiter_id, taetigkeit_id, bemerkung))
     
     # Sichtbarkeiten speichern: Primärabteilung (ohne Unterabteilungen) + explizit gewählte IDs
     alle_sichtbarkeits_ids = set()
@@ -497,7 +522,8 @@ def create_thema(gewerk_id, status_id, mitarbeiter_id, taetigkeit_id, bemerkung,
             g.Bezeichnung AS Gewerk,
             s.Bezeichnung AS Status,
             ? AS LetzteBemerkung,
-            datetime('now', 'localtime') AS LetzteBemerkungDatum
+            (SELECT MIN(bm.Datum) FROM SchichtbuchBemerkungen bm
+             WHERE bm.ThemaID = t.ID AND bm.Gelöscht = 0) AS LetzteBemerkungDatum
         FROM SchichtbuchThema t
         JOIN Gewerke g ON t.GewerkID = g.ID
         JOIN Bereich b ON g.BereichID = b.ID

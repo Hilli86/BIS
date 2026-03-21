@@ -130,3 +130,28 @@ def build_ersatzteil_zugriff_filter(base_query, mitarbeiter_id, sichtbare_abteil
     
     return query, query_params
 
+
+def format_schichtbuch_datum(s):
+    """
+    Formatiert ein Schichtbuch-Datum aus SQLite (TEXT/DATETIME).
+    Werte mit Uhrzeit 00:00:00 gelten als reines Kalenderdatum (Vorgangsdatum).
+    """
+    from datetime import datetime
+
+    if not s:
+        return ''
+    s = str(s).strip()
+    if len(s) >= 19 and s[10:19] == ' 00:00:00':
+        try:
+            return datetime.strptime(s[:10], '%Y-%m-%d').strftime('%d.%m.%Y')
+        except ValueError:
+            return s[:10] if len(s) >= 10 else s
+    for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M'):
+        try:
+            n = 19 if fmt == '%Y-%m-%d %H:%M:%S' else 16
+            dt = datetime.strptime(s[:n], fmt)
+            return dt.strftime('%d.%m.%Y %H:%M')
+        except ValueError:
+            continue
+    return s
+

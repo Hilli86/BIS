@@ -54,6 +54,14 @@
     </div>
 
     <div class="mb-3">
+        <label for="vorgang_datum" class="form-label">Vorgangsdatum (optional)</label>
+        <input type="date" class="form-control" id="vorgang_datum" name="vorgang_datum">
+        <div class="form-text text-muted">
+            Leer lassen: Speicherung mit aktueller Uhrzeit. Datum wählen: Speicherung nur als Kalendertag (ohne Uhrzeit).
+        </div>
+    </div>
+
+    <div class="mb-3">
         <label for="bemerkung" class="form-label">Erste Bemerkung</label>
         <textarea class="form-control" id="bemerkung" name="bemerkung" rows="4" required></textarea>
     </div>
@@ -167,6 +175,18 @@
 </table>
 
 <script>
+    function formatSchichtbuchDatum(s) {
+        if (!s) return '';
+        const str = String(s).trim();
+        if (str.length >= 19 && str.slice(10, 19) === ' 00:00:00') {
+            const p = str.slice(0, 10).split('-');
+            return `${p[2]}.${p[1]}.${p[0]}`;
+        }
+        const m = str.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+        if (m) return `${m[3]}.${m[2]}.${m[1]} ${m[4]}:${m[5]}`;
+        return str;
+    }
+
     // Kostenstellen für JavaScript verfügbar machen
     const kostenstellen = [
         {% for k in kostenstellen %}
@@ -249,7 +269,7 @@
             <td>${t.Bereich}</td>
             <td>${t.Gewerk}</td>
             <td>${t.Status}</td>
-            <td>${t.LetzteBemerkung ? t.LetzteBemerkung + '<br><small class="text-muted">' + t.LetzteBemerkungDatum + '</small>' : '-'}</td>
+            <td>${t.LetzteBemerkung ? t.LetzteBemerkung + '<br><small class="text-muted">' + formatSchichtbuchDatum(t.LetzteBemerkungDatum) + '</small>' : '-'}</td>
         `;
         return row;
     }
@@ -654,11 +674,12 @@
             method: 'POST',
             body: formData
         })
-        .then(response => {
+        .then(async response => {
+            const data = await response.json().catch(() => ({}));
             if (!response.ok) {
-                throw new Error('Server-Fehler: ' + response.status);
+                throw new Error(data.error || ('Server-Fehler: ' + response.status));
             }
-            return response.json();
+            return data;
         })
         .then(neuesThema => {
             // Formular leeren
@@ -684,6 +705,7 @@
         })
         .catch(err => {
             console.error('Fehler beim Speichern:', err);
+            alert(err.message || 'Speichern fehlgeschlagen.');
         })
         .finally(() => {
             // Button wieder aktivieren

@@ -49,6 +49,13 @@ def file_extension(filename):
     return parts[1].lower() if len(parts) > 1 else ''
 
 
+@app.template_filter('schichtbuch_datum')
+def schichtbuch_datum_filter(value):
+    """Schichtbuch-Datum: bei 00:00:00 nur Tag, sonst Tag + Uhrzeit."""
+    from utils.helpers import format_schichtbuch_datum
+    return format_schichtbuch_datum(value)
+
+
 @app.before_request
 def _ensure_menue_sichtbarkeit():
     """Lädt user_menue_sichtbarkeit für eingeloggte Benutzer (auch nach Admin-Änderungen)."""

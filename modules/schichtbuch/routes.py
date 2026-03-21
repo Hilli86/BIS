@@ -252,27 +252,31 @@ def themaneu():
         status_id = request.form['status']
         bemerkung = request.form['bemerkung']
         sichtbare_abteilungen = request.form.getlist('sichtbare_abteilungen')
+        vorgang_datum = (request.form.get('vorgang_datum') or '').strip() or None
 
-        with get_db_connection() as conn:
-            # Thema erstellen über Service
-            thema_id, thema_dict = services.create_thema(
-                gewerk_id, status_id, mitarbeiter_id, taetigkeit_id, bemerkung,
-                sichtbare_abteilungen, conn
-            )
-            
-            # Ersatzteile verarbeiten
-            ersatzteil_ids = request.form.getlist('ersatzteil_id[]')
-            ersatzteil_mengen = request.form.getlist('ersatzteil_menge[]')
-            ersatzteil_bemerkungen = request.form.getlist('ersatzteil_bemerkung[]')
-            ersatzteil_kostenstellen = request.form.getlist('ersatzteil_kostenstelle[]')
-            
-            is_admin = 'admin' in session.get('user_berechtigungen', [])
-            services.process_ersatzteile_fuer_thema(
-                thema_id, ersatzteil_ids, ersatzteil_mengen, ersatzteil_bemerkungen,
-                mitarbeiter_id, conn, is_admin=is_admin, ersatzteil_kostenstellen=ersatzteil_kostenstellen
-            )
+        try:
+            with get_db_connection() as conn:
+                # Thema erstellen über Service
+                thema_id, thema_dict = services.create_thema(
+                    gewerk_id, status_id, mitarbeiter_id, taetigkeit_id, bemerkung,
+                    sichtbare_abteilungen, conn, vorgang_datum=vorgang_datum
+                )
 
-            conn.commit()
+                # Ersatzteile verarbeiten
+                ersatzteil_ids = request.form.getlist('ersatzteil_id[]')
+                ersatzteil_mengen = request.form.getlist('ersatzteil_menge[]')
+                ersatzteil_bemerkungen = request.form.getlist('ersatzteil_bemerkung[]')
+                ersatzteil_kostenstellen = request.form.getlist('ersatzteil_kostenstelle[]')
+
+                is_admin = 'admin' in session.get('user_berechtigungen', [])
+                services.process_ersatzteile_fuer_thema(
+                    thema_id, ersatzteil_ids, ersatzteil_mengen, ersatzteil_bemerkungen,
+                    mitarbeiter_id, conn, is_admin=is_admin, ersatzteil_kostenstellen=ersatzteil_kostenstellen
+                )
+
+                conn.commit()
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
 
         # Für AJAX → JSON zurückgeben
         return jsonify(thema_dict)
