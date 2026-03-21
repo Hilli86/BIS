@@ -1,4 +1,5 @@
 {% extends "layout/base.html" %}
+{% from "components/datei_upload.html" import originale_loeschen_checkbox %}
 
 {% block content %}
 <h1 class="mb-4">🔧 Ersatzteil {{ ersatzteil.ID }} bearbeiten</h1>
@@ -204,6 +205,7 @@
                                accept="image/png,image/jpeg,image/jpg,image/gif,image/webp">
                         <small class="form-text text-muted">Erlaubte Formate: PNG, JPG, JPEG, GIF, WEBP (max. 16 MB). Das Foto wird beim Speichern hochgeladen.</small>
                     </div>
+                    {{ originale_loeschen_checkbox('_bearbeiten_artikelfoto') }}
                 </div>
 
                 <!-- 6. Sichtbarkeit -->

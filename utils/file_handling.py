@@ -181,3 +181,37 @@ def move_file_safe(source_path, target_path, create_unique_name=True):
         print(f"Fehler beim Verschieben: {error_details}")
         return False, None, f"Fehler beim Verschieben: {str(e)}"
 
+
+def originale_loeschen_aus_formular():
+    """
+    Checkbox „Originale löschen“ (hidden 0 + optional checkbox 1).
+    Standard: aktiv (True), wenn das Feld fehlt (z. B. ältere Clients).
+    """
+    from flask import request
+
+    vals = request.form.getlist('originale_loeschen')
+    if not vals:
+        return True
+    return vals[-1] == '1'
+
+
+def loesche_import_kopie_nach_upload(original_filename, import_folder, aktiviert=True):
+    """
+    Entfernt nach erfolgreichem Upload eine gleichnamige Datei im Import-Ordner (falls vorhanden).
+    """
+    if not aktiviert or not original_filename or not import_folder:
+        return
+    base = os.path.basename(original_filename)
+    if not base or base in ('.', '..'):
+        return
+    full = os.path.join(import_folder, base)
+    import_abs = os.path.abspath(import_folder)
+    full_abs = os.path.abspath(full)
+    if not full_abs.startswith(import_abs + os.sep):
+        return
+    if os.path.isfile(full_abs):
+        try:
+            os.remove(full_abs)
+        except OSError:
+            pass
+

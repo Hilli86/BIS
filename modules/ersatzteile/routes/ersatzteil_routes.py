@@ -10,7 +10,13 @@ from werkzeug.utils import secure_filename
 from .. import ersatzteile_bp
 from utils import get_db_connection, login_required, get_sichtbare_abteilungen_fuer_mitarbeiter
 from utils.helpers import build_ersatzteil_zugriff_filter, row_to_dict
-from utils.file_handling import save_uploaded_file, create_upload_folder, validate_file_extension
+from utils.file_handling import (
+    save_uploaded_file,
+    create_upload_folder,
+    validate_file_extension,
+    originale_loeschen_aus_formular,
+    loesche_import_kopie_nach_upload,
+)
 from ..services import (
     build_ersatzteil_liste_query, 
     get_ersatzteil_liste_filter_options, 
@@ -712,6 +718,11 @@ def ersatzteil_bearbeiten(ersatzteil_id):
                                     # Datenbank aktualisieren
                                     relative_path = f'Ersatzteile/{ersatzteil_id}/{saved_filename}'
                                     conn.execute('UPDATE Ersatzteil SET ArtikelfotoPfad = ? WHERE ID = ?', (relative_path, ersatzteil_id))
+                                    loesche_import_kopie_nach_upload(
+                                        original_filename,
+                                        current_app.config['IMPORT_FOLDER'],
+                                        originale_loeschen_aus_formular(),
+                                    )
                                     flash('Artikelfoto erfolgreich hochgeladen.', 'success')
                                 else:
                                     flash(f'Fehler beim Hochladen des Artikelfotos: {error_message}', 'warning')
@@ -899,6 +910,11 @@ def ersatzteil_datei_upload(ersatzteil_id):
                         mitarbeiter_id=mitarbeiter_id,
                         conn=conn
                     )
+                    loesche_import_kopie_nach_upload(
+                        original_filename,
+                        current_app.config['IMPORT_FOLDER'],
+                        originale_loeschen_aus_formular(),
+                    )
                     
                     erfolgreich += 1
                 except Exception as e:
@@ -1024,6 +1040,11 @@ def ersatzteil_artikelfoto_upload(ersatzteil_id):
             conn.execute('UPDATE Ersatzteil SET ArtikelfotoPfad = ? WHERE ID = ?', (relative_path, ersatzteil_id))
             conn.commit()
             
+            loesche_import_kopie_nach_upload(
+                original_filename,
+                current_app.config['IMPORT_FOLDER'],
+                originale_loeschen_aus_formular(),
+            )
             flash('Artikelfoto erfolgreich hochgeladen.', 'success')
             
     except Exception as e:

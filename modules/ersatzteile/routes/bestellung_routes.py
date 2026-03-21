@@ -8,7 +8,13 @@ import os
 from werkzeug.utils import secure_filename
 from .. import ersatzteile_bp
 from utils import get_db_connection, login_required, permission_required, get_sichtbare_abteilungen_fuer_mitarbeiter, ist_admin
-from utils.file_handling import save_uploaded_file, validate_file_extension, create_upload_folder
+from utils.file_handling import (
+    save_uploaded_file,
+    validate_file_extension,
+    create_upload_folder,
+    originale_loeschen_aus_formular,
+    loesche_import_kopie_nach_upload,
+)
 from utils.reports import generate_bestellung_pdf
 from ..services import get_dateien_fuer_bereich
 
@@ -1480,6 +1486,11 @@ def bestellung_datei_upload(bestellung_id):
                     mitarbeiter_id=mitarbeiter_id,
                     conn=conn
                 )
+                loesche_import_kopie_nach_upload(
+                    original_filename,
+                    current_app.config['IMPORT_FOLDER'],
+                    originale_loeschen_aus_formular(),
+                )
                 flash('Datei erfolgreich hochgeladen.', 'success')
     except Exception as e:
         flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
@@ -1556,6 +1567,11 @@ def bestellung_auftragsbestätigung_upload(bestellung_id):
                 mitarbeiter_id=mitarbeiter_id,
                 conn=conn
             )
+            loesche_import_kopie_nach_upload(
+                original_filename,
+                current_app.config['IMPORT_FOLDER'],
+                originale_loeschen_aus_formular(),
+            )
             flash('Auftragsbestätigung erfolgreich hochgeladen.', 'success')
     except Exception as e:
         flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
@@ -1588,6 +1604,7 @@ def bestellung_lieferschein_upload(bestellung_id):
     beschreibung = request.form.get('beschreibung', '').strip()
     erfolgreich = 0
     fehler = 0
+    originale_loeschen = originale_loeschen_aus_formular()
     
     try:
         from ..services import speichere_datei, get_datei_typ_aus_dateiname
@@ -1630,6 +1647,11 @@ def bestellung_lieferschein_upload(bestellung_id):
                         mitarbeiter_id=mitarbeiter_id,
                         conn=conn
                     )
+                loesche_import_kopie_nach_upload(
+                    original_filename,
+                    current_app.config['IMPORT_FOLDER'],
+                    originale_loeschen,
+                )
                 erfolgreich += 1
             except Exception as e:
                 fehler += 1
@@ -1670,6 +1692,7 @@ def bestellung_rechnung_upload(bestellung_id):
     beschreibung = request.form.get('beschreibung', '').strip()
     erfolgreich = 0
     fehler = 0
+    originale_loeschen = originale_loeschen_aus_formular()
     
     try:
         from ..services import speichere_datei, get_datei_typ_aus_dateiname
@@ -1712,6 +1735,11 @@ def bestellung_rechnung_upload(bestellung_id):
                         mitarbeiter_id=mitarbeiter_id,
                         conn=conn
                     )
+                loesche_import_kopie_nach_upload(
+                    original_filename,
+                    current_app.config['IMPORT_FOLDER'],
+                    originale_loeschen,
+                )
                 erfolgreich += 1
             except Exception as e:
                 fehler += 1

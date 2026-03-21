@@ -8,7 +8,7 @@ import re
 from flask import render_template, send_from_directory, current_app, abort, request, flash, redirect, url_for, session
 from . import produktion_bp
 from utils.decorators import login_required, guest_allowed, permission_required
-from utils.file_handling import save_uploaded_file, create_upload_folder
+from utils.file_handling import save_uploaded_file, create_upload_folder, originale_loeschen_aus_formular, loesche_import_kopie_nach_upload
 
 
 def get_artikeleinstellungen_struktur():
@@ -125,6 +125,7 @@ def etikettierung_foto_upload():
         flash('Keine Datei ausgewählt.', 'danger')
         return redirect(url_for('produktion.etikettierung'))
 
+    original_filename = file.filename
     allowed_image_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
     file_ext = os.path.splitext(file.filename)[1].lower().lstrip('.')
     if file_ext not in allowed_image_extensions:
@@ -157,6 +158,11 @@ def etikettierung_foto_upload():
     if not success or error_message:
         flash(f'Fehler beim Hochladen: {error_message}', 'danger')
     else:
+        loesche_import_kopie_nach_upload(
+            original_filename,
+            current_app.config['IMPORT_FOLDER'],
+            originale_loeschen_aus_formular(),
+        )
         flash('bizerba.jpg erfolgreich aktualisiert.', 'success')
 
     return redirect(url_for('produktion.etikettierung'))

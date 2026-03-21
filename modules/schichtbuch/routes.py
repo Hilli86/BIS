@@ -13,6 +13,7 @@ from utils.helpers import build_sichtbarkeits_filter_query, row_to_dict
 from utils.reports import generate_thema_pdf
 from . import services
 from modules.ersatzteile.services import get_dateien_fuer_bereich, speichere_datei, get_datei_typ_aus_dateiname, loesche_datei
+from utils.file_handling import save_uploaded_file, create_upload_folder, originale_loeschen_aus_formular, loesche_import_kopie_nach_upload
 
 
 def get_datei_anzahl(thema_id):
@@ -692,9 +693,6 @@ def thema_datei_upload(thema_id):
     if file.filename == '':
         return jsonify({'success': False, 'message': 'Keine Datei ausgewählt'}), 400
     
-    # File-Upload mit Utility-Funktion
-    from utils.file_handling import save_uploaded_file, create_upload_folder
-    
     thema_folder = os.path.join(current_app.config['SCHICHTBUCH_UPLOAD_FOLDER'], str(thema_id))
     create_upload_folder(thema_folder)
     
@@ -728,6 +726,11 @@ def thema_datei_upload(thema_id):
                 mitarbeiter_id=user_id,
                 conn=conn
             )
+        loesche_import_kopie_nach_upload(
+            original_filename,
+            current_app.config['IMPORT_FOLDER'],
+            originale_loeschen_aus_formular(),
+        )
         
         return jsonify({
             'success': True, 

@@ -8,7 +8,13 @@ import os
 from werkzeug.utils import secure_filename
 from .. import ersatzteile_bp
 from utils import get_db_connection, login_required, permission_required, get_sichtbare_abteilungen_fuer_mitarbeiter
-from utils.file_handling import save_uploaded_file, validate_file_extension, create_upload_folder
+from utils.file_handling import (
+    save_uploaded_file,
+    validate_file_extension,
+    create_upload_folder,
+    originale_loeschen_aus_formular,
+    loesche_import_kopie_nach_upload,
+)
 from ..services import get_dateien_fuer_bereich, speichere_datei, get_datei_typ_aus_dateiname, drucke_ersatzteil_etikett_intern
 
 
@@ -304,6 +310,7 @@ def lieferschein_upload(bestellung_id):
     """Lieferschein-Upload für Wareneingang (PDF, JPEG, JPG, PNG) - unterstützt mehrere Dateien"""
     mitarbeiter_id = session.get('user_id')
     beschreibung = request.form.get('beschreibung', '').strip()
+    originale_loeschen = originale_loeschen_aus_formular()
     
     files = request.files.getlist('file')
     if not files or all(f.filename == '' for f in files):
@@ -355,6 +362,11 @@ def lieferschein_upload(bestellung_id):
                         typ=get_datei_typ_aus_dateiname(original_filename),
                         mitarbeiter_id=mitarbeiter_id,
                         conn=conn
+                    )
+                    loesche_import_kopie_nach_upload(
+                        original_filename,
+                        current_app.config['IMPORT_FOLDER'],
+                        originale_loeschen,
                     )
                     
                     erfolgreich += 1

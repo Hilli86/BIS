@@ -1,4 +1,16 @@
 {#
+    Macro: originale_loeschen_checkbox
+    Checkbox „Originale löschen“ für Upload-Formulare (Standard: aktiv).
+#}
+{% macro originale_loeschen_checkbox(field_id_suffix='') %}
+                <div class="form-check mb-3">
+                    <input type="hidden" name="originale_loeschen" value="0">
+                    <input class="form-check-input" type="checkbox" name="originale_loeschen" value="1" id="originale_loeschen{{ field_id_suffix }}" checked>
+                    <label class="form-check-label" for="originale_loeschen{{ field_id_suffix }}">Originale löschen</label>
+                </div>
+{% endmacro %}
+
+{#
     Macro: datei_upload
     Zeigt ein Upload-Formular mit Tabs für Hochladen und Import
     
@@ -79,6 +91,7 @@
                     <input type="text" name="typ" class="form-control" placeholder="z.B. Datenblatt, Anleitung">
                 </div>
                 {% endif %}
+                {{ originale_loeschen_checkbox('_' ~ upload_tab_id) }}
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-upload"></i> Hochladen
                 </button>

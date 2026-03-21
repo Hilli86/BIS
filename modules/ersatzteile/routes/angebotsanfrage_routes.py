@@ -8,7 +8,12 @@ import os
 from werkzeug.utils import secure_filename
 from .. import ersatzteile_bp
 from utils import get_db_connection, login_required, log_info, log_error, log_warning
-from utils.file_handling import save_uploaded_file, create_upload_folder
+from utils.file_handling import (
+    save_uploaded_file,
+    create_upload_folder,
+    originale_loeschen_aus_formular,
+    loesche_import_kopie_nach_upload,
+)
 from utils.reports import generate_angebotsanfrage_pdf
 from ..services import get_dateien_fuer_bereich, speichere_datei, get_datei_typ_aus_dateiname
 
@@ -1205,6 +1210,11 @@ def angebotsanfrage_datei_upload(angebotsanfrage_id):
                 typ='PDF',
                 mitarbeiter_id=mitarbeiter_id,
                 conn=conn
+            )
+            loesche_import_kopie_nach_upload(
+                original_filename,
+                current_app.config['IMPORT_FOLDER'],
+                originale_loeschen_aus_formular(),
             )
             
             flash('PDF erfolgreich hochgeladen.', 'success')
