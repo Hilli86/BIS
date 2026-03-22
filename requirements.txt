@@ -8,9 +8,12 @@ blinker==1.9.0
 colorama==0.4.6
 reportlab==4.2.2
 qrcode==7.4.2
-Pillow
+Pillow==11.2.1
 docxtpl
 docx2pdf
 pywebpush
 fido2
+
+# Tests (CI / lokale Qualitätssicherung)
+pytest==8.3.5
 

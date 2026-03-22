@@ -1,0 +1,20 @@
+---
+description: Jinja2-Templates (BIS)
+globs: "**/*.html"
+alwaysApply: false
+---
+
+# Jinja2-Templates
+
+- **Layout:** Neue Seiten erweitern das bestehende Basis-Template, z. B. `{% extends "layout/base.html" %}`; Inhalte in `{% block %}`-Blöcken.
+- **Links & Assets:** `url_for('static', filename='...')` für statische Dateien; `url_for` mit korrektem Blueprint-Endpunkt für interne Links.
+- **XSS:** Keine Roh-HTML aus Benutzereingaben ohne Absicherung. `|safe` nur nutzen, wenn die Quelle vertrauenswürdig ist oder explizit bereinigt wurde; sonst Standard-Escaping von Jinja beibehalten.
+- **Keine Secrets** (API-Keys, Passwörter) in Templates oder inline in JS-Blöcken.
+
+```jinja
+{# ❌ SCHLECHT – ungeprüfte User-Daten als HTML #}
+{{ user_html|safe }}
+
+{# ✅ BESSER – nur wenn Inhalt wirklich sicher ist; sonst ohne |safe #}
+{{ beschreibung }}
+```

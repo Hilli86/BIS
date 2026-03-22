@@ -1,0 +1,11 @@
+---
+description: BIS-Grundlagen – Stack, Module, keine unnötigen Refactors
+alwaysApply: true
+---
+
+# BIS – Kern
+
+- **Stack:** Flask, modulare **Blueprints** unter `modules/<modul>/`, zentrale App in [`app.py`](app.py) (Registrierung, globale Hooks, Jinja-Filter).
+- **Änderungen fokussieren:** Nur das anfassen, was die Aufgabe braucht. Keine „Mitnahme-Refactors“ oder Stil-Umbauten in fremden Modulen.
+- **Neue Blueprints:** Unterordner in `modules/`, Blueprint in `__init__.py`, Routen importieren; in `app.py` importieren und `app.register_blueprint(...)` ergänzen (siehe bestehende Blueprints).
+- **Sprache der KI-Antworten:** nicht hier wiederholen – gilt über globale User-Rules.

@@ -1,0 +1,21 @@
+---
+description: Flask-Blueprints und Routen im BIS
+globs: modules/**/*.py
+alwaysApply: false
+---
+
+# Flask-Blueprints
+
+- **Blueprint-Namen** konsistent zu den bestehenden Modulen (z. B. `ersatzteile_bp`, `dashboard_bp`); `url_prefix` im `Blueprint(...)` setzen, nicht doppelt in jeder Route.
+- **`url_for`:** immer mit Blueprint-Endpunkt, z. B. `url_for('dashboard.dashboard')`, `url_for('auth.login')` – nicht nur Funktionsnamen ohne Präfix.
+
+```python
+# ❌ SCHLECHT
+url_for('login')
+
+# ✅ GUT
+url_for('auth.login')
+```
+
+- **Auth / Rechte:** Vorhandene Dekoratoren und Muster aus `modules/auth/` und z. B. `@admin_required` wiederverwenden statt neue Session-Logik zu erfinden.
+- **Templates:** `template_folder` am Blueprint nutzen (wie bei `auth_bp`), Pfade an bestehende Module anlehnen.

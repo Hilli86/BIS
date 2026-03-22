@@ -8,7 +8,7 @@ Hauptdatei - nur Initialisierung und Blueprint-Registrierung
 from flask import Flask, render_template, session, redirect, url_for, request
 from werkzeug.middleware.proxy_fix import ProxyFix
 import os
-from config import config
+from config import config, DEV_SECRET_KEY_FALLBACK
 
 # Flask App initialisieren
 app = Flask(__name__)
@@ -20,6 +20,15 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 # Konfiguration laden
 config_name = os.environ.get('FLASK_ENV', 'default')
 app.config.from_object(config[config_name])
+
+# Produktion: Session-Sicherheit – kein Default-Schlüssel
+if config_name == 'production':
+    sk = app.config.get('SECRET_KEY')
+    if not sk or sk == DEV_SECRET_KEY_FALLBACK:
+        raise RuntimeError(
+            'Produktion (FLASK_ENV=production): SECRET_KEY muss per Umgebungsvariable gesetzt sein '
+            'und darf nicht dem Entwicklungs-Default entsprechen.'
+        )
 
 # Datenbank-Prüfung beim Start
 with app.app_context():

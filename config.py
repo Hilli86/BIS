@@ -1,11 +1,15 @@
 import os
 from datetime import timedelta
 
+# Nur für lokale Entwicklung; in Produktion muss SECRET_KEY per Umgebungsvariable gesetzt sein.
+DEV_SECRET_KEY_FALLBACK = 'dev-key-change-in-production-12345'
+
+
 class Config:
     """Basis-Konfiguration für die Flask-Anwendung"""
     
     # Sicherheit
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-key-change-in-production-12345'
+    SECRET_KEY = os.environ.get('SECRET_KEY') or DEV_SECRET_KEY_FALLBACK
     
     # Datenbank
     DATABASE_URL = os.environ.get('DATABASE_URL') or 'database_main.db'

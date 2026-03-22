@@ -1,0 +1,12 @@
+---
+description: Sicherheit – Flask, Sessions, Uploads, Proxy
+globs: "**/*.py"
+alwaysApply: false
+---
+
+# Sicherheit (Flask / BIS)
+
+- **Reverse-Proxy / HTTPS:** Die App nutzt [`ProxyFix`](app.py) (`X-Forwarded-Proto` etc.). Bei generierten absoluten URLs sicherstellen, dass die Umgebung (Proxy-Header, `PREFERRED_URL_SCHEME` falls gesetzt) zu Deployment und HTTPS passt.
+- **Sessions:** `SECRET_KEY` und Konfiguration aus `config` – niemals Secrets ins Repo committen; bestehende Login-/Session-Muster in `modules/auth/` beibehalten.
+- **Uploads / Dateien:** Nur erlaubte Pfade und Dateitypen; keine beliebigen Serverpfade aus User-Input; bestehende Hilfen in `utils` / Modulen (z. B. Datei-Handling) nutzen.
+- **CSRF:** Aktuell kein Flask-WTF/CSRF im Projekt sichtbar – neue Formular-Endpunkte wie bestehende Routen absichern; wenn CSRF eingeführt wird, projektweit einheitlich.
