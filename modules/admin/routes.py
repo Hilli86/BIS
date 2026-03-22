@@ -10,6 +10,7 @@ from . import admin_bp
 from utils import get_db_connection, admin_required
 from utils.zebra_client import send_zpl_to_printer, build_test_label
 from utils.helpers import row_to_dict
+from utils.menue_definitions import get_alle_menue_definitionen, get_menue_sichtbarkeit_fuer_mitarbeiter
 
 
 def ajax_response(message, success=True, status_code=None):
@@ -123,6 +124,11 @@ def dashboard():
                 if m['ID'] not in mitarbeiter_menue_sichtbarkeit:
                     mitarbeiter_menue_sichtbarkeit[m['ID']] = {}
 
+        # Effektive Menü-Sichtbarkeit (wie in der Sidebar) pro Mitarbeiter
+        mitarbeiter_menue_effektiv = {}
+        for m in mitarbeiter:
+            mitarbeiter_menue_effektiv[m['ID']] = get_menue_sichtbarkeit_fuer_mitarbeiter(m['ID'], conn)
+
         # Zebra-Drucker und Etikettenformate laden
         zebra_printers = conn.execute('''
             SELECT id, name, ip_address, description, active
@@ -145,7 +151,6 @@ def dashboard():
             ORDER BY e.bezeichnung
         ''').fetchall()
 
-    from utils.menue_definitions import get_alle_menue_definitionen
     menue_definitionen = get_alle_menue_definitionen()
 
     return render_template('admin.html',
@@ -153,6 +158,7 @@ def dashboard():
                            mitarbeiter_abteilungen=mitarbeiter_abteilungen,
                            mitarbeiter_berechtigungen=mitarbeiter_berechtigungen,
                            mitarbeiter_menue_sichtbarkeit=mitarbeiter_menue_sichtbarkeit,
+                           mitarbeiter_menue_effektiv=mitarbeiter_menue_effektiv,
                            menue_definitionen=menue_definitionen,
                            abteilungen=abteilungen,
                            bereiche=bereiche,
@@ -1989,12 +1995,11 @@ def mitarbeiter_menue_sichtbarkeit(mid):
             if not mitarbeiter:
                 return ajax_response('Mitarbeiter nicht gefunden.', success=False, status_code=404)
 
-            from utils.menue_definitions import get_alle_menue_definitionen
             menue_defs = get_alle_menue_definitionen()
 
             for m in menue_defs:
                 schluessel = m['schluessel']
-                wert = request.form.get(f'menue_{schluessel}')
+                wert = request.form.get(f'm{mid}_menue_{schluessel}')
                 conn.execute('''
                     DELETE FROM MitarbeiterMenueSichtbarkeit
                     WHERE MitarbeiterID = ? AND MenueSchluessel = ?

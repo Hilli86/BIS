@@ -170,23 +170,62 @@
                   <i class="bi bi-list-ul"></i> Menü-Sichtbarkeit
                 </button>
                 <div class="collapse mt-2" id="menue{{ m.ID }}" data-bs-parent="#accordion{{ m.ID }}">
-                  <form action="{{ url_for('admin.mitarbeiter_menue_sichtbarkeit', mid=m.ID) }}" method="post" class="border p-2 rounded bg-light">
-                    <label class="form-label fw-bold">Sichtbarkeit der Menüpunkte:</label>
-                    <small class="text-muted d-block mb-2">Standard = Berechtigungslogik, Einblenden/Ausblenden = explizite Einstellung</small>
-                    {% for menue in menue_definitionen %}
+                  <form action="{{ url_for('admin.mitarbeiter_menue_sichtbarkeit', mid=m.ID) }}" method="post" class="border p-2 rounded bg-light admin-menue-sichtbarkeit-form">
+                    <label class="form-label fw-bold">Sichtbarkeit der Menüpunkte</label>
+                    <p class="small text-muted mb-2">
+                      <strong>Aktuell (Sidebar):</strong> tatsächliche Anzeige nach Berechtigungen und Override.
+                      <strong>Override:</strong> Standard = wie von den Berechtigungen vorgesehen; Einblenden/Ausblenden = fest vorgeben.
+                    </p>
                     {% set ma_sicht = mitarbeiter_menue_sichtbarkeit.get(m.ID, {}) %}
-                    {% set akt_wert = ma_sicht.get(menue.schluessel) %}
-                    <div class="form-check form-check-inline mb-1">
-                      <span class="me-2" style="min-width: 140px;">{{ menue.bezeichnung }}:</span>
-                      <input class="form-check-input" type="radio" name="menue_{{ menue.schluessel }}" id="menue{{ m.ID }}_{{ menue.schluessel }}_std" value="" {% if akt_wert is none %}checked{% endif %}>
-                      <label class="form-check-label me-2" for="menue{{ m.ID }}_{{ menue.schluessel }}_std">Standard</label>
-                      <input class="form-check-input" type="radio" name="menue_{{ menue.schluessel }}" id="menue{{ m.ID }}_{{ menue.schluessel }}_1" value="1" {% if akt_wert %}checked{% endif %}>
-                      <label class="form-check-label me-2" for="menue{{ m.ID }}_{{ menue.schluessel }}_1">Einblenden</label>
-                      <input class="form-check-input" type="radio" name="menue_{{ menue.schluessel }}" id="menue{{ m.ID }}_{{ menue.schluessel }}_0" value="0" {% if akt_wert is not none and not akt_wert %}checked{% endif %}>
-                      <label class="form-check-label" for="menue{{ m.ID }}_{{ menue.schluessel }}_0">Ausblenden</label>
+                    {% set ma_eff = mitarbeiter_menue_effektiv.get(m.ID, {}) %}
+                    <div class="table-responsive" style="max-width: 100%;">
+                      <table class="table table-sm table-bordered align-middle mb-2">
+                        <thead class="table-light">
+                          <tr>
+                            <th scope="col">Menüpunkt</th>
+                            <th scope="col" class="text-nowrap">Aktuell (Sidebar)</th>
+                            <th scope="col">Override</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {% for menue in menue_definitionen %}
+                          {% set akt_wert = ma_sicht.get(menue.schluessel) %}
+                          {% set eff = ma_eff.get(menue.schluessel, false) %}
+                          {% set fname = 'm' ~ m.ID ~ '_menue_' ~ menue.schluessel %}
+                          <tr>
+                            <td>
+                              {{ menue.bezeichnung }}
+                              {% if menue.gruppe %}<span class="text-muted small d-block">{{ menue.gruppe }}</span>{% endif %}
+                            </td>
+                            <td>
+                              {% if eff %}
+                                <span class="badge bg-success">sichtbar</span>
+                              {% else %}
+                                <span class="badge bg-secondary">ausgeblendet</span>
+                              {% endif %}
+                            </td>
+                            <td>
+                              <div class="d-flex flex-wrap gap-2 align-items-center">
+                                <div class="form-check form-check-inline mb-0">
+                                  <input class="form-check-input" type="radio" name="{{ fname }}" id="menue{{ m.ID }}_{{ menue.schluessel }}_std" value="" {% if akt_wert is none %}checked{% endif %}>
+                                  <label class="form-check-label small" for="menue{{ m.ID }}_{{ menue.schluessel }}_std">Standard</label>
+                                </div>
+                                <div class="form-check form-check-inline mb-0">
+                                  <input class="form-check-input" type="radio" name="{{ fname }}" id="menue{{ m.ID }}_{{ menue.schluessel }}_1" value="1" {% if akt_wert %}checked{% endif %}>
+                                  <label class="form-check-label small" for="menue{{ m.ID }}_{{ menue.schluessel }}_1">Einblenden</label>
+                                </div>
+                                <div class="form-check form-check-inline mb-0">
+                                  <input class="form-check-input" type="radio" name="{{ fname }}" id="menue{{ m.ID }}_{{ menue.schluessel }}_0" value="0" {% if akt_wert is not none and not akt_wert %}checked{% endif %}>
+                                  <label class="form-check-label small" for="menue{{ m.ID }}_{{ menue.schluessel }}_0">Ausblenden</label>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                          {% endfor %}
+                        </tbody>
+                      </table>
                     </div>
-                    {% endfor %}
-                    <button class="btn btn-sm btn-success mt-2"><i class="bi bi-save"></i> Menü-Sichtbarkeit speichern</button>
+                    <button class="btn btn-sm btn-success"><i class="bi bi-save"></i> Menü-Sichtbarkeit speichern</button>
                   </form>
                 </div>
                 
@@ -1285,6 +1324,11 @@ function handleFormSubmit(event) {
     if (data.success) {
       showToast(data.message, 'success');
       
+      // Menü-Sichtbarkeit: Badges „Aktuell“ aus Server neu berechnen
+      if (form.classList.contains('admin-menue-sichtbarkeit-form')) {
+        setTimeout(() => window.location.reload(), 600);
+        return;
+      }
       // Bei Anlegen-Formularen: Seite neu laden
       if (form.closest('.card-body')) {
         setTimeout(() => {
