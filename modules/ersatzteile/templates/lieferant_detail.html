@@ -47,6 +47,16 @@
                             </td>
                         </tr>
                         <tr>
+                            <td class="text-muted"><strong>Website:</strong></td>
+                            <td>
+                                {% if lieferant.Website %}
+                                <a href="{{ lieferant.Website }}" class="text-decoration-none" target="_blank" rel="noopener noreferrer">{{ lieferant.Website }}</a>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
                             <td class="text-muted"><strong>Straße:</strong></td>
                             <td>{{ lieferant.Strasse or '-' }}</td>
                         </tr>

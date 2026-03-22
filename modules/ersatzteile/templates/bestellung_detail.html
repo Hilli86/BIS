@@ -56,6 +56,12 @@
                             <td><a href="mailto:{{ bestellung.LieferantEmail }}">{{ bestellung.LieferantEmail }}</a></td>
                         </tr>
                         {% endif %}
+                        {% if bestellung.LieferantWebsite %}
+                        <tr>
+                            <td class="text-muted"><strong>Website:</strong></td>
+                            <td><a href="{{ bestellung.LieferantWebsite }}" class="text-decoration-none" target="_blank" rel="noopener noreferrer">{{ bestellung.LieferantWebsite }}</a></td>
+                        </tr>
+                        {% endif %}
                         {% if bestellung.Unterschrift %}
                         <tr>
                             <td class="text-muted d-none d-md-table-cell" style="width: 150px;"><strong>Unterschrift:</strong></td>
@@ -269,6 +275,10 @@
                     <i class="bi bi-check-circle"></i> Als bestellt markieren
                 </button>
             </form>
+            {% elif bestellung.Status == 'Bestellt' %}
+            <button type="button" class="btn btn-danger" onclick="exportBestellungPDF({{ bestellung.ID }})">
+                <i class="bi bi-file-pdf"></i> PDF generieren
+            </button>
             {% endif %}
             
             {% if bestellung.Status == 'Bestellt' and kann_buchen %}

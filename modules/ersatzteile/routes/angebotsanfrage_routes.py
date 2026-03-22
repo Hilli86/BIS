@@ -550,6 +550,7 @@ def angebotsanfrage_detail(angebotsanfrage_id):
                 l.Kontaktperson AS LieferantKontakt,
                 l.Telefon AS LieferantTelefon,
                 l.Email AS LieferantEmail,
+                l.Website AS LieferantWebsite,
                 m.Vorname || ' ' || m.Nachname AS ErstelltVon,
                 abt.Bezeichnung AS Abteilung
             FROM Angebotsanfrage a

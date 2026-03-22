@@ -3,6 +3,20 @@
 {% from "components/datei_upload.html" import datei_upload, originale_loeschen_checkbox %}
 
 {% block content %}
+<style>
+/* Schmale Viewports: keine horizontale Überläufer durch lange URLs/Texte in der Detailtabelle */
+.ersatzteil-details-card .card-body > .row > [class*="col-"] {
+    min-width: 0;
+}
+.ersatzteil-details-card .card-body table.table {
+    table-layout: fixed;
+    width: 100%;
+}
+.ersatzteil-details-card .card-body table.table td:last-child {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+</style>
 <h1 class="mb-4">🔧 Ersatzteil: {{ ersatzteil.Bezeichnung }}</h1>
 <div class="mb-3">
     <a href="{{ url_for('ersatzteile.ersatzteil_liste', kategorie=filter_params.kategorie or '', lieferant=filter_params.lieferant or '', lagerort=filter_params.lagerort or '', lagerplatz=filter_params.lagerplatz or '', q=filter_params.q or '', bestandswarnung=filter_params.bestandswarnung or '', kennzeichen=filter_params.kennzeichen or '', nur_ohne_preis=filter_params.nur_ohne_preis or '', sort=filter_params.sort or '', dir=filter_params.dir or '') }}" class="btn btn-secondary">
@@ -10,7 +24,7 @@
     </a>
 </div>
 
-<div class="card mb-4 shadow-sm">
+<div class="card mb-4 shadow-sm ersatzteil-details-card">
     <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0">📋 Ersatzteil-Details</h5>
         <div class="d-flex gap-2">
@@ -37,8 +51,8 @@
                 <i class="bi bi-printer"></i> <span class="d-none d-sm-inline">Etikett drucken</span>
             </button>
             {% if 'admin' in session.get('user_berechtigungen', []) %}
-            <a href="{{ url_for('ersatzteile.ersatzteil_neu', vorlage=ersatzteil.ID) }}" class="btn btn-sm btn-light" title="Als Vorlage für neuen Artikel verwenden">
-                <i class="bi bi-copy"></i> <span class="d-none d-sm-inline">Als Vorlage verwenden</span>
+            <a href="{{ url_for('ersatzteile.ersatzteil_neu', vorlage=ersatzteil.ID) }}" class="btn btn-sm btn-light" title="Als Vorlage für neuen Artikel verwenden" aria-label="Als Vorlage verwenden">
+                <i class="bi bi-file-earmark-plus flex-shrink-0" aria-hidden="true"></i><span class="d-none d-sm-inline ms-1">Als Vorlage verwenden</span>
             </a>
             {% endif %}
             {% if kann_bearbeiten %}
@@ -58,8 +72,8 @@
     </div>
     <div class="card-body">
         <div class="row">
-            <div class="col-md-6">
-                <table class="table table-sm table-borderless mb-0">
+            <div class="col-md-6 min-w-0">
+                <table class="table table-sm table-borderless mb-0 w-100">
                     <tbody>
                         <tr>
                             <td class="text-muted"><strong>Artikelnummer:</strong></td>
@@ -96,13 +110,11 @@
                         </tr>
                         <tr>
                             <td class="text-muted"><strong>Link:</strong></td>
-                            <td>
+                            <td class="text-break">
                                 {% if ersatzteil.Link %}
-                                <div class="text-truncate" style="max-width: 400px;" title="{{ ersatzteil.Link }}">
-                                    <a href="{{ ersatzteil.Link }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none">
-                                        <i class="bi bi-box-arrow-up-right"></i> <span class="text-truncate d-inline-block" style="max-width: 350px;">{{ ersatzteil.Link }}</span>
-                                    </a>
-                                </div>
+                                <a href="{{ ersatzteil.Link }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none text-break d-inline">
+                                    <i class="bi bi-box-arrow-up-right"></i> {{ ersatzteil.Link }}
+                                </a>
                                 {% else %}
                                 -
                                 {% endif %}
@@ -130,8 +142,8 @@
                     </tbody>
                 </table>
             </div>
-            <div class="col-md-6">
-                <table class="table table-sm table-borderless mb-0">
+            <div class="col-md-6 min-w-0">
+                <table class="table table-sm table-borderless mb-0 w-100">
                     <tbody>
                         <tr>
                             <td class="text-muted" style="width: 150px;"><strong>Preis:</strong></td>

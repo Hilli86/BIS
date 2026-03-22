@@ -44,6 +44,12 @@
                             <td><a href="mailto:{{ anfrage.LieferantEmail }}">{{ anfrage.LieferantEmail }}</a></td>
                         </tr>
                         {% endif %}
+                        {% if anfrage.LieferantWebsite %}
+                        <tr>
+                            <td class="text-muted"><strong>Website:</strong></td>
+                            <td><a href="{{ anfrage.LieferantWebsite }}" class="text-decoration-none" target="_blank" rel="noopener noreferrer">{{ anfrage.LieferantWebsite }}</a></td>
+                        </tr>
+                        {% endif %}
                     </tbody>
                 </table>
             </div>

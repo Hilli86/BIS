@@ -227,6 +227,7 @@ def bestellung_detail(bestellung_id):
                 l.Kontaktperson AS LieferantKontakt,
                 l.Telefon AS LieferantTelefon,
                 l.Email AS LieferantEmail,
+                l.Website AS LieferantWebsite,
                 m1.Vorname || ' ' || m1.Nachname AS ErstelltVon,
                 m2.Vorname || ' ' || m2.Nachname AS FreigegebenVon,
                 m3.Vorname || ' ' || m3.Nachname AS BestelltVon,

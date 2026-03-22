@@ -12,7 +12,7 @@ def parse_search_query(query):
     Parst eine Suchanfrage und extrahiert Vorzeichen, Trennezeichen und Suchbegriff
     
     Args:
-        query: Suchstring (z.B. "t123", "t@123", "e@ABC-123", "123")
+        query: Suchstring (z.B. "t123" mit Ziffer nach Präfix, "t@123", "e@ABC-123", freie Wortsuche)
         
     Returns:
         Dictionary mit:
@@ -36,8 +36,9 @@ def parse_search_query(query):
             'search_term': search_term
         }
     
-    # Prüfe auf Vorzeichen ohne @
-    if len(query) > 1 and query[0].lower() in ['t', 'e', 'b', 'a']:
+    # Kurz-Prefix (t/e/b/a) nur, wenn das zweite Zeichen eine Ziffer ist – sonst wäre z. B.
+    # „test“ oder „einkauf“ fälschlich als Themen- bzw. Ersatzteil-Suche interpretiert.
+    if len(query) >= 2 and query[0].lower() in ['t', 'e', 'b', 'a'] and query[1].isdigit():
         prefix = query[0].lower()
         search_term = query[1:]
         return {
@@ -111,11 +112,14 @@ def search_themen(query, mitarbeiter_id, conn, limit=10):
             WHERE t.Gelöscht = 0
             AND (
                 CAST(t.ID AS TEXT) LIKE ? OR
-                bm.Bemerkung LIKE ?
+                bm.Bemerkung LIKE ? OR
+                g.Bezeichnung LIKE ? OR
+                b.Bezeichnung LIKE ? OR
+                s.Bezeichnung LIKE ?
             )
         '''
         search_pattern = f'%{query["search_term"]}%'
-        params = [search_pattern, search_pattern]
+        params = [search_pattern, search_pattern, search_pattern, search_pattern, search_pattern]
     
     # Sichtbarkeitsfilter anwenden
     if sichtbare_abteilungen:
@@ -192,11 +196,15 @@ def search_ersatzteile(query, mitarbeiter_id, conn, is_admin=False, limit=10):
             AND (
                 e.Bestellnummer LIKE ? OR
                 e.Bezeichnung LIKE ? OR
-                CAST(e.ID AS TEXT) LIKE ?
+                CAST(e.ID AS TEXT) LIKE ? OR
+                COALESCE(e.Hersteller, '') LIKE ? OR
+                COALESCE(e.ArtikelnummerHersteller, '') LIKE ? OR
+                COALESCE(e.Beschreibung, '') LIKE ? OR
+                COALESCE(k.Bezeichnung, '') LIKE ?
             )
         '''
         search_pattern = f'%{query["search_term"]}%'
-        params = [search_pattern, search_pattern, search_pattern]
+        params = [search_pattern] * 7
     
     # Berechtigungsfilter anwenden
     base_query, params = build_ersatzteil_zugriff_filter(

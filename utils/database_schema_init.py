@@ -347,6 +347,7 @@ def init_database_schema(db_path, verbose=False):
                 Strasse TEXT,
                 PLZ TEXT,
                 Ort TEXT,
+                Website TEXT,
                 Aktiv INTEGER NOT NULL DEFAULT 1,
                 Gelöscht INTEGER NOT NULL DEFAULT 0
             )
@@ -359,6 +360,7 @@ def init_database_schema(db_path, verbose=False):
             create_column_if_not_exists(conn, 'Lieferant', 'Strasse', 'ALTER TABLE Lieferant ADD COLUMN Strasse TEXT')
             create_column_if_not_exists(conn, 'Lieferant', 'PLZ', 'ALTER TABLE Lieferant ADD COLUMN PLZ TEXT')
             create_column_if_not_exists(conn, 'Lieferant', 'Ort', 'ALTER TABLE Lieferant ADD COLUMN Ort TEXT')
+            create_column_if_not_exists(conn, 'Lieferant', 'Website', 'ALTER TABLE Lieferant ADD COLUMN Website TEXT')
         
         # ========== 15. Lagerort ==========
         create_table_if_not_exists(conn, 'Lagerort', '''

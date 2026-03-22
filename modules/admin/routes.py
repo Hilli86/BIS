@@ -91,7 +91,7 @@ def dashboard():
         
         # Ersatzteil-Verwaltung
         ersatzteil_kategorien = conn.execute('SELECT ID, Bezeichnung, Beschreibung, Aktiv, Sortierung FROM ErsatzteilKategorie ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
-        lieferanten = conn.execute('SELECT ID, Name, Kontaktperson, Telefon, Email, Strasse, PLZ, Ort, Aktiv FROM Lieferant WHERE Gelöscht = 0 ORDER BY Name').fetchall()
+        lieferanten = conn.execute('SELECT ID, Name, Kontaktperson, Telefon, Email, Strasse, PLZ, Ort, Website, Aktiv FROM Lieferant WHERE Gelöscht = 0 ORDER BY Name').fetchall()
         kostenstellen = conn.execute('SELECT ID, Bezeichnung, Beschreibung, Aktiv, Sortierung FROM Kostenstelle ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
         lagerorte = conn.execute('SELECT ID, Bezeichnung, Beschreibung, Aktiv, Sortierung FROM Lagerort ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
         lagerplaetze = conn.execute('SELECT ID, Bezeichnung, Beschreibung, Aktiv, Sortierung FROM Lagerplatz ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
@@ -1040,14 +1040,15 @@ def lieferant_add():
     strasse = request.form.get('strasse', '')
     plz = request.form.get('plz', '')
     ort = request.form.get('ort', '')
+    website = request.form.get('website', '') or ''
     
     if not name:
         return ajax_response('Name erforderlich.', success=False)
     
     try:
         with get_db_connection() as conn:
-            conn.execute('INSERT INTO Lieferant (Name, Kontaktperson, Telefon, Email, Strasse, PLZ, Ort, Aktiv) VALUES (?, ?, ?, ?, ?, ?, ?, 1)', 
-                         (name, kontaktperson, telefon, email, strasse, plz, ort))
+            conn.execute('INSERT INTO Lieferant (Name, Kontaktperson, Telefon, Email, Strasse, PLZ, Ort, Website, Aktiv) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)', 
+                         (name, kontaktperson, telefon, email, strasse, plz, ort, website))
             conn.commit()
         return ajax_response('Lieferant erfolgreich angelegt.')
     except Exception as e:
@@ -1065,6 +1066,7 @@ def lieferant_update(lid):
     strasse = request.form.get('strasse', '')
     plz = request.form.get('plz', '')
     ort = request.form.get('ort', '')
+    website = request.form.get('website', '') or ''
     aktiv = 1 if request.form.get('aktiv') == 'on' else 0
     
     if not name:
@@ -1072,8 +1074,8 @@ def lieferant_update(lid):
     
     try:
         with get_db_connection() as conn:
-            conn.execute('UPDATE Lieferant SET Name = ?, Kontaktperson = ?, Telefon = ?, Email = ?, Strasse = ?, PLZ = ?, Ort = ?, Aktiv = ? WHERE ID = ?', 
-                         (name, kontaktperson, telefon, email, strasse, plz, ort, aktiv, lid))
+            conn.execute('UPDATE Lieferant SET Name = ?, Kontaktperson = ?, Telefon = ?, Email = ?, Strasse = ?, PLZ = ?, Ort = ?, Website = ?, Aktiv = ? WHERE ID = ?', 
+                         (name, kontaktperson, telefon, email, strasse, plz, ort, website, aktiv, lid))
             conn.commit()
         return ajax_response('Lieferant aktualisiert.')
     except Exception as e:
@@ -1279,6 +1281,7 @@ DATABASE_SCHEMA = {
             'Strasse': 'TEXT',
             'PLZ': 'TEXT',
             'Ort': 'TEXT',
+            'Website': 'TEXT',
             'Aktiv': 'INTEGER NOT NULL DEFAULT 1',
             'Gelöscht': 'INTEGER NOT NULL DEFAULT 0'
         },

@@ -17,6 +17,7 @@
                         <th>Straße</th>
                         <th>PLZ</th>
                         <th>Ort</th>
+                        <th>Website</th>
                         <th>Ersatzteile</th>
                         <th>Status</th>
                         <th>Aktionen</th>
@@ -48,6 +49,13 @@
                         <td>{{ l.Strasse or '-' }}</td>
                         <td>{{ l.PLZ or '-' }}</td>
                         <td>{{ l.Ort or '-' }}</td>
+                        <td onclick="event.stopPropagation();">
+                            {% if l.Website %}
+                            <a href="{{ l.Website }}" class="text-decoration-none small" target="_blank" rel="noopener noreferrer" title="{{ l.Website }}">Link</a>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
                         <td>
                             <span class="badge bg-info">{{ l.ErsatzteilAnzahl }}</span>
                         </td>

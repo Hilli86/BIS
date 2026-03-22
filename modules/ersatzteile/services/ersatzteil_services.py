@@ -61,6 +61,7 @@ def build_ersatzteil_liste_query(
             e.Bestellnummer,
             e.Bezeichnung,
             e.Hersteller,
+            e.ArtikelnummerHersteller,
             e.AktuellerBestand,
             e.Mindestbestand,
             e.Einheit,
@@ -112,9 +113,9 @@ def build_ersatzteil_liste_query(
         query += ' AND (e.Preis IS NULL OR e.Preis = 0)'
     
     if q_filter:
-        query += ' AND (CAST(e.ID AS TEXT) LIKE ? OR e.Bestellnummer LIKE ? OR e.Bezeichnung LIKE ? OR e.Beschreibung LIKE ? OR e.ArtikelnummerHersteller LIKE ?)'
+        query += ' AND (CAST(e.ID AS TEXT) LIKE ? OR e.Bestellnummer LIKE ? OR e.Bezeichnung LIKE ? OR e.Beschreibung LIKE ? OR e.ArtikelnummerHersteller LIKE ? OR COALESCE(e.Hersteller, \'\') LIKE ?)'
         search_term = f'%{q_filter}%'
-        params.extend([search_term, search_term, search_term, search_term, search_term])
+        params.extend([search_term, search_term, search_term, search_term, search_term, search_term])
     
     if lagerort_filter:
         query += ' AND e.LagerortID = ?'

@@ -708,7 +708,8 @@
           <div class="col-md-2"><input name="strasse" class="form-control" placeholder="Straße"></div>
           <div class="col-md-1"><input name="plz" class="form-control" placeholder="PLZ"></div>
           <div class="col-md-1"><input name="ort" class="form-control" placeholder="Ort"></div>
-          <div class="col-md-1"><button class="btn btn-success w-100">Anlegen</button></div>
+          <div class="col-md-10"><input type="url" name="website" class="form-control" placeholder="Website (https://…)"></div>
+          <div class="col-md-2"><button type="submit" class="btn btn-success w-100">Anlegen</button></div>
         </form>
       </div>
     </div>
@@ -723,6 +724,7 @@
           <th>Straße</th>
           <th>PLZ</th>
           <th>Ort</th>
+          <th>Website</th>
           <th style="width: 120px;">Aktiv</th>
           <th style="width: 200px;">Aktionen</th>
         </tr>
@@ -751,6 +753,9 @@
           </td>
           <td>
               <input name="ort" class="form-control form-control-sm" value="{{ l.Ort or '' }}">
+          </td>
+          <td>
+              <input type="url" name="website" class="form-control form-control-sm" value="{{ l.Website or '' }}" placeholder="https://">
           </td>
           <td>
               <div class="form-check">

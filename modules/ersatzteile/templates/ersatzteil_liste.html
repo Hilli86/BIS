@@ -220,6 +220,8 @@
                                 {% endif %}
                             </a>
                         </th>
+                        <th class="column-hersteller" style="display: none;">Hersteller</th>
+                        <th class="column-herstellerartikelnummer" style="display: none;">Herstellerartikelnr.</th>
                         <th class="sortable-header column-preis">
                             <a href="{{ url_for('ersatzteile.ersatzteil_liste', sort='preis', dir='asc' if sort_by != 'preis' or sort_dir == 'desc' else 'desc', kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', lagerort=lagerort_filter or '', lagerplatz=lagerplatz_filter or '', q=q_filter or '', bestandswarnung=1 if bestandswarnung else '', kennzeichen=kennzeichen_filter or '', nur_ohne_preis=1 if nur_ohne_preis else '') }}" 
                                class="text-decoration-none text-dark d-flex align-items-center gap-1">
@@ -285,6 +287,8 @@
                         <td class="column-bezeichnung"><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID, **detail_url_params) }}" class="text-decoration-none text-dark">{{ e.Bezeichnung }}</a></td>
                         <td class="column-lieferant"><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID, **detail_url_params) }}" class="text-decoration-none text-dark">{{ e.Lieferant or '-' }}</a></td>
                         <td class="column-bestellnummer"><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID, **detail_url_params) }}" class="text-decoration-none text-dark">{{ e.Bestellnummer }}</a></td>
+                        <td class="column-hersteller" style="display: none;"><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID, **detail_url_params) }}" class="text-decoration-none text-dark">{{ e.Hersteller or '-' }}</a></td>
+                        <td class="column-herstellerartikelnummer" style="display: none;"><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID, **detail_url_params) }}" class="text-decoration-none text-dark">{{ e.ArtikelnummerHersteller or '-' }}</a></td>
                         <td class="column-preis">
                             {% if e.Preis %}
                             {{ "%.2f"|format(e.Preis) }} {{ e.Waehrung or 'EUR' }}
@@ -386,6 +390,13 @@
                     
                     <div class="mb-2 column-bestellnummer">
                         <strong>Bestellnummer:</strong> {{ e.Bestellnummer }}
+                    </div>
+                    
+                    <div class="mb-2 column-hersteller">
+                        <strong>Hersteller:</strong> {{ e.Hersteller or '-' }}
+                    </div>
+                    <div class="mb-2 column-herstellerartikelnummer">
+                        <strong>Herstellerartikelnr.:</strong> {{ e.ArtikelnummerHersteller or '-' }}
                     </div>
                     
                     <div class="mb-2 column-preis">
@@ -904,10 +915,15 @@ async function loadMoreErsatzteile() {
             data.ersatzteile.forEach(e => {
                 const detailUrl = buildErsatzteilDetailUrl(e.ID);
                 const bearbeitenUrl = buildErsatzteilBearbeitenUrl(e.ID);
+                const colSettings = JSON.parse(localStorage.getItem('ersatzteil_liste_columns') || '{}');
+                const showHerstellerCol = colSettings.hersteller === true;
+                const showHstNrCol = colSettings.herstellerartikelnummer === true;
                 const warnClass = (!e.EndOfLife && e.Mindestbestand > 0 && e.AktuellerBestand < e.Mindestbestand) ? 'table-warning' : '';
                 const badgeClass = (!e.EndOfLife && e.Mindestbestand > 0 && e.AktuellerBestand < e.Mindestbestand) ? 'bg-warning' : (e.AktuellerBestand > 0 ? 'bg-success' : 'bg-secondary');
                 const preisHtml = e.Preis ? (e.Preis.toFixed(2) + ' ' + (e.Waehrung || 'EUR')) : '<span class="text-muted">-</span>';
                 const fotoUrl = e.ArtikelfotoPfad ? (ersatzteilDateiBase + (e.ArtikelfotoPfad || '')) : '';
+                const herstCardStyle = showHerstellerCol ? '' : 'display: none;';
+                const hstNrCardStyle = showHstNrCol ? '' : 'display: none;';
 
                 if (isMobile && cardsContainer) {
                     const cardHtml = `
@@ -927,6 +943,8 @@ async function loadMoreErsatzteile() {
                                 <div class="mb-2 column-kategorie"><strong>Kategorie:</strong> ${e.Kategorie || '-'}</div>
                                 <div class="mb-2 column-lieferant"><strong>Lieferant:</strong> ${e.Lieferant || '-'}</div>
                                 <div class="mb-2 column-bestellnummer"><strong>Bestellnummer:</strong> ${e.Bestellnummer || ''}</div>
+                                <div class="mb-2 column-hersteller" style="${herstCardStyle}"><strong>Hersteller:</strong> ${e.Hersteller || '-'}</div>
+                                <div class="mb-2 column-herstellerartikelnummer" style="${hstNrCardStyle}"><strong>Herstellerartikelnr.:</strong> ${e.ArtikelnummerHersteller || '-'}</div>
                                 <div class="mb-2 column-preis"><strong>Preis:</strong> ${preisHtml}</div>
                                 ${e.Mindestbestand > 0 ? '<div class="mb-2 column-bestand"><strong>Mindestbestand:</strong> ' + e.Mindestbestand + ' ' + (e.Einheit || '') + '</div>' : ''}
                                 <div class="mb-2 column-lagerort"><strong>Lagerort:</strong> ${e.LagerortName || '-'}</div>
@@ -944,11 +962,14 @@ async function loadMoreErsatzteile() {
                         </div>`;
                     cardsContainer.insertAdjacentHTML('beforeend', cardHtml);
                 } else if (tbody) {
-                    const colSettings = JSON.parse(localStorage.getItem('ersatzteil_liste_columns') || '{}');
                     const showFotoCol = colSettings.artikelfoto === true;
                     const showAbtCol = colSettings['sichtbare-abteilungen'] === true;
                     const abtCellStyle = showAbtCol ? '' : 'display: none;';
                     const abtCell = ersatzteilIsAdmin ? '<td class="text-center column-sichtbare-abteilungen" style="' + abtCellStyle + '"><span class="badge bg-info">' + (e.AbteilungenAnzahl || 0) + '</span></td>' : '';
+                    const herstStyle = showHerstellerCol ? '' : 'display: none;';
+                    const hstNrStyle = showHstNrCol ? '' : 'display: none;';
+                    const herstCell = '<td class="column-hersteller" style="' + herstStyle + '"><a href="' + detailUrl + '" class="text-decoration-none text-dark" onclick="event.stopPropagation();">' + (e.Hersteller || '-') + '</a></td>';
+                    const hstNrCell = '<td class="column-herstellerartikelnummer" style="' + hstNrStyle + '"><a href="' + detailUrl + '" class="text-decoration-none text-dark" onclick="event.stopPropagation();">' + (e.ArtikelnummerHersteller || '-') + '</a></td>';
                     const fotoCellStyle = showFotoCol ? '' : 'display: none;';
                     const fotoCell = '<td class="column-artikelfoto" style="' + fotoCellStyle + '" onclick="event.stopPropagation();">' +
                         (e.ArtikelfotoPfad ? '<a href="' + detailUrl + '" onclick="event.stopPropagation();"><img src="' + fotoUrl + '" alt="Artikelfoto" class="rounded" style="width: 50px; height: 50px; object-fit: cover;"></a>' : '<span class="text-muted">-</span>') + '</td>';
@@ -967,6 +988,8 @@ async function loadMoreErsatzteile() {
                         <td class="column-bezeichnung"><a href="${detailUrl}" class="text-decoration-none text-dark">${e.Bezeichnung || ''}</a></td>
                         <td class="column-lieferant"><a href="${detailUrl}" class="text-decoration-none text-dark">${e.Lieferant || '-'}</a></td>
                         <td class="column-bestellnummer"><a href="${detailUrl}" class="text-decoration-none text-dark">${e.Bestellnummer || ''}</a></td>
+                        ${herstCell}
+                        ${hstNrCell}
                         <td class="column-preis">${preisHtml}</td>
                         <td class="column-bestand"><span class="badge ${badgeClass}">${e.AktuellerBestand || 0} ${e.Einheit || ''}</span>${e.Mindestbestand > 0 ? '<br><small class="text-muted">Min: ' + e.Mindestbestand + '</small>' : ''}</td>
                         <td class="column-lagerort"><a href="${detailUrl}" class="text-decoration-none text-dark">${e.LagerortName || '-'}</a></td>
@@ -1025,6 +1048,8 @@ document.addEventListener('DOMContentLoaded', function() {
         'bezeichnung': true,
         'lieferant': true,
         'bestellnummer': true,
+        'hersteller': false,
+        'herstellerartikelnummer': false,
         'preis': true,
         'bestand': true,
         'lagerort': true,
@@ -1117,6 +1142,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="form-check">
                             <input class="form-check-input column-toggle" type="checkbox" id="col_bestellnummer" data-column="bestellnummer">
                             <label class="form-label" for="col_bestellnummer">Bestellnummer</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input column-toggle" type="checkbox" id="col_hersteller" data-column="hersteller">
+                            <label class="form-label" for="col_hersteller">Hersteller</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input column-toggle" type="checkbox" id="col_herstellerartikelnummer" data-column="herstellerartikelnummer">
+                            <label class="form-label" for="col_herstellerartikelnummer">Herstellerartikelnummer</label>
                         </div>
                     </div>
                     <div class="col-md-6">

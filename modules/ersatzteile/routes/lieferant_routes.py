@@ -22,6 +22,7 @@ def lieferanten_liste():
                 l.Strasse,
                 l.PLZ,
                 l.Ort,
+                l.Website,
                 l.Aktiv,
                 COUNT(e.ID) AS ErsatzteilAnzahl
             FROM Lieferant l
@@ -40,7 +41,7 @@ def lieferant_detail(lieferant_id):
     """Lieferant-Detailansicht mit zugehörigen Ersatzteilen"""
     with get_db_connection() as conn:
         lieferant = conn.execute('''
-            SELECT ID, Name, Kontaktperson, Telefon, Email, Strasse, PLZ, Ort, Aktiv
+            SELECT ID, Name, Kontaktperson, Telefon, Email, Strasse, PLZ, Ort, Website, Aktiv
             FROM Lieferant
             WHERE ID = ? AND Gelöscht = 0
         ''', (lieferant_id,)).fetchone()
