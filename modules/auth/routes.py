@@ -825,10 +825,13 @@ def push_test():
         from utils.benachrichtigungen_push import versende_test_push
         
         with get_db_connection() as conn:
-            if versende_test_push(user_id, conn):
+            ok, err = versende_test_push(user_id, conn)
+            if ok:
                 return jsonify({'success': True, 'message': 'Test-Push-Nachricht wurde gesendet'})
-            else:
-                return jsonify({'success': False, 'message': 'Push-Benachrichtigungen sind nicht aktiviert oder konfiguriert'}), 400
+            return jsonify({
+                'success': False,
+                'message': err or 'Push-Benachrichtigungen sind nicht aktiviert oder konfiguriert'
+            }), 400
                 
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500

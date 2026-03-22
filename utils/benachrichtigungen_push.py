@@ -138,7 +138,7 @@ def versende_test_push(mitarbeiter_id, conn=None):
         conn: Datenbankverbindung (optional)
     
     Returns:
-        True bei Erfolg, False bei Fehler
+        (True, None) bei Erfolg, (False, Fehlertext) bei Fehler
     """
     if conn is None:
         with get_db_connection() as conn:
@@ -151,7 +151,7 @@ def versende_test_push(mitarbeiter_id, conn=None):
     ''', (mitarbeiter_id,)).fetchone()
     
     if not kanal or not kanal['Konfiguration']:
-        return False
+        return False, 'Keine gespeicherte Push-Anmeldung. Bitte Kanal aktivieren und die Browser-Berechtigung erneut bestätigen.'
     
     try:
         # Parse Push-Konfiguration (enthält Subscription-Objekt)
@@ -162,7 +162,7 @@ def versende_test_push(mitarbeiter_id, conn=None):
             from pywebpush import webpush, WebPushException
         except ImportError:
             print("pywebpush ist nicht installiert. Push-Benachrichtigungen sind nicht verfügbar.")
-            return False
+            return False, 'pywebpush ist auf dem Server nicht installiert.'
         
         # VAPID-Keys aus Konfiguration
         vapid_private_key = current_app.config.get('VAPID_PRIVATE_KEY')
@@ -171,7 +171,7 @@ def versende_test_push(mitarbeiter_id, conn=None):
         
         if not vapid_private_key or not vapid_public_key:
             print("VAPID-Keys sind nicht konfiguriert. Push-Benachrichtigungen sind nicht verfügbar.")
-            return False
+            return False, 'VAPID_PRIVATE_KEY / VAPID_PUBLIC_KEY sind auf dem Server nicht gesetzt.'
         
         # Erstelle Test-Push-Payload
         payload = {
@@ -195,7 +195,7 @@ def versende_test_push(mitarbeiter_id, conn=None):
             }
         )
         
-        return True
+        return True, None
         
     except Exception as e:
         print(f"Fehler beim Versenden der Test-Push-Benachrichtigung für Mitarbeiter {mitarbeiter_id}: {e}")
@@ -206,4 +206,4 @@ def versende_test_push(mitarbeiter_id, conn=None):
                 SET Aktiv = 0
                 WHERE MitarbeiterID = ? AND KanalTyp = 'push'
             ''', (mitarbeiter_id,))
-        return False
+        return False, str(e)

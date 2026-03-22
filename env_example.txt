@@ -18,3 +18,10 @@ UPLOAD_BASE_FOLDER=C:\Users\hilli\Pictures\BIS
 
 # SQL-Tracing (nur für Entwicklung)
 SQL_TRACING=True
+
+# Web-Push (VAPID) – Schlüssel z. B. mit: flask --app app vapid-generate
+# Prüfen: flask --app app vapid-verify
+# Kopieren Sie diese Datei nach .env (wird beim App-Start geladen, wenn python-dotenv installiert ist)
+# VAPID_PRIVATE_KEY=C:\Pfad\BIS\instance\vapid_private.pem
+# VAPID_PUBLIC_KEY=BNcrhB0suc0kr2wosBhSzj2AJdCT7E9BA9sjXSyTTD1GWPRrMBgIbe_defOfjThB40VNuFZ-5Bha9AT75Z3P9Og
+# VAPID_EMAIL=admin@example.com

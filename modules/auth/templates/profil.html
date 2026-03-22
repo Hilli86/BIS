@@ -161,8 +161,18 @@
                                     Push-Benachrichtigungen
                                 </label>
                             </div>
+                            <div id="push-insecure-warning" class="alert alert-warning py-2 small mb-2" style="display: none;" role="alert">
+                                <strong>Web-Push ist hier nicht verfügbar:</strong> Der Browser behandelt diese Adresse als unsicher („kein sicherer Kontext“).
+                                Web-Push funktioniert nur mit <strong>HTTPS</strong> oder mit <strong>http://localhost</strong> bzw. <strong>http://127.0.0.1</strong>.
+                                Bei Aufruf über eine andere IP oder einen Hostnamen im LAN: HTTPS einrichten (z. B. Reverse-Proxy mit TLS) oder lokal mit localhost testen.
+                            </div>
                             <div id="push-status" class="mt-2" style="display: none;">
-                                <small class="text-muted">Push-Benachrichtigungen werden automatisch aktiviert, wenn Sie die Berechtigung erteilen.</small>
+                                <small class="text-muted d-block mb-1">
+                                    Push-Benachrichtigungen werden automatisch aktiviert, wenn Sie die Berechtigung erteilen.
+                                </small>
+                                <small class="text-muted d-block mb-2">
+                                    <strong>Test-Push:</strong> Nach erfolgreicher Einrichtung erscheint der Button „Test-Push senden“ – damit prüfen Sie Browser und Server (VAPID).
+                                </small>
                                 <div class="mt-2">
                                     <button type="button" class="btn btn-sm btn-outline-primary" id="push-test-btn" style="display: none;">
                                         <i class="bi bi-bell"></i> Test-Push senden
@@ -532,98 +542,200 @@
       });
     });
 
-    // Push-Benachrichtigungen aktivieren
+    // Push-Benachrichtigungen (VAPID applicationServerKey muss Uint8Array sein, kein String)
+    function urlBase64ToUint8Array(base64String) {
+      base64String = String(base64String).replace(/=+$/, '');
+      const padding = '='.repeat((4 - base64String.length % 4) % 4);
+      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const rawData = window.atob(base64);
+      const outputArray = new Uint8Array(rawData.length);
+      for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+      }
+      return outputArray;
+    }
+
+    const vapidPublicKeyB64 = {{ vapid_public_key|tojson }};
+
     const pushCheckbox = document.getElementById('kanal_push');
+    const pushTestBtn = document.getElementById('push-test-btn');
+
+    (function pushSecureContextBanner() {
+      var warn = document.getElementById('push-insecure-warning');
+      var cb = document.getElementById('kanal_push');
+      if (!window.isSecureContext) {
+        if (warn) warn.style.display = 'block';
+        if (cb) {
+          cb.disabled = true;
+          cb.checked = false;
+        }
+      }
+    })();
+
     if (pushCheckbox) {
       pushCheckbox.addEventListener('change', function() {
-        if (this.checked && 'serviceWorker' in navigator && 'PushManager' in window) {
-          // Frage nach Berechtigung
-          Notification.requestPermission().then(permission => {
-            if (permission === 'granted') {
-              // Service Worker registrieren und Subscription erstellen
-              navigator.serviceWorker.register('/static/service-worker.js')
-                .then(registration => {
-                  return registration.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: '{{ vapid_public_key|default("") }}'
-                  });
-                })
-                .then(subscription => {
-                  // Subscription speichern
-                  fetch('{{ url_for("auth.push_subscription_save") }}', {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(subscription.toJSON())
-                  })
-                  .then(response => response.json())
-                  .then(data => {
-                    if (data.success) {
-                      document.getElementById('push-status').style.display = 'block';
-                      document.getElementById('push-test-btn').style.display = 'inline-block';
-                    }
-                  });
-                })
-                .catch(error => {
-                  console.error('Fehler bei Push-Subscription:', error);
-                  this.checked = false;
-                });
-            } else {
-              this.checked = false;
-            }
-          });
+        const cb = this;
+        if (!cb.checked) {
+          return;
         }
-        
-        // Test-Push-Button
-        const pushTestBtn = document.getElementById('push-test-btn');
-        if (pushTestBtn) {
-          pushTestBtn.addEventListener('click', function() {
-            const btn = this;
-            const resultDiv = document.getElementById('push-test-result');
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Sende...';
-            resultDiv.style.display = 'none';
-            
-            fetch('{{ url_for("auth.push_test") }}', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              }
+        if (!window.isSecureContext) {
+          alert('Web-Push erfordert HTTPS oder die Adresse localhost / 127.0.0.1 (sicherer Kontext im Browser).');
+          cb.checked = false;
+          return;
+        }
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+          alert('Ihr Browser unterstützt keine Web-Push-Benachrichtigungen.');
+          cb.checked = false;
+          return;
+        }
+        const keyStr = vapidPublicKeyB64 && String(vapidPublicKeyB64).trim();
+        if (!keyStr) {
+          alert('Push ist auf dem Server nicht konfiguriert (Umgebungsvariable VAPID_PUBLIC_KEY fehlt).');
+          cb.checked = false;
+          return;
+        }
+        let appServerKeyBytes;
+        try {
+          appServerKeyBytes = urlBase64ToUint8Array(keyStr);
+        } catch (e) {
+          console.error('VAPID_PUBLIC_KEY Dekodierung:', e);
+          alert('VAPID_PUBLIC_KEY ist ungültig (kein gültiges Base64). Bitte Schlüssel prüfen.');
+          cb.checked = false;
+          return;
+        }
+        if (appServerKeyBytes.length !== 65) {
+          alert('VAPID_PUBLIC_KEY hat die falsche Länge (erwartet 65 Bytes nach Dekodierung). Bitte mit flask vapid-generate neu erzeugen.');
+          cb.checked = false;
+          return;
+        }
+
+        Notification.requestPermission().then(permission => {
+          if (permission !== 'granted') {
+            cb.checked = false;
+            return;
+          }
+
+          function unregisterStaticScopeWorker() {
+            return navigator.serviceWorker.getRegistrations().then(function(registrations) {
+              return Promise.all(registrations.map(function(reg) {
+                var script = (reg.active && reg.active.scriptURL) ||
+                  (reg.waiting && reg.waiting.scriptURL) ||
+                  (reg.installing && reg.installing.scriptURL) || '';
+                if (script.indexOf('/static/service-worker.js') !== -1) {
+                  return reg.unregister();
+                }
+                return Promise.resolve();
+              }));
+            });
+          }
+
+          function waitUntilServiceWorkerActive(registration) {
+            if (registration.active) {
+              return Promise.resolve(registration);
+            }
+            return new Promise(function(resolve, reject) {
+              var iv = setInterval(function() {
+                if (registration.active) {
+                  clearInterval(iv);
+                  clearTimeout(to);
+                  resolve(registration);
+                }
+              }, 50);
+              var to = setTimeout(function() {
+                clearInterval(iv);
+                reject(new Error('Service Worker wurde nicht aktiv (Timeout).'));
+              }, 20000);
+            });
+          }
+
+          unregisterStaticScopeWorker()
+            .then(function() {
+              return navigator.serviceWorker.register('/service-worker.js', { scope: '/' });
             })
+            .then(waitUntilServiceWorkerActive)
+            .then(function(registration) {
+              return registration.pushManager.getSubscription().then(function(existing) {
+                if (existing) return existing.unsubscribe();
+              }).then(function() { return registration; });
+            })
+            .then(function(registration) {
+              return registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: appServerKeyBytes
+              });
+            })
+            .then(subscription => fetch('{{ url_for("auth.push_subscription_save") }}', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(subscription.toJSON())
+            }))
             .then(response => response.json())
             .then(data => {
-              btn.disabled = false;
-              btn.innerHTML = '<i class="bi bi-bell"></i> Test-Push senden';
-              resultDiv.style.display = 'block';
-              
               if (data.success) {
-                resultDiv.className = 'mt-2 alert alert-success';
-                resultDiv.innerHTML = '<i class="bi bi-check-circle"></i> ' + (data.message || 'Test-Push wurde erfolgreich gesendet!');
+                const statusEl = document.getElementById('push-status');
+                const testBtn = document.getElementById('push-test-btn');
+                if (statusEl) statusEl.style.display = 'block';
+                if (testBtn) testBtn.style.display = 'inline-block';
               } else {
-                resultDiv.className = 'mt-2 alert alert-danger';
-                resultDiv.innerHTML = '<i class="bi bi-exclamation-circle"></i> ' + (data.message || 'Fehler beim Senden der Test-Push-Nachricht');
+                alert(data.message || 'Die Push-Anmeldung konnte nicht gespeichert werden.');
+                cb.checked = false;
               }
-              
-              // Nach 5 Sekunden ausblenden
-              setTimeout(() => {
-                resultDiv.style.display = 'none';
-              }, 5000);
             })
             .catch(error => {
-              btn.disabled = false;
-              btn.innerHTML = '<i class="bi bi-bell"></i> Test-Push senden';
-              resultDiv.style.display = 'block';
-              resultDiv.className = 'mt-2 alert alert-danger';
-              resultDiv.innerHTML = '<i class="bi bi-exclamation-circle"></i> Netzwerkfehler beim Senden der Test-Push-Nachricht';
-              console.error('Fehler bei Test-Push:', error);
-              
-              setTimeout(() => {
-                resultDiv.style.display = 'none';
-              }, 5000);
+              console.error('Fehler bei Push-Subscription:', error);
+              var msg = (error && error.message) ? error.message : 'Unbekannter Fehler';
+              if (msg.indexOf('push service error') !== -1) {
+                msg += '\n\nHinweise: Seite mit http://localhost:5000 statt 127.0.0.1 testen; Windows-Benachrichtigungen für den Browser erlauben; VPN/Firewall prüfen (Zugriff auf den Push-Dienst des Browsers).';
+              }
+              alert('Push-Anmeldung fehlgeschlagen: ' + msg);
+              cb.checked = false;
             });
-          });
-        }
+        });
+      });
+    }
+
+    if (pushTestBtn) {
+      pushTestBtn.addEventListener('click', function() {
+        const btn = this;
+        const resultDiv = document.getElementById('push-test-result');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Sende...';
+        resultDiv.style.display = 'none';
+
+        fetch('{{ url_for("auth.push_test") }}', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="bi bi-bell"></i> Test-Push senden';
+          resultDiv.style.display = 'block';
+
+          if (data.success) {
+            resultDiv.className = 'mt-2 alert alert-success';
+            resultDiv.innerHTML = '<i class="bi bi-check-circle"></i> ' + (data.message || 'Test-Push wurde erfolgreich gesendet!');
+          } else {
+            resultDiv.className = 'mt-2 alert alert-danger';
+            resultDiv.innerHTML = '<i class="bi bi-exclamation-circle"></i> ' + (data.message || 'Fehler beim Senden der Test-Push-Nachricht');
+          }
+
+          setTimeout(() => {
+            resultDiv.style.display = 'none';
+          }, 5000);
+        })
+        .catch(error => {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="bi bi-bell"></i> Test-Push senden';
+          resultDiv.style.display = 'block';
+          resultDiv.className = 'mt-2 alert alert-danger';
+          resultDiv.innerHTML = '<i class="bi bi-exclamation-circle"></i> Netzwerkfehler beim Senden der Test-Push-Nachricht';
+          console.error('Fehler bei Test-Push:', error);
+
+          setTimeout(() => {
+            resultDiv.style.display = 'none';
+          }, 5000);
+        });
       });
     }
   })();

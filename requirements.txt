@@ -13,6 +13,7 @@ docxtpl
 docx2pdf
 pywebpush
 fido2
+python-dotenv
 
 # Tests (CI / lokale Qualitätssicherung)
 pytest==8.3.5

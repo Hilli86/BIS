@@ -5,8 +5,9 @@ Modulare Flask-Anwendung mit Blueprints
 Hauptdatei - nur Initialisierung und Blueprint-Registrierung
 """
 
-from flask import Flask, render_template, session, redirect, url_for, request
+from flask import Flask, render_template, session, redirect, url_for, request, send_from_directory
 from werkzeug.middleware.proxy_fix import ProxyFix
+import click
 import os
 from config import config, DEV_SECRET_KEY_FALLBACK
 
@@ -98,6 +99,23 @@ app.register_blueprint(search_bp)
 app.register_blueprint(produktion_bp)
 
 
+@app.route('/service-worker.js')
+def service_worker():
+    """
+    Liefert den Service Worker mit Scope / (Header Service-Worker-Allowed).
+    Registrierung nur unter /static/ führt zu Scope /static/ und kann Web-Push
+    (push service error) in Browsern verhindern.
+    """
+    response = send_from_directory(
+        app.static_folder,
+        'service-worker.js',
+        mimetype='application/javascript',
+    )
+    response.headers['Service-Worker-Allowed'] = '/'
+    response.headers['Cache-Control'] = 'no-cache'
+    return response
+
+
 # ========== Main Routes ==========
 
 @app.route('/')
@@ -115,6 +133,86 @@ def index():
     if personalnummer:
         return redirect(url_for('auth.login', personalnummer=personalnummer))
     return redirect(url_for('auth.login'))
+
+
+@app.cli.command('push-test')
+@click.argument('mitarbeiter_id', type=int)
+def cli_push_test(mitarbeiter_id):
+    """
+    Sendet eine Test-Push an einen Mitarbeiter (Web-Push, wie im Profil).
+
+    Voraussetzungen: VAPID-Keys, pywebpush, gespeicherte Push-Subscription für die ID.
+
+    Beispiel: flask --app app push-test 42
+    """
+    from utils.benachrichtigungen_push import versende_test_push
+
+    ok, err = versende_test_push(mitarbeiter_id)
+    if ok:
+        click.echo(f'Test-Push an Mitarbeiter {mitarbeiter_id} gesendet.')
+        return
+    click.echo(f'Fehler: {err}', err=True)
+    raise SystemExit(1)
+
+
+@app.cli.command('vapid-generate')
+@click.option(
+    '-o', '--output',
+    'pem_path',
+    default=None,
+    type=click.Path(dir_okay=False, path_type=str),
+    help='Pfad für die private PEM-Datei (Standard: <instance>/vapid_private.pem)',
+)
+def cli_vapid_generate(pem_path):
+    """
+    Erzeugt VAPID-Schlüssel für Web-Push und speichert den privaten Schlüssel als PEM.
+
+    Anschließend Umgebungsvariablen setzen und App neu starten, z. B. PowerShell:
+
+    \b
+        $env:VAPID_PRIVATE_KEY = "C:\\Pfad\\zur\\vapid_private.pem"
+        $env:VAPID_PUBLIC_KEY = "<aus der Ausgabe kopieren>"
+        $env:VAPID_EMAIL = "admin@example.com"
+
+    VAPID_PRIVATE_KEY kann der volle Pfad zur PEM-Datei sein (von pywebpush unterstützt).
+    """
+    from pathlib import Path
+    from utils.vapid_setup import generate_vapid_files
+
+    target = pem_path or str(Path(app.instance_path) / 'vapid_private.pem')
+    public_b64 = generate_vapid_files(target)
+
+    click.echo('')
+    click.echo('VAPID-Schlüssel erzeugt.')
+    click.echo('')
+    click.echo('Private PEM (geheim, nicht ins Repository einchecken):')
+    click.echo(f'  {Path(target).resolve()}')
+    click.echo('')
+    click.echo('Setzen Sie diese Umgebungsvariablen:')
+    click.echo('')
+    click.echo(f'  VAPID_PRIVATE_KEY = {Path(target).resolve()}')
+    click.echo(f'  VAPID_PUBLIC_KEY = {public_b64}')
+    click.echo('  VAPID_EMAIL = <Ihre Kontakt-E-Mail für VAPID (mailto: im Token)>')
+    click.echo('')
+    click.echo('PowerShell (nur diese Sitzung):')
+    click.echo(f'  $env:VAPID_PRIVATE_KEY = \'{Path(target).resolve()}\'')
+    click.echo(f'  $env:VAPID_PUBLIC_KEY = \'{public_b64}\'')
+    click.echo('')
+
+
+@app.cli.command('vapid-verify')
+def cli_vapid_verify():
+    """Prüft, ob VAPID_PUBLIC_KEY zum privaten Schlüssel passt (Umgebung / .env)."""
+    from utils.vapid_setup import verify_vapid_pair
+
+    priv = app.config.get('VAPID_PRIVATE_KEY')
+    pub = app.config.get('VAPID_PUBLIC_KEY')
+    ok, msg = verify_vapid_pair(priv, pub)
+    if ok:
+        click.echo(msg)
+        return
+    click.echo(msg, err=True)
+    raise SystemExit(1)
 
 
 # ========== App starten ==========

@@ -1,8 +1,25 @@
 import os
 from datetime import timedelta
 
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:
+    pass
+
 # Nur für lokale Entwicklung; in Produktion muss SECRET_KEY per Umgebungsvariable gesetzt sein.
 DEV_SECRET_KEY_FALLBACK = 'dev-key-change-in-production-12345'
+
+
+def _env_str_strip_optional(value):
+    """Whitespace und umschließende Anführungszeichen (Windows-Umgebung) entfernen."""
+    if value is None:
+        return None
+    s = str(value).strip()
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in '"\'':
+        s = s[1:-1].strip()
+    return s or None
 
 
 class Config:
@@ -43,9 +60,10 @@ class Config:
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@example.com')
     MAIL_DEFAULT_SENDER_NAME = os.environ.get('MAIL_DEFAULT_SENDER_NAME', 'BIS System')
     
-    # Push-Benachrichtigungen (VAPID)
-    VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', None)
-    VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY', None)
+    # Push-Benachrichtigungen (VAPID) – Schlüssel z. B. mit: flask --app app vapid-generate
+    # VAPID_PRIVATE_KEY: Pfad zur PEM-Datei oder PEM-Inhalt; VAPID_PUBLIC_KEY: eine Zeile Base64-URL
+    VAPID_PRIVATE_KEY = _env_str_strip_optional(os.environ.get('VAPID_PRIVATE_KEY'))
+    VAPID_PUBLIC_KEY = _env_str_strip_optional(os.environ.get('VAPID_PUBLIC_KEY'))
     VAPID_EMAIL = os.environ.get('VAPID_EMAIL', 'noreply@example.com')
 
     # WebAuthn / Passkeys (für biometrische Anmeldung, z.B. Windows Hello / FaceID)
