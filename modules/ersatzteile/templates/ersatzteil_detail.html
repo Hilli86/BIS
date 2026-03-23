@@ -1,6 +1,6 @@
 {% extends "layout/base.html" %}
 {% from "components/datei_liste.html" import datei_liste %}
-{% from "components/datei_upload.html" import datei_upload, originale_loeschen_checkbox %}
+{% from "components/datei_upload.html" import datei_upload %}
 
 {% block content %}
 <style>
@@ -340,7 +340,6 @@
                            accept="image/png,image/jpeg,image/jpg,image/gif,image/webp" required>
                     <small class="form-text text-muted">Erlaubte Formate: PNG, JPG, JPEG, GIF, WEBP (max. 16 MB)</small>
                 </div>
-                {{ originale_loeschen_checkbox('_artikelfoto_detail') }}
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-upload"></i> Hochladen
                 </button>

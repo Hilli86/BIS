@@ -1,5 +1,4 @@
 {% extends "layout/base.html" %}
-{% from "components/datei_upload.html" import originale_loeschen_checkbox %}
 
 {% block content %}
 <div class="container-fluid">
@@ -119,8 +118,6 @@
                                   <input type="hidden" name="linie" value="{{ linie }}">
                                   <input type="hidden" name="artikel" value="{{ artikel }}">
                                   <input type="file" name="file" class="form-control form-control-sm" style="max-width: 220px;" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp" required>
-                                  <div class="w-100"></div>
-                                  {{ originale_loeschen_checkbox('_e' ~ loop.parent.loop.index0 ~ '_' ~ loop.index0) }}
                                   <button type="submit" class="btn btn-sm btn-primary">
                                     <i class="bi bi-upload"></i> bizerba.jpg ersetzen
                                   </button>

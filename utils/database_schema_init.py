@@ -348,6 +348,7 @@ def init_database_schema(db_path, verbose=False):
                 PLZ TEXT,
                 Ort TEXT,
                 Website TEXT,
+                CsvExportReihenfolge TEXT NULL,
                 Aktiv INTEGER NOT NULL DEFAULT 1,
                 Gelöscht INTEGER NOT NULL DEFAULT 0
             )
@@ -361,6 +362,8 @@ def init_database_schema(db_path, verbose=False):
             create_column_if_not_exists(conn, 'Lieferant', 'PLZ', 'ALTER TABLE Lieferant ADD COLUMN PLZ TEXT')
             create_column_if_not_exists(conn, 'Lieferant', 'Ort', 'ALTER TABLE Lieferant ADD COLUMN Ort TEXT')
             create_column_if_not_exists(conn, 'Lieferant', 'Website', 'ALTER TABLE Lieferant ADD COLUMN Website TEXT')
+            if create_column_if_not_exists(conn, 'Lieferant', 'CsvExportReihenfolge', 'ALTER TABLE Lieferant ADD COLUMN CsvExportReihenfolge TEXT NULL'):
+                print("[INFO] Spalte 'CsvExportReihenfolge' zu 'Lieferant' hinzugefügt")
         
         # ========== 15. Lagerort ==========
         create_table_if_not_exists(conn, 'Lagerort', '''

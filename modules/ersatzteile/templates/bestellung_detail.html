@@ -279,6 +279,9 @@
             <button type="button" class="btn btn-danger" onclick="exportBestellungPDF({{ bestellung.ID }})">
                 <i class="bi bi-file-pdf"></i> PDF generieren
             </button>
+            <a href="{{ url_for('ersatzteile.bestellung_csv_export', bestellung_id=bestellung.ID) }}" class="btn btn-outline-secondary">
+                <i class="bi bi-filetype-csv"></i> CSV exportieren
+            </a>
             <form method="POST" action="{{ url_for('ersatzteile.bestellung_als_bestellt', bestellung_id=bestellung.ID) }}" class="d-inline">
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-check-circle"></i> Als bestellt markieren
@@ -288,6 +291,9 @@
             <button type="button" class="btn btn-danger" onclick="exportBestellungPDF({{ bestellung.ID }})">
                 <i class="bi bi-file-pdf"></i> PDF generieren
             </button>
+            <a href="{{ url_for('ersatzteile.bestellung_csv_export', bestellung_id=bestellung.ID) }}" class="btn btn-outline-secondary">
+                <i class="bi bi-filetype-csv"></i> CSV exportieren
+            </a>
             {% endif %}
             
             {% if bestellung.Status == 'Bestellt' and kann_buchen %}

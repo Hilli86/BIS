@@ -749,6 +749,11 @@
           <div class="col-md-1"><input name="ort" class="form-control" placeholder="Ort"></div>
           <div class="col-md-10"><input type="url" name="website" class="form-control" placeholder="Website (https://…)"></div>
           <div class="col-md-2"><button type="submit" class="btn btn-success w-100">Anlegen</button></div>
+          <div class="col-12 mt-2">
+            <label class="form-label small mb-0">CSV-Spaltenreihenfolge (optional, Bestellexport)</label>
+            <input name="csv_export_reihenfolge" class="form-control form-control-sm" placeholder="z. B. bestellnummer;bezeichnung;menge;einheit;preis;waehrung" autocomplete="off">
+            <small class="text-muted">Komma- oder Semikolon-getrennt. Bei eigener Reihenfolge bestimmt Ihr gewähltes Trennzeichen auch die Feldtrennung in der exportierten CSV (nur Komma oder nur Semikolon verwenden). Leer = Standardreihenfolge mit Semikolon. Gültige Schlüssel: bestellnummer, bezeichnung, menge, einheit, preis, waehrung, bemerkung, link, ersatzteil_id, position_id, kostenstelle, bestellung_id, lieferant_name. Unbekannte Einträge werden ignoriert.</small>
+          </div>
         </form>
       </div>
     </div>
@@ -764,6 +769,7 @@
           <th>PLZ</th>
           <th>Ort</th>
           <th>Website</th>
+          <th style="min-width: 200px;">CSV-Export <span class="text-muted fw-normal small">(Spaltenreihenfolge)</span></th>
           <th style="width: 120px;">Aktiv</th>
           <th style="width: 200px;">Aktionen</th>
         </tr>
@@ -795,6 +801,10 @@
           </td>
           <td>
               <input type="url" name="website" class="form-control form-control-sm" value="{{ l.Website or '' }}" placeholder="https://">
+          </td>
+          <td>
+              <input name="csv_export_reihenfolge" class="form-control form-control-sm" value="{{ l.CsvExportReihenfolge or '' }}" placeholder="bestellnummer;bezeichnung;…" title="Komma/Semikolon, siehe Hinweis beim Anlegen" autocomplete="off">
+              <small class="text-muted d-block mt-1" style="font-size: 0.7rem;">Leer = Standard · Schlüssel wie oben</small>
           </td>
           <td>
               <div class="form-check">

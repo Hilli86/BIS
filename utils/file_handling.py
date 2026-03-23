@@ -184,15 +184,10 @@ def move_file_safe(source_path, target_path, create_unique_name=True):
 
 def originale_loeschen_aus_formular():
     """
-    Checkbox „Originale löschen“ (hidden 0 + optional checkbox 1).
-    Standard: aktiv (True), wenn das Feld fehlt (z. B. ältere Clients).
+    Früher: Checkbox „Originale löschen“ im Formular (entfernt, funktionierte nicht zuverlässig).
+    Import-Kopien werden nach Upload nicht mehr automatisch gelöscht.
     """
-    from flask import request
-
-    vals = request.form.getlist('originale_loeschen')
-    if not vals:
-        return True
-    return vals[-1] == '1'
+    return False
 
 
 def loesche_import_kopie_nach_upload(original_filename, import_folder, aktiviert=True):

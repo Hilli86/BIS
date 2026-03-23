@@ -15,7 +15,7 @@ from utils.file_handling import (
     originale_loeschen_aus_formular,
     loesche_import_kopie_nach_upload,
 )
-from utils.reports import generate_bestellung_pdf
+from utils.reports import generate_bestellung_pdf, generate_bestellung_csv_bytes
 from ..services import get_dateien_fuer_bereich
 
 
@@ -1633,6 +1633,55 @@ def bestellung_pdf_export(bestellung_id):
     except Exception as e:
         flash(f'Fehler beim Erstellen des Berichts: {str(e)}', 'danger')
         print(f"Bestellungs-Export Fehler: {e}")
+        import traceback
+        traceback.print_exc()
+        return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/csv')
+@login_required
+def bestellung_csv_export(bestellung_id):
+    """CSV-Export der Bestellpositionen (Reihenfolge pro Lieferant konfigurierbar)."""
+    mitarbeiter_id = session.get('user_id')
+    try:
+        with get_db_connection() as conn:
+            bestellung = conn.execute(
+                'SELECT ID FROM Bestellung WHERE ID = ? AND Gelöscht = 0',
+                (bestellung_id,),
+            ).fetchone()
+            if not bestellung:
+                flash('Bestellung nicht gefunden.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_liste'))
+
+            is_admin = 'admin' in session.get('user_berechtigungen', [])
+            if not is_admin:
+                sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(
+                    mitarbeiter_id, conn
+                )
+                sichtbarkeiten = conn.execute(
+                    'SELECT AbteilungID FROM BestellungSichtbarkeit WHERE BestellungID = ?',
+                    (bestellung_id,),
+                ).fetchall()
+                sichtbarkeits_ids = [s['AbteilungID'] for s in sichtbarkeiten]
+                if not any(abt in sichtbare_abteilungen for abt in sichtbarkeits_ids):
+                    flash(
+                        'Sie haben keine Berechtigung, diese Bestellung zu sehen.',
+                        'danger',
+                    )
+                    return redirect(url_for('ersatzteile.bestellung_liste'))
+
+            content, filename = generate_bestellung_csv_bytes(bestellung_id, conn)
+            response = make_response(content)
+            response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+            response.headers['Content-Disposition'] = (
+                f'attachment; filename="{filename}"'
+            )
+            return response
+    except ValueError as e:
+        flash(str(e), 'danger')
+        return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+    except Exception as e:
+        flash(f'Fehler beim CSV-Export: {str(e)}', 'danger')
         import traceback
         traceback.print_exc()
         return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))

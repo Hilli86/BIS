@@ -1,6 +1,5 @@
 {% extends "layout/base.html" %}
 {% from "components/datei_liste.html" import datei_liste %}
-{% from "components/datei_upload.html" import originale_loeschen_checkbox %}
 
 {% block content %}
     <h1 class="mb-4">Thema #{{ thema.ID }}</h1>
@@ -301,7 +300,6 @@
                                 <label class="form-label">Beschreibung (optional, für alle Dateien):</label>
                                 <input type="text" class="form-control" id="beschreibungInput" placeholder="z.B. Frontansicht, Datenblatt, etc.">
                             </div>
-                            {{ originale_loeschen_checkbox('_thema_detail') }}
                             <button type="submit" class="btn btn-primary btn-sm" id="uploadButton">
                                 <i class="bi bi-upload"></i> Hochladen
                             </button>
@@ -924,8 +922,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (beschreibung) {
                     formData.append('beschreibung', beschreibung);
                 }
-                const ol = document.getElementById('originale_loeschen_thema_detail');
-                formData.append('originale_loeschen', ol && ol.checked ? '1' : '0');
                 
                 try {
                     const response = await fetch(`/schichtbuch/thema/${currentThemaId}/upload`, {

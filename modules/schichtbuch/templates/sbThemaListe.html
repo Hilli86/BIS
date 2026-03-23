@@ -1,6 +1,5 @@
 
 {% extends "layout/base.html" %}
-{% from "components/datei_upload.html" import originale_loeschen_checkbox %}
 
 {% block styles %}
   <style>
@@ -1286,7 +1285,6 @@ async function saveSichtbarkeit() {
                       Max. 16 MB pro Datei - Mehrfachauswahl möglich - Erlaubt: Bilder, PDF, Word, Excel, Text
                     </div>
                   </div>
-                  {{ originale_loeschen_checkbox('_sb_liste') }}
                   <button type="submit" class="btn btn-primary btn-sm" id="uploadButtonListe">
                     <i class="bi bi-upload"></i> Hochladen
                   </button>
@@ -1526,8 +1524,6 @@ document.addEventListener('DOMContentLoaded', function() {
       for (let i = 0; i < totalFiles; i++) {
         const formData = new FormData();
         formData.append('file', files[i]);
-        const olListe = document.getElementById('originale_loeschen_sb_liste');
-        formData.append('originale_loeschen', olListe && olListe.checked ? '1' : '0');
         
         try {
           const response = await fetch(`/schichtbuch/thema/${currentThemaIdListe}/upload`, {
