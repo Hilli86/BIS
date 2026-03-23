@@ -131,6 +131,7 @@
                         <th style="width: 80px;">Positionen</th>
                         <th>Gesamtbetrag</th>
                         <th>Erstellt am</th>
+                        <th>Lieferdatum</th>
                         <th class="column-freigegeben-am" style="display: none;">Freigegeben am</th>
                         <th class="column-freigegeben-von" style="display: none;">Freigegeben von</th>
                         <th class="column-bestellt-am" style="display: none;">Bestellt am</th>
@@ -204,6 +205,7 @@
                         </td>
                         <td>{{ "%.2f"|format(b.Gesamtbetrag) }} EUR</td>
                         <td style="white-space: nowrap;">{{ b.ErstelltAm[:10] if b.ErstelltAm else '-' }}</td>
+                        <td style="white-space: nowrap;" class="{% if b.LieferdatumKritisch %}text-danger fw-semibold{% endif %}">{{ b.Lieferdatum[:10] if b.Lieferdatum else '-' }}</td>
                         <td class="column-freigegeben-am" style="display: none;">{{ b.FreigegebenAm[:16] if b.FreigegebenAm else '-' }}</td>
                         <td class="column-freigegeben-von" style="display: none;">{{ b.FreigegebenVon or '-' }}</td>
                         <td class="column-bestellt-am" style="display: none;">{{ b.BestelltAm[:16] if b.BestelltAm else '-' }}</td>
@@ -231,7 +233,7 @@
                     </tr>
                     {% if b.PositionenAnzahl and b.PositionenAnzahl > 0 %}
                     <tr id="positionen-{{ b.ID }}" class="positionen-row" style="display: none;">
-                        <td colspan="14" class="bg-light p-0" onclick="event.stopPropagation();">
+                        <td colspan="15" class="bg-light p-0" onclick="event.stopPropagation();">
                             <div class="p-3">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
                                     <strong><i class="bi bi-list-ul"></i> Positionen ({{ b.PositionenAnzahl }})</strong>
@@ -390,6 +392,10 @@
                     
                     <div class="mb-2">
                         <strong>Erstellt am:</strong> {{ b.ErstelltAm[:10] if b.ErstelltAm else '-' }}
+                    </div>
+                    
+                    <div class="mb-2 {% if b.LieferdatumKritisch %}text-danger fw-semibold{% endif %}">
+                        <strong>Lieferdatum:</strong> {{ b.Lieferdatum[:10] if b.Lieferdatum else '-' }}
                     </div>
                     
                     <div class="mb-2 column-freigegeben-am" style="display: none;">

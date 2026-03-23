@@ -6,7 +6,7 @@
 <div class="card shadow-sm">
     <div class="card-body">
         {% if lieferanten %}
-        <div class="table-responsive">
+        <div class="table-responsive d-none d-md-block">
             <table class="table table-hover">
                 <thead>
                     <tr>
@@ -72,6 +72,49 @@
                     {% endfor %}
                 </tbody>
             </table>
+        </div>
+
+        <div class="d-md-none">
+            {% for l in lieferanten %}
+            <div class="card mb-3" style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.lieferant_detail', lieferant_id=l.ID) }}'">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <div class="mb-1"><strong>{{ l.Name }}</strong></div>
+                            {% if l.Kontaktperson %}
+                            <div class="small text-muted">{{ l.Kontaktperson }}</div>
+                            {% endif %}
+                        </div>
+                        <div>
+                            {% if l.Aktiv %}
+                            <span class="badge bg-success">Aktiv</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Inaktiv</span>
+                            {% endif %}
+                            <span class="badge bg-info ms-1">{{ l.ErsatzteilAnzahl }} Ersatzteile</span>
+                        </div>
+                    </div>
+                    {% if l.Telefon %}
+                    <div class="mb-1 small"><i class="bi bi-telephone"></i> <a href="tel:{{ l.Telefon }}" class="text-decoration-none" onclick="event.stopPropagation();">{{ l.Telefon }}</a></div>
+                    {% endif %}
+                    {% if l.Email %}
+                    <div class="mb-1 small text-break"><i class="bi bi-envelope"></i> <a href="mailto:{{ l.Email }}" class="text-decoration-none" onclick="event.stopPropagation();">{{ l.Email }}</a></div>
+                    {% endif %}
+                    <div class="small text-muted">
+                        {% if l.Strasse or l.PLZ or l.Ort %}
+                        {{ l.Strasse or '' }}{% if l.Strasse and (l.PLZ or l.Ort) %}, {% endif %}{{ l.PLZ or '' }} {{ l.Ort or '' }}
+                        {% else %}
+                        –
+                        {% endif %}
+                    </div>
+                    {% if l.Website %}
+                    <div class="mt-2" onclick="event.stopPropagation();">
+                        <a href="{{ l.Website }}" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener noreferrer">Website</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
         </div>
         {% else %}
         <div class="alert alert-info">

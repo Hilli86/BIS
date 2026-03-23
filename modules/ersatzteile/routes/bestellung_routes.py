@@ -3,7 +3,7 @@ Bestellung Routes - Bestellungs-Verwaltung
 """
 
 from flask import render_template, request, redirect, url_for, session, jsonify, flash, current_app, make_response, send_from_directory
-from datetime import datetime
+from datetime import datetime, date, timedelta
 import os
 from werkzeug.utils import secure_filename
 from .. import ersatzteile_bp
@@ -45,6 +45,7 @@ def bestellung_liste():
                 b.FreigegebenAm,
                 b.BestelltAm,
                 b.FreigabeBemerkung,
+                b.Lieferdatum,
                 COALESCE(b.Prioritaet, 3) AS Prioritaet,
                 l.Name AS LieferantName,
                 m1.Vorname || ' ' || m1.Nachname AS ErstelltVon,
@@ -108,7 +109,21 @@ def bestellung_liste():
         
         query += ' GROUP BY b.ID ORDER BY b.ErstelltAm DESC'
         
-        bestellungen = conn.execute(query, params).fetchall()
+        bestellungen_raw = conn.execute(query, params).fetchall()
+        heute = date.today()
+        grenze = timedelta(days=14)
+        bestellungen = []
+        for b in bestellungen_raw:
+            row = {k: b[k] for k in b.keys()}
+            ld_raw = row.get('Lieferdatum')
+            row['LieferdatumKritisch'] = False
+            if ld_raw:
+                try:
+                    ld = datetime.strptime(str(ld_raw)[:10], '%Y-%m-%d').date()
+                    row['LieferdatumKritisch'] = heute > ld + grenze
+                except ValueError:
+                    pass
+            bestellungen.append(row)
         
         # Positionen für alle Bestellungen laden
         positionen_dict = {}
@@ -819,6 +834,52 @@ def bestellung_prioritaet_bearbeiten(bestellung_id):
         conn.commit()
         flash('Priorität wurde gespeichert.', 'success')
         return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/lieferdatum', methods=['POST'])
+@login_required
+def bestellung_lieferdatum_bearbeiten(bestellung_id):
+    """Erwartetes Lieferdatum setzen oder leeren (wie Detail-Sichtbarkeit: nur sichtbare Abteilungen)."""
+    mitarbeiter_id = session.get('user_id')
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
+    raw = request.form.get('lieferdatum', '').strip()
+    lieferdatum_val = None
+    if raw:
+        try:
+            datetime.strptime(raw, '%Y-%m-%d')
+            lieferdatum_val = raw
+        except ValueError:
+            flash('Ungültiges Lieferdatum.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+    with get_db_connection() as conn:
+        bestellung = conn.execute(
+            'SELECT ID FROM Bestellung WHERE ID = ? AND Gelöscht = 0',
+            (bestellung_id,),
+        ).fetchone()
+        if not bestellung:
+            flash('Bestellung nicht gefunden.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_liste'))
+
+        if not is_admin:
+            sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+            sichtbarkeiten = conn.execute(
+                'SELECT AbteilungID FROM BestellungSichtbarkeit WHERE BestellungID = ?',
+                (bestellung_id,),
+            ).fetchall()
+            sichtbarkeits_ids = [s['AbteilungID'] for s in sichtbarkeiten]
+            if not any(abt in sichtbare_abteilungen for abt in sichtbarkeits_ids):
+                flash('Sie haben keine Berechtigung, diese Bestellung zu bearbeiten.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_liste'))
+
+        conn.execute(
+            'UPDATE Bestellung SET Lieferdatum = ? WHERE ID = ?',
+            (lieferdatum_val, bestellung_id),
+        )
+        conn.commit()
+
+    flash('Lieferdatum wurde gespeichert.', 'success')
+    return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
 
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/freigeben', methods=['POST'])

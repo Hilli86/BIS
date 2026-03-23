@@ -178,6 +178,15 @@
                         </tr>
                         {% endif %}
                         <tr>
+                            <td class="text-muted"><strong>Lieferdatum:</strong></td>
+                            <td>
+                                <form method="POST" action="{{ url_for('ersatzteile.bestellung_lieferdatum_bearbeiten', bestellung_id=bestellung.ID) }}" class="d-flex flex-wrap align-items-center gap-2">
+                                    <input type="date" name="lieferdatum" class="form-control form-control-sm" style="width: auto; max-width: 100%;" value="{{ bestellung.Lieferdatum[:10] if bestellung.Lieferdatum else '' }}">
+                                    <button type="submit" class="btn btn-sm btn-primary">Speichern</button>
+                                </form>
+                            </td>
+                        </tr>
+                        <tr>
                             <td class="text-muted"><strong>Abteilung:</strong></td>
                             <td>{{ bestellung.Abteilung or '-' }}</td>
                         </tr>
