@@ -90,9 +90,9 @@ class ProductionConfig(Config):
     SQL_TRACING = False
 
     # Für das Intranet-System unter https://10.40.140.243
-    WEBAUTHN_RP_ID = '10.40.140.243'
+    WEBAUTHN_RP_ID = 'm-0015'
     WEBAUTHN_RP_NAME = 'BIS – Betriebsinformationssystem'
-    WEBAUTHN_ORIGIN = 'https://10.40.140.243'
+    WEBAUTHN_ORIGIN = 'https://m-0015'
 
 # Konfiguration basierend auf Umgebungsvariable auswählen
 config = {
