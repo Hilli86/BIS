@@ -7,6 +7,7 @@ from datetime import datetime
 from io import BytesIO
 import os
 import re
+import shutil
 from urllib.parse import urlparse
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
@@ -21,7 +22,7 @@ from utils.file_handling import (
     originale_loeschen_aus_formular,
     loesche_import_kopie_nach_upload,
 )
-from utils.artikel_seite_bilder import ArtikelSeiteFehler, bild_von_url_laden, html_seite_bilder_laden
+from utils.artikel_seite_bilder import ArtikelSeiteFehler, bild_von_url_laden, bilder_aus_seiten_url
 from ..services import (
     build_ersatzteil_liste_query, 
     get_ersatzteil_liste_filter_options, 
@@ -1115,7 +1116,7 @@ def ersatzteil_artikelfoto_seite_bilder(ersatzteil_id):
             return jsonify({'success': False, 'message': 'Sie haben keine Berechtigung für dieses Ersatzteil.'}), 403
 
     try:
-        bilder, _final = html_seite_bilder_laden(seiten_url)
+        bilder, _final = bilder_aus_seiten_url(seiten_url)
     except ArtikelSeiteFehler as e:
         return jsonify({'success': False, 'message': str(e)}), 400
 
@@ -1235,6 +1236,138 @@ def ersatzteil_artikelfoto_upload_von_url(ersatzteil_id):
     except Exception as e:
         flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
         print(f"Artikelfoto-URL-Upload Fehler: {e}")
+        import traceback
+        traceback.print_exc()
+
+    return _detail_redirect()
+
+
+@ersatzteile_bp.route('/<int:ersatzteil_id>/artikelfoto/kopieren-von-artikel', methods=['POST'])
+@login_required
+def ersatzteil_artikelfoto_kopieren_von_artikel(ersatzteil_id):
+    """Artikelfoto von einem anderen Ersatzteil (gleiche Bestellnummer oder Herst.-Art.-Nr.) kopieren."""
+    mitarbeiter_id = session.get('user_id')
+
+    filter_params = {
+        'kategorie': request.form.get('kategorie') or request.args.get('kategorie', ''),
+        'lieferant': request.form.get('lieferant') or request.args.get('lieferant', ''),
+        'lagerort': request.form.get('lagerort') or request.args.get('lagerort', ''),
+        'lagerplatz': request.form.get('lagerplatz') or request.args.get('lagerplatz', ''),
+        'q': request.form.get('q') or request.args.get('q', ''),
+        'bestandswarnung': request.form.get('bestandswarnung') or request.args.get('bestandswarnung', ''),
+        'kennzeichen': request.form.get('kennzeichen') or request.args.get('kennzeichen', ''),
+        'sort': request.form.get('sort') or request.args.get('sort', ''),
+        'dir': request.form.get('dir') or request.args.get('dir', ''),
+        'nur_ohne_preis': request.form.get('nur_ohne_preis') or request.args.get('nur_ohne_preis', ''),
+    }
+
+    def _detail_redirect():
+        detail_url = url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id)
+        filter_query = '&'.join([f'{k}={v}' for k, v in filter_params.items() if v])
+        if filter_query:
+            detail_url += '?' + filter_query
+        return redirect(detail_url)
+
+    kennung = (request.form.get('quelle_artikelkennung') or '').strip()
+    if not kennung:
+        flash('Bitte geben Sie eine Bestellnummer oder Hersteller-Artikelnummer ein.', 'danger')
+        return _detail_redirect()
+
+    allowed_ext = {'.png', '.jpg', '.jpeg', '.gif', '.webp'}
+
+    try:
+        with get_db_connection() as conn:
+            if not hat_ersatzteil_bearbeiten_zugriff(mitarbeiter_id, ersatzteil_id, conn):
+                flash('Sie haben keine Berechtigung für dieses Ersatzteil.', 'danger')
+                return redirect(url_for('ersatzteile.ersatzteil_liste'))
+
+            k_norm = kennung.strip().lower()
+            kandidaten = conn.execute(
+                """
+                SELECT ID, ArtikelfotoPfad, Bestellnummer, ArtikelnummerHersteller
+                FROM Ersatzteil
+                WHERE Gelöscht = 0 AND ID != ?
+                  AND (
+                        (Bestellnummer IS NOT NULL AND TRIM(Bestellnummer) != ''
+                         AND LOWER(TRIM(Bestellnummer)) = ?)
+                     OR (ArtikelnummerHersteller IS NOT NULL AND TRIM(ArtikelnummerHersteller) != ''
+                         AND LOWER(TRIM(ArtikelnummerHersteller)) = ?)
+                  )
+                LIMIT 5
+                """,
+                (ersatzteil_id, k_norm, k_norm),
+            ).fetchall()
+
+            if not kandidaten:
+                flash('Kein anderer Artikel mit dieser Nummer gefunden (oder kein Zugriff).', 'warning')
+                return _detail_redirect()
+
+            if len(kandidaten) > 1:
+                flash(
+                    'Mehrere Artikel passen zu dieser Eingabe. Bitte präzisieren Sie die Nummer '
+                    '(z. B. eindeutige Bestellnummer).',
+                    'warning',
+                )
+                return _detail_redirect()
+
+            quelle = kandidaten[0]
+            quelle_id = quelle['ID']
+            if not hat_ersatzteil_zugriff(mitarbeiter_id, quelle_id, conn):
+                flash('Sie haben keinen Zugriff auf den Quell-Artikel.', 'danger')
+                return _detail_redirect()
+
+            src_rel = quelle['ArtikelfotoPfad']
+            if not src_rel or not str(src_rel).strip():
+                flash('Der gefundene Artikel hat kein Artikelfoto.', 'warning')
+                return _detail_redirect()
+
+            src_abs = os.path.join(
+                current_app.config['UPLOAD_BASE_FOLDER'],
+                str(src_rel).replace('/', os.sep),
+            )
+            if not os.path.isfile(src_abs):
+                flash('Die Bilddatei am Quell-Artikel fehlt auf dem Server.', 'danger')
+                return _detail_redirect()
+
+            ext = os.path.splitext(src_abs)[1].lower()
+            if ext == '.jpeg':
+                ext = '.jpg'
+            if ext not in allowed_ext:
+                flash('Das Quellbild hat ein nicht unterstütztes Format.', 'danger')
+                return _detail_redirect()
+
+            altes_foto = conn.execute(
+                'SELECT ArtikelfotoPfad FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)
+            ).fetchone()
+            if altes_foto and altes_foto['ArtikelfotoPfad']:
+                alter_pfad = os.path.join(
+                    current_app.config['UPLOAD_BASE_FOLDER'],
+                    altes_foto['ArtikelfotoPfad'].replace('/', os.sep),
+                )
+                if os.path.exists(alter_pfad):
+                    try:
+                        os.remove(alter_pfad)
+                    except OSError as e:
+                        print(f"Warnung: Konnte altes Artikelfoto nicht löschen: {e}")
+
+            upload_folder = os.path.join(current_app.config['ERSATZTEIL_UPLOAD_FOLDER'], str(ersatzteil_id))
+            create_upload_folder(upload_folder)
+
+            ziel_name = 'artikelfoto' + ext
+            ziel_abs = os.path.join(upload_folder, ziel_name)
+            shutil.copy2(src_abs, ziel_abs)
+
+            relative_path = f'Ersatzteile/{ersatzteil_id}/{ziel_name}'
+            conn.execute(
+                'UPDATE Ersatzteil SET ArtikelfotoPfad = ? WHERE ID = ?',
+                (relative_path, ersatzteil_id),
+            )
+            conn.commit()
+            flash('Artikelfoto vom anderen Artikel übernommen.', 'success')
+
+    except Exception as e:
+        flash(f'Fehler beim Kopieren: {str(e)}', 'danger')
+        print(f"Artikelfoto-Kopieren Fehler: {e}")
         import traceback
         traceback.print_exc()
 

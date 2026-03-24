@@ -220,6 +220,39 @@ def extrahiere_bild_urls_aus_html(html: str, base_url: str, *, max_bilder: int =
     return out[:max_bilder]
 
 
+# HTML-Seiten: genug Puffer für schwere Shop-Seiten; getrennt vom Bild-Download (16 MB in App).
+_MAX_HTML_SEITE_BYTES = 8 * 1024 * 1024
+
+_DIREKTE_BILD_ENDUNGEN = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".svg", ".bmp", ".ico")
+
+
+def url_ist_vermutlich_direktes_bild(url: str) -> bool:
+    """True, wenn der URL-Pfad typischerweise direkt auf eine Bilddatei zeigt."""
+    path = (urlparse(url.strip()).path or "").lower()
+    return any(path.endswith(ext) for ext in _DIREKTE_BILD_ENDUNGEN)
+
+
+def bilder_aus_seiten_url(seiten_url: str) -> tuple[list[str], str]:
+    """
+    Liefert Bild-URLs: bei direkter Bild-URL ohne vollen Download nur SSRF-Prüfung;
+    sonst HTML laden und parsen.
+
+    Returns:
+        (liste_absoluter_urls, basis_url_fuer_anzeige)
+    """
+    raw = (seiten_url or "").strip()
+    if not raw:
+        return [], ""
+
+    if url_ist_vermutlich_direktes_bild(raw):
+        url_fuer_abruf_erlaubt(raw)
+        parsed = urlparse(raw)
+        canonical = urlunparse(parsed)
+        return [canonical], canonical
+
+    return html_seite_bilder_laden(raw)
+
+
 def html_seite_bilder_laden(seiten_url: str) -> tuple[list[str], str]:
     """
     Lädt HTML und extrahiert Bild-URLs.
@@ -229,7 +262,7 @@ def html_seite_bilder_laden(seiten_url: str) -> tuple[list[str], str]:
     """
     body, final_url, _ct = http_get_bytes(
         seiten_url,
-        max_bytes=2 * 1024 * 1024,
+        max_bytes=_MAX_HTML_SEITE_BYTES,
         timeout=15.0,
         max_redirects=5,
         accept_header="text/html,application/xhtml+xml,*/*;q=0.8",

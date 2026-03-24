@@ -345,17 +345,58 @@
                 </button>
             </form>
             <hr class="my-3">
-            <p class="form-label fw-bold mb-2">Oder Bild von einer Artikel-Seite übernehmen</p>
+            <p class="form-label fw-bold mb-2">Oder Bild von einer Artikel-Seite / direktem Bildlink übernehmen</p>
             <div class="input-group mb-2">
-                <input type="url" class="form-control" id="artikelfoto_seite_url" name="artikelfoto_seite_url"
-                       placeholder="https://… (Link zur Produkt- oder Artikel-Seite)" autocomplete="off"
+                <input type="text" class="form-control" id="artikelfoto_seite_url" name="artikelfoto_seite_url"
+                       placeholder="https://… (Produktseite oder direkter Link z. B. …/bild.webp)" autocomplete="off"
                        {% if ersatzteil.Link %}value="{{ ersatzteil.Link|e }}"{% endif %}
                        data-gespeicherter-artikel-link="{{ (ersatzteil.Link or '')|e }}">
                 <button type="button" class="btn btn-outline-primary" id="artikelfoto_seite_suchen_btn">
                     <i class="bi bi-search"></i> Bild suchen
                 </button>
             </div>
-            <small class="form-text text-muted d-block mb-2">Die Seite wird vom Server geladen; gefundene Bilder können Sie im Dialog auswählen.</small>
+            <small class="form-text text-muted d-block mb-2">Der Server lädt die Seite bzw. erkennt Bild-URLs (z. B. .jpg, .png, .webp) ohne HTML-Parsing; Auswahl erfolgt im Dialog.</small>
+            <p class="form-label fw-bold mb-2 mt-3">Oder Artikelfoto von einem anderen BIS-Artikel kopieren</p>
+            <form method="POST" action="{{ url_for('ersatzteile.ersatzteil_artikelfoto_kopieren_von_artikel', ersatzteil_id=ersatzteil.ID) }}" class="mb-2">
+                <div class="input-group">
+                    <input type="text" class="form-control" name="quelle_artikelkennung" id="artikelfoto_kopie_quelle"
+                           placeholder="Bestellnummer oder Hersteller-Artikelnummer" autocomplete="off" maxlength="200">
+                    <button type="submit" class="btn btn-outline-secondary">
+                        <i class="bi bi-copy"></i> Foto übernehmen
+                    </button>
+                </div>
+                {% if filter_params.kategorie %}
+                <input type="hidden" name="kategorie" value="{{ filter_params.kategorie }}">
+                {% endif %}
+                {% if filter_params.lieferant %}
+                <input type="hidden" name="lieferant" value="{{ filter_params.lieferant }}">
+                {% endif %}
+                {% if filter_params.lagerort %}
+                <input type="hidden" name="lagerort" value="{{ filter_params.lagerort }}">
+                {% endif %}
+                {% if filter_params.lagerplatz %}
+                <input type="hidden" name="lagerplatz" value="{{ filter_params.lagerplatz }}">
+                {% endif %}
+                {% if filter_params.kennzeichen %}
+                <input type="hidden" name="kennzeichen" value="{{ filter_params.kennzeichen }}">
+                {% endif %}
+                {% if filter_params.bestandswarnung %}
+                <input type="hidden" name="bestandswarnung" value="{{ filter_params.bestandswarnung }}">
+                {% endif %}
+                {% if filter_params.nur_ohne_preis %}
+                <input type="hidden" name="nur_ohne_preis" value="{{ filter_params.nur_ohne_preis }}">
+                {% endif %}
+                {% if filter_params.q %}
+                <input type="hidden" name="q" value="{{ filter_params.q }}">
+                {% endif %}
+                {% if filter_params.sort %}
+                <input type="hidden" name="sort" value="{{ filter_params.sort }}">
+                {% endif %}
+                {% if filter_params.dir %}
+                <input type="hidden" name="dir" value="{{ filter_params.dir }}">
+                {% endif %}
+            </form>
+            <small class="form-text text-muted d-block mb-2">Es wird genau ein passender, nicht gelöschter Artikel benötigt; Sie müssen auf den Quell-Artikel Zugriff haben.</small>
             <form id="artikelfotoUploadVonUrlForm" method="POST"
                   action="{{ url_for('ersatzteile.ersatzteil_artikelfoto_upload_von_url', ersatzteil_id=ersatzteil.ID) }}">
                 <input type="hidden" name="image_url" id="artikelfoto_upload_von_url_value" value="">
