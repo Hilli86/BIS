@@ -8,7 +8,7 @@ import os
 import shutil
 from werkzeug.utils import secure_filename
 from . import import_bp
-from utils.file_handling import get_file_list, move_file_safe
+from utils.file_handling import get_file_list, move_file_safe, speichere_in_import_ordner
 from utils import get_db_connection
 from modules.ersatzteile.services import importiere_datei_aus_ordner, get_datei_typ_aus_dateiname
 
@@ -29,6 +29,24 @@ def import_dateien_liste():
         return jsonify({'success': True, 'dateien': dateien})
     except Exception as e:
         return jsonify({'success': False, 'message': f'Fehler beim Lesen des Import-Ordners: {str(e)}'}), 500
+
+
+@import_bp.route('/hochladen', methods=['POST'])
+def import_hochladen():
+    """Datei direkt in den Import-Ordner speichern (z. B. Dokumenten-Scan)."""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Nicht angemeldet'}), 401
+
+    file = request.files.get('file')
+    success, filename, error_message = speichere_in_import_ordner(file)
+    if not success:
+        return jsonify({'success': False, 'message': error_message or 'Speichern fehlgeschlagen'}), 400
+
+    return jsonify({
+        'success': True,
+        'message': f'Datei "{filename}" wurde im Import-Ordner gespeichert.',
+        'filename': filename,
+    })
 
 
 @import_bp.route('/verschieben', methods=['POST'])

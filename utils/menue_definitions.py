@@ -25,6 +25,7 @@ MENUE_DEFINITIONEN = [
     {'schluessel': 'ersatzteile_lagerbuchungen', 'bezeichnung': 'Lagerbuchungen', 'gruppe': 'Ersatzteile', 'berechtigung': None},
     {'schluessel': 'ersatzteile_etiketten', 'bezeichnung': 'Etiketten drucken', 'gruppe': 'Ersatzteile', 'berechtigung': None},
     {'schluessel': 'diverses_zebra', 'bezeichnung': 'Zebra-Drucker', 'gruppe': 'Diverses', 'berechtigung': ['zebra_drucker_produktion']},
+    {'schluessel': 'diverses_dokumente', 'bezeichnung': 'Dokumente erfassen', 'gruppe': 'Diverses', 'berechtigung': None},
     {'schluessel': 'produktion_etikettierung', 'bezeichnung': 'Etikettierung', 'gruppe': 'Produktion', 'berechtigung': None},
 ]
 

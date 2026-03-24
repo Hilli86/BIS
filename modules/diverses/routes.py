@@ -5,7 +5,7 @@ Routes für verschiedene Funktionen
 
 from flask import render_template, request, jsonify
 from . import diverses_bp
-from utils.decorators import permission_required
+from utils.decorators import permission_required, login_required
 from utils.zebra_client import send_zpl_to_printer
 
 # Hardcodierte Druckerliste
@@ -28,6 +28,13 @@ DRUCKER_LISTE = [
     {'ip': '10.40.40.102', 'bezeichnung': 'CC MORE000015', 'beschreibung': 'Quako CC SSCC'},
     {'ip': '10.40.40.81', 'bezeichnung': 'BM MORE000043', 'beschreibung': 'Quako Moussee'},
 ]
+
+
+@diverses_bp.route('/dokumente-erfassen')
+@login_required
+def dokumente_erfassen():
+    """Dokumente mit Kamera erfassen, zuschneiden und im Import-Ordner speichern."""
+    return render_template('diverses/dokumente_erfassen.html')
 
 
 @diverses_bp.route('/zebra-drucker')

@@ -135,6 +135,24 @@ def save_uploaded_file(file, target_folder, allowed_extensions=None, create_uniq
         return False, None, f"Fehler beim Speichern: {str(e)}"
 
 
+def speichere_in_import_ordner(file_storage, allowed_extensions=None, create_unique_name=True):
+    """
+    Speichert eine hochgeladene Datei im konfigurierten Import-Ordner (IMPORT_FOLDER).
+    Wiederverwendbar für Scan-Upload und andere Upload-Blöcke.
+    """
+    import_folder = current_app.config.get('IMPORT_FOLDER')
+    if not import_folder:
+        return False, None, "Import-Ordner nicht konfiguriert"
+    if allowed_extensions is None:
+        allowed_extensions = current_app.config.get('ALLOWED_EXTENSIONS', set())
+    return save_uploaded_file(
+        file_storage,
+        import_folder,
+        allowed_extensions=allowed_extensions,
+        create_unique_name=create_unique_name,
+    )
+
+
 def move_file_safe(source_path, target_path, create_unique_name=True):
     """
     Verschiebt eine Datei sicher (mit Pfad-Validierung)

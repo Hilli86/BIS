@@ -767,11 +767,18 @@
     {% endif %}
     {% endif %}
 
-    {% if menue_sichtbar('diverses_zebra') %}
+    {% if menue_sichtbar('diverses_zebra') or menue_sichtbar('diverses_dokumente') %}
     <h6>Diverses</h6>
+    {% if menue_sichtbar('diverses_dokumente') %}
+    <a href="{{ url_for('diverses.dokumente_erfassen') }}" class="{% if request.endpoint == 'diverses.dokumente_erfassen' %}active{% endif %}">
+      📄 Dokumente erfassen
+    </a>
+    {% endif %}
+    {% if menue_sichtbar('diverses_zebra') %}
     <a href="{{ url_for('diverses.zebra_drucker') }}" class="{% if request.endpoint == 'diverses.zebra_drucker' %}active{% endif %}">
       🖨️ Zebra-Drucker
     </a>
+    {% endif %}
     {% endif %}
     {% endif %}
 
