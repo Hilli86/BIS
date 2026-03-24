@@ -344,6 +344,52 @@
                     <i class="bi bi-upload"></i> Hochladen
                 </button>
             </form>
+            <hr class="my-3">
+            <p class="form-label fw-bold mb-2">Oder Bild von einer Artikel-Seite übernehmen</p>
+            <div class="input-group mb-2">
+                <input type="url" class="form-control" id="artikelfoto_seite_url" name="artikelfoto_seite_url"
+                       placeholder="https://… (Link zur Produkt- oder Artikel-Seite)" autocomplete="off"
+                       {% if ersatzteil.Link %}value="{{ ersatzteil.Link|e }}"{% endif %}
+                       data-gespeicherter-artikel-link="{{ (ersatzteil.Link or '')|e }}">
+                <button type="button" class="btn btn-outline-primary" id="artikelfoto_seite_suchen_btn">
+                    <i class="bi bi-search"></i> Bild suchen
+                </button>
+            </div>
+            <small class="form-text text-muted d-block mb-2">Die Seite wird vom Server geladen; gefundene Bilder können Sie im Dialog auswählen.</small>
+            <form id="artikelfotoUploadVonUrlForm" method="POST"
+                  action="{{ url_for('ersatzteile.ersatzteil_artikelfoto_upload_von_url', ersatzteil_id=ersatzteil.ID) }}">
+                <input type="hidden" name="image_url" id="artikelfoto_upload_von_url_value" value="">
+                {% if filter_params.kategorie %}
+                <input type="hidden" name="kategorie" value="{{ filter_params.kategorie }}">
+                {% endif %}
+                {% if filter_params.lieferant %}
+                <input type="hidden" name="lieferant" value="{{ filter_params.lieferant }}">
+                {% endif %}
+                {% if filter_params.lagerort %}
+                <input type="hidden" name="lagerort" value="{{ filter_params.lagerort }}">
+                {% endif %}
+                {% if filter_params.lagerplatz %}
+                <input type="hidden" name="lagerplatz" value="{{ filter_params.lagerplatz }}">
+                {% endif %}
+                {% if filter_params.kennzeichen %}
+                <input type="hidden" name="kennzeichen" value="{{ filter_params.kennzeichen }}">
+                {% endif %}
+                {% if filter_params.bestandswarnung %}
+                <input type="hidden" name="bestandswarnung" value="{{ filter_params.bestandswarnung }}">
+                {% endif %}
+                {% if filter_params.nur_ohne_preis %}
+                <input type="hidden" name="nur_ohne_preis" value="{{ filter_params.nur_ohne_preis }}">
+                {% endif %}
+                {% if filter_params.q %}
+                <input type="hidden" name="q" value="{{ filter_params.q }}">
+                {% endif %}
+                {% if filter_params.sort %}
+                <input type="hidden" name="sort" value="{{ filter_params.sort }}">
+                {% endif %}
+                {% if filter_params.dir %}
+                <input type="hidden" name="dir" value="{{ filter_params.dir }}">
+                {% endif %}
+            </form>
         </div>
         {% endif %}
     </div>
@@ -611,6 +657,26 @@
     </div>
 </div>
 
+<!-- Modal: Bilder von Artikel-URL -->
+<div class="modal fade" id="artikelfotoSeiteBilderModal" tabindex="-1" aria-labelledby="artikelfotoSeiteBilderModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="artikelfotoSeiteBilderModalLabel">
+                    <i class="bi bi-images"></i> Bilder auf der Seite
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Schließen"></button>
+            </div>
+            <div class="modal-body" id="artikelfotoSeiteBilderModalBody">
+                <div class="text-center text-muted py-3">Laden…</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 // Dynamische Anpassung des Mengenfelds je nach Buchungstyp
 document.addEventListener('DOMContentLoaded', function() {
@@ -639,6 +705,133 @@ document.addEventListener('DOMContentLoaded', function() {
         buchungstypSelect.addEventListener('change', updateMengeField);
         updateMengeField(); // Initial aufrufen
     }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    const suchenBtn = document.getElementById('artikelfoto_seite_suchen_btn');
+    const seiteUrlInput = document.getElementById('artikelfoto_seite_url');
+    const modalBody = document.getElementById('artikelfotoSeiteBilderModalBody');
+    const modalEl = document.getElementById('artikelfotoSeiteBilderModal');
+    const urlForm = document.getElementById('artikelfotoUploadVonUrlForm');
+    const seiteBilderUrl = "{{ url_for('ersatzteile.ersatzteil_artikelfoto_seite_bilder', ersatzteil_id=ersatzteil.ID) }}";
+
+    function escapeArtikelfotoHtml(s) {
+        const d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+    }
+
+    if (!suchenBtn || !seiteUrlInput || !modalBody || !modalEl || !urlForm) {
+        return;
+    }
+
+    function artikelfotoSeiteUrlMitFallback() {
+        let url = (seiteUrlInput.value || '').trim();
+        if (!url) {
+            const gespeichert = (seiteUrlInput.getAttribute('data-gespeicherter-artikel-link') || '').trim();
+            if (gespeichert) {
+                seiteUrlInput.value = gespeichert;
+                url = gespeichert;
+            }
+        }
+        return url;
+    }
+
+    const artikelfotoUploadCollapse = document.getElementById('artikelfotoUploadCollapse');
+    if (artikelfotoUploadCollapse) {
+        artikelfotoUploadCollapse.addEventListener('shown.bs.collapse', function() {
+            if (!(seiteUrlInput.value || '').trim()) {
+                const gespeichert = (seiteUrlInput.getAttribute('data-gespeicherter-artikel-link') || '').trim();
+                if (gespeichert) {
+                    seiteUrlInput.value = gespeichert;
+                }
+            }
+        });
+    }
+
+    suchenBtn.addEventListener('click', async function() {
+        const url = artikelfotoSeiteUrlMitFallback();
+        if (!url) {
+            alert('Bitte geben Sie einen Link zur Artikel-Seite ein.');
+            return;
+        }
+        const modal = typeof bootstrap.Modal.getOrCreateInstance === 'function'
+            ? bootstrap.Modal.getOrCreateInstance(modalEl)
+            : new bootstrap.Modal(modalEl);
+        modalBody.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Lädt...</span></div></div>';
+        modal.show();
+
+        try {
+            const resp = await fetch(seiteBilderUrl, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+                body: JSON.stringify({ url: url })
+            });
+            const data = await resp.json();
+            if (!data.success) {
+                const msg = data.message || 'Unbekannter Fehler.';
+                modalBody.innerHTML = '<div class="alert alert-warning mb-0">' + escapeArtikelfotoHtml(msg) + '</div>';
+                return;
+            }
+            const bilder = data.bilder || [];
+            if (bilder.length === 0) {
+                modalBody.innerHTML = '<div class="alert alert-info mb-0">Keine Bilder gefunden.</div>';
+                return;
+            }
+            const row = document.createElement('div');
+            row.className = 'row g-2';
+            bilder.forEach(function(item) {
+                const u = item.url;
+                if (!u || !/^https?:\/\//i.test(u)) {
+                    return;
+                }
+                const col = document.createElement('div');
+                col.className = 'col-6 col-md-4 col-lg-3';
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-light border w-100 p-2 d-flex flex-column align-items-center justify-content-center';
+                btn.style.minHeight = '140px';
+                const img = document.createElement('img');
+                img.src = u;
+                img.alt = '';
+                img.className = 'img-fluid';
+                img.style.maxHeight = '120px';
+                img.style.objectFit = 'contain';
+                img.loading = 'lazy';
+                img.referrerPolicy = 'no-referrer';
+                img.onerror = function() {
+                    img.style.display = 'none';
+                    if (!btn.querySelector('.artikelfoto-bild-fallback')) {
+                        const fb = document.createElement('div');
+                        fb.className = 'artikelfoto-bild-fallback small text-muted text-break p-1';
+                        fb.textContent = 'Vorschau nicht möglich – trotzdem wählen';
+                        btn.appendChild(fb);
+                    }
+                };
+                btn.appendChild(img);
+                btn.addEventListener('click', function() {
+                    const hidden = document.getElementById('artikelfoto_upload_von_url_value');
+                    if (hidden) {
+                        hidden.value = u;
+                    }
+                    const inst = bootstrap.Modal.getInstance(modalEl);
+                    if (inst) {
+                        inst.hide();
+                    }
+                    urlForm.submit();
+                });
+                col.appendChild(btn);
+                row.appendChild(col);
+            });
+            modalBody.innerHTML = '';
+            modalBody.appendChild(row);
+            if (!row.children.length) {
+                modalBody.innerHTML = '<div class="alert alert-info mb-0">Keine gültigen Bild-URLs gefunden.</div>';
+            }
+        } catch (err) {
+            modalBody.innerHTML = '<div class="alert alert-danger mb-0">Netzwerkfehler beim Laden der Bildliste.</div>';
+        }
+    });
 });
 
 // QR-Code Modal JavaScript

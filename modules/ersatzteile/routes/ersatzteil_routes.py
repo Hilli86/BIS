@@ -4,9 +4,13 @@ Ersatzteil-Routen - CRUD-Operationen für Ersatzteile
 
 from flask import render_template, request, redirect, url_for, session, jsonify, flash, send_from_directory, current_app
 from datetime import datetime
+from io import BytesIO
 import os
 import re
+from urllib.parse import urlparse
+from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
+from PIL import Image
 from .. import ersatzteile_bp
 from utils import get_db_connection, login_required, get_sichtbare_abteilungen_fuer_mitarbeiter
 from utils.helpers import build_ersatzteil_zugriff_filter, row_to_dict
@@ -17,6 +21,7 @@ from utils.file_handling import (
     originale_loeschen_aus_formular,
     loesche_import_kopie_nach_upload,
 )
+from utils.artikel_seite_bilder import ArtikelSeiteFehler, bild_von_url_laden, html_seite_bilder_laden
 from ..services import (
     build_ersatzteil_liste_query, 
     get_ersatzteil_liste_filter_options, 
@@ -1059,6 +1064,181 @@ def ersatzteil_artikelfoto_upload(ersatzteil_id):
     if filter_query:
         detail_url += '?' + filter_query
     return redirect(detail_url)
+
+
+def _artikelfoto_ext_aus_bytes_url_ct(data: bytes, image_url: str, content_type: str):
+    """Ermittelt eine erlaubte Dateiendung (png/jpg/gif/webp) oder None."""
+    allowed_image_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+    try:
+        with Image.open(BytesIO(data)) as im:
+            fmt = (im.format or '').upper()
+    except Exception:
+        fmt = ''
+    pil_map = {
+        'PNG': 'png',
+        'JPEG': 'jpg',
+        'GIF': 'gif',
+        'WEBP': 'webp',
+    }
+    ext = pil_map.get(fmt)
+    if ext and ext in allowed_image_extensions:
+        return ext
+    path = urlparse(image_url).path.lower()
+    for candidate in ('.png', '.jpg', '.jpeg', '.gif', '.webp'):
+        if path.endswith(candidate):
+            e = candidate.lstrip('.')
+            return 'jpg' if e == 'jpeg' else e
+    ct = (content_type or '').lower()
+    if 'image/png' in ct:
+        return 'png'
+    if 'image/jpeg' in ct or 'image/jpg' in ct:
+        return 'jpg'
+    if 'image/gif' in ct:
+        return 'gif'
+    if 'image/webp' in ct:
+        return 'webp'
+    return None
+
+
+@ersatzteile_bp.route('/<int:ersatzteil_id>/artikelfoto/seite-bilder', methods=['POST'])
+@login_required
+def ersatzteil_artikelfoto_seite_bilder(ersatzteil_id):
+    """JSON: Bild-URLs aus einer Artikel-/Seiten-URL extrahieren."""
+    mitarbeiter_id = session.get('user_id')
+    payload = request.get_json(silent=True) or {}
+    seiten_url = (payload.get('url') or '').strip()
+    if not seiten_url:
+        return jsonify({'success': False, 'message': 'Keine URL angegeben.'}), 400
+
+    with get_db_connection() as conn:
+        if not hat_ersatzteil_bearbeiten_zugriff(mitarbeiter_id, ersatzteil_id, conn):
+            return jsonify({'success': False, 'message': 'Sie haben keine Berechtigung für dieses Ersatzteil.'}), 403
+
+    try:
+        bilder, _final = html_seite_bilder_laden(seiten_url)
+    except ArtikelSeiteFehler as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+    if not bilder:
+        return jsonify({
+            'success': False,
+            'message': 'Keine Bilder auf der Seite gefunden.',
+            'bilder': [],
+        }), 200
+
+    return jsonify({
+        'success': True,
+        'bilder': [{'url': u} for u in bilder],
+    })
+
+
+@ersatzteile_bp.route('/<int:ersatzteil_id>/artikelfoto/upload-von-url', methods=['POST'])
+@login_required
+def ersatzteil_artikelfoto_upload_von_url(ersatzteil_id):
+    """Artikelfoto von einer Bild-URL herunterladen und speichern."""
+    mitarbeiter_id = session.get('user_id')
+
+    filter_params = {
+        'kategorie': request.form.get('kategorie') or request.args.get('kategorie', ''),
+        'lieferant': request.form.get('lieferant') or request.args.get('lieferant', ''),
+        'lagerort': request.form.get('lagerort') or request.args.get('lagerort', ''),
+        'lagerplatz': request.form.get('lagerplatz') or request.args.get('lagerplatz', ''),
+        'q': request.form.get('q') or request.args.get('q', ''),
+        'bestandswarnung': request.form.get('bestandswarnung') or request.args.get('bestandswarnung', ''),
+        'kennzeichen': request.form.get('kennzeichen') or request.args.get('kennzeichen', ''),
+        'sort': request.form.get('sort') or request.args.get('sort', ''),
+        'dir': request.form.get('dir') or request.args.get('dir', ''),
+        'nur_ohne_preis': request.form.get('nur_ohne_preis') or request.args.get('nur_ohne_preis', '')
+    }
+
+    def _detail_redirect():
+        detail_url = url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=ersatzteil_id)
+        filter_query = '&'.join([f'{k}={v}' for k, v in filter_params.items() if v])
+        if filter_query:
+            detail_url += '?' + filter_query
+        return redirect(detail_url)
+
+    image_url = (request.form.get('image_url') or '').strip()
+    if not image_url:
+        flash('Keine Bild-URL angegeben.', 'danger')
+        return _detail_redirect()
+
+    max_bytes = current_app.config.get('MAX_CONTENT_LENGTH') or (16 * 1024 * 1024)
+
+    try:
+        with get_db_connection() as conn:
+            if not hat_ersatzteil_bearbeiten_zugriff(mitarbeiter_id, ersatzteil_id, conn):
+                flash('Sie haben keine Berechtigung für dieses Ersatzteil.', 'danger')
+                return redirect(url_for('ersatzteile.ersatzteil_liste'))
+    except Exception as e:
+        flash(f'Fehler: {str(e)}', 'danger')
+        return _detail_redirect()
+
+    try:
+        data, content_type = bild_von_url_laden(image_url, max_bytes=max_bytes)
+    except ArtikelSeiteFehler as e:
+        flash(str(e), 'danger')
+        return _detail_redirect()
+
+    allowed_image_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+    file_ext = _artikelfoto_ext_aus_bytes_url_ct(data, image_url, content_type)
+    if not file_ext or file_ext not in allowed_image_extensions:
+        flash('Die Datei ist kein gültiges Bild (PNG, JPG, GIF oder WEBP).', 'danger')
+        return _detail_redirect()
+
+    try:
+        with get_db_connection() as conn:
+            if not hat_ersatzteil_bearbeiten_zugriff(mitarbeiter_id, ersatzteil_id, conn):
+                flash('Sie haben keine Berechtigung für dieses Ersatzteil.', 'danger')
+                return redirect(url_for('ersatzteile.ersatzteil_liste'))
+
+            altes_foto = conn.execute('SELECT ArtikelfotoPfad FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
+            if altes_foto and altes_foto['ArtikelfotoPfad']:
+                alter_pfad = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], altes_foto['ArtikelfotoPfad'].replace('/', os.sep))
+                if os.path.exists(alter_pfad):
+                    try:
+                        os.remove(alter_pfad)
+                    except Exception as e:
+                        print(f"Warnung: Konnte altes Artikelfoto nicht löschen: {e}")
+
+            upload_folder = os.path.join(current_app.config['ERSATZTEIL_UPLOAD_FOLDER'], str(ersatzteil_id))
+            create_upload_folder(upload_folder)
+
+            filename = f'artikelfoto.{file_ext}'
+            storage = FileStorage(
+                stream=BytesIO(data),
+                filename=filename,
+                content_type=f'image/{file_ext}' if file_ext != 'jpg' else 'image/jpeg',
+            )
+
+            success_upload, saved_filename, error_message = save_uploaded_file(
+                storage,
+                upload_folder,
+                allowed_extensions=allowed_image_extensions
+            )
+
+            if not success_upload or error_message:
+                flash(f'Fehler beim Speichern: {error_message}', 'danger')
+                return _detail_redirect()
+
+            relative_path = f'Ersatzteile/{ersatzteil_id}/{saved_filename}'
+            conn.execute('UPDATE Ersatzteil SET ArtikelfotoPfad = ? WHERE ID = ?', (relative_path, ersatzteil_id))
+            conn.commit()
+
+            loesche_import_kopie_nach_upload(
+                filename,
+                current_app.config['IMPORT_FOLDER'],
+                originale_loeschen_aus_formular(),
+            )
+            flash('Artikelfoto erfolgreich von URL übernommen.', 'success')
+
+    except Exception as e:
+        flash(f'Fehler beim Hochladen: {str(e)}', 'danger')
+        print(f"Artikelfoto-URL-Upload Fehler: {e}")
+        import traceback
+        traceback.print_exc()
+
+    return _detail_redirect()
 
 
 @ersatzteile_bp.route('/<int:ersatzteil_id>/artikelfoto/loeschen', methods=['POST'])
