@@ -51,6 +51,8 @@
     adjustScale: 1,
     adjustOffsetX: 0,
     adjustOffsetY: 0,
+    /** Gespiegelter Dateiname (Mobile: input.value erst nach blur zuverlässig; input-Event aktualisiert sofort) */
+    saveFilenameMirror: '',
   };
 
   function setOpencvStatus(text, isError) {
@@ -392,6 +394,7 @@
     el.canvasResult.getContext('2d').clearRect(0, 0, el.canvasResult.width, el.canvasResult.height);
     if (el.saveFilename) {
       el.saveFilename.value = '';
+      state.saveFilenameMirror = '';
     }
   }
 
@@ -519,8 +522,11 @@
     ctx.putImageData(imgData, 0, 0);
     el.btnSaveImport.disabled = false;
     el.btnDownloadLocal.disabled = false;
-    if (el.saveFilename && !el.saveFilename.value.trim()) {
-      el.saveFilename.value = 'scan_' + localTimestampForFilename() + '.jpg';
+    if (el.saveFilename) {
+      if (!el.saveFilename.value.trim()) {
+        el.saveFilename.value = 'scan_' + localTimestampForFilename() + '.jpg';
+      }
+      state.saveFilenameMirror = el.saveFilename.value;
     }
   }
 
@@ -530,7 +536,7 @@
 
   /** @returns {string} Dateiname mit .jpg für Upload/Download */
   function getExportFileName() {
-    const n = normalizeImportFilename(el.saveFilename && el.saveFilename.value ? el.saveFilename.value : '');
+    const n = normalizeImportFilename(state.saveFilenameMirror || '');
     return n || suggestedFilename();
   }
 
@@ -711,58 +717,76 @@
 
   function saveToImport() {
     el.saveMessage.textContent = '';
-    el.canvasResult.toBlob(
-      function (blob) {
-        if (!blob) {
-          el.saveMessage.textContent = 'Kein Bild erzeugbar.';
-          el.saveMessage.classList.add('text-danger');
-          return;
-        }
-        const name = getExportFileName();
-        const fd = new FormData();
-        fd.append('file', blob, name);
-        fetch(UPLOAD_URL, {
-          method: 'POST',
-          body: fd,
-          credentials: 'same-origin',
-          headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        })
-          .then(function (r) {
-            return r.json().then(function (j) {
-              return { ok: r.ok, body: j };
-            });
-          })
-          .then(function (_ref) {
-            const ok = _ref.ok;
-            const body = _ref.body;
-            if (ok && body.success) {
-              el.saveMessage.textContent = body.message || 'Gespeichert.';
-              el.saveMessage.classList.remove('text-danger');
-              el.saveMessage.classList.add('text-success');
-            } else {
-              el.saveMessage.textContent = (body && body.message) || 'Fehler beim Speichern.';
-              el.saveMessage.classList.add('text-danger');
-            }
-          })
-          .catch(function () {
-            el.saveMessage.textContent = 'Netzwerkfehler beim Speichern.';
+    if (el.saveFilename) {
+      el.saveFilename.blur();
+      state.saveFilenameMirror = el.saveFilename.value;
+    }
+    window.setTimeout(function () {
+      if (el.saveFilename) {
+        state.saveFilenameMirror = el.saveFilename.value;
+      }
+      el.canvasResult.toBlob(
+        function (blob) {
+          if (!blob) {
+            el.saveMessage.textContent = 'Kein Bild erzeugbar.';
             el.saveMessage.classList.add('text-danger');
-          });
-      },
-      'image/jpeg',
-      0.92
-    );
+            return;
+          }
+          const name = getExportFileName();
+          const fd = new FormData();
+          fd.append('file', blob, name);
+          fetch(UPLOAD_URL, {
+            method: 'POST',
+            body: fd,
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          })
+            .then(function (r) {
+              return r.json().then(function (j) {
+                return { ok: r.ok, body: j };
+              });
+            })
+            .then(function (_ref) {
+              const ok = _ref.ok;
+              const body = _ref.body;
+              if (ok && body.success) {
+                el.saveMessage.textContent = body.message || 'Gespeichert.';
+                el.saveMessage.classList.remove('text-danger');
+                el.saveMessage.classList.add('text-success');
+              } else {
+                el.saveMessage.textContent = (body && body.message) || 'Fehler beim Speichern.';
+                el.saveMessage.classList.add('text-danger');
+              }
+            })
+            .catch(function () {
+              el.saveMessage.textContent = 'Netzwerkfehler beim Speichern.';
+              el.saveMessage.classList.add('text-danger');
+            });
+        },
+        'image/jpeg',
+        0.92
+      );
+    }, 0);
   }
 
   function downloadLocal() {
-    el.canvasResult.toBlob(function (blob) {
-      if (!blob) return;
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = getExportFileName();
-      a.click();
-      URL.revokeObjectURL(a.href);
-    }, 'image/jpeg', 0.92);
+    if (el.saveFilename) {
+      el.saveFilename.blur();
+      state.saveFilenameMirror = el.saveFilename.value;
+    }
+    window.setTimeout(function () {
+      if (el.saveFilename) {
+        state.saveFilenameMirror = el.saveFilename.value;
+      }
+      el.canvasResult.toBlob(function (blob) {
+        if (!blob) return;
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = getExportFileName();
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }, 'image/jpeg', 0.92);
+    }, 0);
   }
 
   el.btnStartCamera.addEventListener('click', startCamera);
@@ -776,6 +800,18 @@
     state.corners = defaultCorners(state.sourceCanvas.width, state.sourceCanvas.height);
     drawAdjustCanvas();
   });
+  if (el.saveFilename) {
+    el.saveFilename.addEventListener('input', function () {
+      state.saveFilenameMirror = el.saveFilename.value;
+    });
+    el.saveFilename.addEventListener('change', function () {
+      state.saveFilenameMirror = el.saveFilename.value;
+    });
+    el.saveFilename.addEventListener('blur', function () {
+      state.saveFilenameMirror = el.saveFilename.value;
+    });
+  }
+
   el.btnSaveImport.addEventListener('click', saveToImport);
   el.btnDownloadLocal.addEventListener('click', downloadLocal);
 
