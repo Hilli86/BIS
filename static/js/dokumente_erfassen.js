@@ -10,6 +10,12 @@
   const boot = document.getElementById('dokumente-erfassen-boot');
   const UPLOAD_URL = boot && boot.dataset.uploadUrl ? boot.dataset.uploadUrl : '/api/import/hochladen';
 
+  /** POST-URL mit Dateiname in der Query (zuverlässiger als nur multipart auf iOS/Android). */
+  function buildImportUploadUrl(filenameEncoded) {
+    const sep = UPLOAD_URL.indexOf('?') >= 0 ? '&' : '?';
+    return UPLOAD_URL + sep + 'filename=' + encodeURIComponent(filenameEncoded);
+  }
+
   const el = {
     video: document.getElementById('video-preview'),
     videoPlaceholder: document.getElementById('video-placeholder'),
@@ -182,13 +188,17 @@
   }
 
   function isQuadInImage(pts, w, h, margin) {
-    const m = margin || 0;
+    const shortSide = Math.min(w, h);
+    const m =
+      margin !== undefined && margin !== null
+        ? margin
+        : Math.min(80, Math.max(6, shortSide * 0.06));
     for (let i = 0; i < 4; i++) {
       if (pts[i][0] < -m || pts[i][0] > w + m || pts[i][1] < -m || pts[i][1] > h + m) {
         return false;
       }
     }
-    return quadAreaOrdered(pts) >= w * h * 0.03;
+    return quadAreaOrdered(pts) >= w * h * 0.008;
   }
 
   function quadFromContour(cnt, w, h, minArea) {
@@ -206,7 +216,7 @@
         approx.delete();
         if (raw && raw.length === 4) {
           const ordered = orderPoints(raw);
-          if (isQuadInImage(ordered, w, h, 8)) {
+          if (isQuadInImage(ordered, w, h)) {
             return ordered;
           }
         }
@@ -225,7 +235,7 @@
       }
       box.delete();
       const ordered = orderPoints(raw);
-      if (isQuadInImage(ordered, w, h, 8)) {
+      if (isQuadInImage(ordered, w, h)) {
         return ordered;
       }
     } catch (err) {
@@ -235,29 +245,31 @@
   }
 
   function findBestQuadFromEdges(edges, w, h, minArea) {
-    const contours = new cv.MatVector();
-    const hierarchy = new cv.Mat();
-    cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-
+    const modes = [cv.RETR_EXTERNAL, cv.RETR_LIST];
     let best = null;
-    for (let i = 0; i < contours.size(); i++) {
-      const cnt = contours.get(i);
-      const a = cv.contourArea(cnt, false);
-      if (a < minArea) {
+    for (let mi = 0; mi < modes.length; mi++) {
+      const contours = new cv.MatVector();
+      const hierarchy = new cv.Mat();
+      cv.findContours(edges, contours, hierarchy, modes[mi], cv.CHAIN_APPROX_SIMPLE);
+      for (let i = 0; i < contours.size(); i++) {
+        const cnt = contours.get(i);
+        const a = cv.contourArea(cnt, false);
+        if (a < minArea) {
+          cnt.delete();
+          continue;
+        }
+        const pts = quadFromContour(cnt, w, h, minArea);
         cnt.delete();
-        continue;
-      }
-      const pts = quadFromContour(cnt, w, h, minArea);
-      cnt.delete();
-      if (pts) {
-        const qa = quadAreaOrdered(pts);
-        if (!best || qa > best.area) {
-          best = { pts: pts, area: qa };
+        if (pts) {
+          const qa = quadAreaOrdered(pts);
+          if (!best || qa > best.area) {
+            best = { pts: pts, area: qa };
+          }
         }
       }
+      hierarchy.delete();
+      contours.delete();
     }
-    hierarchy.delete();
-    contours.delete();
     return best;
   }
 
@@ -283,7 +295,7 @@
 
     const w = work.cols;
     const h = work.rows;
-    const minArea = w * h * 0.035;
+    const minArea = w * h * 0.015;
 
     const gray = new cv.Mat();
     cv.cvtColor(work, gray, cv.COLOR_RGBA2GRAY);
@@ -308,11 +320,82 @@
       }
     }
 
+    function addOtsuCloseCanny() {
+      const blur = new cv.Mat();
+      cv.GaussianBlur(gray, blur, new cv.Size(5, 5), 0);
+      const bin = new cv.Mat();
+      cv.threshold(blur, bin, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
+      blur.delete();
+      const k = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3));
+      const closed = new cv.Mat();
+      cv.morphologyEx(bin, closed, cv.MORPH_CLOSE, k);
+      k.delete();
+      bin.delete();
+      const edge = new cv.Mat();
+      cv.Canny(closed, edge, 40, 120);
+      closed.delete();
+      pipelines.push(edge);
+    }
+
+    function addAdaptiveCanny() {
+      const blur = new cv.Mat();
+      cv.GaussianBlur(gray, blur, new cv.Size(5, 5), 0);
+      const bin = new cv.Mat();
+      cv.adaptiveThreshold(
+        blur,
+        bin,
+        255,
+        cv.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv.THRESH_BINARY,
+        15,
+        4
+      );
+      blur.delete();
+      const edge = new cv.Mat();
+      cv.Canny(bin, edge, 25, 85);
+      bin.delete();
+      pipelines.push(edge);
+    }
+
+    function addEqualizedCanny() {
+      const eq = new cv.Mat();
+      cv.equalizeHist(gray, eq);
+      const blur = new cv.Mat();
+      cv.GaussianBlur(eq, blur, new cv.Size(5, 5), 0);
+      eq.delete();
+      const edge = new cv.Mat();
+      cv.Canny(blur, edge, 20, 70);
+      blur.delete();
+      pipelines.push(edge);
+    }
+
+    function addBilateralCanny() {
+      const filt = new cv.Mat();
+      cv.bilateralFilter(gray, filt, 7, 50, 50);
+      const edge = new cv.Mat();
+      cv.Canny(filt, edge, 18, 54);
+      filt.delete();
+      pipelines.push(edge);
+    }
+
     addCannyDilate(20, 60, 5, 3);
     addCannyDilate(30, 90, 5, 3);
     addCannyDilate(50, 150, 5, 0);
     addCannyDilate(40, 120, 7, 5);
     addCannyDilate(15, 45, 5, 5);
+    addCannyDilate(10, 40, 5, 5);
+    try {
+      addOtsuCloseCanny();
+    } catch (e) {}
+    try {
+      addAdaptiveCanny();
+    } catch (e) {}
+    try {
+      addEqualizedCanny();
+    } catch (e) {}
+    try {
+      addBilateralCanny();
+    } catch (e) {}
 
     let bestPts = null;
     let bestArea = 0;
@@ -534,8 +617,16 @@
     return 'scan_' + localTimestampForFilename() + '.jpg';
   }
 
+  /** Aktuellen Wert aus dem Eingabefeld übernehmen (wichtig für Mobilbrowser). */
+  function syncFilenameFromDom() {
+    if (el.saveFilename) {
+      state.saveFilenameMirror = el.saveFilename.value;
+    }
+  }
+
   /** @returns {string} Dateiname mit .jpg für Upload/Download */
   function getExportFileName() {
+    syncFilenameFromDom();
     const n = normalizeImportFilename(state.saveFilenameMirror || '');
     return n || suggestedFilename();
   }
@@ -721,10 +812,11 @@
       el.saveFilename.blur();
       state.saveFilenameMirror = el.saveFilename.value;
     }
-    window.setTimeout(function () {
+    function runUpload() {
       if (el.saveFilename) {
         state.saveFilenameMirror = el.saveFilename.value;
       }
+      syncFilenameFromDom();
       el.canvasResult.toBlob(
         function (blob) {
           if (!blob) {
@@ -732,10 +824,13 @@
             el.saveMessage.classList.add('text-danger');
             return;
           }
+          syncFilenameFromDom();
           const name = getExportFileName();
           const fd = new FormData();
-          fd.append('file', blob, name);
-          fetch(UPLOAD_URL, {
+          fd.append('filename', name);
+          fd.append('file', blob, 'upload.jpg');
+          const url = buildImportUploadUrl(name);
+          fetch(url, {
             method: 'POST',
             body: fd,
             credentials: 'same-origin',
@@ -766,7 +861,10 @@
         'image/jpeg',
         0.92
       );
-    }, 0);
+    }
+    requestAnimationFrame(function () {
+      requestAnimationFrame(runUpload);
+    });
   }
 
   function downloadLocal() {
@@ -774,19 +872,23 @@
       el.saveFilename.blur();
       state.saveFilenameMirror = el.saveFilename.value;
     }
-    window.setTimeout(function () {
-      if (el.saveFilename) {
-        state.saveFilenameMirror = el.saveFilename.value;
-      }
-      el.canvasResult.toBlob(function (blob) {
-        if (!blob) return;
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = getExportFileName();
-        a.click();
-        URL.revokeObjectURL(a.href);
-      }, 'image/jpeg', 0.92);
-    }, 0);
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        if (el.saveFilename) {
+          state.saveFilenameMirror = el.saveFilename.value;
+        }
+        syncFilenameFromDom();
+        el.canvasResult.toBlob(function (blob) {
+          if (!blob) return;
+          syncFilenameFromDom();
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = getExportFileName();
+          a.click();
+          URL.revokeObjectURL(a.href);
+        }, 'image/jpeg', 0.92);
+      });
+    });
   }
 
   el.btnStartCamera.addEventListener('click', startCamera);
@@ -810,7 +912,23 @@
     el.saveFilename.addEventListener('blur', function () {
       state.saveFilenameMirror = el.saveFilename.value;
     });
+    el.saveFilename.addEventListener('compositionend', function () {
+      state.saveFilenameMirror = el.saveFilename.value;
+    });
   }
+
+  function bindFilenameSyncPointer(btn) {
+    if (!btn) return;
+    btn.addEventListener(
+      'pointerdown',
+      function () {
+        syncFilenameFromDom();
+      },
+      true
+    );
+  }
+  bindFilenameSyncPointer(el.btnSaveImport);
+  bindFilenameSyncPointer(el.btnDownloadLocal);
 
   el.btnSaveImport.addEventListener('click', saveToImport);
   el.btnDownloadLocal.addEventListener('click', downloadLocal);

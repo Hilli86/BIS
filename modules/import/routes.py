@@ -70,7 +70,18 @@ def import_hochladen():
         return jsonify({'success': False, 'message': 'Nicht angemeldet'}), 401
 
     file = request.files.get('file')
-    success, filename, error_message = speichere_in_import_ordner(file)
+    # Formular + Query: manche Mobilbrowser liefern Textfelder im multipart unzuverlässig; ?filename= ist Fallback
+    name_form = (
+        request.form.get('filename')
+        or request.form.get('dateiname')
+        or request.args.get('filename')
+        or request.args.get('dateiname')
+        or ''
+    ).strip()
+    success, filename, error_message = speichere_in_import_ordner(
+        file,
+        dateiname_vorgabe=name_form if name_form else None,
+    )
     if not success:
         return jsonify({'success': False, 'message': error_message or 'Speichern fehlgeschlagen'}), 400
 

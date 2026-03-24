@@ -91,7 +91,7 @@ def get_file_list(folder_path, include_size=True):
     return dateien
 
 
-def save_uploaded_file(file, target_folder, allowed_extensions=None, create_unique_name=True):
+def save_uploaded_file(file, target_folder, allowed_extensions=None, create_unique_name=True, override_filename=None):
     """
     Speichert eine hochgeladene Datei
     
@@ -100,15 +100,25 @@ def save_uploaded_file(file, target_folder, allowed_extensions=None, create_uniq
         target_folder: Zielordner für die Datei
         allowed_extensions: Erlaubte Dateiendungen (optional)
         create_unique_name: Ob bei Existenz ein eindeutiger Name erstellt werden soll
+        override_filename: Optionaler Dateiname (z. B. aus Formularfeld), sonst file.filename
         
     Returns:
         Tuple (success: bool, filename: str oder None, error_message: str oder None)
     """
-    if not file or not file.filename:
+    if not file:
         return False, None, "Keine Datei ausgewählt"
-    
-    # Validierung
-    if allowed_extensions and not validate_file_extension(file.filename, allowed_extensions):
+
+    name_for_validation = None
+    if override_filename is not None and str(override_filename).strip():
+        name_for_validation = str(override_filename).strip()
+    elif file.filename:
+        name_for_validation = file.filename
+
+    if not name_for_validation:
+        return False, None, "Keine Datei ausgewählt"
+
+    # Validierung (an gewünschtem Dateinamen, nicht nur an Blob-Namen)
+    if allowed_extensions and not validate_file_extension(name_for_validation, allowed_extensions):
         return False, None, f"Dateityp nicht erlaubt. Erlaubt: {', '.join(allowed_extensions)}"
     
     # Ordner erstellen
@@ -116,7 +126,11 @@ def save_uploaded_file(file, target_folder, allowed_extensions=None, create_uniq
         return False, None, "Fehler beim Erstellen des Zielordners"
     
     # Sicheren Dateinamen erstellen
-    safe_filename = secure_filename(file.filename)
+    safe_filename = secure_filename(name_for_validation)
+    if not safe_filename or safe_filename in ('.', '..'):
+        safe_filename = secure_filename(file.filename) if file.filename else 'upload.jpg'
+    if not safe_filename:
+        safe_filename = 'upload.jpg'
     filepath = os.path.join(target_folder, safe_filename)
     
     # Eindeutigen Namen erstellen falls Datei bereits existiert
@@ -135,21 +149,27 @@ def save_uploaded_file(file, target_folder, allowed_extensions=None, create_uniq
         return False, None, f"Fehler beim Speichern: {str(e)}"
 
 
-def speichere_in_import_ordner(file_storage, allowed_extensions=None, create_unique_name=True):
+def speichere_in_import_ordner(file_storage, allowed_extensions=None, create_unique_name=True, dateiname_vorgabe=None):
     """
     Speichert eine hochgeladene Datei im konfigurierten Import-Ordner (IMPORT_FOLDER).
     Wiederverwendbar für Scan-Upload und andere Upload-Blöcke.
+
+    dateiname_vorgabe: optionaler Dateiname (z. B. multipart-Feld „filename“), zuverlässiger als nur Blob-Name.
     """
     import_folder = current_app.config.get('IMPORT_FOLDER')
     if not import_folder:
         return False, None, "Import-Ordner nicht konfiguriert"
     if allowed_extensions is None:
         allowed_extensions = current_app.config.get('ALLOWED_EXTENSIONS', set())
+    override = None
+    if dateiname_vorgabe is not None and str(dateiname_vorgabe).strip():
+        override = str(dateiname_vorgabe).strip()
     return save_uploaded_file(
         file_storage,
         import_folder,
         allowed_extensions=allowed_extensions,
         create_unique_name=create_unique_name,
+        override_filename=override,
     )
 
 
