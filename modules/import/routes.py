@@ -3,9 +3,10 @@ Import Routes
 Routes für Datei-Import-Funktionalität
 """
 
-from flask import request, session, jsonify, current_app
+from flask import request, session, jsonify, current_app, send_from_directory, abort
 import os
 import shutil
+import mimetypes
 from werkzeug.utils import secure_filename
 from . import import_bp
 from utils.file_handling import get_file_list, move_file_safe, speichere_in_import_ordner
@@ -29,6 +30,37 @@ def import_dateien_liste():
         return jsonify({'success': True, 'dateien': dateien})
     except Exception as e:
         return jsonify({'success': False, 'message': f'Fehler beim Lesen des Import-Ordners: {str(e)}'}), 500
+
+
+@import_bp.route('/anzeigen/<filename>')
+def import_datei_anzeigen(filename):
+    """
+    Liefert eine Datei aus dem Import-Ordner (Vorschau im Browser, nur angemeldete Nutzer).
+    Kein Pfad in der URL; Traversal wird abgewiesen.
+    """
+    if 'user_id' not in session:
+        abort(401)
+
+    if not filename or '..' in filename or '/' in filename or '\\' in filename:
+        abort(400)
+
+    import_folder = current_app.config['IMPORT_FOLDER']
+    path = os.path.join(import_folder, filename)
+    path_abs = os.path.abspath(path)
+    import_abs = os.path.abspath(import_folder)
+    if not path_abs.startswith(import_abs + os.sep):
+        abort(403)
+    if not os.path.isfile(path_abs):
+        abort(404)
+
+    mt, _ = mimetypes.guess_type(filename)
+    return send_from_directory(
+        import_folder,
+        filename,
+        mimetype=mt or 'application/octet-stream',
+        max_age=0,
+        conditional=True,
+    )
 
 
 @import_bp.route('/hochladen', methods=['POST'])

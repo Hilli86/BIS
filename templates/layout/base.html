@@ -814,6 +814,24 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>window.bootstrap = bootstrap;</script>
   <script src="{{ url_for('static', filename='webauthn.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/import_ordner_vorschau.js') }}"></script>
+
+  <!-- Modal: Vorschau Dateien aus Import-Ordner (Thumbnails in Upload-Blöcken) -->
+  <div class="modal fade" id="importOrdnerVorschauModal" tabindex="-1" aria-labelledby="importOrdnerVorschauTitel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h5 class="modal-title text-truncate" id="importOrdnerVorschauTitel" style="max-width: 90%"></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+        </div>
+        <div class="modal-body text-center p-2 bg-light">
+          <img id="importOrdnerVorschauBild" src="" alt="" class="img-fluid rounded border" style="max-height: 75vh; display: none;">
+          <iframe id="importOrdnerVorschauPdf" title="PDF-Vorschau" class="w-100 rounded border bg-white" style="min-height: 70vh; display: none;"></iframe>
+          <div id="importOrdnerVorschauOther" class="p-3" style="display: none;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
     // Automatisches Schließen von Erfolgs- und Info-Flash-Meldungen

@@ -1,6 +1,19 @@
 {% extends "layout/base.html" %}
 
 {% block content %}
+<style>
+  /* Verhindert Seiten-Scroll beim Ziehen der Schneidepunkte (Touch / Stift) */
+  #adjust-wrap,
+  #canvas-adjust {
+    touch-action: none;
+    -ms-touch-action: none;
+    overscroll-behavior: contain;
+  }
+  #canvas-adjust {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+</style>
 <div class="container-fluid mt-4">
   <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <h2 class="mb-0">
@@ -113,6 +126,11 @@
         </div>
         <div class="card-body">
           <p class="small text-muted">Speichert die bearbeitete Vorschau als JPEG im zentralen Import-Ordner.</p>
+          <div class="mb-3">
+            <label for="save-filename" class="form-label mb-1">Dateiname</label>
+            <input type="text" class="form-control form-control-sm" id="save-filename" autocomplete="off" placeholder="z.B. Lieferschein_Lager.jpg" maxlength="200">
+            <div class="form-text">Ohne Endung oder mit .jpg / .jpeg – Speicherung erfolgt als JPEG.</div>
+          </div>
           <button type="button" class="btn btn-primary w-100 mb-2" id="btn-save-import" disabled>
             <i class="bi bi-save"></i> Im Import-Ordner speichern
           </button>

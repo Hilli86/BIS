@@ -824,7 +824,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <!-- Import-Funktionalität für Angebotsanfragen -->
 <script>
 async function ladeImportDateienAngebotsanfrage() {
-    const liste = document.getElementById('aa-import-dateien-liste');
+    const liste = document.getElementById('aa-import-tab-dateien-liste');
     if (!liste) return;
     
     liste.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
@@ -851,13 +851,13 @@ async function ladeImportDateienAngebotsanfrage() {
         
         let html = '<div class="list-group">';
         gefilterteDateien.forEach(datei => {
+            const links = typeof importOrdnerRowLeftHtml === 'function'
+                ? importOrdnerRowLeftHtml(datei.name, datei.size)
+                : `<div><strong>${datei.name}</strong><br><small class="text-muted">${datei.size}</small></div>`;
             html += `
-                <div class="list-group-item d-flex justify-content-between align-items-center">
-                    <div>
-                        <strong>${datei.name}</strong>
-                        <br><small class="text-muted">${datei.size}</small>
-                    </div>
-                    <button class="btn btn-sm btn-success" onclick="verschiebeAusImportAngebotsanfrage('${datei.name.replace(/'/g, "\\'")}')">
+                <div class="list-group-item d-flex justify-content-between align-items-center gap-2">
+                    ${links}
+                    <button type="button" class="btn btn-sm btn-success flex-shrink-0" onclick="verschiebeAusImportAngebotsanfrage('${datei.name.replace(/'/g, "\\'")}')">
                         <i class="bi bi-arrow-right"></i> Verwenden
                     </button>
                 </div>

@@ -35,6 +35,7 @@
     valRotate: document.getElementById('val-rotate'),
     chkGrayscale: document.getElementById('chk-grayscale'),
     adjustWrap: document.getElementById('adjust-wrap'),
+    saveFilename: document.getElementById('save-filename'),
   };
 
   const state = {
@@ -56,6 +57,27 @@
     if (!el.opencvStatus) return;
     el.opencvStatus.textContent = text || '';
     el.opencvStatus.classList.toggle('text-danger', !!isError);
+  }
+
+  /** Lokale Zeit (toISOString() wäre UTC und verschiebt die Uhrzeit). */
+  function localTimestampForFilename() {
+    const d = new Date();
+    function pad(n) {
+      return String(n).padStart(2, '0');
+    }
+    return (
+      d.getFullYear() +
+      '-' +
+      pad(d.getMonth() + 1) +
+      '-' +
+      pad(d.getDate()) +
+      'T' +
+      pad(d.getHours()) +
+      '-' +
+      pad(d.getMinutes()) +
+      '-' +
+      pad(d.getSeconds())
+    );
   }
 
   function loadOpenCv() {
@@ -137,6 +159,106 @@
     return pts.length ? pts : null;
   }
 
+  function quadAreaOrdered(pts) {
+    const tl = pts[0];
+    const tr = pts[1];
+    const br = pts[2];
+    const bl = pts[3];
+    return (
+      0.5 *
+      Math.abs(
+        tl[0] * tr[1] -
+          tr[0] * tl[1] +
+          tr[0] * br[1] -
+          br[0] * tr[1] +
+          br[0] * bl[1] -
+          bl[0] * br[1] +
+          bl[0] * tl[1] -
+          tl[0] * bl[1]
+      )
+    );
+  }
+
+  function isQuadInImage(pts, w, h, margin) {
+    const m = margin || 0;
+    for (let i = 0; i < 4; i++) {
+      if (pts[i][0] < -m || pts[i][0] > w + m || pts[i][1] < -m || pts[i][1] > h + m) {
+        return false;
+      }
+    }
+    return quadAreaOrdered(pts) >= w * h * 0.03;
+  }
+
+  function quadFromContour(cnt, w, h, minArea) {
+    const area = cv.contourArea(cnt, false);
+    if (area < minArea) {
+      return null;
+    }
+    const peri = cv.arcLength(cnt, true);
+    const epsilons = [0.01, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05, 0.06, 0.08, 0.1];
+    for (let e = 0; e < epsilons.length; e++) {
+      const approx = new cv.Mat();
+      cv.approxPolyDP(cnt, approx, epsilons[e] * peri, true);
+      if (approx.rows === 4) {
+        const raw = approxToPoints(approx);
+        approx.delete();
+        if (raw && raw.length === 4) {
+          const ordered = orderPoints(raw);
+          if (isQuadInImage(ordered, w, h, 8)) {
+            return ordered;
+          }
+        }
+      } else {
+        approx.delete();
+      }
+    }
+
+    try {
+      const rect = cv.minAreaRect(cnt);
+      const box = new cv.Mat();
+      cv.boxPoints(rect, box);
+      const raw = [];
+      for (let j = 0; j < 4; j++) {
+        raw.push([box.data32F[j * 2], box.data32F[j * 2 + 1]]);
+      }
+      box.delete();
+      const ordered = orderPoints(raw);
+      if (isQuadInImage(ordered, w, h, 8)) {
+        return ordered;
+      }
+    } catch (err) {
+      /* optional */
+    }
+    return null;
+  }
+
+  function findBestQuadFromEdges(edges, w, h, minArea) {
+    const contours = new cv.MatVector();
+    const hierarchy = new cv.Mat();
+    cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+    let best = null;
+    for (let i = 0; i < contours.size(); i++) {
+      const cnt = contours.get(i);
+      const a = cv.contourArea(cnt, false);
+      if (a < minArea) {
+        cnt.delete();
+        continue;
+      }
+      const pts = quadFromContour(cnt, w, h, minArea);
+      cnt.delete();
+      if (pts) {
+        const qa = quadAreaOrdered(pts);
+        if (!best || qa > best.area) {
+          best = { pts: pts, area: qa };
+        }
+      }
+    }
+    hierarchy.delete();
+    contours.delete();
+    return best;
+  }
+
   /**
    * @param {HTMLCanvasElement} canvasFull
    * @returns {number[][]|null} vier Punkte [tl,tr,br,bl] in Pixeln des canvasFull
@@ -145,7 +267,7 @@
     if (!state.cvReady || typeof cv === 'undefined') {
       return null;
     }
-    const maxDim = 900;
+    const maxDim = 1200;
     let scale = 1;
     let src = cv.imread(canvasFull);
     let work = src;
@@ -157,44 +279,53 @@
       src.delete();
     }
 
+    const w = work.cols;
+    const h = work.rows;
+    const minArea = w * h * 0.035;
+
     const gray = new cv.Mat();
     cv.cvtColor(work, gray, cv.COLOR_RGBA2GRAY);
-    const blur = new cv.Mat();
-    cv.GaussianBlur(gray, blur, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
-    const edges = new cv.Mat();
-    cv.Canny(blur, edges, 50, 150);
-    const contours = new cv.MatVector();
-    const hierarchy = new cv.Mat();
-    cv.findContours(edges, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 
-    const minArea = work.rows * work.cols * 0.08;
-    let maxArea = 0;
-    let bestPts = null;
+    const pipelines = [];
 
-    for (let i = 0; i < contours.size(); i++) {
-      const cnt = contours.get(i);
-      const peri = cv.arcLength(cnt, true);
-      const approx = new cv.Mat();
-      cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
-      if (approx.rows === 4) {
-        const area = cv.contourArea(cnt, false);
-        if (area > minArea && area > maxArea) {
-          const raw = approxToPoints(approx);
-          if (raw && raw.length === 4) {
-            maxArea = area;
-            bestPts = orderPoints(raw);
-          }
-        }
+    function addCannyDilate(low, high, ksize, dilateSize) {
+      const blur = new cv.Mat();
+      cv.GaussianBlur(gray, blur, new cv.Size(ksize, ksize), 0, 0, cv.BORDER_DEFAULT);
+      const edge = new cv.Mat();
+      cv.Canny(blur, edge, low, high);
+      blur.delete();
+      if (dilateSize > 0) {
+        const k = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(dilateSize, dilateSize));
+        const dil = new cv.Mat();
+        cv.dilate(edge, dil, k);
+        k.delete();
+        edge.delete();
+        pipelines.push(dil);
+      } else {
+        pipelines.push(edge);
       }
-      approx.delete();
-      cnt.delete();
+    }
+
+    addCannyDilate(20, 60, 5, 3);
+    addCannyDilate(30, 90, 5, 3);
+    addCannyDilate(50, 150, 5, 0);
+    addCannyDilate(40, 120, 7, 5);
+    addCannyDilate(15, 45, 5, 5);
+
+    let bestPts = null;
+    let bestArea = 0;
+
+    for (let p = 0; p < pipelines.length; p++) {
+      const edges = pipelines[p];
+      const found = findBestQuadFromEdges(edges, w, h, minArea);
+      edges.delete();
+      if (found && found.area > bestArea) {
+        bestArea = found.area;
+        bestPts = found.pts;
+      }
     }
 
     gray.delete();
-    blur.delete();
-    edges.delete();
-    hierarchy.delete();
-    contours.delete();
     work.delete();
 
     if (!bestPts) {
@@ -202,8 +333,8 @@
     }
 
     const inv = 1 / scale;
-    return bestPts.map(function (p) {
-      return [p[0] * inv, p[1] * inv];
+    return bestPts.map(function (pt) {
+      return [pt[0] * inv, pt[1] * inv];
     });
   }
 
@@ -259,6 +390,9 @@
     el.btnDownloadLocal.disabled = true;
     state.warpedCanvas = null;
     el.canvasResult.getContext('2d').clearRect(0, 0, el.canvasResult.width, el.canvasResult.height);
+    if (el.saveFilename) {
+      el.saveFilename.value = '';
+    }
   }
 
   function imageToCanvas(img) {
@@ -385,6 +519,39 @@
     ctx.putImageData(imgData, 0, 0);
     el.btnSaveImport.disabled = false;
     el.btnDownloadLocal.disabled = false;
+    if (el.saveFilename && !el.saveFilename.value.trim()) {
+      el.saveFilename.value = 'scan_' + localTimestampForFilename() + '.jpg';
+    }
+  }
+
+  function suggestedFilename() {
+    return 'scan_' + localTimestampForFilename() + '.jpg';
+  }
+
+  /** @returns {string} Dateiname mit .jpg für Upload/Download */
+  function getExportFileName() {
+    const n = normalizeImportFilename(el.saveFilename && el.saveFilename.value ? el.saveFilename.value : '');
+    return n || suggestedFilename();
+  }
+
+  function normalizeImportFilename(raw) {
+    let s = (raw || '').trim();
+    if (!s) return null;
+    s = s.replace(/[/\\:*?"<>|]/g, '_');
+    s = s.replace(/\s+/g, '_');
+    if (!/\.(jpe?g)$/i.test(s)) {
+      const dot = s.lastIndexOf('.');
+      if (dot > 0) {
+        s = s.substring(0, dot);
+      }
+      s = s + '.jpg';
+    } else {
+      s = s.replace(/\.(jpeg|jpe?g)$/i, '.jpg');
+    }
+    if (s.length > 200) {
+      s = s.substring(0, 196) + '.jpg';
+    }
+    return s;
   }
 
   function onWarp() {
@@ -485,15 +652,32 @@
       });
   }
 
+  function setImportAdjustScrollLock(lock) {
+    if (lock) {
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      document.body.style.touchAction = 'none';
+    } else {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
+    }
+  }
+
   function bindAdjustPointer() {
     const adj = el.canvasAdjust;
+    const opts = { passive: false };
     function down(ev) {
       const [ix, iy] = canvasToImageCoords(ev.clientX, ev.clientY);
       state.dragIndex = nearestCornerIndex(ix, iy);
-      if (state.dragIndex >= 0 && adj.setPointerCapture) {
-        try {
-          adj.setPointerCapture(ev.pointerId);
-        } catch (e) {}
+      if (state.dragIndex >= 0) {
+        ev.preventDefault();
+        setImportAdjustScrollLock(true);
+        if (adj.setPointerCapture) {
+          try {
+            adj.setPointerCapture(ev.pointerId);
+          } catch (e) {}
+        }
       }
     }
     function move(ev) {
@@ -506,6 +690,9 @@
       drawAdjustCanvas();
     }
     function up(ev) {
+      if (state.dragIndex >= 0) {
+        setImportAdjustScrollLock(false);
+      }
       if (state.dragIndex >= 0 && adj.releasePointerCapture) {
         try {
           adj.releasePointerCapture(ev.pointerId);
@@ -513,10 +700,10 @@
       }
       state.dragIndex = -1;
     }
-    adj.addEventListener('pointerdown', down);
-    adj.addEventListener('pointermove', move);
-    adj.addEventListener('pointerup', up);
-    adj.addEventListener('pointercancel', up);
+    adj.addEventListener('pointerdown', down, opts);
+    adj.addEventListener('pointermove', move, opts);
+    adj.addEventListener('pointerup', up, opts);
+    adj.addEventListener('pointercancel', up, opts);
     adj.addEventListener('pointerleave', function (ev) {
       if (ev.pointerType === 'mouse') up(ev);
     });
@@ -531,8 +718,7 @@
           el.saveMessage.classList.add('text-danger');
           return;
         }
-        const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        const name = 'scan_' + ts + '.jpg';
+        const name = getExportFileName();
         const fd = new FormData();
         fd.append('file', blob, name);
         fetch(UPLOAD_URL, {
@@ -572,9 +758,8 @@
     el.canvasResult.toBlob(function (blob) {
       if (!blob) return;
       const a = document.createElement('a');
-      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       a.href = URL.createObjectURL(blob);
-      a.download = 'scan_' + ts + '.jpg';
+      a.download = getExportFileName();
       a.click();
       URL.revokeObjectURL(a.href);
     }, 'image/jpeg', 0.92);
