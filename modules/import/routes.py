@@ -70,12 +70,12 @@ def import_hochladen():
         return jsonify({'success': False, 'message': 'Nicht angemeldet'}), 401
 
     file = request.files.get('file')
-    # Formular + Query: manche Mobilbrowser liefern Textfelder im multipart unzuverlässig; ?filename= ist Fallback
+    # Query zuerst: Client setzt den Namen zuverlässig in der URL; multipart-„filename“ kann auf Mobilgeräten leer/fehlerhaft sein.
     name_form = (
-        request.form.get('filename')
-        or request.form.get('dateiname')
-        or request.args.get('filename')
+        request.args.get('filename')
         or request.args.get('dateiname')
+        or request.form.get('filename')
+        or request.form.get('dateiname')
         or ''
     ).strip()
     success, filename, error_message = speichere_in_import_ordner(

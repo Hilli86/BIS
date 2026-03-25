@@ -13,6 +13,34 @@
     user-select: none;
     -webkit-user-select: none;
   }
+
+  /* Vorschau: Desktop quer (4:3), Mobil Hochformat (9:16) */
+  .doc-capture-frame {
+    width: 100%;
+    max-height: 420px;
+    border-radius: var(--bs-border-radius);
+    overflow: hidden;
+    position: relative;
+    background: #212529;
+  }
+  @media (min-width: 992px) {
+    .doc-capture-frame {
+      aspect-ratio: 4 / 3;
+    }
+  }
+  @media (max-width: 991.98px) {
+    .doc-capture-frame {
+      aspect-ratio: 9 / 16;
+      max-height: min(72vh, 520px);
+    }
+  }
+
+  #btn-toggle-bearbeitung[aria-expanded="true"] .collapse-chevron {
+    transform: rotate(180deg);
+  }
+  .collapse-chevron {
+    transition: transform 0.2s ease;
+  }
 </style>
 <div class="container-fluid mt-4">
   <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
@@ -33,14 +61,14 @@
           <i class="bi bi-image"></i> Aufnahme / Quelle
         </div>
         <div class="card-body">
-          <div class="d-flex flex-wrap gap-2 mb-3">
+          <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
             <button type="button" class="btn btn-primary" id="btn-start-camera">
               <i class="bi bi-camera-video"></i> Kamera starten
             </button>
             <button type="button" class="btn btn-secondary" id="btn-stop-camera" disabled>
               <i class="bi bi-stop-circle"></i> Kamera stoppen
             </button>
-            <button type="button" class="btn btn-outline-primary" id="btn-capture" disabled>
+            <button type="button" class="btn btn-outline-primary d-none d-md-inline-block" id="btn-capture" disabled>
               <i class="bi bi-camera-fill"></i> Foto aufnehmen
             </button>
             <label class="btn btn-outline-secondary mb-0">
@@ -48,12 +76,18 @@
               <input type="file" id="file-input" accept="image/*" capture="environment" class="d-none">
             </label>
           </div>
-          <div class="ratio ratio-4x3 bg-dark rounded overflow-hidden position-relative" style="max-height: 420px;">
-            <video id="video-preview" class="w-100 h-100 object-fit-contain" playsinline muted autoplay style="display: none;"></video>
-            <canvas id="canvas-capture" class="w-100 h-100 object-fit-contain" style="display: none;"></canvas>
-            <div id="video-placeholder" class="d-flex align-items-center justify-content-center text-white-50 small p-3 text-center">
-              Kamera starten oder Bild wählen.
+          <div class="doc-capture-frame">
+            <video id="video-preview" class="position-absolute top-0 start-0 w-100 h-100 object-fit-contain" playsinline muted autoplay style="display: none;"></video>
+            <canvas id="canvas-capture" class="position-absolute top-0 start-0 w-100 h-100 object-fit-contain" style="display: none;"></canvas>
+            <div id="video-placeholder" class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center text-white-50 small p-3 text-center flex-column gap-2">
+              <span>Kamera starten oder Bild wählen.</span>
+              <span id="camera-tap-hint" class="d-none small text-info">Zum Starten der Kamera tippen oder „Kamera starten“ wählen.</span>
             </div>
+          </div>
+          <div class="d-flex justify-content-end mt-2 d-md-none">
+            <button type="button" class="btn btn-outline-primary" id="btn-capture-mobile" disabled>
+              <i class="bi bi-camera-fill"></i> Foto aufnehmen
+            </button>
           </div>
           <div id="opencv-status" class="form-text mt-2"></div>
         </div>
@@ -89,32 +123,45 @@
   <div class="row g-4 mt-1">
     <div class="col-lg-8">
       <div class="card">
-        <div class="card-header">
-          <i class="bi bi-sliders"></i> Bearbeitung
+        <div class="card-header p-0">
+          <button
+            class="btn btn-light w-100 text-start rounded-0 d-flex align-items-center justify-content-between px-3 py-2"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#collapse-bearbeitung"
+            aria-expanded="false"
+            aria-controls="collapse-bearbeitung"
+            id="btn-toggle-bearbeitung"
+          >
+            <span><i class="bi bi-sliders"></i> Bearbeitung</span>
+            <i class="bi bi-chevron-down collapse-chevron"></i>
+          </button>
         </div>
-        <div class="card-body">
-          <div class="row g-3">
-            <div class="col-md-4">
-              <label for="range-brightness" class="form-label">Helligkeit <span id="val-brightness">100</span>%</label>
-              <input type="range" class="form-range" id="range-brightness" min="40" max="180" value="100">
-            </div>
-            <div class="col-md-4">
-              <label for="range-contrast" class="form-label">Kontrast <span id="val-contrast">100</span>%</label>
-              <input type="range" class="form-range" id="range-contrast" min="40" max="180" value="100">
-            </div>
-            <div class="col-md-4">
-              <label for="range-rotate" class="form-label">Drehen <span id="val-rotate">0</span>°</label>
-              <input type="range" class="form-range" id="range-rotate" min="-15" max="15" value="0">
-            </div>
-            <div class="col-12">
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="chk-grayscale">
-                <label class="form-check-label" for="chk-grayscale">Graustufen</label>
+        <div id="collapse-bearbeitung" class="collapse">
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label for="range-brightness" class="form-label">Helligkeit <span id="val-brightness">100</span>%</label>
+                <input type="range" class="form-range" id="range-brightness" min="40" max="180" value="100">
+              </div>
+              <div class="col-md-4">
+                <label for="range-contrast" class="form-label">Kontrast <span id="val-contrast">100</span>%</label>
+                <input type="range" class="form-range" id="range-contrast" min="40" max="180" value="100">
+              </div>
+              <div class="col-md-4">
+                <label for="range-rotate" class="form-label">Drehen <span id="val-rotate">0</span>°</label>
+                <input type="range" class="form-range" id="range-rotate" min="-15" max="15" value="0">
+              </div>
+              <div class="col-12">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="chk-grayscale">
+                  <label class="form-check-label" for="chk-grayscale">Graustufen</label>
+                </div>
               </div>
             </div>
-          </div>
-          <div class="mt-3 border rounded p-2 bg-white">
-            <canvas id="canvas-result" class="w-100 border" style="max-height: 480px; object-fit: contain;"></canvas>
+            <div class="mt-3 border rounded p-2 bg-white">
+              <canvas id="canvas-result" class="w-100 border" style="max-height: 480px; object-fit: contain;"></canvas>
+            </div>
           </div>
         </div>
       </div>
@@ -126,6 +173,7 @@
         </div>
         <div class="card-body">
           <p class="small text-muted">Speichert die bearbeitete Vorschau als JPEG im zentralen Import-Ordner.</p>
+          <button type="button" class="visually-hidden" id="filename-focus-sink" tabindex="-1" aria-hidden="true">.</button>
           <div class="mb-3">
             <label for="save-filename" class="form-label mb-1">Dateiname</label>
             <input type="text" class="form-control form-control-sm" id="save-filename" name="save-filename" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" placeholder="z.B. Lieferschein_Lager.jpg" maxlength="200">

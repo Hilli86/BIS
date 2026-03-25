@@ -27,6 +27,7 @@
     btnStartCamera: document.getElementById('btn-start-camera'),
     btnStopCamera: document.getElementById('btn-stop-camera'),
     btnCapture: document.getElementById('btn-capture'),
+    btnCaptureMobile: document.getElementById('btn-capture-mobile'),
     btnDetect: document.getElementById('btn-detect'),
     btnWarp: document.getElementById('btn-warp'),
     btnResetCorners: document.getElementById('btn-reset-corners'),
@@ -42,6 +43,9 @@
     chkGrayscale: document.getElementById('chk-grayscale'),
     adjustWrap: document.getElementById('adjust-wrap'),
     saveFilename: document.getElementById('save-filename'),
+    cameraTapHint: document.getElementById('camera-tap-hint'),
+    filenameFocusSink: document.getElementById('filename-focus-sink'),
+    collapseBearbeitung: document.getElementById('collapse-bearbeitung'),
   };
 
   const state = {
@@ -57,6 +61,8 @@
     adjustScale: 1,
     adjustOffsetX: 0,
     adjustOffsetY: 0,
+    /** Nur Touch/Stift: body/html overflow gesperrt (Maus: sonst verschwindet Scrollbar → Layout-Sprung am Desktop) */
+    adjustScrollLockActive: false,
     /** Gespiegelter Dateiname (Mobile: input.value erst nach blur zuverlässig; input-Event aktualisiert sofort) */
     saveFilenameMirror: '',
   };
@@ -65,6 +71,33 @@
     if (!el.opencvStatus) return;
     el.opencvStatus.textContent = text || '';
     el.opencvStatus.classList.toggle('text-danger', !!isError);
+  }
+
+  function showCameraTapHint() {
+    if (el.cameraTapHint) el.cameraTapHint.classList.remove('d-none');
+  }
+
+  function hideCameraTapHint() {
+    if (el.cameraTapHint) el.cameraTapHint.classList.add('d-none');
+  }
+
+  function setCaptureButtonsDisabled(disabled) {
+    if (el.btnCapture) el.btnCapture.disabled = disabled;
+    if (el.btnCaptureMobile) el.btnCaptureMobile.disabled = disabled;
+  }
+
+  function isLikelyMobileBrowser() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || '');
+  }
+
+  function scheduleAfterKeyboardFriendly(fn) {
+    if (isLikelyMobileBrowser()) {
+      window.setTimeout(fn, 80);
+    } else {
+      requestAnimationFrame(function () {
+        requestAnimationFrame(fn);
+      });
+    }
   }
 
   /** Lokale Zeit (toISOString() wäre UTC und verschiebt die Uhrzeit). */
@@ -187,6 +220,48 @@
     );
   }
 
+  /** Bewertet ein Quad: bevorzugt „Blatt im Bild“ statt Vollbild-Rahmen / Tischkante. */
+  function scoreDocumentQuad(pts, w, h) {
+    const imgArea = w * h;
+    const qa = quadAreaOrdered(pts);
+    if (qa < imgArea * 0.012) {
+      return -1e9;
+    }
+    const areaRatio = qa / imgArea;
+    if (areaRatio > 0.93) {
+      return -1e9;
+    }
+    const shortSide = Math.min(w, h);
+    let minMargin = Infinity;
+    for (let i = 0; i < 4; i++) {
+      const px = pts[i][0];
+      const py = pts[i][1];
+      const m = Math.min(px, py, w - px, h - py);
+      if (m < minMargin) minMargin = m;
+    }
+    const xs = pts.map(function (p) {
+      return p[0];
+    });
+    const ys = pts.map(function (p) {
+      return p[1];
+    });
+    const bw = Math.max.apply(null, xs) - Math.min.apply(null, xs);
+    const bh = Math.max.apply(null, ys) - Math.min.apply(null, ys);
+    const ar = bw > 0 && bh > 0 ? Math.min(bw, bh) / Math.max(bw, bh) : 0;
+
+    let score = Math.log(Math.max(qa, 1)) * 10;
+    if (areaRatio > 0.9) score -= 380;
+    else if (areaRatio > 0.85) score -= 220;
+    else if (areaRatio > 0.8) score -= 100;
+    if (minMargin < shortSide * 0.01) score -= 350;
+    else if (minMargin < shortSide * 0.022) score -= 160;
+    else if (minMargin < shortSide * 0.04) score -= 55;
+    if (ar >= 0.48 && ar <= 0.92) score += 85;
+    else if (ar >= 0.35 && ar <= 0.98) score += 35;
+    else score -= 70;
+    return score;
+  }
+
   function isQuadInImage(pts, w, h, margin) {
     const shortSide = Math.min(w, h);
     const m =
@@ -216,7 +291,7 @@
         approx.delete();
         if (raw && raw.length === 4) {
           const ordered = orderPoints(raw);
-          if (isQuadInImage(ordered, w, h)) {
+          if (isQuadInImage(ordered, w, h) && quadAreaOrdered(ordered) <= w * h * 0.905) {
             return ordered;
           }
         }
@@ -235,7 +310,7 @@
       }
       box.delete();
       const ordered = orderPoints(raw);
-      if (isQuadInImage(ordered, w, h)) {
+      if (isQuadInImage(ordered, w, h) && quadAreaOrdered(ordered) <= w * h * 0.905) {
         return ordered;
       }
     } catch (err) {
@@ -261,9 +336,9 @@
         const pts = quadFromContour(cnt, w, h, minArea);
         cnt.delete();
         if (pts) {
-          const qa = quadAreaOrdered(pts);
-          if (!best || qa > best.area) {
-            best = { pts: pts, area: qa };
+          const sc = scoreDocumentQuad(pts, w, h);
+          if (sc > -1e8 && (!best || sc > best.score)) {
+            best = { pts: pts, score: sc };
           }
         }
       }
@@ -378,6 +453,35 @@
       pipelines.push(edge);
     }
 
+    function addClaheCanny() {
+      const clOut = new cv.Mat();
+      let applied = false;
+      try {
+        if (typeof cv.createCLAHE === 'function') {
+          const clahe = cv.createCLAHE(2.0, new cv.Size(8, 8));
+          clahe.apply(gray, clOut);
+          applied = true;
+        } else if (typeof cv.CLAHE === 'function') {
+          const clahe = new cv.CLAHE(2.0, new cv.Size(8, 8));
+          clahe.apply(gray, clOut);
+          applied = true;
+        }
+      } catch (err) {
+        /* Build ohne CLAHE oder andere API */
+      }
+      if (!applied) {
+        clOut.delete();
+        return;
+      }
+      const blur = new cv.Mat();
+      cv.GaussianBlur(clOut, blur, new cv.Size(5, 5), 0);
+      clOut.delete();
+      const edge = new cv.Mat();
+      cv.Canny(blur, edge, 22, 66);
+      blur.delete();
+      pipelines.push(edge);
+    }
+
     addCannyDilate(20, 60, 5, 3);
     addCannyDilate(30, 90, 5, 3);
     addCannyDilate(50, 150, 5, 0);
@@ -396,16 +500,19 @@
     try {
       addBilateralCanny();
     } catch (e) {}
+    try {
+      addClaheCanny();
+    } catch (e) {}
 
     let bestPts = null;
-    let bestArea = 0;
+    let bestScore = -Infinity;
 
     for (let p = 0; p < pipelines.length; p++) {
       const edges = pipelines[p];
       const found = findBestQuadFromEdges(edges, w, h, minArea);
       edges.delete();
-      if (found && found.area > bestArea) {
-        bestArea = found.area;
+      if (found && found.score > bestScore) {
+        bestScore = found.score;
         bestPts = found.pts;
       }
     }
@@ -627,7 +734,9 @@
   /** @returns {string} Dateiname mit .jpg für Upload/Download */
   function getExportFileName() {
     syncFilenameFromDom();
-    const n = normalizeImportFilename(state.saveFilenameMirror || '');
+    const fromInput = el.saveFilename ? String(el.saveFilename.value || '').trim() : '';
+    const raw = fromInput || String(state.saveFilenameMirror || '').trim();
+    const n = normalizeImportFilename(raw);
     return n || suggestedFilename();
   }
 
@@ -651,17 +760,38 @@
     return s;
   }
 
+  function applyWarpFromCorners() {
+    state.warpedCanvas = warpPerspectiveFromCorners(state.sourceCanvas, state.corners);
+    applyResultFilters();
+  }
+
+  /** Nach Erkennen / Eckpunkt loslassen: Zuschnitt ohne extra Klick (nur wenn OpenCV bereit). */
+  function tryAutoWarp() {
+    if (!state.sourceCanvas || !state.corners || !state.cvReady || typeof cv === 'undefined') {
+      return;
+    }
+    try {
+      applyWarpFromCorners();
+    } catch (e) {
+      setOpencvStatus('Zuschneiden fehlgeschlagen: ' + (e.message || e), true);
+    }
+  }
+
   function onWarp() {
     if (!state.sourceCanvas || !state.corners) return;
+    if (!state.cvReady || typeof cv === 'undefined') {
+      setOpencvStatus('Bildverarbeitung noch nicht bereit.', true);
+      return;
+    }
     try {
-      state.warpedCanvas = warpPerspectiveFromCorners(state.sourceCanvas, state.corners);
-      applyResultFilters();
+      applyWarpFromCorners();
     } catch (e) {
       setOpencvStatus('Zuschneiden fehlgeschlagen: ' + (e.message || e), true);
     }
   }
 
   async function startCamera() {
+    hideCameraTapHint();
     try {
       state.stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 } },
@@ -672,9 +802,10 @@
       el.canvasCapture.style.display = 'none';
       el.videoPlaceholder.style.display = 'none';
       el.btnStopCamera.disabled = false;
-      el.btnCapture.disabled = false;
+      setCaptureButtonsDisabled(false);
       await el.video.play();
     } catch (e) {
+      showCameraTapHint();
       setOpencvStatus('Kamera nicht verfügbar: ' + (e.message || e), true);
     }
   }
@@ -689,7 +820,7 @@
     el.video.srcObject = null;
     el.video.style.display = 'none';
     el.btnStopCamera.disabled = true;
-    el.btnCapture.disabled = true;
+    setCaptureButtonsDisabled(true);
   }
 
   function captureFrame() {
@@ -705,6 +836,7 @@
     el.video.style.display = 'none';
     stopCamera();
     setSourceFromCanvas(c);
+    onDetect();
   }
 
   function onFile(e) {
@@ -722,6 +854,7 @@
         el.video.style.display = 'none';
         el.videoPlaceholder.style.display = 'none';
         setSourceFromCanvas(c);
+        onDetect();
       };
       img.src = r.result;
     };
@@ -742,10 +875,12 @@
           setOpencvStatus('Kein klarer Dokumentrand erkannt – Standardrahmen gesetzt (anpassbar).', true);
         }
         drawAdjustCanvas();
+        tryAutoWarp();
       })
       .catch(function () {
         state.corners = defaultCorners(state.sourceCanvas.width, state.sourceCanvas.height);
         drawAdjustCanvas();
+        tryAutoWarp();
       });
   }
 
@@ -769,7 +904,10 @@
       state.dragIndex = nearestCornerIndex(ix, iy);
       if (state.dragIndex >= 0) {
         ev.preventDefault();
-        setImportAdjustScrollLock(true);
+        if (ev.pointerType === 'touch' || ev.pointerType === 'pen') {
+          setImportAdjustScrollLock(true);
+          state.adjustScrollLockActive = true;
+        }
         if (adj.setPointerCapture) {
           try {
             adj.setPointerCapture(ev.pointerId);
@@ -787,8 +925,10 @@
       drawAdjustCanvas();
     }
     function up(ev) {
-      if (state.dragIndex >= 0) {
+      const hadCornerDrag = state.dragIndex >= 0;
+      if (state.dragIndex >= 0 && state.adjustScrollLockActive) {
         setImportAdjustScrollLock(false);
+        state.adjustScrollLockActive = false;
       }
       if (state.dragIndex >= 0 && adj.releasePointerCapture) {
         try {
@@ -796,6 +936,9 @@
         } catch (e) {}
       }
       state.dragIndex = -1;
+      if (hadCornerDrag) {
+        tryAutoWarp();
+      }
     }
     adj.addEventListener('pointerdown', down, opts);
     adj.addEventListener('pointermove', move, opts);
@@ -812,10 +955,14 @@
       el.saveFilename.blur();
       state.saveFilenameMirror = el.saveFilename.value;
     }
-    function runUpload() {
-      if (el.saveFilename) {
-        state.saveFilenameMirror = el.saveFilename.value;
+    if (el.filenameFocusSink) {
+      try {
+        el.filenameFocusSink.focus({ preventScroll: true });
+      } catch (e) {
+        el.filenameFocusSink.focus();
       }
+    }
+    function runUpload() {
       syncFilenameFromDom();
       el.canvasResult.toBlob(
         function (blob) {
@@ -825,7 +972,12 @@
             return;
           }
           syncFilenameFromDom();
-          const name = getExportFileName();
+          const raw =
+            el.saveFilename && el.saveFilename.value != null
+              ? String(el.saveFilename.value)
+              : String(state.saveFilenameMirror || '');
+          state.saveFilenameMirror = raw;
+          const name = normalizeImportFilename(raw.trim()) || suggestedFilename();
           const fd = new FormData();
           fd.append('filename', name);
           fd.append('file', blob, 'upload.jpg');
@@ -862,9 +1014,7 @@
         0.92
       );
     }
-    requestAnimationFrame(function () {
-      requestAnimationFrame(runUpload);
-    });
+    scheduleAfterKeyboardFriendly(runUpload);
   }
 
   function downloadLocal() {
@@ -872,28 +1022,39 @@
       el.saveFilename.blur();
       state.saveFilenameMirror = el.saveFilename.value;
     }
-    requestAnimationFrame(function () {
-      requestAnimationFrame(function () {
-        if (el.saveFilename) {
-          state.saveFilenameMirror = el.saveFilename.value;
-        }
+    if (el.filenameFocusSink) {
+      try {
+        el.filenameFocusSink.focus({ preventScroll: true });
+      } catch (e) {
+        el.filenameFocusSink.focus();
+      }
+    }
+    scheduleAfterKeyboardFriendly(function () {
+      syncFilenameFromDom();
+      el.canvasResult.toBlob(function (blob) {
+        if (!blob) return;
         syncFilenameFromDom();
-        el.canvasResult.toBlob(function (blob) {
-          if (!blob) return;
-          syncFilenameFromDom();
-          const a = document.createElement('a');
-          a.href = URL.createObjectURL(blob);
-          a.download = getExportFileName();
-          a.click();
-          URL.revokeObjectURL(a.href);
-        }, 'image/jpeg', 0.92);
-      });
+        const raw =
+          el.saveFilename && el.saveFilename.value != null
+            ? String(el.saveFilename.value)
+            : String(state.saveFilenameMirror || '');
+        state.saveFilenameMirror = raw;
+        const fname = normalizeImportFilename(raw.trim()) || suggestedFilename();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fname;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }, 'image/jpeg', 0.92);
     });
   }
 
   el.btnStartCamera.addEventListener('click', startCamera);
   el.btnStopCamera.addEventListener('click', stopCamera);
   el.btnCapture.addEventListener('click', captureFrame);
+  if (el.btnCaptureMobile) {
+    el.btnCaptureMobile.addEventListener('click', captureFrame);
+  }
   el.fileInput.addEventListener('change', onFile);
   el.btnDetect.addEventListener('click', onDetect);
   el.btnWarp.addEventListener('click', onWarp);
@@ -901,6 +1062,7 @@
     if (!state.sourceCanvas) return;
     state.corners = defaultCorners(state.sourceCanvas.width, state.sourceCanvas.height);
     drawAdjustCanvas();
+    tryAutoWarp();
   });
   if (el.saveFilename) {
     el.saveFilename.addEventListener('input', function () {
@@ -957,6 +1119,31 @@
 
   bindAdjustPointer();
 
+  if (el.collapseBearbeitung && typeof window.bootstrap !== 'undefined' && window.bootstrap.Collapse) {
+    el.collapseBearbeitung.addEventListener('shown.bs.collapse', function () {
+      if (state.warpedCanvas) {
+        applyResultFilters();
+      }
+    });
+  }
+
+  (function bindTapToStartCamera() {
+    const wrap = document.querySelector('.doc-capture-frame');
+    if (!wrap) return;
+    wrap.addEventListener(
+      'click',
+      function () {
+        if (state.stream) return;
+        if (el.canvasCapture && el.canvasCapture.style.display !== 'none') return;
+        hideCameraTapHint();
+        startCamera();
+      },
+      false
+    );
+  })();
+
   loadOpenCv().catch(function () {});
+
+  startCamera();
 })();
 
