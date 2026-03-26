@@ -7,6 +7,10 @@ from flask import render_template, request, redirect, url_for, session, jsonify,
 from . import dashboard_bp
 from utils import get_db_connection, get_sichtbare_abteilungen_fuer_mitarbeiter, login_required
 from utils.helpers import row_to_dict
+from utils.benachrichtigungen import (
+    ziel_url_fuer_benachrichtigung,
+    build_ungelesen_benachrichtigungen_api_dict,
+)
 from . import services
 
 
@@ -102,6 +106,16 @@ def benachrichtigungen():
     return render_template('dashboard/benachrichtigungen.html')
 
 
+@dashboard_bp.route('/api/benachrichtigungen/ungelesen')
+@login_required
+def api_benachrichtigungen_ungelesen():
+    """Ungelesene Benachrichtigungen für Glocke/Toasts (alle Module, inkl. ziel_url)."""
+    user_id = session.get('user_id')
+    with get_db_connection() as conn:
+        payload = build_ungelesen_benachrichtigungen_api_dict(user_id, conn, limit=20)
+    return jsonify(payload)
+
+
 @dashboard_bp.route('/api/benachrichtigungen')
 def api_benachrichtigungen():
     """API-Endpoint für Benachrichtigungen"""
@@ -113,7 +127,7 @@ def api_benachrichtigungen():
     with get_db_connection() as conn:
         # Alle Benachrichtigungen (nicht nur ungelesene)
         benachrichtigungen = conn.execute('''
-            SELECT ID, Titel, Nachricht, Gelesen, ErstelltAm, Modul, Aktion
+            SELECT ID, Titel, Nachricht, Gelesen, ErstelltAm, Modul, Aktion, ThemaID, Zusatzdaten
             FROM Benachrichtigung
             WHERE MitarbeiterID = ?
             ORDER BY ErstelltAm DESC
@@ -125,8 +139,16 @@ def api_benachrichtigungen():
             WHERE MitarbeiterID = ? AND Gelesen = 0
         ''', (user_id,)).fetchone()['count']
     
+    liste = []
+    for b in benachrichtigungen:
+        d = row_to_dict(b)
+        if d.get('ErstelltAm') is not None and hasattr(d['ErstelltAm'], 'isoformat'):
+            d['ErstelltAm'] = d['ErstelltAm'].isoformat(sep=' ', timespec='seconds')
+        d['ziel_url'] = ziel_url_fuer_benachrichtigung(d)
+        liste.append(d)
+    
     return jsonify({
-        'benachrichtigungen': [row_to_dict(b) for b in benachrichtigungen],
+        'benachrichtigungen': liste,
         'ungelesen_count': ungelesen_count
     })
 

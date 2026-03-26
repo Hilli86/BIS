@@ -792,41 +792,13 @@ def thema_datei_loeschen(thema_id, datei_id):
 @schichtbuch_bp.route('/api/benachrichtigungen')
 @login_required
 def api_benachrichtigungen():
-    """API: Ungelesene Benachrichtigungen abrufen"""
+    """API: Ungelesene Benachrichtigungen (delegiert an zentrale Logik, alle Module)."""
+    from utils.benachrichtigungen import build_ungelesen_benachrichtigungen_api_dict
+
     mitarbeiter_id = session.get('user_id')
-    
     with get_db_connection() as conn:
-        benachrichtigungen = conn.execute('''
-            SELECT 
-                B.ID,
-                B.Typ,
-                B.Titel,
-                B.Nachricht,
-                B.ThemaID,
-                B.ErstelltAm,
-                T.GewerkID,
-                G.Bezeichnung AS Gewerk,
-                BE.Bezeichnung AS Bereich
-            FROM Benachrichtigung B
-            JOIN SchichtbuchThema T ON B.ThemaID = T.ID
-            JOIN Gewerke G ON T.GewerkID = G.ID
-            JOIN Bereich BE ON G.BereichID = BE.ID
-            WHERE B.MitarbeiterID = ? AND B.Gelesen = 0 AND T.Gelöscht = 0
-            ORDER BY B.ErstelltAm DESC
-            LIMIT 20
-        ''', (mitarbeiter_id,)).fetchall()
-        
-        anzahl_ungelesen = conn.execute('''
-            SELECT COUNT(*) AS Anzahl
-            FROM Benachrichtigung
-            WHERE MitarbeiterID = ? AND Gelesen = 0
-        ''', (mitarbeiter_id,)).fetchone()['Anzahl']
-    
-    return jsonify({
-        'success': True,
-        'benachrichtigungen': [dict(b) for b in benachrichtigungen],
-        'anzahl_ungelesen': anzahl_ungelesen
-    })
+        payload = build_ungelesen_benachrichtigungen_api_dict(mitarbeiter_id, conn, limit=20)
+    return jsonify(payload)
 
 
 @schichtbuch_bp.route('/api/benachrichtigungen/<int:benachrichtigung_id>/gelesen', methods=['POST'])

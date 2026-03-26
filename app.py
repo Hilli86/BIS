@@ -45,6 +45,15 @@ with app.app_context():
         logger = logging.getLogger(__name__)
         logger.warning(f"Fehler beim automatischen Cleanup von Benachrichtigungen: {str(e)}")
 
+    # Ausstehende E-Mail/Push-Versände (ältere pending-Einträge) einmal abarbeiten
+    try:
+        from utils.benachrichtigungen import versende_alle_benachrichtigungen
+        versende_alle_benachrichtigungen()
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Fehler beim Nachversand ausstehender Benachrichtigungen: {str(e)}")
+
 # Upload-Ordner erstellen falls nicht vorhanden
 from utils.folder_setup import create_all_upload_folders
 create_all_upload_folders(app)

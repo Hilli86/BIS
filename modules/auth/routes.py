@@ -771,6 +771,8 @@ def benachrichtigungen_save():
             # Neue Einstellungen speichern
             einstellungen = data.get('einstellungen', [])
             for einstellung in einstellungen:
+                modul = (einstellung.get('modul') or '').strip().lower()
+                aktion = (einstellung.get('aktion') or '').strip().lower()
                 conn.execute('''
                     INSERT INTO BenachrichtigungEinstellung (
                         MitarbeiterID, Modul, Aktion, AbteilungID, Aktiv
@@ -778,8 +780,8 @@ def benachrichtigungen_save():
                     VALUES (?, ?, ?, ?, ?)
                 ''', (
                     user_id,
-                    einstellung['modul'],
-                    einstellung['aktion'],
+                    modul,
+                    aktion,
                     einstellung.get('abteilung_id'),
                     1
                 ))

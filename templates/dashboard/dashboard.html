@@ -616,7 +616,8 @@ document.addEventListener('DOMContentLoaded', function() {
                   <p class="mb-1 dashboard-break-xs">${notif.Nachricht}</p>
                   <small class="text-muted">${datum}</small>
                 </div>
-                <div class="d-flex gap-2 flex-shrink-0 order-2 align-self-end align-self-md-start">
+                <div class="d-flex gap-2 flex-shrink-0 order-2 align-self-end align-self-md-start flex-wrap">
+                  ${notif.ziel_url ? `<a href="${notif.ziel_url}" class="btn btn-sm btn-outline-secondary">Öffnen</a>` : ''}
                   ${!notif.Gelesen ? `
                     <button class="btn btn-sm btn-outline-primary markiereGelesenBtn" data-id="${notif.ID}" title="Als gelesen markieren">
                       <i class="bi bi-check"></i>
@@ -719,7 +720,8 @@ document.addEventListener('DOMContentLoaded', function() {
                           <p class="mb-1 dashboard-break-xs">${notif.Nachricht}</p>
                           <small class="text-muted">${datum}</small>
                         </div>
-                        <div class="d-flex gap-2 flex-shrink-0 order-2 align-self-end align-self-md-start">
+                        <div class="d-flex gap-2 flex-shrink-0 order-2 align-self-end align-self-md-start flex-wrap">
+                          ${notif.ziel_url ? `<a href="${notif.ziel_url}" class="btn btn-sm btn-outline-secondary">Öffnen</a>` : ''}
                           ${!notif.Gelesen ? `
                             <button class="btn btn-sm btn-outline-primary markiereGelesenBtn" data-id="${notif.ID}" title="Als gelesen markieren">
                               <i class="bi bi-check"></i>
@@ -830,7 +832,8 @@ document.addEventListener('DOMContentLoaded', function() {
                           <p class="mb-1 dashboard-break-xs">${notif.Nachricht}</p>
                           <small class="text-muted">${datum}</small>
                         </div>
-                        <div class="d-flex gap-2 flex-shrink-0 order-2 align-self-end align-self-md-start">
+                        <div class="d-flex gap-2 flex-shrink-0 order-2 align-self-end align-self-md-start flex-wrap">
+                          ${notif.ziel_url ? `<a href="${notif.ziel_url}" class="btn btn-sm btn-outline-secondary">Öffnen</a>` : ''}
                           ${!notif.Gelesen ? `
                             <button class="btn btn-sm btn-outline-primary markiereGelesenBtn" data-id="${notif.ID}" title="Als gelesen markieren">
                               <i class="bi bi-check"></i>

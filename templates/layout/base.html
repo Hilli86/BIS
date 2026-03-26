@@ -948,7 +948,7 @@
 
     // Benachrichtigungen laden und anzeigen
     function loadBenachrichtigungen() {
-      fetch('{{ url_for("schichtbuch.api_benachrichtigungen") }}', {
+      fetch('{{ url_for("dashboard.api_benachrichtigungen_ungelesen") }}', {
         headers: {
           'X-Requested-With': 'XMLHttpRequest'
         }
@@ -989,6 +989,7 @@
         console.error('Fehler beim Laden der Benachrichtigungen:', error);
       });
     }
+    window.loadBenachrichtigungen = loadBenachrichtigungen;
 
     // Toast-Benachrichtigung anzeigen
     function showNotificationToast(notif) {
@@ -1010,6 +1011,9 @@
 
       // Toast erstellen
       const toastId = 'toast-' + Date.now();
+      const ansehenBtn = notif.ziel_url
+        ? `<a href="${notif.ziel_url}" class="btn btn-sm btn-light me-2" onclick="markAsRead(${notif.ID})">Ansehen</a>`
+        : '';
       const toastHtml = `
         <div id="${toastId}" class="toast align-items-center text-white bg-primary border-0" role="alert" aria-live="assertive" aria-atomic="true">
           <div class="d-flex">
@@ -1017,10 +1021,7 @@
               <strong>${notif.Titel}</strong><br>
               <small>${notif.Nachricht}</small>
               <div class="mt-2">
-                <a href="${'{{ url_for("schichtbuch.thema_detail", thema_id=0) }}'.replace('/0', `/${notif.ThemaID}`)}" 
-                   class="btn btn-sm btn-light me-2" onclick="markAsRead(${notif.ID})">
-                  Ansehen
-                </a>
+                ${ansehenBtn}
                 <button type="button" class="btn btn-sm btn-outline-light" onclick="markAsRead(${notif.ID}); document.getElementById('${toastId}').remove();">
                   Schließen
                 </button>
@@ -1047,7 +1048,7 @@
 
     // Benachrichtigung als gelesen markieren
     function markAsRead(benachrichtigungId) {
-      fetch(`{{ url_for("schichtbuch.api_benachrichtigung_gelesen", benachrichtigung_id=0) }}`.replace('/0', `/${benachrichtigungId}`), {
+      fetch(`{{ url_for("dashboard.api_benachrichtigung_gelesen", benachrichtigung_id=0) }}`.replace('/0', `/${benachrichtigungId}`), {
         method: 'POST',
         headers: {
           'X-Requested-With': 'XMLHttpRequest'

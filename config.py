@@ -82,7 +82,9 @@ class Config:
 class DevelopmentConfig(Config):
     """Entwicklungskonfiguration"""
     DEBUG = True
-    SQL_TRACING = True
+    # Einstweilen aus: sonst erscheint jede SQL-Abfrage in der Konsole (sqlite3 Trace).
+    # Wieder aktivieren oder per Umgebungsvariable: SQL_TRACING=true
+    # SQL_TRACING = True
 
 class ProductionConfig(Config):
     """Produktionskonfiguration"""

@@ -4,6 +4,7 @@ Business-Logik für Schichtbuch-Funktionen
 """
 
 from utils import get_sichtbare_abteilungen_fuer_mitarbeiter
+from utils.abteilungen import get_mitarbeiter_abteilungen
 from utils.helpers import build_sichtbarkeits_filter_query
 
 
@@ -433,7 +434,7 @@ def create_thema(gewerk_id, status_id, mitarbeiter_id, taetigkeit_id, bemerkung,
     """
     from datetime import datetime
     from utils.helpers import row_to_dict
-    from utils import erstelle_benachrichtigung_fuer_neues_thema
+    from utils.benachrichtigungen import erstelle_benachrichtigung_fuer_neues_thema, thema_sichtbare_abteilung_ids
     import sqlite3
     
     cur = conn.cursor()
@@ -483,19 +484,16 @@ def create_thema(gewerk_id, status_id, mitarbeiter_id, taetigkeit_id, bemerkung,
     # Sichtbarkeiten speichern: Primärabteilung (ohne Unterabteilungen) + explizit gewählte IDs
     alle_sichtbarkeits_ids = set()
     if ersteller_abteilung_id:
-        alle_sichtbarkeits_ids.add(ersteller_abteilung_id)
+        alle_sichtbarkeits_ids.add(int(ersteller_abteilung_id))
     if sichtbare_abteilungen:
         for abt_id in sichtbare_abteilungen:
             alle_sichtbarkeits_ids.add(int(abt_id))
-    
-    # Benachrichtigungen für Mitarbeiter in sichtbaren Abteilungen erstellen
-    import logging
-    logger = logging.getLogger(__name__)
-    try:
-        if alle_sichtbarkeits_ids:
-            erstelle_benachrichtigung_fuer_neues_thema(thema_id, list(alle_sichtbarkeits_ids), conn)
-    except Exception as e:
-        logger.error(f"Fehler beim Erstellen von Benachrichtigungen für neues Thema: ThemaID={thema_id}, SichtbareAbteilungen={alle_sichtbarkeits_ids}, Fehler={str(e)}", exc_info=True)
+    # Ohne Einträge: z. B. kein Formularblock „Sichtbarkeit“, Primärabteilung NULL, nichts angekreuzt –
+    # dann würde SchichtbuchThemaSichtbarkeit leer bleiben und keine „neues Thema“-Benachrichtigung erzeugt.
+    if not alle_sichtbarkeits_ids:
+        for aid in get_mitarbeiter_abteilungen(mitarbeiter_id, conn):
+            if aid is not None:
+                alle_sichtbarkeits_ids.add(int(aid))
     
     # Sichtbarkeiten einfügen (INSERT OR IGNORE verhindert Duplikate)
     for abt_id in alle_sichtbarkeits_ids:
@@ -507,6 +505,16 @@ def create_thema(gewerk_id, status_id, mitarbeiter_id, taetigkeit_id, bemerkung,
         except sqlite3.IntegrityError:
             # Duplikat ignorieren
             pass
+
+    # Benachrichtigungen nach persistierter Sichtbarkeit (IDs aus DB wie in check_thema_berechtigung)
+    import logging
+    logger = logging.getLogger(__name__)
+    try:
+        sicht_ids_db = thema_sichtbare_abteilung_ids(thema_id, conn)
+        if sicht_ids_db:
+            erstelle_benachrichtigung_fuer_neues_thema(thema_id, sicht_ids_db, conn)
+    except Exception as e:
+        logger.error(f"Fehler beim Erstellen von Benachrichtigungen für neues Thema: ThemaID={thema_id}, SichtbareAbteilungen={alle_sichtbarkeits_ids}, Fehler={str(e)}", exc_info=True)
 
     # Thema-Daten für Rückgabe abrufen
     taetigkeit_row = conn.execute(
