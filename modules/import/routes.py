@@ -105,7 +105,8 @@ def import_datei_verschieben():
     bereich_typ = data.get('bereich_typ')  # 'Ersatzteil', 'Bestellung', 'Thema', etc.
     bereich_id = data.get('bereich_id')  # ID des Bereichs
     beschreibung = data.get('beschreibung', '').strip()  # Optional Beschreibung
-    
+    typ_freitext = (data.get('typ') or '').strip()  # Optional, überschreibt erkannten Dateityp (z. B. Servicebericht)
+
     if not original_filename or not ziel_ordner:
         return jsonify({'success': False, 'message': 'Fehlende Parameter'}), 400
     
@@ -146,9 +147,9 @@ def import_datei_verschieben():
                     # Datei wurde bereits verschoben, daher relativer Pfad mit final_filename
                     relativer_pfad = f"{ziel_ordner}/{final_filename}".replace('\\', '/')
                     
-                    # Dateityp ermitteln
-                    typ = get_datei_typ_aus_dateiname(original_filename)
-                    
+                    # Dateityp ermitteln (optional per JSON überschreibbar)
+                    typ = typ_freitext if typ_freitext else get_datei_typ_aus_dateiname(original_filename)
+
                     # Datenbankeintrag erstellen
                     from modules.ersatzteile.services import speichere_datei
                     speichere_datei(

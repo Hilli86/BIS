@@ -770,6 +770,7 @@ def init_database_schema(db_path, verbose=False):
         ])
         
         # ========== 22. Datei (einheitliche Dateiverwaltung) ==========
+        # BereichTyp u. a.: Ersatzteil, Wartung, Wartungsdurchfuehrung (BereichID = Wartungsdurchfuehrung.ID)
         created_datei = create_table_if_not_exists(conn, 'Datei', '''
             CREATE TABLE Datei (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,

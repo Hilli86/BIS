@@ -13,7 +13,8 @@
     - nur_bilder: Boolean, ob nur Bilder angezeigt werden sollen (für Vorschaubilder)
 #}
 
-{% macro datei_liste(dateien, bereich_typ, bereich_id, erlaubte_dateitypen, is_admin, datei_anzeigen_route, datei_loeschen_route, nur_bilder=False) %}
+{% macro datei_liste(dateien, bereich_typ, bereich_id, erlaubte_dateitypen, is_admin, datei_anzeigen_route, datei_loeschen_route, nur_bilder=False, allow_delete=None, datei_loeschen_durchfuehrung_id=None) %}
+    {% set zeige_loeschen = allow_delete if allow_delete is not none else is_admin %}
     {% if dateien %}
         {% set nur_jpegs = nur_bilder and erlaubte_dateitypen == ['Bild'] %}
         
@@ -49,10 +50,10 @@
                                     {% if datei.Beschreibung %}
                                         <small class="text-muted d-block mt-1">{{ datei.Beschreibung }}</small>
                                     {% endif %}
-                                    {% if is_admin %}
+                                    {% if zeige_loeschen %}
                                         {% set datei_id = datei.ID if datei.ID else (datei.id if datei.id else (datei['ID'] if datei['ID'] else datei['id'])) %}
                                         {% if datei_id %}
-                                        <form method="POST" action="{{ url_for(datei_loeschen_route, datei_id=datei_id) }}" 
+                                        <form method="POST" action="{% if datei_loeschen_durchfuehrung_id is not none %}{{ url_for(datei_loeschen_route, durchfuehrung_id=datei_loeschen_durchfuehrung_id, datei_id=datei_id) }}{% else %}{{ url_for(datei_loeschen_route, datei_id=datei_id) }}{% endif %}" 
                                               onsubmit="return confirm('Datei wirklich löschen?');" class="mt-2">
                                             <button type="submit" class="btn btn-sm btn-danger w-100">
                                                 <i class="bi bi-trash"></i> Löschen
@@ -87,10 +88,10 @@
                                         {% if datei.Beschreibung %}
                                             <small class="text-muted d-block mt-1">{{ datei.Beschreibung }}</small>
                                         {% endif %}
-                                        {% if is_admin %}
+                                        {% if zeige_loeschen %}
                                             {% set datei_id = datei.ID if datei.ID else (datei.id if datei.id else (datei['ID'] if datei['ID'] else datei['id'])) %}
                                             {% if datei_id %}
-                                            <form method="POST" action="{{ url_for(datei_loeschen_route, datei_id=datei_id) }}" 
+                                            <form method="POST" action="{% if datei_loeschen_durchfuehrung_id is not none %}{{ url_for(datei_loeschen_route, durchfuehrung_id=datei_loeschen_durchfuehrung_id, datei_id=datei_id) }}{% else %}{{ url_for(datei_loeschen_route, datei_id=datei_id) }}{% endif %}" 
                                                   onsubmit="return confirm('Datei wirklich löschen?');" class="mt-2">
                                                 <button type="submit" class="btn btn-sm btn-danger w-100">
                                                     <i class="bi bi-trash"></i> Löschen
@@ -143,10 +144,10 @@
                                     <br><small class="text-muted">{{ datei.size // 1024 }} KB</small>
                                 {% endif %}
                             </div>
-                            {% if is_admin %}
+                            {% if zeige_loeschen %}
                                 {% set datei_id = datei.ID if datei.ID else (datei.id if datei.id else (datei['ID'] if datei['ID'] else datei['id'])) %}
                                 {% if datei_id %}
-                                <form method="POST" action="{{ url_for(datei_loeschen_route, datei_id=datei_id) }}" 
+                                <form method="POST" action="{% if datei_loeschen_durchfuehrung_id is not none %}{{ url_for(datei_loeschen_route, durchfuehrung_id=datei_loeschen_durchfuehrung_id, datei_id=datei_id) }}{% else %}{{ url_for(datei_loeschen_route, datei_id=datei_id) }}{% endif %}" 
                                       onsubmit="return confirm('Datei wirklich löschen?');" class="d-inline ms-2">
                                     <button type="submit" class="btn btn-sm btn-danger">
                                         <i class="bi bi-trash"></i>

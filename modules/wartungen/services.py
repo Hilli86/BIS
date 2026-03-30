@@ -36,6 +36,143 @@ def list_wartungen(conn, mitarbeiter_id, is_admin):
     ''', [mitarbeiter_id] + sichtbare).fetchall()
 
 
+def _wartung_sichtbar_params(mitarbeiter_id, sichtbare_abteilungen):
+    """Parameterliste für Nicht-Admin-Sichtbarkeit (ErstelltVon + Abteilungen)."""
+    return [mitarbeiter_id] + sichtbare_abteilungen
+
+
+def list_bereiche_fuer_wartungen_sichtbar(conn, mitarbeiter_id, is_admin):
+    """Bereiche, in denen der Nutzer mindestens eine sichtbare Wartung hat."""
+    if is_admin:
+        return conn.execute('''
+            SELECT DISTINCT b.ID, b.Bezeichnung
+            FROM Bereich b
+            JOIN Gewerke g ON g.BereichID = b.ID
+            JOIN Wartung w ON w.GewerkID = g.ID
+            ORDER BY b.Bezeichnung
+        ''').fetchall()
+    sichtbare = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+    if not sichtbare:
+        return []
+    ph = ','.join(['?'] * len(sichtbare))
+    return conn.execute(f'''
+        SELECT DISTINCT b.ID, b.Bezeichnung
+        FROM Bereich b
+        JOIN Gewerke g ON g.BereichID = b.ID
+        JOIN Wartung w ON w.GewerkID = g.ID
+        WHERE w.Aktiv = 1 AND (
+            w.ErstelltVonID = ?
+            OR w.ID IN (
+                SELECT WartungID FROM WartungAbteilungZugriff
+                WHERE AbteilungID IN ({ph})
+            )
+        )
+        ORDER BY b.Bezeichnung
+    ''', _wartung_sichtbar_params(mitarbeiter_id, sichtbare)).fetchall()
+
+
+def list_gewerke_fuer_bereich_sichtbar(conn, bereich_id, mitarbeiter_id, is_admin):
+    """Gewerke im Bereich mit mindestens einer sichtbaren Wartung."""
+    if is_admin:
+        return conn.execute('''
+            SELECT DISTINCT g.ID, g.Bezeichnung
+            FROM Gewerke g
+            JOIN Wartung w ON w.GewerkID = g.ID
+            WHERE g.BereichID = ?
+            ORDER BY g.Bezeichnung
+        ''', (bereich_id,)).fetchall()
+    sichtbare = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+    if not sichtbare:
+        return []
+    ph = ','.join(['?'] * len(sichtbare))
+    return conn.execute(f'''
+        SELECT DISTINCT g.ID, g.Bezeichnung
+        FROM Gewerke g
+        JOIN Wartung w ON w.GewerkID = g.ID
+        WHERE g.BereichID = ?
+          AND w.Aktiv = 1 AND (
+            w.ErstelltVonID = ?
+            OR w.ID IN (
+                SELECT WartungID FROM WartungAbteilungZugriff
+                WHERE AbteilungID IN ({ph})
+            )
+        )
+        ORDER BY g.Bezeichnung
+    ''', (bereich_id,) + tuple(_wartung_sichtbar_params(mitarbeiter_id, sichtbare))).fetchall()
+
+
+def list_wartungen_fuer_gewerk_sichtbar(conn, gewerk_id, mitarbeiter_id, is_admin):
+    """Sichtbare Wartungen eines Gewerks (Sortierung nach Bezeichnung)."""
+    if is_admin:
+        return conn.execute('''
+            SELECT w.ID, w.Bezeichnung, w.Aktiv
+            FROM Wartung w
+            WHERE w.GewerkID = ?
+            ORDER BY w.Bezeichnung
+        ''', (gewerk_id,)).fetchall()
+    sichtbare = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+    if not sichtbare:
+        return []
+    ph = ','.join(['?'] * len(sichtbare))
+    return conn.execute(f'''
+        SELECT w.ID, w.Bezeichnung, w.Aktiv
+        FROM Wartung w
+        WHERE w.GewerkID = ?
+          AND w.Aktiv = 1 AND (
+            w.ErstelltVonID = ?
+            OR w.ID IN (
+                SELECT WartungID FROM WartungAbteilungZugriff
+                WHERE AbteilungID IN ({ph})
+            )
+        )
+        ORDER BY w.Bezeichnung
+    ''', (gewerk_id,) + tuple(_wartung_sichtbar_params(mitarbeiter_id, sichtbare))).fetchall()
+
+
+def list_durchfuehrungen_fuer_gewerk_jahr(conn, gewerk_id, jahr, mitarbeiter_id, is_admin):
+    """
+    Alle Wartungsdurchführungen im Gewerk für ein Kalenderjahr (sichtbare Wartungen).
+    Monat 1–12 als Integer-Spalte Monat.
+    """
+    jahr_str = str(int(jahr))
+    if is_admin:
+        return conn.execute('''
+            SELECT d.ID, d.DurchgefuehrtAm, d.Bemerkung,
+                   w.ID AS WartungID, w.Bezeichnung AS WartungBez,
+                   p.ID AS PlanID, p.IntervallEinheit, p.IntervallAnzahl,
+                   CAST(strftime('%m', d.DurchgefuehrtAm) AS INTEGER) AS Monat
+            FROM Wartungsdurchfuehrung d
+            JOIN Wartungsplan p ON d.WartungsplanID = p.ID
+            JOIN Wartung w ON p.WartungID = w.ID
+            JOIN Gewerke g ON w.GewerkID = g.ID
+            WHERE g.ID = ? AND strftime('%Y', d.DurchgefuehrtAm) = ?
+            ORDER BY w.Bezeichnung, d.DurchgefuehrtAm, d.ID
+        ''', (gewerk_id, jahr_str)).fetchall()
+    sichtbare = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+    if not sichtbare:
+        return []
+    ph = ','.join(['?'] * len(sichtbare))
+    return conn.execute(f'''
+        SELECT d.ID, d.DurchgefuehrtAm, d.Bemerkung,
+               w.ID AS WartungID, w.Bezeichnung AS WartungBez,
+               p.ID AS PlanID, p.IntervallEinheit, p.IntervallAnzahl,
+               CAST(strftime('%m', d.DurchgefuehrtAm) AS INTEGER) AS Monat
+        FROM Wartungsdurchfuehrung d
+        JOIN Wartungsplan p ON d.WartungsplanID = p.ID
+        JOIN Wartung w ON p.WartungID = w.ID
+        JOIN Gewerke g ON w.GewerkID = g.ID
+        WHERE g.ID = ? AND strftime('%Y', d.DurchgefuehrtAm) = ?
+          AND w.Aktiv = 1 AND (
+            w.ErstelltVonID = ?
+            OR w.ID IN (
+                SELECT WartungID FROM WartungAbteilungZugriff
+                WHERE AbteilungID IN ({ph})
+            )
+        )
+        ORDER BY w.Bezeichnung, d.DurchgefuehrtAm, d.ID
+    ''', (gewerk_id, jahr_str) + tuple(_wartung_sichtbar_params(mitarbeiter_id, sichtbare))).fetchall()
+
+
 def get_wartung(conn, wartung_id):
     return conn.execute('''
         SELECT w.*, g.Bezeichnung AS Gewerk, b.Bezeichnung AS Bereich, b.ID AS BereichID

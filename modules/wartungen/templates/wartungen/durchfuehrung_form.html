@@ -81,7 +81,7 @@
 
 {% else %}
 
-<form method="post" id="durchfuehrungSingleForm">
+<form method="post" id="durchfuehrungSingleForm" enctype="multipart/form-data">
   <div class="card mb-4 shadow-sm">
     <div class="card-header bg-primary text-white">
       <h5 class="mb-0">Termin &amp; Bemerkung</h5>
@@ -126,6 +126,48 @@
         <button type="button" class="btn btn-success" onclick="addFfRow('ffRowsSingle')">
           <i class="bi bi-plus-circle"></i> Zeile hinzufügen
         </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Serviceberichte <span class="fw-normal small">(optional)</span></h5>
+    </div>
+    <div class="card-body">
+      <ul class="nav nav-tabs mb-3" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="wd-sb-neu-upload-tab" data-bs-toggle="tab" data-bs-target="#wd-sb-neu-upload-pane" type="button" role="tab">
+            <i class="bi bi-cloud-upload"></i> Hochladen
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="wd-sb-neu-import-tab" data-bs-toggle="tab" data-bs-target="#wd-sb-neu-import-pane" type="button" role="tab">
+            <i class="bi bi-folder"></i> Aus Import-Ordner
+          </button>
+        </li>
+      </ul>
+      <div class="tab-content">
+        <div class="tab-pane fade show active" id="wd-sb-neu-upload-pane" role="tabpanel">
+          <div class="mb-3">
+            <label class="form-label" for="wd-sb-neu-file">Datei(en):</label>
+            <input type="file" class="form-control" id="wd-sb-neu-file" name="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" multiple>
+            <div class="form-text">Max. 16 MB pro Datei – Mehrfachauswahl – Erlaubt: Bilder, PDF, Word, Excel, Text</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="wd-sb-neu-beschreibung">Beschreibung (optional, gilt für alle Dateien):</label>
+            <input type="text" class="form-control" id="wd-sb-neu-beschreibung" name="servicebericht_beschreibung" placeholder="z. B. Prüfprotokoll, Fotodokumentation">
+          </div>
+          <div class="mb-0">
+            <label class="form-label" for="wd-sb-neu-typ">Typ (optional):</label>
+            <input type="text" class="form-control" id="wd-sb-neu-typ" name="servicebericht_typ" placeholder="z. B. Servicebericht">
+          </div>
+        </div>
+        <div class="tab-pane fade" id="wd-sb-neu-import-pane" role="tabpanel">
+          <div class="alert alert-info mb-0">
+            <i class="bi bi-info-circle"></i> Dateien aus dem <strong>Import-Ordner</strong> können Sie nach dem Speichern auf der <strong>Durchführungs-Detailseite</strong> übernehmen (gleiches Layout wie bei Ersatzteilen).
+          </div>
+        </div>
       </div>
     </div>
   </div>

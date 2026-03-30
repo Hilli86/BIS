@@ -16,7 +16,12 @@ from flask import (
 from werkzeug.utils import secure_filename
 
 from utils import get_db_connection, login_required
-from utils.file_handling import save_uploaded_file, create_upload_folder, validate_file_extension
+from utils.file_handling import (
+    save_uploaded_file,
+    create_upload_folder,
+    validate_file_extension,
+    loesche_import_kopie_nach_upload,
+)
 from modules.ersatzteile.services.datei_services import (
     get_dateien_fuer_bereich,
     speichere_datei,
@@ -47,6 +52,56 @@ def _parse_datetime_local(s):
         return datetime.strptime(s, '%Y-%m-%d').strftime('%Y-%m-%d 00:00:00')
     except ValueError:
         return None
+
+
+BEREICH_TYP_WARTUNGSDURCHFUEHRUNG = 'Wartungsdurchfuehrung'
+
+_SERVICE_BERICHT_EXT = frozenset({'png', 'jpg', 'jpeg', 'gif', 'webp', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'})
+
+
+def _save_serviceberichte_files(conn, durchfuehrung_id, mitarbeiter_id, files, beschreibung='', typ_form=''):
+    """
+    Speichert Serviceberichte (Liste von FileStorage), gleiche Typregeln wie Ersatzteil-Dokumente.
+    Rückgabe: (anzahl_ok, fehler_liste)
+    """
+    if not files:
+        return 0, []
+    beschreibung = (beschreibung or '').strip()
+    typ_form = (typ_form or '').strip()
+    base = current_app.config['WARTUNG_UPLOAD_FOLDER']
+    sub = os.path.join(base, 'durchfuehrung', str(durchfuehrung_id), 'serviceberichte')
+    n_ok = 0
+    fehler = []
+    for file in files:
+        if not file or not file.filename:
+            continue
+        orig = file.filename
+        if not validate_file_extension(orig, _SERVICE_BERICHT_EXT):
+            fehler.append(f'{orig}: Dateityp nicht erlaubt')
+            continue
+        create_upload_folder(sub)
+        ts = datetime.now().strftime('%Y%m%d_%H%M%S_')
+        file.filename = ts + secure_filename(orig)
+        ok, fname, err = save_uploaded_file(file, sub, allowed_extensions=None)
+        if not ok or err:
+            fehler.append(f'{orig}: {err or "Speichern fehlgeschlagen"}')
+            continue
+        rel = f'Wartungen/durchfuehrung/{durchfuehrung_id}/serviceberichte/{fname}'
+        inferred = get_datei_typ_aus_dateiname(orig)
+        typ_final = typ_form if typ_form else (inferred or 'Servicebericht')
+        speichere_datei(
+            BEREICH_TYP_WARTUNGSDURCHFUEHRUNG,
+            durchfuehrung_id,
+            orig,
+            rel,
+            beschreibung,
+            typ_final,
+            mitarbeiter_id,
+            conn,
+        )
+        loesche_import_kopie_nach_upload(orig, current_app.config['IMPORT_FOLDER'])
+        n_ok += 1
+    return n_ok, fehler
 
 
 def _collect_fremdfirma_zeilen_from_form():
@@ -128,7 +183,10 @@ def wartung_neu():
                                 )
                     conn.commit()
                     flash('Wartung angelegt.', 'success')
-                    return redirect(url_for('wartungen.wartung_bearbeiten', wartung_id=wid))
+                    aktion = request.form.get('speichern_aktion', 'liste')
+                    if aktion == 'naechste':
+                        return redirect(url_for('wartungen.wartung_neu'))
+                    return redirect(url_for('wartungen.wartung_liste'))
                 except Exception as e:
                     flash(f'Fehler: {e}', 'danger')
     return render_template(
@@ -227,6 +285,120 @@ def plaene_uebersicht():
     with get_db_connection() as conn:
         rows = services.list_plaene_sichtbar(conn, mitarbeiter_id, is_admin())
     return render_template('wartungen/plan_uebersicht.html', plaene=rows)
+
+
+def _format_durchfuehrung_datum_anzeige(durchgefuehrt_am):
+    if not durchgefuehrt_am:
+        return ''
+    s = str(durchgefuehrt_am).strip()
+    if ' ' in s:
+        d, rest = s.split(' ', 1)
+        t = rest[:5] if len(rest) >= 5 else rest
+        if rest.startswith('00:00:00') or t == '00:00':
+            return d
+        return f'{d} {t}'
+    return s
+
+
+@wartungen_bp.route('/jahresuebersicht')
+@login_required
+def jahresuebersicht():
+    mitarbeiter_id = session.get('user_id')
+    adm = is_admin()
+    cy = datetime.now().year
+    jahre = list(range(cy - 10, cy + 2))
+    jahre.sort(reverse=True)
+
+    monatsnamen = [
+        'Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez',
+    ]
+
+    with get_db_connection() as conn:
+        bereiche = services.list_bereiche_fuer_wartungen_sichtbar(conn, mitarbeiter_id, adm)
+        if not bereiche:
+            return render_template(
+                'wartungen/jahresuebersicht.html',
+                bereiche=[],
+                gewerke=[],
+                bereich_id=None,
+                gewerk_id=None,
+                jahr=cy,
+                jahre=jahre,
+                monatsnamen=monatsnamen,
+                matrix_rows=[],
+                title='Wartungen – Jahresübersicht',
+            )
+
+        bereich_id = request.args.get('bereich_id', type=int)
+        if bereich_id is None or not any(b['ID'] == bereich_id for b in bereiche):
+            bereich_id = bereiche[0]['ID']
+
+        gewerke = services.list_gewerke_fuer_bereich_sichtbar(conn, bereich_id, mitarbeiter_id, adm)
+        if not gewerke:
+            jahr_empty = request.args.get('jahr', type=int)
+            if jahr_empty is None or jahr_empty < 1990 or jahr_empty > 2100:
+                jahr_empty = cy
+            return render_template(
+                'wartungen/jahresuebersicht.html',
+                bereiche=bereiche,
+                gewerke=[],
+                bereich_id=bereich_id,
+                gewerk_id=None,
+                jahr=jahr_empty,
+                jahre=jahre,
+                monatsnamen=monatsnamen,
+                matrix_rows=[],
+                title='Wartungen – Jahresübersicht',
+            )
+
+        gewerk_id = request.args.get('gewerk_id', type=int)
+        if gewerk_id is None or not any(g['ID'] == gewerk_id for g in gewerke):
+            gewerk_id = gewerke[0]['ID']
+
+        jahr = request.args.get('jahr', type=int)
+        if jahr is None or jahr < 1990 or jahr > 2100:
+            jahr = cy
+        if jahr not in jahre:
+            jahre = sorted(set(jahre + [jahr]), reverse=True)
+
+        wartungen = services.list_wartungen_fuer_gewerk_sichtbar(conn, gewerk_id, mitarbeiter_id, adm)
+        drows = services.list_durchfuehrungen_fuer_gewerk_jahr(conn, gewerk_id, jahr, mitarbeiter_id, adm)
+
+    by_cell = {}
+    for r in drows:
+        key = (r['WartungID'], r['Monat'])
+        by_cell.setdefault(key, []).append(r)
+
+    matrix_rows = []
+    for w in wartungen:
+        cells = []
+        for m in range(1, 13):
+            items = by_cell.get((w['ID'], m), [])
+            payload = []
+            for it in items:
+                payload.append({
+                    'id': it['ID'],
+                    'datum_anzeige': _format_durchfuehrung_datum_anzeige(it['DurchgefuehrtAm']),
+                    'bemerkung_kurz': ((it['Bemerkung'] or '').strip()[:200]),
+                    'intervall': f"{it['IntervallAnzahl']} {it['IntervallEinheit']}(e)",
+                    'detail_url': url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=it['ID']),
+                })
+            cells.append(payload)
+        matrix_rows.append({'wartung': w, 'cells': cells})
+
+    return render_template(
+        'wartungen/jahresuebersicht.html',
+        bereiche=bereiche,
+        gewerke=gewerke,
+        bereich_id=bereich_id,
+        gewerk_id=gewerk_id,
+        jahr=jahr,
+        jahre=jahre,
+        monatsnamen=monatsnamen,
+        matrix_rows=matrix_rows,
+        title='Wartungen – Jahresübersicht',
+    )
 
 
 @wartungen_bp.route('/<int:wartung_id>/plan/neu', methods=['GET', 'POST'])
@@ -343,8 +515,19 @@ def durchfuehrung_neu(plan_id):
                         dfid = services.insert_wartungsdurchfuehrung(
                             conn, plan_id, dt, request.form.get('bemerkung', ''), teil, mitarbeiter_id,
                         )
+                        sb_files = [f for f in request.files.getlist('file') if f and f.filename]
+                        sb_besch = request.form.get('servicebericht_beschreibung', '')
+                        sb_typ = request.form.get('servicebericht_typ', '')
+                        n_sb, sb_errs = _save_serviceberichte_files(
+                            conn, dfid, mitarbeiter_id, sb_files, sb_besch, sb_typ,
+                        )
+                        for e in sb_errs:
+                            flash(e, 'warning')
                         conn.commit()
-                        flash('Durchführung protokolliert.', 'success')
+                        msg = 'Durchführung protokolliert.'
+                        if n_sb:
+                            msg += f' {n_sb} Servicebericht(e) gespeichert.'
+                        flash(msg, 'success')
                         return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=dfid))
                     except Exception as e:
                         flash(f'Fehler: {e}', 'danger')
@@ -454,6 +637,9 @@ def durchfuehrung_detail(durchfuehrung_id):
         if not d:
             flash('Nicht gefunden.', 'danger')
             return redirect(url_for('wartungen.wartung_liste'))
+        serviceberichte = get_dateien_fuer_bereich(
+            BEREICH_TYP_WARTUNGSDURCHFUEHRUNG, durchfuehrung_id, conn
+        )
         ersatzteile = services.get_verfuegbare_ersatzteile(conn, mitarbeiter_id, adm)
         kostenstellen = conn.execute(
             'SELECT ID, Bezeichnung FROM Kostenstelle WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung'
@@ -464,9 +650,101 @@ def durchfuehrung_detail(durchfuehrung_id):
         mitarbeitende=mit,
         fremd=ff,
         lagerbuchungen=lager,
+        serviceberichte=serviceberichte,
         ersatzteile=ersatzteile,
         kostenstellen=kostenstellen,
     )
+
+
+@wartungen_bp.route('/durchfuehrung-datei/<path:filepath>')
+@login_required
+def durchfuehrung_datei(filepath):
+    filepath = filepath.replace('\\', '/')
+    if not filepath.startswith('Wartungen/durchfuehrung/'):
+        flash('Ungültiger Pfad.', 'danger')
+        return redirect(url_for('wartungen.wartung_liste'))
+    parts = filepath.split('/')
+    if len(parts) < 5 or parts[3] != 'serviceberichte':
+        flash('Ungültiger Pfad.', 'danger')
+        return redirect(url_for('wartungen.wartung_liste'))
+    try:
+        dfid = int(parts[2])
+    except ValueError:
+        flash('Ungültiger Pfad.', 'danger')
+        return redirect(url_for('wartungen.wartung_liste'))
+    mitarbeiter_id = session.get('user_id')
+    with get_db_connection() as conn:
+        if not hat_wartungsdurchfuehrung_zugriff(mitarbeiter_id, dfid, conn):
+            flash('Kein Zugriff.', 'danger')
+            return redirect(url_for('wartungen.wartung_liste'))
+        row = conn.execute(
+            '''SELECT 1 FROM Datei WHERE BereichTyp = ? AND BereichID = ? AND Dateipfad = ?''',
+            (BEREICH_TYP_WARTUNGSDURCHFUEHRUNG, dfid, filepath),
+        ).fetchone()
+        if not row:
+            flash('Datei nicht gefunden.', 'danger')
+            return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=dfid))
+    fs = filepath.replace('/', os.sep)
+    full_path = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], fs)
+    if not os.path.exists(full_path):
+        flash('Datei nicht gefunden.', 'danger')
+        return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=dfid))
+    return send_from_directory(os.path.dirname(full_path), os.path.basename(full_path))
+
+
+@wartungen_bp.route(
+    '/durchfuehrung/<int:durchfuehrung_id>/servicebericht/<int:datei_id>/loeschen',
+    methods=['POST'],
+)
+@login_required
+def durchfuehrung_servicebericht_loeschen(durchfuehrung_id, datei_id):
+    mitarbeiter_id = session.get('user_id')
+    with get_db_connection() as conn:
+        if not hat_wartungsdurchfuehrung_zugriff(mitarbeiter_id, durchfuehrung_id, conn):
+            flash('Kein Zugriff.', 'danger')
+            return redirect(url_for('wartungen.wartung_liste'))
+        row = conn.execute(
+            '''SELECT Dateipfad FROM Datei WHERE ID = ? AND BereichTyp = ? AND BereichID = ?''',
+            (datei_id, BEREICH_TYP_WARTUNGSDURCHFUEHRUNG, durchfuehrung_id),
+        ).fetchone()
+        if not row:
+            flash('Datei nicht gefunden.', 'danger')
+            return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=durchfuehrung_id))
+        fp = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], row['Dateipfad'].replace('/', os.sep))
+        loesche_datei(datei_id, conn)
+        conn.commit()
+        if os.path.exists(fp):
+            try:
+                os.remove(fp)
+            except OSError:
+                pass
+        flash('Servicebericht gelöscht.', 'success')
+        return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=durchfuehrung_id))
+
+
+@wartungen_bp.route('/durchfuehrung/<int:durchfuehrung_id>/servicebericht/upload', methods=['POST'])
+@login_required
+def durchfuehrung_servicebericht_upload(durchfuehrung_id):
+    mitarbeiter_id = session.get('user_id')
+    files = [f for f in request.files.getlist('file') if f and f.filename]
+    if not files:
+        flash('Keine Datei ausgewählt.', 'danger')
+        return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=durchfuehrung_id))
+    besch = request.form.get('beschreibung', '')
+    typ_f = request.form.get('typ', '')
+    with get_db_connection() as conn:
+        if not hat_wartungsdurchfuehrung_zugriff(mitarbeiter_id, durchfuehrung_id, conn):
+            flash('Kein Zugriff.', 'danger')
+            return redirect(url_for('wartungen.wartung_liste'))
+        n_ok, errs = _save_serviceberichte_files(
+            conn, durchfuehrung_id, mitarbeiter_id, files, besch, typ_f,
+        )
+        conn.commit()
+    for e in errs:
+        flash(e, 'warning')
+    if n_ok:
+        flash(f'{n_ok} Datei(en) hochgeladen.', 'success')
+    return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=durchfuehrung_id))
 
 
 @wartungen_bp.route('/datei/<path:filepath>')

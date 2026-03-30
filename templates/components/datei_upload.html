@@ -14,7 +14,7 @@
     - import_function: JavaScript-Funktion für Import (z.B. 'ladeImportDateienErsatzteil("bild")')
 #}
 
-{% macro datei_upload(bereich_typ, bereich_id, erlaubte_dateitypen, upload_route, import_route=None, accept_attr='', upload_tab_id='upload-tab', import_tab_id='import-tab', import_function='') %}
+{% macro datei_upload(bereich_typ, bereich_id, erlaubte_dateitypen, upload_route, import_route=None, accept_attr='', upload_tab_id='upload-tab', import_tab_id='import-tab', import_function='', show_typ_feld=False) %}
     <!-- Tab-Auswahl -->
     <ul class="nav nav-tabs mb-3" role="tablist">
         <li class="nav-item" role="presentation">
@@ -46,6 +46,8 @@
                 {% set route_param = {'bestellung_id': bereich_id} %}
             {% elif bereich_typ == 'Rechnung' %}
                 {% set route_param = {'bestellung_id': bereich_id} %}
+            {% elif bereich_typ == 'Wartungsdurchfuehrung' %}
+                {% set route_param = {'durchfuehrung_id': bereich_id} %}
             {% else %}
                 {% set route_param = {} %}
             {% endif %}
@@ -73,10 +75,10 @@
                     <label class="form-label">Beschreibung (optional, gilt für alle Dateien):</label>
                     <input type="text" name="beschreibung" class="form-control" placeholder="z.B. Frontansicht, Datenblatt, etc.">
                 </div>
-                {% if 'dokument' in upload_route or 'dok' in upload_tab_id %}
+                {% if 'dokument' in upload_route or 'dok' in upload_tab_id or show_typ_feld %}
                 <div class="mb-3">
                     <label class="form-label">Typ (optional):</label>
-                    <input type="text" name="typ" class="form-control" placeholder="z.B. Datenblatt, Anleitung">
+                    <input type="text" name="typ" class="form-control" placeholder="z.B. Datenblatt, Anleitung, Servicebericht">
                 </div>
                 {% endif %}
                 <button type="submit" class="btn btn-primary">

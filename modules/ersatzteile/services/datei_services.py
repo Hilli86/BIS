@@ -11,7 +11,7 @@ def get_dateien_fuer_bereich(bereich_typ, bereich_id, conn):
     Lädt alle Dateien für einen bestimmten Bereich
     
     Args:
-        bereich_typ: 'Ersatzteil', 'Bestellung', 'Thema', etc.
+        bereich_typ: 'Ersatzteil', 'Bestellung', 'Thema', 'Wartung', 'Wartungsdurchfuehrung', etc.
         bereich_id: ID des Bereichs
         conn: Datenbankverbindung
     
@@ -44,7 +44,7 @@ def speichere_datei(bereich_typ, bereich_id, dateiname, dateipfad, beschreibung,
     Speichert eine Datei in der Datenbank
     
     Args:
-        bereich_typ: 'Ersatzteil', 'Bestellung', 'Thema', etc.
+        bereich_typ: 'Ersatzteil', 'Bestellung', 'Thema', 'Wartung', 'Wartungsdurchfuehrung', etc.
         bereich_id: ID des Bereichs
         dateiname: Originaler Dateiname
         dateipfad: Relativer Pfad zur Datei
@@ -90,7 +90,7 @@ def importiere_datei_aus_ordner(bereich_typ, bereich_id, dateiname, ziel_ordner,
     Importiert eine Datei aus dem Import-Ordner und erstellt einen Datenbankeintrag
     
     Args:
-        bereich_typ: 'Ersatzteil', 'Bestellung', 'Thema', etc.
+        bereich_typ: 'Ersatzteil', 'Bestellung', 'Thema', 'Wartung', 'Wartungsdurchfuehrung', etc.
         bereich_id: ID des Bereichs
         dateiname: Name der Datei im Import-Ordner
         ziel_ordner: Relativer Zielordner (z.B. 'Ersatzteile/123/bilder')

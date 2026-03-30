@@ -26,6 +26,7 @@ MENUE_DEFINITIONEN = [
     {'schluessel': 'ersatzteile_etiketten', 'bezeichnung': 'Etiketten drucken', 'gruppe': 'Ersatzteile', 'berechtigung': None},
     {'schluessel': 'wartungen_liste', 'bezeichnung': 'Wartungen', 'gruppe': 'Wartungen', 'berechtigung': ['admin', 'wartung_erstellen', 'wartung_nur_Plan_erstellen']},
     {'schluessel': 'wartungen_plaene', 'bezeichnung': 'Wartungspläne', 'gruppe': 'Wartungen', 'berechtigung': ['admin', 'wartung_erstellen', 'wartung_nur_Plan_erstellen']},
+    {'schluessel': 'wartungen_jahresuebersicht', 'bezeichnung': 'Jahresübersicht', 'gruppe': 'Wartungen', 'berechtigung': ['admin', 'wartung_erstellen', 'wartung_nur_Plan_erstellen']},
     {'schluessel': 'wartungen_mehrere', 'bezeichnung': 'Mehrere protokollieren', 'gruppe': 'Wartungen', 'berechtigung': ['admin', 'wartung_erstellen', 'wartung_nur_Plan_erstellen']},
     {'schluessel': 'diverses_zebra', 'bezeichnung': 'Zebra-Drucker', 'gruppe': 'Diverses', 'berechtigung': ['zebra_drucker_produktion']},
     {'schluessel': 'diverses_dokumente', 'bezeichnung': 'Dokumente erfassen', 'gruppe': 'Diverses', 'berechtigung': None},
