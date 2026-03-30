@@ -17,6 +17,7 @@ def create_all_upload_folders(app):
     folders = [
         app.config.get('SCHICHTBUCH_UPLOAD_FOLDER'),
         app.config.get('ERSATZTEIL_UPLOAD_FOLDER'),
+        app.config.get('WARTUNG_UPLOAD_FOLDER'),
         app.config.get('ANGEBOTE_UPLOAD_FOLDER'),
         app.config.get('IMPORT_FOLDER'),
         app.config.get('UPLOAD_BASE_FOLDER'),

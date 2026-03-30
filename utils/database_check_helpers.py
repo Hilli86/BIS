@@ -160,7 +160,14 @@ def get_required_tables():
         'label_formats',
         'Etikett',
         'WebAuthnCredential',
-        'MitarbeiterMenueSichtbarkeit'
+        'MitarbeiterMenueSichtbarkeit',
+        'Wartung',
+        'WartungAbteilungZugriff',
+        'Fremdfirma',
+        'Wartungsplan',
+        'Wartungsdurchfuehrung',
+        'WartungsdurchfuehrungMitarbeiter',
+        'WartungsdurchfuehrungFremdfirma',
     ]
 
 

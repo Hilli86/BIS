@@ -767,6 +767,29 @@
     {% endif %}
     {% endif %}
 
+    {% if menue_sichtbar('wartungen_liste') or menue_sichtbar('wartungen_plaene') or menue_sichtbar('wartungen_mehrere') %}
+    {% set w_ep = request.endpoint or '' %}
+    {% set w_stamm_active = w_ep in ['wartungen.wartung_liste', 'wartungen.wartung_neu', 'wartungen.wartung_bearbeiten', 'wartungen.wartung_datei', 'wartungen.wartung_datei_loeschen'] %}
+    {% set w_plaene_active = w_ep in ['wartungen.plaene_uebersicht', 'wartungen.plan_neu', 'wartungen.plan_detail', 'wartungen.plan_bearbeiten', 'wartungen.durchfuehrung_neu', 'wartungen.durchfuehrung_detail'] %}
+    {% set w_mehrere_active = w_ep == 'wartungen.durchfuehrung_mehrere' %}
+    <h6>Wartungen</h6>
+    {% if menue_sichtbar('wartungen_liste') %}
+    <a href="{{ url_for('wartungen.wartung_liste') }}" class="{% if w_stamm_active %}active{% endif %}">
+      🛠️ Wartungen
+    </a>
+    {% endif %}
+    {% if menue_sichtbar('wartungen_plaene') %}
+    <a href="{{ url_for('wartungen.plaene_uebersicht') }}" class="{% if w_plaene_active %}active{% endif %}">
+      🗓️ Wartungspläne
+    </a>
+    {% endif %}
+    {% if menue_sichtbar('wartungen_mehrere') %}
+    <a href="{{ url_for('wartungen.durchfuehrung_mehrere') }}" class="{% if w_mehrere_active %}active{% endif %}">
+      📝 Mehrere protokollieren
+    </a>
+    {% endif %}
+    {% endif %}
+
     {% if menue_sichtbar('diverses_zebra') or menue_sichtbar('diverses_dokumente') %}
     <h6>Diverses</h6>
     {% if menue_sichtbar('diverses_dokumente') %}

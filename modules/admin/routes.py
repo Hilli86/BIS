@@ -11,6 +11,7 @@ from utils import get_db_connection, admin_required
 from utils.zebra_client import send_zpl_to_printer, build_test_label
 from utils.helpers import row_to_dict
 from utils.menue_definitions import get_alle_menue_definitionen, get_menue_sichtbarkeit_fuer_mitarbeiter
+from modules.wartungen import services as wartungen_services
 
 
 def ajax_response(message, success=True, status_code=None):
@@ -93,6 +94,7 @@ def dashboard():
         # Ersatzteil-Verwaltung
         ersatzteil_kategorien = conn.execute('SELECT ID, Bezeichnung, Beschreibung, Aktiv, Sortierung FROM ErsatzteilKategorie ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
         lieferanten = conn.execute('SELECT ID, Name, Kontaktperson, Telefon, Email, Strasse, PLZ, Ort, Website, CsvExportReihenfolge, Aktiv FROM Lieferant WHERE Gelöscht = 0 ORDER BY Name').fetchall()
+        fremdfirmen = wartungen_services.list_fremdfirmen(conn, nur_aktiv=False)
         kostenstellen = conn.execute('SELECT ID, Bezeichnung, Beschreibung, Aktiv, Sortierung FROM Kostenstelle ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
         lagerorte = conn.execute('SELECT ID, Bezeichnung, Beschreibung, Aktiv, Sortierung FROM Lagerort ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
         lagerplaetze = conn.execute('SELECT ID, Bezeichnung, Beschreibung, Aktiv, Sortierung FROM Lagerplatz ORDER BY Sortierung ASC, Bezeichnung ASC').fetchall()
@@ -167,6 +169,7 @@ def dashboard():
                            status=status,
                            ersatzteil_kategorien=ersatzteil_kategorien,
                            lieferanten=lieferanten,
+                           fremdfirmen=fremdfirmen,
                            kostenstellen=kostenstellen,
                            lagerorte=lagerorte,
                            lagerplaetze=lagerplaetze,
@@ -1098,6 +1101,45 @@ def lieferant_delete(lid):
             conn.execute('UPDATE Lieferant SET Gelöscht = 1 WHERE ID = ?', (lid,))
             conn.commit()
         return ajax_response('Lieferant gelöscht.')
+    except Exception as e:
+        return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
+
+
+# ========== Fremdfirmen (Wartungen) ==========
+
+@admin_bp.route('/fremdfirma/add', methods=['POST'])
+@admin_required
+def fremdfirma_add():
+    """Fremdfirma anlegen (nur Admin)."""
+    name = (request.form.get('firmenname') or '').strip()
+    adr = request.form.get('adresse', '')
+    tb = request.form.get('taetigkeitsbereich', '')
+    if not name:
+        return ajax_response('Firmenname erforderlich.', success=False)
+    try:
+        with get_db_connection() as conn:
+            wartungen_services.create_fremdfirma(conn, name, adr, tb)
+            conn.commit()
+        return ajax_response('Fremdfirma angelegt.')
+    except Exception as e:
+        return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
+
+
+@admin_bp.route('/fremdfirma/update/<int:fid>', methods=['POST'])
+@admin_required
+def fremdfirma_update(fid):
+    """Fremdfirma aktualisieren."""
+    name = (request.form.get('firmenname') or '').strip()
+    adr = request.form.get('adresse', '')
+    tb = request.form.get('taetigkeitsbereich', '')
+    aktiv = 1 if request.form.get('aktiv') == 'on' else 0
+    if not name:
+        return ajax_response('Firmenname erforderlich.', success=False)
+    try:
+        with get_db_connection() as conn:
+            wartungen_services.update_fremdfirma(conn, fid, name, adr, tb, bool(aktiv))
+            conn.commit()
+        return ajax_response('Fremdfirma gespeichert.')
     except Exception as e:
         return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
 

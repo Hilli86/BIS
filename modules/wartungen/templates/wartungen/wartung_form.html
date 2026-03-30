@@ -1,0 +1,90 @@
+{% extends "layout/base.html" %}
+{% block content %}
+<h1 class="mb-4">{{ title }}</h1>
+{% if wartung and not kann_edit %}
+<div class="alert alert-info">Sie haben nur Leserecht auf diese Wartung.</div>
+{% endif %}
+<form method="post" enctype="multipart/form-data" class="card shadow-sm p-4 mb-4">
+  <div class="mb-3">
+    <label class="form-label">Gewerk</label>
+    <select name="gewerk_id" class="form-select" required {% if wartung and not kann_edit %}disabled{% endif %}>
+      {% for g in gewerke %}
+      <option value="{{ g.ID }}" {% if wartung and wartung.GewerkID == g.ID %}selected{% endif %}>{{ g.Bereich }} – {{ g.Bezeichnung }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Bezeichnung</label>
+    <input type="text" name="bezeichnung" class="form-control" required value="{{ wartung.Bezeichnung if wartung else '' }}" {% if wartung and not kann_edit %}readonly{% endif %}>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Beschreibung</label>
+    <textarea name="beschreibung" class="form-control" rows="4" {% if wartung and not kann_edit %}readonly{% endif %}>{{ wartung.Beschreibung if wartung else '' }}</textarea>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Sichtbar für Abteilungen</label>
+    <select name="sichtbare_abteilungen" class="form-select" multiple size="8" {% if wartung and not kann_edit %}disabled{% endif %}>
+      {% for a in abteilungen %}
+      <option value="{{ a.ID }}" {% if a.ID in gewaehlte_abteilungen %}selected{% endif %}>{{ a.Bezeichnung }}</option>
+      {% endfor %}
+    </select>
+    <div class="form-text">Strg/Cmd für Mehrfachauswahl.</div>
+  </div>
+  {% if wartung %}
+  <div class="mb-3 form-check">
+    <input type="checkbox" name="aktiv" value="1" class="form-check-input" id="aktiv" {% if wartung.Aktiv %}checked{% endif %} {% if not kann_edit %}disabled{% endif %}>
+    <label class="form-check-label" for="aktiv">Aktiv</label>
+  </div>
+  {% endif %}
+  {% if kann_edit or not wartung %}
+  <div class="mb-3">
+    <label class="form-label">Dateien (Anweisungen, Dokumente)</label>
+    <input type="file" name="dateien" class="form-control" multiple>
+  </div>
+  <button type="submit" class="btn btn-primary">Speichern</button>
+  {% endif %}
+</form>
+
+{% if wartung and dateien is defined %}
+<div class="card shadow-sm mb-4">
+  <div class="card-header">Dateien</div>
+  <ul class="list-group list-group-flush">
+    {% for d in dateien %}
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      <a href="{{ url_for('wartungen.wartung_datei', filepath=d.Dateipfad) }}" target="_blank" rel="noopener">{{ d.Dateiname }}</a>
+      {% if kann_edit %}
+      <form method="post" action="{{ url_for('wartungen.wartung_datei_loeschen', datei_id=d.ID) }}" onsubmit="return confirm('Löschen?');">
+        <button type="submit" class="btn btn-sm btn-outline-danger">Löschen</button>
+      </form>
+      {% endif %}
+    </li>
+    {% else %}
+    <li class="list-group-item text-muted">Keine Dateien.</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% if wartung and plaene is defined %}
+<div class="card shadow-sm mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span>Wartungspläne</span>
+    {% if kann_plan %}
+    <a href="{{ url_for('wartungen.plan_neu', wartung_id=wartung.ID) }}" class="btn btn-sm btn-primary">Plan anlegen</a>
+    {% endif %}
+  </div>
+  <ul class="list-group list-group-flush">
+    {% for p in plaene %}
+    <li class="list-group-item d-flex justify-content-between">
+      <span>Alle {{ p.IntervallAnzahl }} {{ p.IntervallEinheit }}(e){% if p.NaechsteFaelligkeit %} · nächste Fälligkeit {{ p.NaechsteFaelligkeit }}{% endif %}</span>
+      <a href="{{ url_for('wartungen.plan_detail', plan_id=p.ID) }}">Anzeigen</a>
+    </li>
+    {% else %}
+    <li class="list-group-item text-muted">Keine Pläne.</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<p><a href="{{ url_for('wartungen.wartung_liste') }}">Zurück zur Liste</a></p>
+{% endblock %}

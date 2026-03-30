@@ -1,0 +1,291 @@
+{% extends "layout/base.html" %}
+{% block content %}
+<h1 class="mb-4">{% if batch %}Mehrere Wartungen protokollieren{% else %}Durchführung protokollieren{% endif %}</h1>
+{% if not batch %}
+<p class="text-muted">{{ wartung.Bereich }} – {{ wartung.Gewerk }} · {{ wartung.Bezeichnung }}</p>
+{% endif %}
+
+{% if batch %}
+<form method="post" id="durchfuehrungBatchForm">
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">Termin</h5>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">Durchgeführt am</label>
+          <input type="datetime-local" name="durchgefuehrt_am" class="form-control" required>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header bg-info text-white">
+      <h5 class="mb-0">Wartungspläne</h5>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small mb-2">Mindestens eine Zeile mit gewähltem Plan.</p>
+      <div id="planRows"></div>
+      <div id="emptyPlanMessage" class="alert alert-info mb-0">
+        <i class="bi bi-info-circle"></i> Bitte mindestens einen Plan hinzufügen.
+      </div>
+      <div class="mt-3">
+        <button type="button" class="btn btn-success" onclick="addPlanRow()">
+          <i class="bi bi-plus-circle"></i> Plan hinzufügen
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header bg-success text-white">
+      <h5 class="mb-0">Eigene Mitarbeiter</h5>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small mb-2">Pro Zeile ein Mitarbeiter, oder nur Fremdfirmen ausfüllen.</p>
+      <div id="mitarbeiterRows"></div>
+      <div class="mt-3">
+        <button type="button" class="btn btn-success" onclick="addMitarbeiterRow('mitarbeiterRows')">
+          <i class="bi bi-plus-circle"></i> Mitarbeiter hinzufügen
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header bg-warning text-dark">
+      <h5 class="mb-0">Fremdfirmen</h5>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small mb-2">Pro Zeile: Firma, Techniker (Pflicht), Telefon optional.</p>
+      <div id="ffRows"></div>
+      <div class="mt-3">
+        <button type="button" class="btn btn-success" onclick="addFfRow('ffRows')">
+          <i class="bi bi-plus-circle"></i> Zeile hinzufügen
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="mb-3">
+    <button type="submit" class="btn btn-primary">
+      <i class="bi bi-check-lg"></i> Speichern
+    </button>
+    <a href="{{ url_for('wartungen.plaene_uebersicht') }}" class="btn btn-secondary">
+      <i class="bi bi-x-lg"></i> Abbrechen
+    </a>
+  </div>
+</form>
+
+{% else %}
+
+<form method="post" id="durchfuehrungSingleForm">
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">Termin &amp; Bemerkung</h5>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">Durchgeführt am</label>
+          <input type="datetime-local" name="durchgefuehrt_am" class="form-control" required>
+        </div>
+        <div class="col-md-12">
+          <label class="form-label">Bemerkung</label>
+          <textarea name="bemerkung" class="form-control" rows="2"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header bg-success text-white">
+      <h5 class="mb-0">Eigene Mitarbeiter</h5>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small mb-2">Pro Zeile ein Mitarbeiter, oder nur Fremdfirmen ausfüllen.</p>
+      <div id="mitarbeiterRowsSingle"></div>
+      <div class="mt-3">
+        <button type="button" class="btn btn-success" onclick="addMitarbeiterRow('mitarbeiterRowsSingle')">
+          <i class="bi bi-plus-circle"></i> Mitarbeiter hinzufügen
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header bg-warning text-dark">
+      <h5 class="mb-0">Fremdfirmen</h5>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small mb-2">Pro Zeile: Firma, Techniker (Pflicht), Telefon optional.</p>
+      <div id="ffRowsSingle"></div>
+      <div class="mt-3">
+        <button type="button" class="btn btn-success" onclick="addFfRow('ffRowsSingle')">
+          <i class="bi bi-plus-circle"></i> Zeile hinzufügen
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="mb-3">
+    <button type="submit" class="btn btn-primary">
+      <i class="bi bi-check-lg"></i> Speichern
+    </button>
+    <a href="{{ url_for('wartungen.plan_detail', plan_id=plan.ID) }}" class="btn btn-secondary">
+      <i class="bi bi-x-lg"></i> Abbrechen
+    </a>
+  </div>
+</form>
+
+{% endif %}
+
+<script>
+const MITARBEITER_OPTIONS = [
+{% for m in mitarbeiter %}
+  { id: {{ m.ID }}, label: {{ (m.Nachname ~ ', ' ~ m.Vorname ~ ' (' ~ (m.Personalnummer or '') ~ ')')|tojson }} }{% if not loop.last %},{% endif %}
+{% endfor %}
+];
+const FREMDFIRMEN_OPTIONS = [
+{% for f in fremdfirmen %}
+  { id: {{ f.ID }}, name: {{ f.Firmenname|tojson }} }{% if not loop.last %},{% endif %}
+{% endfor %}
+];
+
+function fillMitarbeiterSelect(sel) {
+  sel.add(new Option('— Mitarbeiter wählen —', ''));
+  MITARBEITER_OPTIONS.forEach(function (o) {
+    sel.add(new Option(o.label, String(o.id)));
+  });
+}
+
+function fillFremdfirmaSelect(sel) {
+  sel.add(new Option('— Firma —', ''));
+  FREMDFIRMEN_OPTIONS.forEach(function (o) {
+    sel.add(new Option(o.name, String(o.id)));
+  });
+}
+
+function addMitarbeiterRow(containerId) {
+  const container = document.getElementById(containerId);
+  const row = document.createElement('div');
+  row.className = 'mitarbeiter-row mb-3 p-3 border rounded';
+  row.innerHTML = `
+    <div class="row g-3 align-items-end">
+      <div class="col-md-11">
+        <label class="form-label">Mitarbeiter</label>
+        <select name="mitarbeiter_id[]" class="form-select mit-select"></select>
+      </div>
+      <div class="col-md-1">
+        <label class="form-label">&nbsp;</label>
+        <button type="button" class="btn btn-danger w-100" onclick="removeMitarbeiterRow(this)" title="Zeile entfernen">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+    </div>
+  `;
+  fillMitarbeiterSelect(row.querySelector('.mit-select'));
+  container.appendChild(row);
+}
+
+function removeMitarbeiterRow(btn) {
+  btn.closest('.mitarbeiter-row').remove();
+}
+
+function addFfRow(containerId) {
+  const container = document.getElementById(containerId);
+  const row = document.createElement('div');
+  row.className = 'ff-row mb-3 p-3 border rounded';
+  row.innerHTML = `
+    <div class="row g-3 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label">Firma</label>
+        <select name="fremdfirma_id[]" class="form-select ff-select"></select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Techniker</label>
+        <input type="text" name="techniker[]" class="form-control" placeholder="Techniker">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Telefon</label>
+        <input type="text" name="telefon[]" class="form-control" placeholder="Optional">
+      </div>
+      <div class="col-md-1">
+        <label class="form-label">&nbsp;</label>
+        <button type="button" class="btn btn-danger w-100" onclick="removeFfRow(this)" title="Zeile entfernen">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+    </div>
+  `;
+  fillFremdfirmaSelect(row.querySelector('.ff-select'));
+  container.appendChild(row);
+}
+
+function removeFfRow(btn) {
+  btn.closest('.ff-row').remove();
+}
+
+{% if batch %}
+const PLAN_OPTIONS = {{ plan_optionen|tojson|safe }};
+
+function fillPlanSelect(sel) {
+  sel.add(new Option('— Plan wählen —', ''));
+  (PLAN_OPTIONS || []).forEach(function (o) {
+    sel.add(new Option(o.label, String(o.id)));
+  });
+}
+
+function setPlanEmptyVisible() {
+  const c = document.getElementById('planRows');
+  const msg = document.getElementById('emptyPlanMessage');
+  msg.style.display = c.children.length === 0 ? 'block' : 'none';
+}
+
+function addPlanRow() {
+  const container = document.getElementById('planRows');
+  const row = document.createElement('div');
+  row.className = 'plan-row mb-3 p-3 border rounded';
+  row.innerHTML = `
+    <div class="row g-3 align-items-end">
+      <div class="col-md-6">
+        <label class="form-label">Wartungsplan</label>
+        <select name="plan_id[]" class="form-select plan-select"></select>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label">Bemerkung</label>
+        <input type="text" name="plan_bemerkung[]" class="form-control" placeholder="Optional">
+      </div>
+      <div class="col-md-1">
+        <label class="form-label">&nbsp;</label>
+        <button type="button" class="btn btn-danger w-100" onclick="removePlanRow(this)" title="Zeile entfernen">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+    </div>
+  `;
+  fillPlanSelect(row.querySelector('.plan-select'));
+  container.appendChild(row);
+  setPlanEmptyVisible();
+}
+
+function removePlanRow(btn) {
+  btn.closest('.plan-row').remove();
+  setPlanEmptyVisible();
+}
+{% endif %}
+
+document.addEventListener('DOMContentLoaded', function () {
+{% if batch %}
+  addPlanRow();
+  addMitarbeiterRow('mitarbeiterRows');
+  addFfRow('ffRows');
+{% else %}
+  addMitarbeiterRow('mitarbeiterRowsSingle');
+  addFfRow('ffRowsSingle');
+{% endif %}
+});
+</script>
+{% endblock %}

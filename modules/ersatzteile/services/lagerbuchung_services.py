@@ -44,7 +44,7 @@ def validate_lagerbuchung(ersatzteil_id, typ, menge, aktueller_bestand, conn):
 
 def create_lagerbuchung(ersatzteil_id, typ, menge, grund, mitarbeiter_id, conn,
                         thema_id=None, kostenstelle_id=None, bemerkung=None,
-                        preis=None, waehrung=None):
+                        preis=None, waehrung=None, wartungsdurchfuehrung_id=None):
     """
     Erstellt eine Lagerbuchung und aktualisiert den Bestand
     
@@ -57,6 +57,7 @@ def create_lagerbuchung(ersatzteil_id, typ, menge, grund, mitarbeiter_id, conn,
         conn: Datenbankverbindung
         thema_id: Optional: Thema-ID
         kostenstelle_id: Optional: Kostenstellen-ID
+        wartungsdurchfuehrung_id: Optional: Wartungsdurchführung-ID
         bemerkung: Optional: Bemerkung
         preis: Optional: Preis
         waehrung: Optional: Währung
@@ -89,11 +90,11 @@ def create_lagerbuchung(ersatzteil_id, typ, menge, grund, mitarbeiter_id, conn,
     conn.execute('''
         INSERT INTO Lagerbuchung (
             ErsatzteilID, Typ, Menge, Grund, ThemaID, KostenstelleID,
-            VerwendetVonID, Bemerkung, Preis, Waehrung, Buchungsdatum
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
+            WartungsdurchfuehrungID, VerwendetVonID, Bemerkung, Preis, Waehrung, Buchungsdatum
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
     ''', (
         ersatzteil_id, typ, buchungsmenge, grund, thema_id, kostenstelle_id,
-        mitarbeiter_id, bemerkung, artikel_preis, artikel_waehrung
+        wartungsdurchfuehrung_id, mitarbeiter_id, bemerkung, artikel_preis, artikel_waehrung
     ))
     
     # Bestand aktualisieren

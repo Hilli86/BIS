@@ -574,6 +574,7 @@ def init_database_schema(db_path, verbose=False):
                 Grund TEXT,
                 ThemaID INTEGER NULL,
                 KostenstelleID INTEGER,
+                WartungsdurchfuehrungID INTEGER NULL,
                 VerwendetVonID INTEGER NOT NULL,
                 Buchungsdatum DATETIME DEFAULT CURRENT_TIMESTAMP,
                 Bemerkung TEXT,
@@ -603,6 +604,9 @@ def init_database_schema(db_path, verbose=False):
             create_index_if_not_exists(conn, 'idx_lagerbuchung_verwendet_von', 'CREATE INDEX idx_lagerbuchung_verwendet_von ON Lagerbuchung(VerwendetVonID)')
             create_index_if_not_exists(conn, 'idx_lagerbuchung_buchungsdatum', 'CREATE INDEX idx_lagerbuchung_buchungsdatum ON Lagerbuchung(Buchungsdatum)')
             create_index_if_not_exists(conn, 'idx_lagerbuchung_bestellung', 'CREATE INDEX idx_lagerbuchung_bestellung ON Lagerbuchung(BestellungID)')
+            if create_column_if_not_exists(conn, 'Lagerbuchung', 'WartungsdurchfuehrungID', 'ALTER TABLE Lagerbuchung ADD COLUMN WartungsdurchfuehrungID INTEGER NULL'):
+                print("[INFO] Spalte 'WartungsdurchfuehrungID' zu 'Lagerbuchung' hinzugefügt")
+            create_index_if_not_exists(conn, 'idx_lagerbuchung_wartungsdurchfuehrung', 'CREATE INDEX idx_lagerbuchung_wartungsdurchfuehrung ON Lagerbuchung(WartungsdurchfuehrungID)')
         
         # ========== 21. ErsatzteilAbteilungZugriff ==========
         create_table_if_not_exists(conn, 'ErsatzteilAbteilungZugriff', '''
@@ -617,6 +621,152 @@ def init_database_schema(db_path, verbose=False):
         ''', [
             'CREATE INDEX idx_ersatzteil_abteilung_ersatzteil ON ErsatzteilAbteilungZugriff(ErsatzteilID)',
             'CREATE INDEX idx_ersatzteil_abteilung_abteilung ON ErsatzteilAbteilungZugriff(AbteilungID)'
+        ])
+        
+        # ========== 21b. Wartung / Wartungsplan / Fremdfirma ==========
+        create_table_if_not_exists(conn, 'Wartung', '''
+            CREATE TABLE Wartung (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                GewerkID INTEGER NOT NULL,
+                Bezeichnung TEXT NOT NULL,
+                Beschreibung TEXT,
+                ErstelltVonID INTEGER NOT NULL,
+                ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
+                GeaendertAm DATETIME,
+                Aktiv INTEGER NOT NULL DEFAULT 1,
+                FOREIGN KEY (GewerkID) REFERENCES Gewerke(ID),
+                FOREIGN KEY (ErstelltVonID) REFERENCES Mitarbeiter(ID)
+            )
+        ''', [
+            'CREATE INDEX idx_wartung_gewerk ON Wartung(GewerkID)',
+            'CREATE INDEX idx_wartung_erstellt_von ON Wartung(ErstelltVonID)',
+            'CREATE INDEX idx_wartung_aktiv ON Wartung(Aktiv)'
+        ])
+        
+        create_table_if_not_exists(conn, 'WartungAbteilungZugriff', '''
+            CREATE TABLE WartungAbteilungZugriff (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                WartungID INTEGER NOT NULL,
+                AbteilungID INTEGER NOT NULL,
+                FOREIGN KEY (WartungID) REFERENCES Wartung(ID) ON DELETE CASCADE,
+                FOREIGN KEY (AbteilungID) REFERENCES Abteilung(ID) ON DELETE CASCADE,
+                UNIQUE(WartungID, AbteilungID)
+            )
+        ''', [
+            'CREATE INDEX idx_wartung_abteilung_wartung ON WartungAbteilungZugriff(WartungID)',
+            'CREATE INDEX idx_wartung_abteilung_abteilung ON WartungAbteilungZugriff(AbteilungID)'
+        ])
+        
+        created_fremdfirma = create_table_if_not_exists(conn, 'Fremdfirma', '''
+            CREATE TABLE Fremdfirma (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                Firmenname TEXT NOT NULL,
+                Adresse TEXT,
+                Taetigkeitsbereich TEXT,
+                Aktiv INTEGER NOT NULL DEFAULT 1
+            )
+        ''', [
+            'CREATE INDEX idx_fremdfirma_aktiv ON Fremdfirma(Aktiv)'
+        ])
+        # Bestehende DB: BereichID (Stammdaten-Bereich) → Freitext Taetigkeitsbereich
+        if not created_fremdfirma and table_exists(conn, 'Fremdfirma') and column_exists(conn, 'Fremdfirma', 'BereichID'):
+            create_column_if_not_exists(
+                conn, 'Fremdfirma', 'Taetigkeitsbereich',
+                'ALTER TABLE Fremdfirma ADD COLUMN Taetigkeitsbereich TEXT'
+            )
+            conn.execute('''
+                UPDATE Fremdfirma SET Taetigkeitsbereich = (
+                    SELECT b.Bezeichnung FROM Bereich b WHERE b.ID = Fremdfirma.BereichID
+                )
+                WHERE Taetigkeitsbereich IS NULL OR TRIM(COALESCE(Taetigkeitsbereich, '')) = ''
+            ''')
+            conn.execute('''
+                UPDATE Fremdfirma SET Taetigkeitsbereich = ''
+                WHERE Taetigkeitsbereich IS NULL
+            ''')
+            conn.execute('PRAGMA foreign_keys = OFF')
+            conn.executescript('''
+                CREATE TABLE Fremdfirma_mig (
+                    ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Firmenname TEXT NOT NULL,
+                    Adresse TEXT,
+                    Taetigkeitsbereich TEXT,
+                    Aktiv INTEGER NOT NULL DEFAULT 1
+                );
+                INSERT INTO Fremdfirma_mig (ID, Firmenname, Adresse, Taetigkeitsbereich, Aktiv)
+                SELECT ID, Firmenname, Adresse, COALESCE(Taetigkeitsbereich, ''), Aktiv FROM Fremdfirma;
+                DROP TABLE Fremdfirma;
+                ALTER TABLE Fremdfirma_mig RENAME TO Fremdfirma;
+            ''')
+            conn.execute('PRAGMA foreign_keys = ON')
+            create_index_if_not_exists(conn, 'idx_fremdfirma_aktiv', 'CREATE INDEX idx_fremdfirma_aktiv ON Fremdfirma(Aktiv)')
+            if verbose:
+                print('[INFO] Fremdfirma: BereichID durch Taetigkeitsbereich (Freitext) ersetzt')
+        elif not created_fremdfirma and table_exists(conn, 'Fremdfirma') and not column_exists(conn, 'Fremdfirma', 'Taetigkeitsbereich'):
+            create_column_if_not_exists(
+                conn, 'Fremdfirma', 'Taetigkeitsbereich',
+                'ALTER TABLE Fremdfirma ADD COLUMN Taetigkeitsbereich TEXT'
+            )
+        
+        create_table_if_not_exists(conn, 'Wartungsplan', '''
+            CREATE TABLE Wartungsplan (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                WartungID INTEGER NOT NULL,
+                IntervallEinheit TEXT NOT NULL,
+                IntervallAnzahl INTEGER NOT NULL DEFAULT 1,
+                NaechsteFaelligkeit DATE,
+                Aktiv INTEGER NOT NULL DEFAULT 1,
+                ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (WartungID) REFERENCES Wartung(ID) ON DELETE CASCADE
+            )
+        ''', [
+            'CREATE INDEX idx_wartungsplan_wartung ON Wartungsplan(WartungID)',
+            'CREATE INDEX idx_wartungsplan_aktiv ON Wartungsplan(Aktiv)'
+        ])
+        
+        create_table_if_not_exists(conn, 'Wartungsdurchfuehrung', '''
+            CREATE TABLE Wartungsdurchfuehrung (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                WartungsplanID INTEGER NOT NULL,
+                DurchgefuehrtAm DATETIME NOT NULL,
+                Bemerkung TEXT,
+                ProtokolliertVonID INTEGER,
+                ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (WartungsplanID) REFERENCES Wartungsplan(ID) ON DELETE CASCADE,
+                FOREIGN KEY (ProtokolliertVonID) REFERENCES Mitarbeiter(ID)
+            )
+        ''', [
+            'CREATE INDEX idx_wartungsdurchfuehrung_plan ON Wartungsdurchfuehrung(WartungsplanID)',
+            'CREATE INDEX idx_wartungsdurchfuehrung_datum ON Wartungsdurchfuehrung(DurchgefuehrtAm)'
+        ])
+        
+        create_table_if_not_exists(conn, 'WartungsdurchfuehrungMitarbeiter', '''
+            CREATE TABLE WartungsdurchfuehrungMitarbeiter (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                WartungsdurchfuehrungID INTEGER NOT NULL,
+                MitarbeiterID INTEGER NOT NULL,
+                FOREIGN KEY (WartungsdurchfuehrungID) REFERENCES Wartungsdurchfuehrung(ID) ON DELETE CASCADE,
+                FOREIGN KEY (MitarbeiterID) REFERENCES Mitarbeiter(ID),
+                UNIQUE(WartungsdurchfuehrungID, MitarbeiterID)
+            )
+        ''', [
+            'CREATE INDEX idx_wd_ma_durchfuehrung ON WartungsdurchfuehrungMitarbeiter(WartungsdurchfuehrungID)',
+            'CREATE INDEX idx_wd_ma_mitarbeiter ON WartungsdurchfuehrungMitarbeiter(MitarbeiterID)'
+        ])
+        
+        create_table_if_not_exists(conn, 'WartungsdurchfuehrungFremdfirma', '''
+            CREATE TABLE WartungsdurchfuehrungFremdfirma (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                WartungsdurchfuehrungID INTEGER NOT NULL,
+                FremdfirmaID INTEGER NOT NULL,
+                Techniker TEXT NOT NULL,
+                Telefon TEXT,
+                FOREIGN KEY (WartungsdurchfuehrungID) REFERENCES Wartungsdurchfuehrung(ID) ON DELETE CASCADE,
+                FOREIGN KEY (FremdfirmaID) REFERENCES Fremdfirma(ID)
+            )
+        ''', [
+            'CREATE INDEX idx_wd_ff_durchfuehrung ON WartungsdurchfuehrungFremdfirma(WartungsdurchfuehrungID)',
+            'CREATE INDEX idx_wd_ff_fremdfirma ON WartungsdurchfuehrungFremdfirma(FremdfirmaID)'
         ])
         
         # ========== 22. Datei (einheitliche Dateiverwaltung) ==========
@@ -936,6 +1086,16 @@ def init_database_schema(db_path, verbose=False):
             INSERT OR IGNORE INTO Berechtigung (Schluessel, Bezeichnung, Beschreibung, Aktiv)
             VALUES ('foto_artikeleinstellungen_aendern', 'Darf Foto Artikeleinstellungen ändern',
                     'Erlaubt das Hochladen und Ändern von Fotos in den Artikeleinstellungen (Produktion/Etikettierung)', 1)
+        ''')
+        conn.execute('''
+            INSERT OR IGNORE INTO Berechtigung (Schluessel, Bezeichnung, Beschreibung, Aktiv)
+            VALUES ('wartung_erstellen', 'Wartungen und Pläne pflegen',
+                    'Erlaubt Anlegen und Bearbeiten von Wartungs-Stammdaten und Wartungsplänen', 1)
+        ''')
+        conn.execute('''
+            INSERT OR IGNORE INTO Berechtigung (Schluessel, Bezeichnung, Beschreibung, Aktiv)
+            VALUES ('wartung_nur_Plan_erstellen', 'Nur Wartungspläne pflegen',
+                    'Erlaubt Anlegen und Bearbeiten von Wartungsplänen zu bestehenden Wartungen (kein Stamm)', 1)
         ''')
         
         # ========== 31. MitarbeiterBerechtigung ==========

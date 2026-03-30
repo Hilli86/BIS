@@ -1,0 +1,38 @@
+{% extends "layout/base.html" %}
+{% block content %}
+<h1 class="mb-4">{{ title }}</h1>
+<p class="text-muted">{{ wartung.Bereich }} – {{ wartung.Gewerk }} · {{ wartung.Bezeichnung }}</p>
+<form method="post" class="card shadow-sm p-4">
+  <div class="mb-3">
+    <label class="form-label">Intervall</label>
+    <div class="row g-2">
+      <div class="col-md-4">
+        <input type="number" name="intervall_anzahl" class="form-control" min="1" value="{{ plan.IntervallAnzahl if plan else 1 }}" required>
+      </div>
+      <div class="col-md-8">
+        <select name="intervall_einheit" class="form-select" required>
+          {% for e in ['Tag', 'Woche', 'Monat'] %}
+          <option value="{{ e }}" {% if plan and plan.IntervallEinheit == e %}selected{% elif not plan and e == 'Tag' %}selected{% endif %}>{{ e }}(e)</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Nächste Fälligkeit (optional)</label>
+    <input type="date" name="naechste_faelligkeit" class="form-control" value="{{ plan.NaechsteFaelligkeit if plan and plan.NaechsteFaelligkeit else '' }}">
+  </div>
+  {% if plan %}
+  <div class="mb-3 form-check">
+    <input type="checkbox" name="aktiv" value="1" class="form-check-input" id="aktiv" {% if plan.Aktiv %}checked{% endif %}>
+    <label class="form-check-label" for="aktiv">Aktiv</label>
+  </div>
+  {% endif %}
+  <button type="submit" class="btn btn-primary">Speichern</button>
+  {% if plan %}
+  <a href="{{ url_for('wartungen.plan_detail', plan_id=plan.ID) }}" class="btn btn-secondary">Abbrechen</a>
+  {% else %}
+  <a href="{{ url_for('wartungen.wartung_bearbeiten', wartung_id=wartung.ID) }}" class="btn btn-secondary">Abbrechen</a>
+  {% endif %}
+</form>
+{% endblock %}

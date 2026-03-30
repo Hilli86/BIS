@@ -1,0 +1,41 @@
+{% extends "layout/base.html" %}
+{% block content %}
+<h1 class="mb-3">Wartungsplan</h1>
+<p class="text-muted">{{ wartung.Bereich }} – {{ wartung.Gewerk }} · {{ wartung.Bezeichnung }}</p>
+<p>Intervall: alle <strong>{{ plan.IntervallAnzahl }}</strong> <strong>{{ plan.IntervallEinheit }}</strong>(e)
+{% if plan.NaechsteFaelligkeit %} · Nächste Fälligkeit: {{ plan.NaechsteFaelligkeit }}{% endif %}</p>
+<p>
+  {% if kann_plan_edit %}
+  <a href="{{ url_for('wartungen.plan_bearbeiten', plan_id=plan.ID) }}" class="btn btn-outline-primary btn-sm">Plan bearbeiten</a>
+  {% endif %}
+  <a href="{{ url_for('wartungen.durchfuehrung_neu', plan_id=plan.ID) }}" class="btn btn-primary btn-sm">Durchführung protokollieren</a>
+  <a href="{{ url_for('wartungen.wartung_bearbeiten', wartung_id=wartung.ID) }}" class="btn btn-secondary btn-sm">Zur Wartung</a>
+</p>
+<div class="card shadow-sm">
+  <div class="card-header">Durchgeführte Wartungen</div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Datum</th>
+          <th>Protokolliert von</th>
+          <th>Bemerkung</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for x in durchfuehrungen %}
+        <tr>
+          <td>{{ x.DurchgefuehrtAm }}</td>
+          <td>{{ x.ProtokolliertVon or '–' }}</td>
+          <td>{{ x.Bemerkung or '–' }}</td>
+          <td><a href="{{ url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=x.ID) }}">Detail</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-muted">Noch keine Einträge.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

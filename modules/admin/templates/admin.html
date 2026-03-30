@@ -9,6 +9,7 @@
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-abteilung">Abteilungen</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-bereich">Bereiche</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-gewerk">Gewerke</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-fremdfirma">Fremdfirmen</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-taetigkeit">Tätigkeiten</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-status">Status</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-kategorie">Ersatzteil-Kategorien</a></li>
@@ -443,6 +444,55 @@
             </form>
           </td>
         </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Fremdfirmen (externe Firmen für Wartungsprotokolle) -->
+  <div class="tab-pane fade" id="tab-fremdfirma">
+    <div class="card mb-3">
+      <div class="card-header">Neue Fremdfirma anlegen</div>
+      <div class="card-body">
+        <form action="{{ url_for('admin.fremdfirma_add') }}" method="post" class="row g-2">
+          <div class="col-md-3"><input name="firmenname" class="form-control" placeholder="Firmenname *" required></div>
+          <div class="col-md-4"><textarea name="adresse" class="form-control" rows="2" placeholder="Adresse"></textarea></div>
+          <div class="col-md-3"><textarea name="taetigkeitsbereich" class="form-control" rows="2" placeholder="Tätigkeitsbereich"></textarea></div>
+          <div class="col-md-2 d-flex align-items-end"><button type="submit" class="btn btn-success w-100">Anlegen</button></div>
+        </form>
+      </div>
+    </div>
+
+    <table class="table table-striped align-middle">
+      <thead class="table-dark">
+        <tr><th>Firmenname</th><th>Adresse</th><th>Tätigkeitsbereich</th><th style="width: 120px;">Aktiv</th><th style="width: 140px;">Aktionen</th></tr>
+      </thead>
+      <tbody>
+        {% for f in fremdfirmen %}
+        <tr>
+          <td>
+            <form action="{{ url_for('admin.fremdfirma_update', fid=f.ID) }}" method="post">
+              <input name="firmenname" class="form-control form-control-sm" value="{{ f.Firmenname }}" required>
+          </td>
+          <td>
+              <textarea name="adresse" class="form-control form-control-sm" rows="2">{{ f.Adresse or '' }}</textarea>
+          </td>
+          <td>
+              <textarea name="taetigkeitsbereich" class="form-control form-control-sm" rows="2">{{ f.Taetigkeitsbereich or '' }}</textarea>
+          </td>
+          <td>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="aktiv" id="ffAktiv{{ f.ID }}" {% if f.Aktiv %}checked{% endif %}>
+                <label class="form-check-label" for="ffAktiv{{ f.ID }}">Aktiv</label>
+              </div>
+          </td>
+          <td>
+              <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Speichern</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-muted">Noch keine Fremdfirma angelegt.</td></tr>
         {% endfor %}
       </tbody>
     </table>
