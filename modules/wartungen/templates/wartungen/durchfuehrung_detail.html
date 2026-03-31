@@ -7,8 +7,8 @@
   <a href="{{ url_for('wartungen.plaene_uebersicht') }}" class="btn btn-secondary">
     <i class="bi bi-arrow-left"></i> Alle Pläne
   </a>
-  <a href="{{ url_for('wartungen.plan_detail', plan_id=d.PlanID) }}" class="btn btn-secondary">
-    <i class="bi bi-calendar-week"></i> Zum Wartungsplan
+  <a href="{{ url_for('wartungen.wartung_detail', wartung_id=d.WartungID, plan_id=d.PlanID) }}" class="btn btn-secondary">
+    <i class="bi bi-calendar-week"></i> Zur Wartung / Plan
   </a>
 </div>
 <p class="text-muted">{{ d.Bereich }} – {{ d.Gewerk }} · {{ d.WartungBez }}</p>

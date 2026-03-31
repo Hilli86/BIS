@@ -266,6 +266,11 @@ def wartung_detail(wartung_id):
         if not hat_wartung_zugriff(mitarbeiter_id, wartung_id, conn):
             flash('Kein Zugriff auf diese Wartung.', 'danger')
             return redirect(url_for('wartungen.wartung_liste'))
+        highlight_plan_id = request.args.get('plan_id', type=int)
+        if highlight_plan_id is not None:
+            pl_row = services.get_plan(conn, highlight_plan_id)
+            if not pl_row or pl_row['WartungID'] != wartung_id:
+                highlight_plan_id = None
         kann_edit = hat_wartung_stamm_bearbeiten(mitarbeiter_id, wartung_id, conn)
         dateien = _dateien_display_fuer_wartung(wartung_id, conn, upload_base)
         plaene = services.list_plaene_fuer_wartung(conn, wartung_id)
@@ -280,8 +285,10 @@ def wartung_detail(wartung_id):
         durchfuehrungen=durchfuehrungen,
         kann_edit=kann_edit,
         kann_plan=kann_wartungsplan_pflegen(),
+        kann_protokollieren=kann_wartung_protokollieren(),
         sichtbare_abteilungen_text=sichtbar_labels,
         is_admin=adm,
+        highlight_plan_id=highlight_plan_id,
     )
 
 
@@ -375,6 +382,25 @@ def wartung_datei_upload(wartung_id):
                 flash(f'Fehler beim Hochladen: {fehler_text}', 'danger')
     except Exception as e:
         flash(f'Fehler beim Hochladen: {e}', 'danger')
+    ziel_plan_id = request.form.get('ziel_plan_id', type=int)
+    if ziel_plan_id:
+        try:
+            with get_db_connection() as conn:
+                pl = services.get_plan(conn, ziel_plan_id)
+                if (
+                    pl
+                    and pl['WartungID'] == wartung_id
+                    and hat_wartungsplan_zugriff(mitarbeiter_id, ziel_plan_id, conn)
+                ):
+                    return redirect(
+                        url_for(
+                            'wartungen.wartung_detail',
+                            wartung_id=wartung_id,
+                            plan_id=ziel_plan_id,
+                        )
+                    )
+        except Exception:
+            pass
     return redirect(url_for('wartungen.wartung_detail', wartung_id=wartung_id))
 
 
@@ -637,7 +663,9 @@ def plan_neu(wartung_id):
                 pid = services.create_wartungsplan(conn, wartung_id, einheit, anzahl, naechste)
                 conn.commit()
                 flash('Wartungsplan angelegt.', 'success')
-                return redirect(url_for('wartungen.plan_detail', plan_id=pid))
+                return redirect(
+                    url_for('wartungen.wartung_detail', wartung_id=wartung_id, plan_id=pid)
+                )
             except ValueError as e:
                 flash(str(e), 'danger')
     return render_template(
@@ -651,22 +679,18 @@ def plan_neu(wartung_id):
 @wartungen_bp.route('/plan/<int:plan_id>', methods=['GET'])
 @login_required
 def plan_detail(plan_id):
+    """Kompatibilität: leitet auf die Wartungsdetailseite mit Hervorhebung des Plans weiter."""
     mitarbeiter_id = session.get('user_id')
     with get_db_connection() as conn:
         if not hat_wartungsplan_zugriff(mitarbeiter_id, plan_id, conn):
             flash('Kein Zugriff.', 'danger')
             return redirect(url_for('wartungen.wartung_liste'))
         p = services.get_plan(conn, plan_id)
-        w = services.get_wartung(conn, p['WartungID'])
-        durch = services.list_durchfuehrungen_fuer_plan(conn, plan_id)
-    return render_template(
-        'wartungen/plan_detail.html',
-        plan=p,
-        wartung=w,
-        durchfuehrungen=durch,
-        kann_plan_edit=kann_wartungsplan_pflegen(),
-        kann_protokollieren=kann_wartung_protokollieren(),
-    )
+        if not p:
+            flash('Wartungsplan nicht gefunden.', 'danger')
+            return redirect(url_for('wartungen.plaene_uebersicht'))
+        wid = p['WartungID']
+    return redirect(url_for('wartungen.wartung_detail', wartung_id=wid, plan_id=plan_id))
 
 
 @wartungen_bp.route('/plan/<int:plan_id>/bearbeiten', methods=['GET', 'POST'])
@@ -691,7 +715,10 @@ def plan_bearbeiten(plan_id):
                 services.update_wartungsplan(conn, plan_id, einheit, anzahl, naechste, aktiv)
                 conn.commit()
                 flash('Gespeichert.', 'success')
-                return redirect(url_for('wartungen.plan_detail', plan_id=plan_id))
+                w_id = p['WartungID']
+                return redirect(
+                    url_for('wartungen.wartung_detail', wartung_id=w_id, plan_id=plan_id)
+                )
             except ValueError as e:
                 flash(str(e), 'danger')
     return render_template(

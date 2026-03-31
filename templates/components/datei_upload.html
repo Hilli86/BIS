@@ -12,9 +12,10 @@
     - upload_tab_id: Eindeutige ID für Upload-Tab (z.B. 'bild-upload-tab')
     - import_tab_id: Eindeutige ID für Import-Tab (z.B. 'bild-import-tab'). Die Dateiliste-Element-ID lautet immer import_tab_id + '-dateien-liste' (z.B. bild-import-tab-dateien-liste).
     - import_function: JavaScript-Funktion für Import (z.B. 'ladeImportDateienErsatzteil("bild")')
+    - ziel_plan_id: optional (Wartungen): Hidden-Feld für Redirect nach Upload zur Plan-Detailseite
 #}
 
-{% macro datei_upload(bereich_typ, bereich_id, erlaubte_dateitypen, upload_route, import_route=None, accept_attr='', upload_tab_id='upload-tab', import_tab_id='import-tab', import_function='', show_typ_feld=False) %}
+{% macro datei_upload(bereich_typ, bereich_id, erlaubte_dateitypen, upload_route, import_route=None, accept_attr='', upload_tab_id='upload-tab', import_tab_id='import-tab', import_function='', show_typ_feld=False, ziel_plan_id=None) %}
     <!-- Tab-Auswahl -->
     <ul class="nav nav-tabs mb-3" role="tablist">
         <li class="nav-item" role="presentation">
@@ -54,6 +55,9 @@
                 {% set route_param = {} %}
             {% endif %}
             <form method="POST" action="{{ url_for(upload_route, **route_param) }}" enctype="multipart/form-data">
+                {% if ziel_plan_id is not none %}
+                <input type="hidden" name="ziel_plan_id" value="{{ ziel_plan_id }}">
+                {% endif %}
                 <div class="mb-3">
                     <label class="form-label">Datei(en):</label>
                     <input type="file" name="file" class="form-control" {% if accept_attr %}accept="{{ accept_attr }}"{% endif %} multiple required>

@@ -69,7 +69,7 @@
         </thead>
         <tbody>
           {% for p in plaene %}
-          <tr style="cursor: pointer;" onclick="window.location.href='{{ url_for('wartungen.plan_detail', plan_id=p.ID) }}';">
+          <tr style="cursor: pointer;" onclick="window.location.href='{{ url_for('wartungen.wartung_detail', wartung_id=p.WartungID, plan_id=p.ID) }}';">
             <td>{{ p.Bereich }}</td>
             <td>{{ p.Gewerk }}</td>
             <td><strong>{{ p.WartungBez }}</strong></td>
@@ -78,7 +78,7 @@
             <td class="text-nowrap{% if ftd %} {{ ftd }}{% endif %}">{{ p.NaechsteFaelligkeit or '–' }}</td>
             <td>{% if p.Aktiv %}<span class="badge bg-success">Ja</span>{% else %}<span class="badge bg-secondary">Nein</span>{% endif %}</td>
             <td onclick="event.stopPropagation();">
-              <a href="{{ url_for('wartungen.plan_detail', plan_id=p.ID) }}" class="btn btn-sm btn-outline-primary" title="Öffnen">
+              <a href="{{ url_for('wartungen.wartung_detail', wartung_id=p.WartungID, plan_id=p.ID) }}" class="btn btn-sm btn-outline-primary" title="Wartung öffnen">
                 <i class="bi bi-box-arrow-in-right"></i>
               </a>
             </td>
@@ -90,7 +90,7 @@
 
     <div class="d-md-none">
       {% for p in plaene %}
-      <div class="card mb-3" style="cursor: pointer;" onclick="window.location.href='{{ url_for('wartungen.plan_detail', plan_id=p.ID) }}';">
+      <div class="card mb-3" style="cursor: pointer;" onclick="window.location.href='{{ url_for('wartungen.wartung_detail', wartung_id=p.WartungID, plan_id=p.ID) }}';">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-start mb-2">
             <div>
@@ -109,7 +109,7 @@
             {% endif %}
           </div>
           <div onclick="event.stopPropagation();">
-            <a href="{{ url_for('wartungen.plan_detail', plan_id=p.ID) }}" class="btn btn-sm btn-outline-primary">
+            <a href="{{ url_for('wartungen.wartung_detail', wartung_id=p.WartungID, plan_id=p.ID) }}" class="btn btn-sm btn-outline-primary">
               <i class="bi bi-box-arrow-in-right"></i> Öffnen
             </a>
           </div>
