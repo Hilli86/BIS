@@ -1098,6 +1098,11 @@ def init_database_schema(db_path, verbose=False):
             VALUES ('wartung_nur_Plan_erstellen', 'Nur Wartungspläne pflegen',
                     'Erlaubt Anlegen und Bearbeiten von Wartungsplänen zu bestehenden Wartungen (kein Stamm)', 1)
         ''')
+        conn.execute('''
+            INSERT OR IGNORE INTO Berechtigung (Schluessel, Bezeichnung, Beschreibung, Aktiv)
+            VALUES ('wartung_protokollieren', 'Wartungen protokollieren',
+                    'Erlaubt das Erfassen von Wartungsdurchführungen, Serviceberichte und Ersatzteil-Ausgänge', 1)
+        ''')
         
         # ========== 31. MitarbeiterBerechtigung ==========
         created = create_table_if_not_exists(conn, 'MitarbeiterBerechtigung', '''

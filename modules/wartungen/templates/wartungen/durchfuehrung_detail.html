@@ -3,6 +3,14 @@
 {% from 'components/datei_liste.html' import datei_liste %}
 {% block content %}
 <h1 class="mb-3">Wartungsdurchführung</h1>
+<div class="mb-3 d-flex flex-wrap gap-2">
+  <a href="{{ url_for('wartungen.plaene_uebersicht') }}" class="btn btn-secondary">
+    <i class="bi bi-arrow-left"></i> Alle Pläne
+  </a>
+  <a href="{{ url_for('wartungen.plan_detail', plan_id=d.PlanID) }}" class="btn btn-secondary">
+    <i class="bi bi-calendar-week"></i> Zum Wartungsplan
+  </a>
+</div>
 <p class="text-muted">{{ d.Bereich }} – {{ d.Gewerk }} · {{ d.WartungBez }}</p>
 <p><strong>Durchgeführt am:</strong> {{ d.DurchgefuehrtAm }}</p>
 {% if d.Bemerkung %}<p><strong>Bemerkung:</strong> {{ d.Bemerkung }}</p>{% endif %}
@@ -77,10 +85,13 @@
 <div class="card shadow-sm mb-4">
   <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
     <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Serviceberichte</h5>
+    {% if kann_protokollieren %}
     <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#wdServiceberichtUploadCollapse" aria-expanded="false" aria-controls="wdServiceberichtUploadCollapse">
       <i class="bi bi-plus-circle"></i> Datei hochladen
     </button>
+    {% endif %}
   </div>
+  {% if kann_protokollieren %}
   <div class="collapse" id="wdServiceberichtUploadCollapse">
     <div class="card-body bg-light border-bottom">
       {{ datei_upload(
@@ -97,6 +108,7 @@
       ) }}
     </div>
   </div>
+  {% endif %}
   <div class="card-body">
     {{ datei_liste(
       dateien=serviceberichte,
@@ -104,7 +116,7 @@
       bereich_id=d.ID,
       erlaubte_dateitypen=['Bild', 'Dokument', 'PDF'],
       is_admin=False,
-      allow_delete=True,
+      allow_delete=kann_protokollieren,
       datei_loeschen_durchfuehrung_id=d.ID,
       datei_anzeigen_route='wartungen.durchfuehrung_datei',
       datei_loeschen_route='wartungen.durchfuehrung_servicebericht_loeschen',
@@ -149,6 +161,7 @@
   </div>
 </div>
 
+{% if kann_protokollieren %}
 <div class="card shadow-sm mb-4">
   <div class="card-header">Ersatzteile verbuchen</div>
   <div class="card-body">
@@ -183,11 +196,7 @@
     </form>
   </div>
 </div>
-
-<p class="mb-0">
-  <a href="{{ url_for('wartungen.plan_detail', plan_id=d.PlanID) }}">Zum Wartungsplan</a> ·
-  <a href="{{ url_for('wartungen.plaene_uebersicht') }}">Alle Pläne</a>
-</p>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

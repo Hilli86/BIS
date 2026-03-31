@@ -1,6 +1,17 @@
 {% extends "layout/base.html" %}
 {% block content %}
 <h1 class="mb-4">{% if batch %}Mehrere Wartungen protokollieren{% else %}Durchführung protokollieren{% endif %}</h1>
+<div class="mb-3">
+  {% if batch %}
+  <a href="{{ url_for('wartungen.plaene_uebersicht') }}" class="btn btn-secondary">
+    <i class="bi bi-arrow-left"></i> Zurück zu Wartungsplänen
+  </a>
+  {% else %}
+  <a href="{{ url_for('wartungen.plan_detail', plan_id=plan.ID) }}" class="btn btn-secondary">
+    <i class="bi bi-arrow-left"></i> Zurück zum Plan
+  </a>
+  {% endif %}
+</div>
 {% if not batch %}
 <p class="text-muted">{{ wartung.Bereich }} – {{ wartung.Gewerk }} · {{ wartung.Bezeichnung }}</p>
 {% endif %}
@@ -73,9 +84,6 @@
     <button type="submit" class="btn btn-primary">
       <i class="bi bi-check-lg"></i> Speichern
     </button>
-    <a href="{{ url_for('wartungen.plaene_uebersicht') }}" class="btn btn-secondary">
-      <i class="bi bi-x-lg"></i> Abbrechen
-    </a>
   </div>
 </form>
 
@@ -176,9 +184,6 @@
     <button type="submit" class="btn btn-primary">
       <i class="bi bi-check-lg"></i> Speichern
     </button>
-    <a href="{{ url_for('wartungen.plan_detail', plan_id=plan.ID) }}" class="btn btn-secondary">
-      <i class="bi bi-x-lg"></i> Abbrechen
-    </a>
   </div>
 </form>
 
@@ -272,6 +277,7 @@ function removeFfRow(btn) {
 
 {% if batch %}
 const PLAN_OPTIONS = {{ plan_optionen|tojson|safe }};
+const VORAUSGEWAEHLTE_PLAN_IDS = {{ vorausgewaehlte_plan_ids|default([])|tojson }};
 
 function fillPlanSelect(sel) {
   sel.add(new Option('— Plan wählen —', ''));
@@ -321,7 +327,22 @@ function removePlanRow(btn) {
 
 document.addEventListener('DOMContentLoaded', function () {
 {% if batch %}
-  addPlanRow();
+  var planContainer = document.getElementById('planRows');
+  if (planContainer) planContainer.innerHTML = '';
+  if (VORAUSGEWAEHLTE_PLAN_IDS && VORAUSGEWAEHLTE_PLAN_IDS.length > 0) {
+    VORAUSGEWAEHLTE_PLAN_IDS.forEach(function (pid) {
+      addPlanRow();
+      var rows = planContainer.querySelectorAll('.plan-row');
+      var last = rows[rows.length - 1];
+      if (last) {
+        var sel = last.querySelector('.plan-select');
+        if (sel) sel.value = String(pid);
+      }
+    });
+  } else {
+    addPlanRow();
+  }
+  setPlanEmptyVisible();
   addMitarbeiterRow('mitarbeiterRows');
   addFfRow('ffRows');
 {% else %}

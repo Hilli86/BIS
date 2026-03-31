@@ -769,8 +769,8 @@
 
     {% if menue_sichtbar('wartungen_liste') or menue_sichtbar('wartungen_plaene') or menue_sichtbar('wartungen_jahresuebersicht') or menue_sichtbar('wartungen_mehrere') %}
     {% set w_ep = request.endpoint or '' %}
-    {% set w_stamm_active = w_ep in ['wartungen.wartung_liste', 'wartungen.wartung_neu', 'wartungen.wartung_bearbeiten', 'wartungen.wartung_datei', 'wartungen.wartung_datei_loeschen'] %}
-    {% set w_plaene_active = w_ep in ['wartungen.plaene_uebersicht', 'wartungen.plan_neu', 'wartungen.plan_detail', 'wartungen.plan_bearbeiten', 'wartungen.durchfuehrung_neu', 'wartungen.durchfuehrung_detail'] %}
+    {% set w_stamm_active = w_ep in ['wartungen.wartung_liste', 'wartungen.wartung_neu', 'wartungen.wartung_detail', 'wartungen.wartung_bearbeiten', 'wartungen.wartung_datei', 'wartungen.wartung_datei_loeschen', 'wartungen.wartung_datei_upload'] %}
+    {% set w_plaene_active = w_ep in ['wartungen.plaene_uebersicht', 'wartungen.plan_neu', 'wartungen.plan_detail', 'wartungen.plan_bearbeiten', 'wartungen.durchfuehrung_neu', 'wartungen.durchfuehrung_detail', 'wartungen.durchfuehrung_mehrere'] %}
     {% set w_jahres_active = w_ep == 'wartungen.jahresuebersicht' %}
     {% set w_mehrere_active = w_ep == 'wartungen.durchfuehrung_mehrere' %}
     <h6>Wartungen</h6>

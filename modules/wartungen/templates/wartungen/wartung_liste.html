@@ -9,6 +9,41 @@
 </div>
 {% endif %}
 
+{% if bereiche %}
+<form method="get" action="{{ url_for('wartungen.wartung_liste') }}" class="card shadow-sm mb-4" id="form-wartung-liste-filter">
+  <div class="card-body py-3">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label mb-1" for="filter-wl-bereich">Bereich</label>
+        <select class="form-select" id="filter-wl-bereich" name="bereich_id" onchange="this.form.submit()">
+          <option value="" {% if bereich_id is none %}selected{% endif %}>Alle Bereiche</option>
+          {% for b in bereiche %}
+          <option value="{{ b.ID }}" {% if bereich_id == b.ID %}selected{% endif %}>{{ b.Bezeichnung }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label mb-1" for="filter-wl-gewerk">Gewerk</label>
+        <select class="form-select" id="filter-wl-gewerk" name="gewerk_id" onchange="this.form.submit()" {% if not gewerke %}disabled{% endif %}>
+          <option value="" {% if gewerk_id is none %}selected{% endif %}>Alle Gewerke</option>
+          {% for g in gewerke %}
+          <option value="{{ g.ID }}" {% if gewerk_id == g.ID %}selected{% endif %}>
+            {{ g.Bezeichnung }}{% if bereich_id is none and g.BereichLabel %} ({{ g.BereichLabel }}){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <a href="{{ url_for('wartungen.wartung_liste') }}" class="btn btn-outline-secondary w-100">Zurücksetzen</a>
+      </div>
+    </div>
+  </div>
+</form>
+{% if bereich_id is not none and not gewerke %}
+<div class="alert alert-warning">Im gewählten Bereich gibt es kein Gewerk mit sichtbaren Wartungen.</div>
+{% endif %}
+{% endif %}
+
 <div class="card shadow-sm">
   <div class="card-body">
     {% if wartungen %}
@@ -25,7 +60,7 @@
         </thead>
         <tbody>
           {% for w in wartungen %}
-          <tr style="cursor: pointer;" onclick="window.location.href='{{ url_for('wartungen.wartung_bearbeiten', wartung_id=w.ID) }}';">
+          <tr style="cursor: pointer;" onclick="window.location.href='{{ url_for('wartungen.wartung_detail', wartung_id=w.ID) }}';">
             <td>{{ w.Bereich }}</td>
             <td>{{ w.Gewerk }}</td>
             <td><strong>{{ w.Bezeichnung }}</strong></td>
@@ -33,9 +68,13 @@
               {% if w.Aktiv %}<span class="badge bg-success">Ja</span>{% else %}<span class="badge bg-secondary">Nein</span>{% endif %}
             </td>
             <td onclick="event.stopPropagation();">
-              <a href="{{ url_for('wartungen.wartung_bearbeiten', wartung_id=w.ID) }}" class="btn btn-sm btn-outline-primary" title="Öffnen">
-                <i class="bi bi-box-arrow-in-right"></i>
-              </a>
+              {% if kann_neu %}
+              <div class="btn-group" role="group">
+                <a href="{{ url_for('wartungen.wartung_bearbeiten', wartung_id=w.ID) }}" class="btn btn-sm btn-outline-warning" title="Wartung bearbeiten">
+                  <i class="bi bi-pencil"></i>
+                </a>
+              </div>
+              {% endif %}
             </td>
           </tr>
           {% endfor %}
@@ -45,7 +84,7 @@
 
     <div class="d-md-none">
       {% for w in wartungen %}
-      <div class="card mb-3" style="cursor: pointer;" onclick="window.location.href='{{ url_for('wartungen.wartung_bearbeiten', wartung_id=w.ID) }}';">
+      <div class="card mb-3" style="cursor: pointer;" onclick="window.location.href='{{ url_for('wartungen.wartung_detail', wartung_id=w.ID) }}';">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-start mb-2">
             <div>
@@ -54,11 +93,13 @@
             </div>
             {% if w.Aktiv %}<span class="badge bg-success">Aktiv</span>{% else %}<span class="badge bg-secondary">Inaktiv</span>{% endif %}
           </div>
+          {% if kann_neu %}
           <div class="mt-2" onclick="event.stopPropagation();">
-            <a href="{{ url_for('wartungen.wartung_bearbeiten', wartung_id=w.ID) }}" class="btn btn-sm btn-outline-primary">
-              <i class="bi bi-box-arrow-in-right"></i> Öffnen
+            <a href="{{ url_for('wartungen.wartung_bearbeiten', wartung_id=w.ID) }}" class="btn btn-sm btn-outline-warning" title="Wartung bearbeiten">
+              <i class="bi bi-pencil"></i> Bearbeiten
             </a>
           </div>
+          {% endif %}
         </div>
       </div>
       {% endfor %}

@@ -2,9 +2,58 @@
 {% block content %}
 <h1 class="mb-4">Wartungspläne</h1>
 
+{% if bereiche %}
+<form method="get" action="{{ url_for('wartungen.plaene_uebersicht') }}" class="card shadow-sm mb-4" id="form-plan-liste-filter">
+  <div class="card-body py-3">
+    <div class="row g-3 align-items-end">
+      <div class="col-lg-3 col-md-6">
+        <label class="form-label mb-1" for="filter-pl-bereich">Bereich</label>
+        <select class="form-select" id="filter-pl-bereich" name="bereich_id" onchange="this.form.submit()">
+          <option value="" {% if bereich_id is none %}selected{% endif %}>Alle Bereiche</option>
+          {% for b in bereiche %}
+          <option value="{{ b.ID }}" {% if bereich_id == b.ID %}selected{% endif %}>{{ b.Bezeichnung }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-3 col-md-6">
+        <label class="form-label mb-1" for="filter-pl-gewerk">Gewerk</label>
+        <select class="form-select" id="filter-pl-gewerk" name="gewerk_id" onchange="this.form.submit()" {% if not gewerke %}disabled{% endif %}>
+          <option value="" {% if gewerk_id is none %}selected{% endif %}>Alle Gewerke</option>
+          {% for g in gewerke %}
+          <option value="{{ g.ID }}" {% if gewerk_id == g.ID %}selected{% endif %}>
+            {{ g.Bezeichnung }}{% if bereich_id is none and g.BereichLabel %} ({{ g.BereichLabel }}){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-4 col-md-6">
+        <label class="form-label mb-1" for="filter-pl-sort">Sortierung</label>
+        <select class="form-select" id="filter-pl-sort" name="plan_order" onchange="this.form.submit()">
+          <option value="stamm" {% if plan_order == 'stamm' %}selected{% endif %}>Bereich / Wartung (Standard)</option>
+          <option value="faelligkeit_asc" {% if plan_order == 'faelligkeit_asc' %}selected{% endif %}>Nächste Fälligkeit (früh → spät)</option>
+          <option value="faelligkeit_desc" {% if plan_order == 'faelligkeit_desc' %}selected{% endif %}>Nächste Fälligkeit (spät → früh)</option>
+        </select>
+      </div>
+      <div class="col-lg-2 col-md-6">
+        <label class="form-label mb-1 d-none d-lg-block">&nbsp;</label>
+        <a href="{{ url_for('wartungen.plaene_uebersicht') }}" class="btn btn-outline-secondary w-100">Zurücksetzen</a>
+      </div>
+    </div>
+  </div>
+</form>
+{% if bereich_id is not none and not gewerke %}
+<div class="alert alert-warning">Im gewählten Bereich gibt es kein Gewerk mit sichtbaren Wartungsplänen.</div>
+{% endif %}
+{% endif %}
+
 <div class="card shadow-sm">
   <div class="card-body">
     {% if plaene %}
+    <p class="small text-muted mb-2">
+      Nächste Fälligkeit: <span class="badge text-bg-info">innerhalb 7 Tage</span>
+      · <span class="badge text-bg-warning text-dark">heute bis 7 Tage überfällig</span>
+      · <span class="badge text-bg-danger">über 7 Tage überfällig</span>
+    </p>
     <div class="table-responsive d-none d-md-block">
       <table class="table table-hover mb-0">
         <thead>
@@ -25,7 +74,8 @@
             <td>{{ p.Gewerk }}</td>
             <td><strong>{{ p.WartungBez }}</strong></td>
             <td>{{ p.IntervallAnzahl }} {{ p.IntervallEinheit }}(e)</td>
-            <td style="white-space: nowrap;">{{ p.NaechsteFaelligkeit or '–' }}</td>
+            {% set ftd = p.NaechsteFaelligkeit|wartung_faelligkeit_td_class %}
+            <td class="text-nowrap{% if ftd %} {{ ftd }}{% endif %}">{{ p.NaechsteFaelligkeit or '–' }}</td>
             <td>{% if p.Aktiv %}<span class="badge bg-success">Ja</span>{% else %}<span class="badge bg-secondary">Nein</span>{% endif %}</td>
             <td onclick="event.stopPropagation();">
               <a href="{{ url_for('wartungen.plan_detail', plan_id=p.ID) }}" class="btn btn-sm btn-outline-primary" title="Öffnen">
@@ -50,7 +100,14 @@
             {% if p.Aktiv %}<span class="badge bg-success">Aktiv</span>{% else %}<span class="badge bg-secondary">Inaktiv</span>{% endif %}
           </div>
           <div class="small mb-1"><strong>Intervall:</strong> {{ p.IntervallAnzahl }} {{ p.IntervallEinheit }}(e)</div>
-          <div class="small mb-2 text-muted"><strong>Nächste Fälligkeit:</strong> {{ p.NaechsteFaelligkeit or '–' }}</div>
+          <div class="small mb-2"><strong>Nächste Fälligkeit:</strong>
+            {% if p.NaechsteFaelligkeit %}
+              {% set fbc = p.NaechsteFaelligkeit|wartung_faelligkeit_badge_class %}
+              {% if fbc %}<span class="badge {{ fbc }}">{{ p.NaechsteFaelligkeit }}</span>{% else %}{{ p.NaechsteFaelligkeit }}{% endif %}
+            {% else %}
+              <span class="text-muted">–</span>
+            {% endif %}
+          </div>
           <div onclick="event.stopPropagation();">
             <a href="{{ url_for('wartungen.plan_detail', plan_id=p.ID) }}" class="btn btn-sm btn-outline-primary">
               <i class="bi bi-box-arrow-in-right"></i> Öffnen

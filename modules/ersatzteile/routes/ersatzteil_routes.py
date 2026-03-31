@@ -1497,7 +1497,7 @@ def datei_loeschen(datei_id):
                 return redirect(url_for('schichtbuch.thema_detail', thema_id=datei['BereichID']))
             elif datei['BereichTyp'] == 'Wartung':
                 flash('Datei erfolgreich gelöscht.', 'success')
-                return redirect(url_for('wartungen.wartung_bearbeiten', wartung_id=datei['BereichID']))
+                return redirect(url_for('wartungen.wartung_detail', wartung_id=datei['BereichID']))
             else:
                 flash('Datei erfolgreich gelöscht.', 'success')
                 return redirect(url_for('ersatzteile.ersatzteil_liste'))

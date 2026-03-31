@@ -1,6 +1,17 @@
 {% extends "layout/base.html" %}
 {% block content %}
 <h1 class="mb-4">{{ title }}</h1>
+<div class="mb-3">
+  {% if wartung %}
+  <a href="{{ url_for('wartungen.wartung_detail', wartung_id=wartung.ID) }}" class="btn btn-secondary">
+    <i class="bi bi-arrow-left"></i> Zurück zur Wartung
+  </a>
+  {% else %}
+  <a href="{{ url_for('wartungen.wartung_liste') }}" class="btn btn-secondary">
+    <i class="bi bi-arrow-left"></i> Zurück zur Liste
+  </a>
+  {% endif %}
+</div>
 {% if wartung and not kann_edit %}
 <div class="alert alert-info">Sie haben nur Leserecht auf diese Wartung.</div>
 {% endif %}
@@ -36,118 +47,17 @@
     <label class="form-check-label" for="aktiv">Aktiv</label>
   </div>
   {% endif %}
-  {% if kann_edit or not wartung %}
+  {% if not wartung %}
   <div class="mb-3">
     <label class="form-label">Dateien (Anweisungen, Dokumente)</label>
     <input type="file" name="dateien" class="form-control" multiple>
   </div>
-  {% if not wartung %}
   <div class="d-flex flex-wrap gap-2 align-items-center">
     <button type="submit" name="speichern_aktion" value="naechste" class="btn btn-outline-primary">Speichern und nächste Wartung</button>
     <button type="submit" name="speichern_aktion" value="liste" class="btn btn-primary">Speichern und zur Liste</button>
   </div>
-  {% else %}
+  {% elif kann_edit %}
   <button type="submit" class="btn btn-primary">Speichern</button>
   {% endif %}
-  {% endif %}
 </form>
-
-{% if wartung and dateien is defined %}
-<div class="card shadow-sm mb-4">
-  <div class="card-header">Dateien</div>
-  <div class="card-body p-0">
-    {% if dateien %}
-    <div class="table-responsive">
-      <table class="table table-hover mb-0 align-middle">
-        <thead>
-          <tr>
-            <th>Dateiname</th>
-            {% if kann_edit %}
-            <th style="min-width: 6rem;">Aktionen</th>
-            {% endif %}
-          </tr>
-        </thead>
-        <tbody>
-          {% for d in dateien %}
-          <tr>
-            <td>
-              <a href="{{ url_for('wartungen.wartung_datei', filepath=d.Dateipfad) }}" target="_blank" rel="noopener" class="text-break">
-                <i class="bi bi-file-earmark-text me-1"></i>{{ d.Dateiname }}
-              </a>
-            </td>
-            {% if kann_edit %}
-            <td>
-              <form method="post" action="{{ url_for('wartungen.wartung_datei_loeschen', datei_id=d.ID) }}" class="d-inline" onsubmit="return confirm('Löschen?');">
-                <button type="submit" class="btn btn-sm btn-outline-danger">
-                  <i class="bi bi-trash"></i> Löschen
-                </button>
-              </form>
-            </td>
-            {% endif %}
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <div class="card-body">
-      <div class="alert alert-info mb-0">
-        <i class="bi bi-info-circle"></i> Keine Dateien hinterlegt.
-      </div>
-    </div>
-    {% endif %}
-  </div>
-</div>
-{% endif %}
-
-{% if wartung and plaene is defined %}
-<div class="card shadow-sm mb-4">
-  <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-    <span>Wartungspläne</span>
-    {% if kann_plan %}
-    <a href="{{ url_for('wartungen.plan_neu', wartung_id=wartung.ID) }}" class="btn btn-sm btn-primary">
-      <i class="bi bi-plus-lg"></i> Plan anlegen
-    </a>
-    {% endif %}
-  </div>
-  <div class="card-body p-0">
-    {% if plaene %}
-    <div class="table-responsive">
-      <table class="table table-hover mb-0 align-middle">
-        <thead>
-          <tr>
-            <th>Intervall</th>
-            <th style="white-space: nowrap;">Nächste Fälligkeit</th>
-            <th>Aktiv</th>
-            <th style="min-width: 5rem;">Aktionen</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for p in plaene %}
-          <tr style="cursor: pointer;" onclick="window.location.href='{{ url_for('wartungen.plan_detail', plan_id=p.ID) }}';">
-            <td>Alle {{ p.IntervallAnzahl }} {{ p.IntervallEinheit }}(e)</td>
-            <td style="white-space: nowrap;">{{ p.NaechsteFaelligkeit or '–' }}</td>
-            <td>{% if p.Aktiv %}<span class="badge bg-success">Ja</span>{% else %}<span class="badge bg-secondary">Nein</span>{% endif %}</td>
-            <td onclick="event.stopPropagation();">
-              <a href="{{ url_for('wartungen.plan_detail', plan_id=p.ID) }}" class="btn btn-sm btn-outline-primary" title="Öffnen">
-                <i class="bi bi-box-arrow-in-right"></i>
-              </a>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <div class="card-body">
-      <div class="alert alert-info mb-0">
-        <i class="bi bi-info-circle"></i> Keine Wartungspläne angelegt.
-      </div>
-    </div>
-    {% endif %}
-  </div>
-</div>
-{% endif %}
-
-<p><a href="{{ url_for('wartungen.wartung_liste') }}">Zurück zur Liste</a></p>
 {% endblock %}

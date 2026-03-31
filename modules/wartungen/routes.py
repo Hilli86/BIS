@@ -21,6 +21,7 @@ from utils.file_handling import (
     create_upload_folder,
     validate_file_extension,
     loesche_import_kopie_nach_upload,
+    originale_loeschen_aus_formular,
 )
 from modules.ersatzteile.services.datei_services import (
     get_dateien_fuer_bereich,
@@ -38,8 +39,33 @@ from .helpers import (
     hat_wartungsdurchfuehrung_zugriff,
     kann_wartung_stamm_anlegen,
     kann_wartungsplan_pflegen,
+    kann_wartung_protokollieren,
     is_admin,
 )
+
+
+def _dateien_display_fuer_wartung(wartung_id, conn, upload_base_folder):
+    """Datei-Zeilen für Templates (wie Ersatzteil-Detail)."""
+    rows = get_dateien_fuer_bereich('Wartung', wartung_id, conn)
+    dateien = []
+    for d in rows:
+        filepath = os.path.join(upload_base_folder, d['Dateipfad'].replace('/', os.sep))
+        file_size = 0
+        modified = None
+        if os.path.exists(filepath):
+            file_size = os.path.getsize(filepath)
+            modified = datetime.fromtimestamp(os.path.getmtime(filepath))
+        datei_dict = dict(d)
+        datei_dict.update({
+            'name': d['Dateiname'],
+            'path': d['Dateipfad'],
+            'size': file_size,
+            'modified': modified,
+            'id': d['ID'],
+            'beschreibung': d['Beschreibung'] or '',
+        })
+        dateien.append(datei_dict)
+    return dateien
 
 
 def _parse_datetime_local(s):
@@ -52,6 +78,14 @@ def _parse_datetime_local(s):
         return datetime.strptime(s, '%Y-%m-%d').strftime('%Y-%m-%d 00:00:00')
     except ValueError:
         return None
+
+
+def _query_int_arg(name):
+    """Positives Integer aus request.args oder None (fehlt/ungültig)."""
+    raw = (request.args.get(name) or '').strip()
+    if not raw or not raw.isdigit():
+        return None
+    return int(raw)
 
 
 BEREICH_TYP_WARTUNGSDURCHFUEHRUNG = 'Wartungsdurchfuehrung'
@@ -125,11 +159,30 @@ def _collect_fremdfirma_zeilen_from_form():
 def wartung_liste():
     mitarbeiter_id = session.get('user_id')
     adm = is_admin()
+    bereich_id = _query_int_arg('bereich_id')
+    gewerk_id = _query_int_arg('gewerk_id')
+
     with get_db_connection() as conn:
-        rows = services.list_wartungen(conn, mitarbeiter_id, adm)
+        bereiche = services.list_bereiche_fuer_wartungen_sichtbar(conn, mitarbeiter_id, adm)
+        valid_bereich_ids = {b['ID'] for b in bereiche}
+        if bereich_id is not None and bereich_id not in valid_bereich_ids:
+            bereich_id = None
+        gewerke = services.list_gewerke_fuer_wartung_liste_filter(
+            conn, mitarbeiter_id, adm, bereich_id,
+        )
+        valid_gewerk_ids = {g['ID'] for g in gewerke}
+        if gewerk_id is not None and gewerk_id not in valid_gewerk_ids:
+            gewerk_id = None
+        rows = services.list_wartungen(
+            conn, mitarbeiter_id, adm, bereich_id=bereich_id, gewerk_id=gewerk_id,
+        )
     return render_template(
         'wartungen/wartung_liste.html',
         wartungen=rows,
+        bereiche=bereiche,
+        gewerke=gewerke,
+        bereich_id=bereich_id,
+        gewerk_id=gewerk_id,
         kann_neu=kann_wartung_stamm_anlegen(),
     )
 
@@ -195,9 +248,134 @@ def wartung_neu():
         abteilungen=abteilungen,
         wartung=None,
         gewaehlte_abteilungen=[],
-        dateien=[],
         title='Neue Wartung',
     )
+
+
+@wartungen_bp.route('/<int:wartung_id>')
+@login_required
+def wartung_detail(wartung_id):
+    mitarbeiter_id = session.get('user_id')
+    adm = 'admin' in session.get('user_berechtigungen', [])
+    upload_base = current_app.config['UPLOAD_BASE_FOLDER']
+    with get_db_connection() as conn:
+        w = services.get_wartung(conn, wartung_id)
+        if not w:
+            flash('Wartung nicht gefunden.', 'danger')
+            return redirect(url_for('wartungen.wartung_liste'))
+        if not hat_wartung_zugriff(mitarbeiter_id, wartung_id, conn):
+            flash('Kein Zugriff auf diese Wartung.', 'danger')
+            return redirect(url_for('wartungen.wartung_liste'))
+        kann_edit = hat_wartung_stamm_bearbeiten(mitarbeiter_id, wartung_id, conn)
+        dateien = _dateien_display_fuer_wartung(wartung_id, conn, upload_base)
+        plaene = services.list_plaene_fuer_wartung(conn, wartung_id)
+        durchfuehrungen = services.list_durchfuehrungen_fuer_wartung(conn, wartung_id)
+        abt_rows = services.get_wartung_abteilungen(conn, wartung_id)
+    sichtbar_labels = ', '.join(a['Bezeichnung'] for a in abt_rows) or '–'
+    return render_template(
+        'wartungen/wartung_detail.html',
+        wartung=w,
+        dateien=dateien,
+        plaene=plaene,
+        durchfuehrungen=durchfuehrungen,
+        kann_edit=kann_edit,
+        kann_plan=kann_wartungsplan_pflegen(),
+        sichtbare_abteilungen_text=sichtbar_labels,
+        is_admin=adm,
+    )
+
+
+@wartungen_bp.route('/<int:wartung_id>/datei/upload', methods=['POST'])
+@login_required
+def wartung_datei_upload(wartung_id):
+    mitarbeiter_id = session.get('user_id')
+    if 'file' not in request.files:
+        flash('Keine Datei ausgewählt.', 'danger')
+        return redirect(url_for('wartungen.wartung_detail', wartung_id=wartung_id))
+    files = [f for f in request.files.getlist('file') if f and f.filename]
+    beschreibung = request.form.get('beschreibung', '').strip()
+    typ = request.form.get('typ', '').strip()
+    if not files:
+        flash('Keine Datei ausgewählt.', 'danger')
+        return redirect(url_for('wartungen.wartung_detail', wartung_id=wartung_id))
+    allowed_image_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+    allowed_document_extensions = {'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'}
+    try:
+        with get_db_connection() as conn:
+            if not hat_wartung_stamm_bearbeiten(mitarbeiter_id, wartung_id, conn):
+                flash('Keine Berechtigung zum Hochladen.', 'danger')
+                return redirect(url_for('wartungen.wartung_liste'))
+            w = services.get_wartung(conn, wartung_id)
+            if not w:
+                flash('Wartung nicht gefunden.', 'danger')
+                return redirect(url_for('wartungen.wartung_liste'))
+            erfolgreich = 0
+            fehler = []
+            for file in files:
+                try:
+                    original_filename = file.filename
+                    datei_typ = get_datei_typ_aus_dateiname(original_filename)
+                    if datei_typ == 'Bild' or any(
+                        original_filename.lower().endswith(f'.{ext}') for ext in allowed_image_extensions
+                    ):
+                        upload_folder = os.path.join(
+                            current_app.config['WARTUNG_UPLOAD_FOLDER'], str(wartung_id), 'bilder',
+                        )
+                        subfolder = 'bilder'
+                        allowed_extensions = allowed_image_extensions
+                    else:
+                        upload_folder = os.path.join(
+                            current_app.config['WARTUNG_UPLOAD_FOLDER'], str(wartung_id), 'dokumente',
+                        )
+                        subfolder = 'dokumente'
+                        allowed_extensions = allowed_document_extensions
+                    if not validate_file_extension(original_filename, allowed_extensions):
+                        fehler.append(f'{original_filename}: Dateityp nicht erlaubt')
+                        continue
+                    create_upload_folder(upload_folder)
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
+                    file.filename = timestamp + secure_filename(original_filename)
+                    success_upload, filename, error_message = save_uploaded_file(
+                        file, upload_folder, allowed_extensions=None,
+                    )
+                    if not success_upload or error_message:
+                        fehler.append(f'{original_filename}: {error_message}')
+                        continue
+                    relative_path = f'Wartungen/{wartung_id}/{subfolder}/{filename}'
+                    datei_typ_final = typ if typ else datei_typ
+                    speichere_datei(
+                        bereich_typ='Wartung',
+                        bereich_id=wartung_id,
+                        dateiname=original_filename,
+                        dateipfad=relative_path,
+                        beschreibung=beschreibung,
+                        typ=datei_typ_final,
+                        mitarbeiter_id=mitarbeiter_id,
+                        conn=conn,
+                    )
+                    loesche_import_kopie_nach_upload(
+                        original_filename,
+                        current_app.config['IMPORT_FOLDER'],
+                        originale_loeschen_aus_formular(),
+                    )
+                    erfolgreich += 1
+                except Exception as e:
+                    fehler.append(f'{getattr(file, "filename", "?")}: {e}')
+            conn.commit()
+            if erfolgreich > 0:
+                flash(
+                    'Datei erfolgreich hochgeladen.' if erfolgreich == 1
+                    else f'{erfolgreich} Datei(en) erfolgreich hochgeladen.',
+                    'success',
+                )
+            if fehler:
+                fehler_text = '; '.join(fehler[:5])
+                if len(fehler) > 5:
+                    fehler_text += f' … und {len(fehler) - 5} weitere'
+                flash(f'Fehler beim Hochladen: {fehler_text}', 'danger')
+    except Exception as e:
+        flash(f'Fehler beim Hochladen: {e}', 'danger')
+    return redirect(url_for('wartungen.wartung_detail', wartung_id=wartung_id))
 
 
 @wartungen_bp.route('/<int:wartung_id>/bearbeiten', methods=['GET', 'POST'])
@@ -223,11 +401,10 @@ def wartung_bearbeiten(wartung_id):
             'SELECT ID, Bezeichnung FROM Abteilung WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung'
         ).fetchall()
         ga = [r['ID'] for r in services.get_wartung_abteilungen(conn, wartung_id)]
-        dateien = get_dateien_fuer_bereich('Wartung', wartung_id, conn)
         if request.method == 'POST':
             if not kann_edit:
                 flash('Keine Berechtigung zum Bearbeiten des Stamms.', 'danger')
-                return redirect(url_for('wartungen.wartung_bearbeiten', wartung_id=wartung_id))
+                return redirect(url_for('wartungen.wartung_detail', wartung_id=wartung_id))
             gewerk_id = request.form.get('gewerk_id', type=int)
             bez = request.form.get('bezeichnung', '')
             besch = request.form.get('beschreibung', '')
@@ -237,43 +414,16 @@ def wartung_bearbeiten(wartung_id):
                 flash('Gewerk und Bezeichnung sind Pflichtfelder.', 'danger')
             else:
                 services.update_wartung(conn, wartung_id, gewerk_id, bez, besch, aktiv, sab)
-                upload_files = request.files.getlist('dateien')
-                if upload_files:
-                    base = current_app.config['WARTUNG_UPLOAD_FOLDER']
-                    for file in upload_files:
-                        if not file or not file.filename:
-                            continue
-                        sub = os.path.join(base, str(wartung_id), 'dokumente')
-                        create_upload_folder(sub)
-                        orig = file.filename
-                        if not validate_file_extension(orig, current_app.config.get('ALLOWED_EXTENSIONS')):
-                            flash(f'Dateityp nicht erlaubt: {orig}', 'warning')
-                            continue
-                        ts = datetime.now().strftime('%Y%m%d_%H%M%S_')
-                        file.filename = ts + secure_filename(orig)
-                        ok, fname, err = save_uploaded_file(file, sub, allowed_extensions=None)
-                        if ok:
-                            rel = f'Wartungen/{wartung_id}/dokumente/{fname}'
-                            typ = get_datei_typ_aus_dateiname(orig)
-                            speichere_datei(
-                                'Wartung', wartung_id, orig, rel, '', typ, mitarbeiter_id, conn,
-                            )
-                        else:
-                            flash(err or 'Upload fehlgeschlagen', 'warning')
                 conn.commit()
                 flash('Gespeichert.', 'success')
-                return redirect(url_for('wartungen.wartung_bearbeiten', wartung_id=wartung_id))
-        plaene = services.list_plaene_fuer_wartung(conn, wartung_id)
+                return redirect(url_for('wartungen.wartung_detail', wartung_id=wartung_id))
     return render_template(
         'wartungen/wartung_form.html',
         gewerke=gewerke,
         abteilungen=abteilungen,
         wartung=w,
         gewaehlte_abteilungen=ga,
-        dateien=dateien,
         kann_edit=kann_edit,
-        plaene=plaene,
-        kann_plan=kann_wartungsplan_pflegen(),
         title='Wartung bearbeiten',
     )
 
@@ -282,9 +432,46 @@ def wartung_bearbeiten(wartung_id):
 @login_required
 def plaene_uebersicht():
     mitarbeiter_id = session.get('user_id')
+    adm = is_admin()
+    bereich_id = _query_int_arg('bereich_id')
+    gewerk_id = _query_int_arg('gewerk_id')
+    plan_order = (request.args.get('plan_order') or 'stamm').strip().lower()
+    if plan_order == 'faelligkeit_asc':
+        sort_mode, sort_dir = 'faelligkeit', 'asc'
+    elif plan_order == 'faelligkeit_desc':
+        sort_mode, sort_dir = 'faelligkeit', 'desc'
+    else:
+        plan_order = 'stamm'
+        sort_mode, sort_dir = 'stamm', 'asc'
     with get_db_connection() as conn:
-        rows = services.list_plaene_sichtbar(conn, mitarbeiter_id, is_admin())
-    return render_template('wartungen/plan_uebersicht.html', plaene=rows)
+        bereiche = services.list_bereiche_fuer_plaene_sichtbar(conn, mitarbeiter_id, adm)
+        valid_bereich_ids = {b['ID'] for b in bereiche}
+        if bereich_id is not None and bereich_id not in valid_bereich_ids:
+            bereich_id = None
+        gewerke = services.list_gewerke_fuer_plan_liste_filter(
+            conn, mitarbeiter_id, adm, bereich_id,
+        )
+        valid_gewerk_ids = {g['ID'] for g in gewerke}
+        if gewerk_id is not None and gewerk_id not in valid_gewerk_ids:
+            gewerk_id = None
+        rows = services.list_plaene_sichtbar(
+            conn,
+            mitarbeiter_id,
+            adm,
+            bereich_id=bereich_id,
+            gewerk_id=gewerk_id,
+            sort_mode=sort_mode,
+            sort_dir=sort_dir,
+        )
+    return render_template(
+        'wartungen/plan_uebersicht.html',
+        plaene=rows,
+        bereiche=bereiche,
+        gewerke=gewerke,
+        bereich_id=bereich_id,
+        gewerk_id=gewerk_id,
+        plan_order=plan_order,
+    )
 
 
 def _format_durchfuehrung_datum_anzeige(durchgefuehrt_am):
@@ -300,71 +487,8 @@ def _format_durchfuehrung_datum_anzeige(durchgefuehrt_am):
     return s
 
 
-@wartungen_bp.route('/jahresuebersicht')
-@login_required
-def jahresuebersicht():
-    mitarbeiter_id = session.get('user_id')
-    adm = is_admin()
-    cy = datetime.now().year
-    jahre = list(range(cy - 10, cy + 2))
-    jahre.sort(reverse=True)
-
-    monatsnamen = [
-        'Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez',
-    ]
-
-    with get_db_connection() as conn:
-        bereiche = services.list_bereiche_fuer_wartungen_sichtbar(conn, mitarbeiter_id, adm)
-        if not bereiche:
-            return render_template(
-                'wartungen/jahresuebersicht.html',
-                bereiche=[],
-                gewerke=[],
-                bereich_id=None,
-                gewerk_id=None,
-                jahr=cy,
-                jahre=jahre,
-                monatsnamen=monatsnamen,
-                matrix_rows=[],
-                title='Wartungen – Jahresübersicht',
-            )
-
-        bereich_id = request.args.get('bereich_id', type=int)
-        if bereich_id is None or not any(b['ID'] == bereich_id for b in bereiche):
-            bereich_id = bereiche[0]['ID']
-
-        gewerke = services.list_gewerke_fuer_bereich_sichtbar(conn, bereich_id, mitarbeiter_id, adm)
-        if not gewerke:
-            jahr_empty = request.args.get('jahr', type=int)
-            if jahr_empty is None or jahr_empty < 1990 or jahr_empty > 2100:
-                jahr_empty = cy
-            return render_template(
-                'wartungen/jahresuebersicht.html',
-                bereiche=bereiche,
-                gewerke=[],
-                bereich_id=bereich_id,
-                gewerk_id=None,
-                jahr=jahr_empty,
-                jahre=jahre,
-                monatsnamen=monatsnamen,
-                matrix_rows=[],
-                title='Wartungen – Jahresübersicht',
-            )
-
-        gewerk_id = request.args.get('gewerk_id', type=int)
-        if gewerk_id is None or not any(g['ID'] == gewerk_id for g in gewerke):
-            gewerk_id = gewerke[0]['ID']
-
-        jahr = request.args.get('jahr', type=int)
-        if jahr is None or jahr < 1990 or jahr > 2100:
-            jahr = cy
-        if jahr not in jahre:
-            jahre = sorted(set(jahre + [jahr]), reverse=True)
-
-        wartungen = services.list_wartungen_fuer_gewerk_sichtbar(conn, gewerk_id, mitarbeiter_id, adm)
-        drows = services.list_durchfuehrungen_fuer_gewerk_jahr(conn, gewerk_id, jahr, mitarbeiter_id, adm)
-
+def _jahresmatrix_grouped(wartungen, drows):
+    """Baut Zellen pro Wartung und gruppiert nach Bereich · Gewerk (Sortierung der Liste vorausgesetzt)."""
     by_cell = {}
     for r in drows:
         key = (r['WartungID'], r['Monat'])
@@ -385,7 +509,98 @@ def jahresuebersicht():
                     'detail_url': url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=it['ID']),
                 })
             cells.append(payload)
-        matrix_rows.append({'wartung': w, 'cells': cells})
+        matrix_rows.append({
+            'wartung': w,
+            'cells': cells,
+            'bereich': w['Bereich'],
+            'gewerk': w['Gewerk'],
+        })
+
+    groups = []
+    cur_key = None
+    bucket = []
+    for row in matrix_rows:
+        k = (row['bereich'], row['gewerk'])
+        if cur_key is not None and k != cur_key:
+            groups.append({'bereich': cur_key[0], 'gewerk': cur_key[1], 'rows': bucket})
+            bucket = []
+        cur_key = k
+        bucket.append(row)
+    if bucket and cur_key is not None:
+        groups.append({'bereich': cur_key[0], 'gewerk': cur_key[1], 'rows': bucket})
+    return groups
+
+
+@wartungen_bp.route('/jahresuebersicht')
+@login_required
+def jahresuebersicht():
+    mitarbeiter_id = session.get('user_id')
+    adm = is_admin()
+    cy = datetime.now().year
+    jahre = list(range(cy - 10, cy + 2))
+    jahre.sort(reverse=True)
+
+    monatsnamen = [
+        'Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez',
+    ]
+
+    jahr = request.args.get('jahr', type=int)
+    if jahr is None or jahr < 1990 or jahr > 2100:
+        jahr = cy
+    if jahr not in jahre:
+        jahre = sorted(set(jahre + [jahr]), reverse=True)
+
+    with get_db_connection() as conn:
+        bereiche = services.list_bereiche_fuer_wartungen_sichtbar(conn, mitarbeiter_id, adm)
+        if not bereiche:
+            return render_template(
+                'wartungen/jahresuebersicht.html',
+                bereiche=[],
+                gewerke=[],
+                bereich_id=None,
+                gewerk_id=None,
+                jahr=jahr,
+                jahre=jahre,
+                monatsnamen=monatsnamen,
+                matrix_groups=[],
+                kann_protokollieren=kann_wartung_protokollieren(),
+                title='Wartungen – Jahresübersicht',
+            )
+
+        bereich_id = _query_int_arg('bereich_id')
+        valid_bereich_ids = {b['ID'] for b in bereiche}
+        if bereich_id is not None and bereich_id not in valid_bereich_ids:
+            bereich_id = None
+
+        gewerke = services.list_gewerke_fuer_wartung_liste_filter(
+            conn, mitarbeiter_id, adm, bereich_id,
+        )
+        gewerk_id = _query_int_arg('gewerk_id')
+        valid_gewerk_ids = {g['ID'] for g in gewerke}
+        if gewerk_id is not None and gewerk_id not in valid_gewerk_ids:
+            gewerk_id = None
+
+        matrix_groups = []
+        if gewerke:
+            wartungen = services.list_wartungen_jahresuebersicht(
+                conn, mitarbeiter_id, adm, bereich_id=bereich_id, gewerk_id=gewerk_id,
+            )
+            drows = services.list_durchfuehrungen_jahresuebersicht(
+                conn, jahr, mitarbeiter_id, adm, bereich_id=bereich_id, gewerk_id=gewerk_id,
+            )
+            matrix_groups = _jahresmatrix_grouped(wartungen, drows)
+            wid_list = []
+            for g in matrix_groups:
+                for row in g['rows']:
+                    wid_list.append(row['wartung']['ID'])
+            plan_map = services.map_wartung_zu_aktiven_plan_ids(
+                conn, wid_list, mitarbeiter_id, adm,
+            )
+            for g in matrix_groups:
+                for row in g['rows']:
+                    wid = row['wartung']['ID']
+                    row['aktive_plan_ids'] = plan_map.get(wid, [])
 
     return render_template(
         'wartungen/jahresuebersicht.html',
@@ -396,7 +611,8 @@ def jahresuebersicht():
         jahr=jahr,
         jahre=jahre,
         monatsnamen=monatsnamen,
-        matrix_rows=matrix_rows,
+        matrix_groups=matrix_groups,
+        kann_protokollieren=kann_wartung_protokollieren(),
         title='Wartungen – Jahresübersicht',
     )
 
@@ -449,6 +665,7 @@ def plan_detail(plan_id):
         wartung=w,
         durchfuehrungen=durch,
         kann_plan_edit=kann_wartungsplan_pflegen(),
+        kann_protokollieren=kann_wartung_protokollieren(),
     )
 
 
@@ -488,6 +705,9 @@ def plan_bearbeiten(plan_id):
 @wartungen_bp.route('/plan/<int:plan_id>/durchfuehrung/neu', methods=['GET', 'POST'])
 @login_required
 def durchfuehrung_neu(plan_id):
+    if not kann_wartung_protokollieren():
+        flash('Keine Berechtigung zum Protokollieren von Wartungen.', 'danger')
+        return redirect(url_for('wartungen.plaene_uebersicht'))
     mitarbeiter_id = session.get('user_id')
     with get_db_connection() as conn:
         if not hat_wartungsplan_zugriff(mitarbeiter_id, plan_id, conn):
@@ -545,10 +765,26 @@ def durchfuehrung_neu(plan_id):
 @wartungen_bp.route('/durchfuehrung/mehrere', methods=['GET', 'POST'])
 @login_required
 def durchfuehrung_mehrere():
+    if not kann_wartung_protokollieren():
+        flash('Keine Berechtigung zum Protokollieren von Wartungen.', 'danger')
+        return redirect(url_for('wartungen.plaene_uebersicht'))
     mitarbeiter_id = session.get('user_id')
     adm = is_admin()
     with get_db_connection() as conn:
         plan_optionen = services.plaene_options_fuer_select(conn, mitarbeiter_id, adm)
+        vorausgewaehlte_plan_ids = []
+        if request.method == 'GET':
+            gesehen = set()
+            for raw in request.args.getlist('plan_id'):
+                try:
+                    pid = int(raw)
+                except (TypeError, ValueError):
+                    continue
+                if pid in gesehen:
+                    continue
+                gesehen.add(pid)
+                if hat_wartungsplan_zugriff(mitarbeiter_id, pid, conn):
+                    vorausgewaehlte_plan_ids.append(pid)
         mitarbeiter = conn.execute('''
             SELECT ID, Vorname, Nachname, Personalnummer FROM Mitarbeiter
             WHERE Aktiv = 1 ORDER BY Nachname, Vorname
@@ -609,6 +845,7 @@ def durchfuehrung_mehrere():
         fremdfirmen=fremdfirmen,
         batch=True,
         plan_optionen=plan_optionen,
+        vorausgewaehlte_plan_ids=vorausgewaehlte_plan_ids,
     )
 
 
@@ -622,6 +859,9 @@ def durchfuehrung_detail(durchfuehrung_id):
             flash('Kein Zugriff.', 'danger')
             return redirect(url_for('wartungen.wartung_liste'))
         if request.method == 'POST':
+            if not kann_wartung_protokollieren():
+                flash('Keine Berechtigung zum Verbuchen.', 'danger')
+                return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=durchfuehrung_id))
             eids = request.form.getlist('ersatzteil_id[]')
             mengen = request.form.getlist('ersatzteil_menge[]')
             bems = request.form.getlist('ersatzteil_bemerkung[]')
@@ -653,6 +893,7 @@ def durchfuehrung_detail(durchfuehrung_id):
         serviceberichte=serviceberichte,
         ersatzteile=ersatzteile,
         kostenstellen=kostenstellen,
+        kann_protokollieren=kann_wartung_protokollieren(),
     )
 
 
@@ -698,6 +939,9 @@ def durchfuehrung_datei(filepath):
 )
 @login_required
 def durchfuehrung_servicebericht_loeschen(durchfuehrung_id, datei_id):
+    if not kann_wartung_protokollieren():
+        flash('Keine Berechtigung.', 'danger')
+        return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=durchfuehrung_id))
     mitarbeiter_id = session.get('user_id')
     with get_db_connection() as conn:
         if not hat_wartungsdurchfuehrung_zugriff(mitarbeiter_id, durchfuehrung_id, conn):
@@ -725,6 +969,9 @@ def durchfuehrung_servicebericht_loeschen(durchfuehrung_id, datei_id):
 @wartungen_bp.route('/durchfuehrung/<int:durchfuehrung_id>/servicebericht/upload', methods=['POST'])
 @login_required
 def durchfuehrung_servicebericht_upload(durchfuehrung_id):
+    if not kann_wartung_protokollieren():
+        flash('Keine Berechtigung zum Hochladen.', 'danger')
+        return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=durchfuehrung_id))
     mitarbeiter_id = session.get('user_id')
     files = [f for f in request.files.getlist('file') if f and f.filename]
     if not files:
@@ -788,7 +1035,7 @@ def wartung_datei_loeschen(datei_id):
         wid = row['BereichID']
         if not hat_wartung_stamm_bearbeiten(mitarbeiter_id, wid, conn):
             flash('Keine Berechtigung zum Löschen.', 'danger')
-            return redirect(url_for('wartungen.wartung_bearbeiten', wartung_id=wid))
+            return redirect(url_for('wartungen.wartung_detail', wartung_id=wid))
         fp = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], row['Dateipfad'].replace('/', os.sep))
         loesche_datei(datei_id, conn)
         conn.commit()
@@ -798,4 +1045,4 @@ def wartung_datei_loeschen(datei_id):
             except OSError:
                 pass
         flash('Datei gelöscht.', 'success')
-        return redirect(url_for('wartungen.wartung_bearbeiten', wartung_id=wid))
+        return redirect(url_for('wartungen.wartung_detail', wartung_id=wid))

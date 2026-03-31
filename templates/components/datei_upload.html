@@ -48,6 +48,8 @@
                 {% set route_param = {'bestellung_id': bereich_id} %}
             {% elif bereich_typ == 'Wartungsdurchfuehrung' %}
                 {% set route_param = {'durchfuehrung_id': bereich_id} %}
+            {% elif bereich_typ == 'Wartung' %}
+                {% set route_param = {'wartung_id': bereich_id} %}
             {% else %}
                 {% set route_param = {} %}
             {% endif %}

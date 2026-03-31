@@ -3,14 +3,23 @@
 <h1 class="mb-3">Wartungsplan</h1>
 <p class="text-muted">{{ wartung.Bereich }} – {{ wartung.Gewerk }} · {{ wartung.Bezeichnung }}</p>
 <p>Intervall: alle <strong>{{ plan.IntervallAnzahl }}</strong> <strong>{{ plan.IntervallEinheit }}</strong>(e)
-{% if plan.NaechsteFaelligkeit %} · Nächste Fälligkeit: {{ plan.NaechsteFaelligkeit }}{% endif %}</p>
-<p class="mb-4">
+{% if plan.NaechsteFaelligkeit %}
+  {% set fbc = plan.NaechsteFaelligkeit|wartung_faelligkeit_badge_class %}
+  · Nächste Fälligkeit:
+  {% if fbc %}<span class="badge {{ fbc }}">{{ plan.NaechsteFaelligkeit }}</span>{% else %}{{ plan.NaechsteFaelligkeit }}{% endif %}
+{% endif %}</p>
+<div class="mb-3 d-flex flex-wrap gap-2">
+  <a href="{{ url_for('wartungen.plaene_uebersicht') }}" class="btn btn-secondary">
+    <i class="bi bi-arrow-left"></i> Zurück zu Wartungsplänen
+  </a>
   {% if kann_plan_edit %}
-  <a href="{{ url_for('wartungen.plan_bearbeiten', plan_id=plan.ID) }}" class="btn btn-outline-primary btn-sm">Plan bearbeiten</a>
+  <a href="{{ url_for('wartungen.plan_bearbeiten', plan_id=plan.ID) }}" class="btn btn-outline-primary">Plan bearbeiten</a>
   {% endif %}
-  <a href="{{ url_for('wartungen.durchfuehrung_neu', plan_id=plan.ID) }}" class="btn btn-primary btn-sm">Durchführung protokollieren</a>
-  <a href="{{ url_for('wartungen.wartung_bearbeiten', wartung_id=wartung.ID) }}" class="btn btn-secondary btn-sm">Zur Wartung</a>
-</p>
+  {% if kann_protokollieren %}
+  <a href="{{ url_for('wartungen.durchfuehrung_neu', plan_id=plan.ID) }}" class="btn btn-primary">Durchführung protokollieren</a>
+  {% endif %}
+  <a href="{{ url_for('wartungen.wartung_detail', wartung_id=wartung.ID) }}" class="btn btn-outline-secondary">Zur Wartung</a>
+</div>
 
 <div class="card shadow-sm">
   <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">

@@ -1,0 +1,283 @@
+{% extends "layout/base.html" %}
+{% from 'components/datei_upload.html' import datei_upload %}
+{% from 'components/datei_liste.html' import datei_liste %}
+{% block content %}
+<h1 class="mb-4">Wartung: {{ wartung.Bezeichnung }}</h1>
+<div class="mb-3">
+  <a href="{{ url_for('wartungen.wartung_liste') }}" class="btn btn-secondary">
+    <i class="bi bi-arrow-left"></i> Zurück zur Liste
+  </a>
+</div>
+
+<div class="card mb-4 shadow-sm">
+  <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <h5 class="mb-0">Wartungsinformationen</h5>
+    {% if kann_edit %}
+    <a href="{{ url_for('wartungen.wartung_bearbeiten', wartung_id=wartung.ID) }}" class="btn btn-sm btn-light">
+      <i class="bi bi-pencil"></i> Bearbeiten
+    </a>
+    {% endif %}
+  </div>
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-8 min-w-0">
+        <table class="table table-sm table-borderless mb-0">
+          <tbody>
+            <tr>
+              <td class="text-muted" style="width: 11rem;"><strong>Bereich</strong></td>
+              <td>{{ wartung.Bereich }}</td>
+            </tr>
+            <tr>
+              <td class="text-muted"><strong>Gewerk</strong></td>
+              <td>{{ wartung.Gewerk }}</td>
+            </tr>
+            <tr>
+              <td class="text-muted"><strong>Bezeichnung</strong></td>
+              <td><strong>{{ wartung.Bezeichnung }}</strong></td>
+            </tr>
+            <tr>
+              <td class="text-muted align-top"><strong>Beschreibung</strong></td>
+              <td class="text-break">{{ wartung.Beschreibung or '–' }}</td>
+            </tr>
+            <tr>
+              <td class="text-muted"><strong>Aktiv</strong></td>
+              <td>
+                {% if wartung.Aktiv %}<span class="badge bg-success">Ja</span>{% else %}<span class="badge bg-secondary">Nein</span>{% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td class="text-muted align-top"><strong>Sichtbar für Abteilungen</strong></td>
+              <td class="text-break">{{ sichtbare_abteilungen_text }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-4 shadow-sm">
+  <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+    <h5 class="mb-0">Beschreibungen</h5>
+    {% if kann_edit %}
+    <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#wartungDateiUploadCollapse">
+      <i class="bi bi-plus-circle"></i> Datei hochladen
+    </button>
+    {% endif %}
+  </div>
+  {% if kann_edit %}
+  <div class="collapse" id="wartungDateiUploadCollapse">
+    <div class="card-body border-bottom">
+      {{ datei_upload(
+        bereich_typ='Wartung',
+        bereich_id=wartung.ID,
+        erlaubte_dateitypen=['Bild', 'Dokument', 'PDF'],
+        upload_route='wartungen.wartung_datei_upload',
+        import_route=None,
+        accept_attr='image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt',
+        upload_tab_id='wartung-dok-upload-tab',
+        import_tab_id='wartung-dok-import-tab',
+        import_function='ladeImportDateienWartung()',
+        show_typ_feld=True
+      ) }}
+    </div>
+  </div>
+  {% endif %}
+  <div class="card-body">
+    {{ datei_liste(
+      dateien=dateien,
+      bereich_typ='Wartung',
+      bereich_id=wartung.ID,
+      erlaubte_dateitypen=['Bild', 'Dokument', 'PDF'],
+      is_admin=is_admin,
+      datei_anzeigen_route='wartungen.wartung_datei',
+      datei_loeschen_route='wartungen.wartung_datei_loeschen',
+      nur_bilder=False,
+      allow_delete=kann_edit
+    ) }}
+  </div>
+</div>
+
+<div class="card mb-4 shadow-sm">
+  <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2 bg-light">
+    <h5 class="mb-0">Wartungspläne</h5>
+    {% if kann_plan %}
+    <a href="{{ url_for('wartungen.plan_neu', wartung_id=wartung.ID) }}" class="btn btn-sm btn-primary">
+      <i class="bi bi-plus-lg"></i> Plan anlegen
+    </a>
+    {% endif %}
+  </div>
+  <div class="card-body p-0">
+    {% if plaene %}
+    <p class="small text-muted px-3 pt-3 mb-0">
+      Nächste Fälligkeit: <span class="badge text-bg-info">innerhalb 7 Tage</span>
+      · <span class="badge text-bg-warning text-dark">heute bis 7 Tage überfällig</span>
+      · <span class="badge text-bg-danger">über 7 Tage überfällig</span>
+    </p>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0 align-middle">
+        <thead>
+          <tr>
+            <th>Intervall</th>
+            <th style="white-space: nowrap;">Nächste Fälligkeit</th>
+            <th>Aktiv</th>
+            <th style="min-width: 5rem;">Aktionen</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in plaene %}
+          <tr style="cursor: pointer;" onclick="window.location.href='{{ url_for('wartungen.plan_detail', plan_id=p.ID) }}';">
+            <td>Alle {{ p.IntervallAnzahl }} {{ p.IntervallEinheit }}(e)</td>
+            {% set ftd = p.NaechsteFaelligkeit|wartung_faelligkeit_td_class %}
+            <td class="text-nowrap{% if ftd %} {{ ftd }}{% endif %}">{{ p.NaechsteFaelligkeit or '–' }}</td>
+            <td>{% if p.Aktiv %}<span class="badge bg-success">Ja</span>{% else %}<span class="badge bg-secondary">Nein</span>{% endif %}</td>
+            <td onclick="event.stopPropagation();">
+              <a href="{{ url_for('wartungen.plan_detail', plan_id=p.ID) }}" class="btn btn-sm btn-outline-primary" title="Öffnen">
+                <i class="bi bi-box-arrow-in-right"></i>
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="card-body">
+      <div class="alert alert-info mb-0">
+        <i class="bi bi-info-circle"></i> Keine Wartungspläne angelegt.
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card mb-4 shadow-sm">
+  <div class="card-header bg-light">
+    <h5 class="mb-0">Protokollierte Wartungen</h5>
+  </div>
+  <div class="card-body p-0">
+    {% if durchfuehrungen %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0 align-middle">
+        <thead>
+          <tr>
+            <th style="white-space: nowrap;">Durchgeführt am</th>
+            <th>Plan (Intervall)</th>
+            <th>Protokolliert von</th>
+            <th>Bemerkung</th>
+            <th style="min-width: 5rem;">Aktionen</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for x in durchfuehrungen %}
+          <tr style="cursor: pointer;" onclick="window.location.href='{{ url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=x.ID) }}';">
+            <td style="white-space: nowrap;">{% if x.DurchgefuehrtAm %}{{ x.DurchgefuehrtAm[:16] }}{% else %}–{% endif %}</td>
+            <td>Alle {{ x.IntervallAnzahl }} {{ x.IntervallEinheit }}(e)</td>
+            <td>{{ x.ProtokolliertVon or '–' }}</td>
+            <td class="text-break">{{ x.Bemerkung or '–' }}</td>
+            <td onclick="event.stopPropagation();">
+              <a href="{{ url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=x.ID) }}" class="btn btn-sm btn-outline-primary" title="Detail">
+                <i class="bi bi-box-arrow-in-right"></i>
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="card-body">
+      <div class="alert alert-info mb-0">
+        <i class="bi bi-info-circle"></i> Noch keine Durchführungen protokolliert.
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function ladeImportDateienWartung() {
+  const listeId = 'wartung-dok-import-tab-dateien-liste';
+  const liste = document.getElementById(listeId);
+  if (!liste) return;
+  liste.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
+  try {
+    const response = await fetch('/api/import/dateien');
+    const data = await response.json();
+    if (!data.success || !data.dateien || data.dateien.length === 0) {
+      liste.innerHTML = '<div class="alert alert-info">Keine Dateien im Import-Ordner vorhanden.</div>';
+      return;
+    }
+    const erlaubteEndungen = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt'];
+    const gefilterteDateien = data.dateien.filter(function (datei) {
+      const ext = '.' + datei.name.split('.').pop().toLowerCase();
+      return erlaubteEndungen.some(function (e) { return ext === e; });
+    });
+    if (gefilterteDateien.length === 0) {
+      liste.innerHTML = '<div class="alert alert-warning">Keine passenden Dateien im Import-Ordner.</div>';
+      return;
+    }
+    let html = '<div class="list-group">';
+    gefilterteDateien.forEach(function (datei) {
+      const links = typeof importOrdnerRowLeftHtml === 'function'
+        ? importOrdnerRowLeftHtml(datei.name, datei.size)
+        : '<div><strong>' + datei.name + '</strong><br><small class="text-muted">' + datei.size + '</small></div>';
+      html += '<div class="list-group-item d-flex justify-content-between align-items-center gap-2">' +
+        links +
+        '<button type="button" class="btn btn-sm btn-success flex-shrink-0" onclick="verschiebeAusImportWartung(' + JSON.stringify(datei.name) + ', ' + {{ wartung.ID }} + ')">' +
+        '<i class="bi bi-arrow-right"></i> Verwenden</button></div>';
+    });
+    html += '</div>';
+    liste.innerHTML = html;
+  } catch (err) {
+    console.error(err);
+    liste.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Dateien.</div>';
+  }
+}
+
+function zielOrdnerWartungAusDateiname(filename, wartungId) {
+  const ext = '.' + filename.split('.').pop().toLowerCase();
+  const bildEndungen = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
+  if (bildEndungen.includes(ext)) {
+    return 'Wartungen/' + wartungId + '/bilder';
+  }
+  return 'Wartungen/' + wartungId + '/dokumente';
+}
+
+async function verschiebeAusImportWartung(filename, wartungId) {
+  const zielOrdner = zielOrdnerWartungAusDateiname(filename, wartungId);
+  if (!confirm('Die Datei „' + filename + '“ aus dem Import-Ordner verwenden? Sie wird verschoben.')) {
+    return;
+  }
+  try {
+    const beschEl = document.querySelector('#wartung-dok-upload-tab-pane input[name="beschreibung"]');
+    const typEl = document.querySelector('#wartung-dok-upload-tab-pane input[name="typ"]');
+    const beschreibung = beschEl ? (beschEl.value || '').trim() : '';
+    const typ = typEl ? (typEl.value || '').trim() : '';
+    const response = await fetch('/api/import/verschieben', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: filename,
+        ziel_ordner: zielOrdner,
+        bereich_typ: 'Wartung',
+        bereich_id: wartungId,
+        beschreibung: beschreibung,
+        typ: typ,
+      }),
+    });
+    const data = await response.json();
+    if (data.success) {
+      window.location.reload();
+    } else {
+      alert('Fehler: ' + (data.message || 'Unbekannt'));
+    }
+  } catch (e) {
+    console.error(e);
+    alert('Fehler beim Verschieben der Datei.');
+  }
+}
+</script>
+{% endblock %}

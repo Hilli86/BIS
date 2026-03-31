@@ -21,6 +21,16 @@ def kann_wartungsplan_pflegen():
     return is_admin() or 'wartung_erstellen' in user_perms() or 'wartung_nur_Plan_erstellen' in user_perms()
 
 
+def kann_wartung_protokollieren():
+    """Wartungsdurchführungen erfassen, Serviceberichte hochladen, Ersatzteile verbuchen."""
+    return (
+        is_admin()
+        or 'wartung_erstellen' in user_perms()
+        or 'wartung_nur_Plan_erstellen' in user_perms()
+        or 'wartung_protokollieren' in user_perms()
+    )
+
+
 def hat_wartung_zugriff(mitarbeiter_id, wartung_id, conn):
     if is_admin():
         return True

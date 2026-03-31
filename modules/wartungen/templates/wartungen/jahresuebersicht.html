@@ -1,6 +1,11 @@
 {% extends "layout/base.html" %}
 {% block content %}
 <h1 class="mb-4">Wartungen – Jahresübersicht</h1>
+<div class="mb-3">
+  <a href="{{ url_for('wartungen.wartung_liste') }}" class="btn btn-secondary">
+    <i class="bi bi-arrow-left"></i> Zurück zur Wartungsliste
+  </a>
+</div>
 
 {% if not bereiche %}
 <div class="alert alert-info">Für Ihr Konto sind keine Wartungen sichtbar.</div>
@@ -8,23 +13,27 @@
 <form method="get" action="{{ url_for('wartungen.jahresuebersicht') }}" class="card shadow-sm mb-4" id="form-jahresuebersicht">
   <div class="card-body py-3">
     <div class="row g-3 align-items-end">
-      <div class="col-md-4">
+      <div class="col-lg-3 col-md-6">
         <label class="form-label mb-1" for="filter-bereich">Bereich</label>
         <select class="form-select" id="filter-bereich" name="bereich_id" onchange="this.form.submit()">
+          <option value="" {% if bereich_id is none %}selected{% endif %}>Alle Bereiche</option>
           {% for b in bereiche %}
-          <option value="{{ b.ID }}" {% if b.ID == bereich_id %}selected{% endif %}>{{ b.Bezeichnung }}</option>
+          <option value="{{ b.ID }}" {% if bereich_id == b.ID %}selected{% endif %}>{{ b.Bezeichnung }}</option>
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-4">
+      <div class="col-lg-3 col-md-6">
         <label class="form-label mb-1" for="filter-gewerk">Gewerk</label>
         <select class="form-select" id="filter-gewerk" name="gewerk_id" onchange="this.form.submit()" {% if not gewerke %}disabled{% endif %}>
+          <option value="" {% if gewerk_id is none %}selected{% endif %}>Alle Gewerke</option>
           {% for g in gewerke %}
-          <option value="{{ g.ID }}" {% if g.ID == gewerk_id %}selected{% endif %}>{{ g.Bezeichnung }}</option>
+          <option value="{{ g.ID }}" {% if gewerk_id == g.ID %}selected{% endif %}>
+            {{ g.Bezeichnung }}{% if bereich_id is none and g.BereichLabel %} ({{ g.BereichLabel }}){% endif %}
+          </option>
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-4">
+      <div class="col-lg-3 col-md-6">
         <label class="form-label mb-1" for="filter-jahr">Jahr</label>
         <select class="form-select" id="filter-jahr" name="jahr" onchange="this.form.submit()">
           {% for y in jahre %}
@@ -32,12 +41,16 @@
           {% endfor %}
         </select>
       </div>
+      <div class="col-lg-3 col-md-6">
+        <label class="form-label mb-1 d-none d-lg-block">&nbsp;</label>
+        <a href="{{ url_for('wartungen.jahresuebersicht') }}" class="btn btn-outline-secondary w-100">Zurücksetzen</a>
+      </div>
     </div>
   </div>
 </form>
 
 {% if not gewerke %}
-<div class="alert alert-warning">Im gewählten Bereich gibt es kein Gewerk mit sichtbaren Wartungen.</div>
+<div class="alert alert-warning">{% if bereich_id is not none %}Im gewählten Bereich gibt es kein Gewerk mit sichtbaren Wartungen.{% else %}Für die Anzeige stehen keine Gewerke zur Verfügung.{% endif %}</div>
 {% else %}
 <div class="card shadow-sm">
   <div class="card-body p-0">
@@ -46,41 +59,67 @@
         <thead>
           <tr>
             <th class="text-start bg-body-secondary" style="min-width: 12rem;">Wartung</th>
+            <th class="text-center bg-body-secondary align-middle" style="min-width: 3.5rem;" title="Auswahl für Mehrere protokollieren">
+              {% if kann_protokollieren %}
+              <button type="button" class="btn btn-sm btn-primary px-2" id="btn-jahres-matrix-batch" title="Ausgewählte Wartungen im Formular „Mehrere protokollieren“ öffnen">
+                <i class="bi bi-journal-plus"></i>
+              </button>
+              {% else %}
+              <span class="text-muted small">&nbsp;</span>
+              {% endif %}
+            </th>
             {% for name in monatsnamen %}
             <th class="text-center bg-body-secondary" style="min-width: 3.25rem;">{{ name }}</th>
             {% endfor %}
           </tr>
         </thead>
+      {% for grp in matrix_groups %}
         <tbody>
-      {% for row in matrix_rows %}
-      <tr>
-        <td class="text-start">
-          {{ row.wartung.Bezeichnung }}
-          {% if not row.wartung.Aktiv %}<span class="badge bg-secondary ms-1">inaktiv</span>{% endif %}
-        </td>
-        {% for cell in row.cells %}
-        <td class="p-1">
-          {% if cell|length == 0 %}
-          <span class="text-muted">–</span>
-          {% else %}
-          <button type="button"
-            class="btn btn-link p-0 text-decoration-none wartung-matrix-zelle"
-            data-bs-toggle="modal"
-            data-bs-target="#wartungJahrModal"
-            data-modal-title="{{ row.wartung.Bezeichnung }} · {{ monatsnamen[loop.index0] }} {{ jahr }}"
-            data-modal-items='{{ cell | tojson }}'>
-            <i class="bi bi-calendar-check text-success fs-5" title="{{ cell|length }} Durchführung(en)"></i>
-          </button>
-          {% endif %}
-        </td>
-        {% endfor %}
-      </tr>
-      {% else %}
-      <tr>
-        <td colspan="{{ 1 + monatsnamen|length }}" class="text-muted text-start">Keine Wartungen für dieses Gewerk.</td>
-      </tr>
-      {% endfor %}
+          <tr class="table-secondary">
+            <td colspan="{{ 2 + monatsnamen|length }}" class="text-start fw-semibold small py-2">{{ grp.bereich }} · {{ grp.gewerk }}</td>
+          </tr>
+          {% for row in grp.rows %}
+          <tr>
+            <td class="text-start">
+              {{ row.wartung.Bezeichnung }}
+              {% if not row.wartung.Aktiv %}<span class="badge bg-secondary ms-1">inaktiv</span>{% endif %}
+            </td>
+            <td class="text-center p-1 align-middle">
+              {% if kann_protokollieren %}
+                {% if row.aktive_plan_ids %}
+                <input type="checkbox" class="form-check-input js-jahres-matrix-wartung-cb" data-plan-ids='{{ row.aktive_plan_ids|tojson }}' title="Für Mehrere protokollieren auswählen" aria-label="Wartung {{ row.wartung.Bezeichnung }} auswählen">
+                {% else %}
+                <span class="text-muted" title="Kein aktiver Wartungsplan">–</span>
+                {% endif %}
+              {% endif %}
+            </td>
+            {% for cell in row.cells %}
+            <td class="p-1">
+              {% if cell|length == 0 %}
+              <span class="text-muted">–</span>
+              {% else %}
+              <button type="button"
+                class="btn btn-link p-0 text-decoration-none wartung-matrix-zelle"
+                data-bs-toggle="modal"
+                data-bs-target="#wartungJahrModal"
+                data-modal-title="{{ row.wartung.Bezeichnung }} · {{ monatsnamen[loop.index0] }} {{ jahr }}"
+                data-modal-items='{{ cell | tojson }}'>
+                <i class="bi bi-calendar-check text-success fs-5" title="{{ cell|length }} Durchführung(en)"></i>
+              </button>
+              {% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
         </tbody>
+      {% endfor %}
+      {% if not matrix_groups %}
+        <tbody>
+          <tr>
+            <td colspan="{{ 2 + monatsnamen|length }}" class="text-muted text-start">Keine Wartungen für die gewählten Filter.</td>
+          </tr>
+        </tbody>
+      {% endif %}
       </table>
     </div>
   </div>
@@ -150,6 +189,31 @@
       html += '</ul>';
       bodyEl.innerHTML = html;
     });
+
+    var batchBtn = document.getElementById('btn-jahres-matrix-batch');
+    if (batchBtn) {
+      batchBtn.addEventListener('click', function () {
+        var base = {{ url_for('wartungen.durchfuehrung_mehrere')|tojson }};
+        var params = new URLSearchParams();
+        document.querySelectorAll('.js-jahres-matrix-wartung-cb:checked').forEach(function (cb) {
+          var raw = cb.getAttribute('data-plan-ids');
+          var ids = [];
+          try {
+            ids = raw ? JSON.parse(raw) : [];
+          } catch (e) {
+            ids = [];
+          }
+          (ids || []).forEach(function (id) {
+            params.append('plan_id', id);
+          });
+        });
+        if (!params.has('plan_id')) {
+          alert('Bitte mindestens eine Wartung mit aktivem Wartungsplan auswählen.');
+          return;
+        }
+        window.location.href = base + '?' + params.toString();
+      });
+    }
   });
 })();
 </script>

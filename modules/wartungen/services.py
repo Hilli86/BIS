@@ -5,21 +5,34 @@ from utils.abteilungen import get_sichtbare_abteilungen_fuer_mitarbeiter
 INTERVALL_EINHEITEN = ('Tag', 'Woche', 'Monat')
 
 
-def list_wartungen(conn, mitarbeiter_id, is_admin):
+def list_wartungen(conn, mitarbeiter_id, is_admin, bereich_id=None, gewerk_id=None):
+    extra = []
+    params_tail = []
+    if bereich_id is not None:
+        extra.append('AND b.ID = ?')
+        params_tail.append(bereich_id)
+    if gewerk_id is not None:
+        extra.append('AND g.ID = ?')
+        params_tail.append(gewerk_id)
+
     if is_admin:
-        return conn.execute('''
+        sql_admin = f'''
             SELECT w.ID, w.Bezeichnung, w.Aktiv, w.ErstelltAm,
                    g.Bezeichnung AS Gewerk, b.Bezeichnung AS Bereich
             FROM Wartung w
             JOIN Gewerke g ON w.GewerkID = g.ID
             JOIN Bereich b ON g.BereichID = b.ID
+            {"WHERE 1=1 " + " ".join(extra) if extra else ""}
             ORDER BY b.Bezeichnung, g.Bezeichnung, w.Bezeichnung
-        ''').fetchall()
+        '''
+        return conn.execute(sql_admin, params_tail).fetchall()
+
     sichtbare = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
     if not sichtbare:
         return []
     ph = ','.join(['?'] * len(sichtbare))
-    return conn.execute(f'''
+    base_params = [mitarbeiter_id] + sichtbare
+    sql_user = f'''
         SELECT DISTINCT w.ID, w.Bezeichnung, w.Aktiv, w.ErstelltAm,
                g.Bezeichnung AS Gewerk, b.Bezeichnung AS Bereich
         FROM Wartung w
@@ -32,8 +45,10 @@ def list_wartungen(conn, mitarbeiter_id, is_admin):
                 WHERE AbteilungID IN ({ph})
             )
         )
+        {" ".join(extra)}
         ORDER BY b.Bezeichnung, g.Bezeichnung, w.Bezeichnung
-    ''', [mitarbeiter_id] + sichtbare).fetchall()
+    '''
+    return conn.execute(sql_user, base_params + params_tail).fetchall()
 
 
 def _wartung_sichtbar_params(mitarbeiter_id, sichtbare_abteilungen):
@@ -99,6 +114,38 @@ def list_gewerke_fuer_bereich_sichtbar(conn, bereich_id, mitarbeiter_id, is_admi
         )
         ORDER BY g.Bezeichnung
     ''', (bereich_id,) + tuple(_wartung_sichtbar_params(mitarbeiter_id, sichtbare))).fetchall()
+
+
+def list_gewerke_fuer_wartung_liste_filter(conn, mitarbeiter_id, is_admin, bereich_id=None):
+    """Gewerke für das Filter-Dropdown: gefiltert nach Bereich oder alle mit sichtbarer Wartung."""
+    if bereich_id is not None:
+        return list_gewerke_fuer_bereich_sichtbar(conn, bereich_id, mitarbeiter_id, is_admin)
+    if is_admin:
+        return conn.execute('''
+            SELECT DISTINCT g.ID, g.Bezeichnung, b.Bezeichnung AS BereichLabel
+            FROM Gewerke g
+            JOIN Bereich b ON g.BereichID = b.ID
+            JOIN Wartung w ON w.GewerkID = g.ID
+            ORDER BY b.Bezeichnung, g.Bezeichnung
+        ''').fetchall()
+    sichtbare = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+    if not sichtbare:
+        return []
+    ph = ','.join(['?'] * len(sichtbare))
+    return conn.execute(f'''
+        SELECT DISTINCT g.ID, g.Bezeichnung, b.Bezeichnung AS BereichLabel
+        FROM Gewerke g
+        JOIN Bereich b ON g.BereichID = b.ID
+        JOIN Wartung w ON w.GewerkID = g.ID
+        WHERE w.Aktiv = 1 AND (
+            w.ErstelltVonID = ?
+            OR w.ID IN (
+                SELECT WartungID FROM WartungAbteilungZugriff
+                WHERE AbteilungID IN ({ph})
+            )
+        )
+        ORDER BY b.Bezeichnung, g.Bezeichnung
+    ''', _wartung_sichtbar_params(mitarbeiter_id, sichtbare)).fetchall()
 
 
 def list_wartungen_fuer_gewerk_sichtbar(conn, gewerk_id, mitarbeiter_id, is_admin):
@@ -171,6 +218,102 @@ def list_durchfuehrungen_fuer_gewerk_jahr(conn, gewerk_id, jahr, mitarbeiter_id,
         )
         ORDER BY w.Bezeichnung, d.DurchgefuehrtAm, d.ID
     ''', (gewerk_id, jahr_str) + tuple(_wartung_sichtbar_params(mitarbeiter_id, sichtbare))).fetchall()
+
+
+def list_wartungen_jahresuebersicht(conn, mitarbeiter_id, is_admin, bereich_id=None, gewerk_id=None):
+    """Sichtbare Wartungen für Matrix, optional nach Bereich/Gewerk; Sortierung für Gruppierung."""
+    extra = []
+    params_tail = []
+    if bereich_id is not None:
+        extra.append('AND b.ID = ?')
+        params_tail.append(bereich_id)
+    if gewerk_id is not None:
+        extra.append('AND g.ID = ?')
+        params_tail.append(gewerk_id)
+    extra_sql = ' ' + ' '.join(extra) if extra else ''
+
+    if is_admin:
+        return conn.execute(f'''
+            SELECT w.ID, w.Bezeichnung, w.Aktiv, g.Bezeichnung AS Gewerk, b.Bezeichnung AS Bereich
+            FROM Wartung w
+            JOIN Gewerke g ON w.GewerkID = g.ID
+            JOIN Bereich b ON g.BereichID = b.ID
+            WHERE 1=1{extra_sql}
+            ORDER BY b.Bezeichnung, g.Bezeichnung, w.Bezeichnung
+        ''', params_tail).fetchall()
+    sichtbare = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+    if not sichtbare:
+        return []
+    ph = ','.join(['?'] * len(sichtbare))
+    return conn.execute(f'''
+        SELECT w.ID, w.Bezeichnung, w.Aktiv, g.Bezeichnung AS Gewerk, b.Bezeichnung AS Bereich
+        FROM Wartung w
+        JOIN Gewerke g ON w.GewerkID = g.ID
+        JOIN Bereich b ON g.BereichID = b.ID
+        WHERE w.Aktiv = 1 AND (
+            w.ErstelltVonID = ?
+            OR w.ID IN (
+                SELECT WartungID FROM WartungAbteilungZugriff
+                WHERE AbteilungID IN ({ph})
+            )
+        ){extra_sql}
+        ORDER BY b.Bezeichnung, g.Bezeichnung, w.Bezeichnung
+    ''', [mitarbeiter_id] + sichtbare + params_tail).fetchall()
+
+
+def list_durchfuehrungen_jahresuebersicht(
+    conn, jahr, mitarbeiter_id, is_admin, bereich_id=None, gewerk_id=None,
+):
+    """Durchführungen eines Jahres, gefiltert wie die Wartungsmatrix (Bereich/Gewerk optional)."""
+    jahr_str = str(int(jahr))
+    extra = []
+    params_tail = []
+    if bereich_id is not None:
+        extra.append('AND b.ID = ?')
+        params_tail.append(bereich_id)
+    if gewerk_id is not None:
+        extra.append('AND g.ID = ?')
+        params_tail.append(gewerk_id)
+    extra_sql = ' ' + ' '.join(extra) if extra else ''
+
+    if is_admin:
+        return conn.execute(f'''
+            SELECT d.ID, d.DurchgefuehrtAm, d.Bemerkung,
+                   w.ID AS WartungID, w.Bezeichnung AS WartungBez,
+                   p.ID AS PlanID, p.IntervallEinheit, p.IntervallAnzahl,
+                   CAST(strftime('%m', d.DurchgefuehrtAm) AS INTEGER) AS Monat
+            FROM Wartungsdurchfuehrung d
+            JOIN Wartungsplan p ON d.WartungsplanID = p.ID
+            JOIN Wartung w ON p.WartungID = w.ID
+            JOIN Gewerke g ON w.GewerkID = g.ID
+            JOIN Bereich b ON g.BereichID = b.ID
+            WHERE strftime('%Y', d.DurchgefuehrtAm) = ?{extra_sql}
+            ORDER BY b.Bezeichnung, g.Bezeichnung, w.Bezeichnung, d.DurchgefuehrtAm, d.ID
+        ''', (jahr_str,) + tuple(params_tail)).fetchall()
+    sichtbare = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+    if not sichtbare:
+        return []
+    ph = ','.join(['?'] * len(sichtbare))
+    return conn.execute(f'''
+        SELECT d.ID, d.DurchgefuehrtAm, d.Bemerkung,
+               w.ID AS WartungID, w.Bezeichnung AS WartungBez,
+               p.ID AS PlanID, p.IntervallEinheit, p.IntervallAnzahl,
+               CAST(strftime('%m', d.DurchgefuehrtAm) AS INTEGER) AS Monat
+        FROM Wartungsdurchfuehrung d
+        JOIN Wartungsplan p ON d.WartungsplanID = p.ID
+        JOIN Wartung w ON p.WartungID = w.ID
+        JOIN Gewerke g ON w.GewerkID = g.ID
+        JOIN Bereich b ON g.BereichID = b.ID
+        WHERE strftime('%Y', d.DurchgefuehrtAm) = ?{extra_sql}
+          AND w.Aktiv = 1 AND (
+            w.ErstelltVonID = ?
+            OR w.ID IN (
+                SELECT WartungID FROM WartungAbteilungZugriff
+                WHERE AbteilungID IN ({ph})
+            )
+          )
+        ORDER BY b.Bezeichnung, g.Bezeichnung, w.Bezeichnung, d.DurchgefuehrtAm, d.ID
+    ''', (jahr_str,) + tuple(params_tail) + tuple(_wartung_sichtbar_params(mitarbeiter_id, sichtbare))).fetchall()
 
 
 def get_wartung(conn, wartung_id):
@@ -278,25 +421,156 @@ def update_wartungsplan(conn, plan_id, einheit, anzahl, naechste, aktiv):
     )
 
 
-def list_plaene_sichtbar(conn, mitarbeiter_id, is_admin):
-    """Alle Pläne, deren Stamm-Wartung der Nutzer sehen darf."""
+def list_bereiche_fuer_plaene_sichtbar(conn, mitarbeiter_id, is_admin):
+    """Bereiche mit mindestens einem sichtbaren Wartungsplan."""
     if is_admin:
         return conn.execute('''
-            SELECT p.ID, p.IntervallEinheit, p.IntervallAnzahl, p.NaechsteFaelligkeit, p.Aktiv,
-                   w.Bezeichnung AS WartungBez, g.Bezeichnung AS Gewerk, b.Bezeichnung AS Bereich
-            FROM Wartungsplan p
-            JOIN Wartung w ON p.WartungID = w.ID
-            JOIN Gewerke g ON w.GewerkID = g.ID
-            JOIN Bereich b ON g.BereichID = b.ID
+            SELECT DISTINCT b.ID, b.Bezeichnung
+            FROM Bereich b
+            JOIN Gewerke g ON g.BereichID = b.ID
+            JOIN Wartung w ON w.GewerkID = g.ID
+            JOIN Wartungsplan p ON p.WartungID = w.ID
             WHERE w.Aktiv = 1
-            ORDER BY b.Bezeichnung, w.Bezeichnung, p.ID
+            ORDER BY b.Bezeichnung
         ''').fetchall()
     sichtbare = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
     if not sichtbare:
         return []
     ph = ','.join(['?'] * len(sichtbare))
     return conn.execute(f'''
+        SELECT DISTINCT b.ID, b.Bezeichnung
+        FROM Bereich b
+        JOIN Gewerke g ON g.BereichID = b.ID
+        JOIN Wartung w ON w.GewerkID = g.ID
+        JOIN Wartungsplan p ON p.WartungID = w.ID
+        WHERE w.Aktiv = 1 AND (
+            w.ErstelltVonID = ?
+            OR w.ID IN (
+                SELECT WartungID FROM WartungAbteilungZugriff
+                WHERE AbteilungID IN ({ph})
+            )
+        )
+        ORDER BY b.Bezeichnung
+    ''', _wartung_sichtbar_params(mitarbeiter_id, sichtbare)).fetchall()
+
+
+def list_gewerke_fuer_plan_liste_filter(conn, mitarbeiter_id, is_admin, bereich_id=None):
+    """Gewerke für Planliste-Filter (mit mind. einem Plan auf sichtbarer Wartung)."""
+    if bereich_id is not None:
+        if is_admin:
+            return conn.execute('''
+                SELECT DISTINCT g.ID, g.Bezeichnung
+                FROM Gewerke g
+                JOIN Wartung w ON w.GewerkID = g.ID
+                JOIN Wartungsplan p ON p.WartungID = w.ID
+                WHERE g.BereichID = ? AND w.Aktiv = 1
+                ORDER BY g.Bezeichnung
+            ''', (bereich_id,)).fetchall()
+        sichtbare = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+        if not sichtbare:
+            return []
+        ph = ','.join(['?'] * len(sichtbare))
+        return conn.execute(f'''
+            SELECT DISTINCT g.ID, g.Bezeichnung
+            FROM Gewerke g
+            JOIN Wartung w ON w.GewerkID = g.ID
+            JOIN Wartungsplan p ON p.WartungID = w.ID
+            WHERE g.BereichID = ?
+              AND w.Aktiv = 1 AND (
+                w.ErstelltVonID = ?
+                OR w.ID IN (
+                    SELECT WartungID FROM WartungAbteilungZugriff
+                    WHERE AbteilungID IN ({ph})
+                )
+              )
+            ORDER BY g.Bezeichnung
+        ''', (bereich_id,) + tuple(_wartung_sichtbar_params(mitarbeiter_id, sichtbare))).fetchall()
+
+    if is_admin:
+        return conn.execute('''
+            SELECT DISTINCT g.ID, g.Bezeichnung, b.Bezeichnung AS BereichLabel
+            FROM Gewerke g
+            JOIN Bereich b ON g.BereichID = b.ID
+            JOIN Wartung w ON w.GewerkID = g.ID
+            JOIN Wartungsplan p ON p.WartungID = w.ID
+            WHERE w.Aktiv = 1
+            ORDER BY b.Bezeichnung, g.Bezeichnung
+        ''').fetchall()
+    sichtbare = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+    if not sichtbare:
+        return []
+    ph = ','.join(['?'] * len(sichtbare))
+    return conn.execute(f'''
+        SELECT DISTINCT g.ID, g.Bezeichnung, b.Bezeichnung AS BereichLabel
+        FROM Gewerke g
+        JOIN Bereich b ON g.BereichID = b.ID
+        JOIN Wartung w ON w.GewerkID = g.ID
+        JOIN Wartungsplan p ON p.WartungID = w.ID
+        WHERE w.Aktiv = 1 AND (
+            w.ErstelltVonID = ?
+            OR w.ID IN (
+                SELECT WartungID FROM WartungAbteilungZugriff
+                WHERE AbteilungID IN ({ph})
+            )
+        )
+        ORDER BY b.Bezeichnung, g.Bezeichnung
+    ''', _wartung_sichtbar_params(mitarbeiter_id, sichtbare)).fetchall()
+
+
+def list_plaene_sichtbar(
+    conn,
+    mitarbeiter_id,
+    is_admin,
+    bereich_id=None,
+    gewerk_id=None,
+    sort_mode='stamm',
+    sort_dir='asc',
+):
+    """Alle Pläne, deren Stamm-Wartung der Nutzer sehen darf."""
+    extra = []
+    params_tail = []
+    if bereich_id is not None:
+        extra.append('AND b.ID = ?')
+        params_tail.append(bereich_id)
+    if gewerk_id is not None:
+        extra.append('AND g.ID = ?')
+        params_tail.append(gewerk_id)
+    extra_sql = ' ' + ' '.join(extra) if extra else ''
+
+    sort_mode = (sort_mode or 'stamm').strip().lower()
+    sort_dir = (sort_dir or 'asc').strip().lower()
+    if sort_mode == 'faelligkeit' and sort_dir == 'desc':
+        order_sql = (
+            'ORDER BY (p.NaechsteFaelligkeit IS NULL), p.NaechsteFaelligkeit DESC, '
+            'b.Bezeichnung, w.Bezeichnung, p.ID'
+        )
+    elif sort_mode == 'faelligkeit':
+        order_sql = (
+            'ORDER BY (p.NaechsteFaelligkeit IS NULL), p.NaechsteFaelligkeit ASC, '
+            'b.Bezeichnung, w.Bezeichnung, p.ID'
+        )
+    else:
+        order_sql = 'ORDER BY b.Bezeichnung, w.Bezeichnung, p.ID'
+
+    if is_admin:
+        return conn.execute(f'''
+            SELECT p.ID, p.IntervallEinheit, p.IntervallAnzahl, p.NaechsteFaelligkeit, p.Aktiv,
+                   w.ID AS WartungID,
+                   w.Bezeichnung AS WartungBez, g.Bezeichnung AS Gewerk, b.Bezeichnung AS Bereich
+            FROM Wartungsplan p
+            JOIN Wartung w ON p.WartungID = w.ID
+            JOIN Gewerke g ON w.GewerkID = g.ID
+            JOIN Bereich b ON g.BereichID = b.ID
+            WHERE w.Aktiv = 1{extra_sql}
+            {order_sql}
+        ''', params_tail).fetchall()
+    sichtbare = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+    if not sichtbare:
+        return []
+    ph = ','.join(['?'] * len(sichtbare))
+    return conn.execute(f'''
         SELECT p.ID, p.IntervallEinheit, p.IntervallAnzahl, p.NaechsteFaelligkeit, p.Aktiv,
+               w.ID AS WartungID,
                w.Bezeichnung AS WartungBez, g.Bezeichnung AS Gewerk, b.Bezeichnung AS Bereich
         FROM Wartungsplan p
         JOIN Wartung w ON p.WartungID = w.ID
@@ -308,9 +582,24 @@ def list_plaene_sichtbar(conn, mitarbeiter_id, is_admin):
                 SELECT WartungID FROM WartungAbteilungZugriff
                 WHERE AbteilungID IN ({ph})
             )
-        )
-        ORDER BY b.Bezeichnung, w.Bezeichnung, p.ID
-    ''', [mitarbeiter_id] + sichtbare).fetchall()
+        ){extra_sql}
+        {order_sql}
+    ''', [mitarbeiter_id] + sichtbare + params_tail).fetchall()
+
+
+def map_wartung_zu_aktiven_plan_ids(conn, wartung_ids, mitarbeiter_id, is_admin):
+    """Pro Wartungs-ID: sortierte IDs aktiver Pläne (gleiche Sichtbarkeit wie list_plaene_sichtbar)."""
+    if not wartung_ids:
+        return {}
+    rows = list_plaene_sichtbar(conn, mitarbeiter_id, is_admin)
+    out = {int(wid): [] for wid in wartung_ids}
+    for r in rows:
+        if not r['Aktiv']:
+            continue
+        wid = r['WartungID']
+        if wid in out:
+            out[wid].append(r['ID'])
+    return out
 
 
 def plaene_options_fuer_select(conn, mitarbeiter_id, is_admin):
@@ -384,6 +673,20 @@ def list_durchfuehrungen_fuer_plan(conn, plan_id):
         WHERE d.WartungsplanID = ?
         ORDER BY d.DurchgefuehrtAm DESC, d.ID DESC
     ''', (plan_id,)).fetchall()
+
+
+def list_durchfuehrungen_fuer_wartung(conn, wartung_id):
+    """Alle protokollierten Durchführungen dieser Wartung (über alle Pläne)."""
+    return conn.execute('''
+        SELECT d.ID, d.DurchgefuehrtAm, d.Bemerkung, d.ErstelltAm,
+               p.ID AS PlanID, p.IntervallAnzahl, p.IntervallEinheit,
+               m.Vorname || ' ' || m.Nachname AS ProtokolliertVon
+        FROM Wartungsdurchfuehrung d
+        JOIN Wartungsplan p ON d.WartungsplanID = p.ID
+        LEFT JOIN Mitarbeiter m ON d.ProtokolliertVonID = m.ID
+        WHERE p.WartungID = ?
+        ORDER BY d.DurchgefuehrtAm DESC, d.ID DESC
+    ''', (wartung_id,)).fetchall()
 
 
 def get_durchfuehrung_detail(conn, durchfuehrung_id):
