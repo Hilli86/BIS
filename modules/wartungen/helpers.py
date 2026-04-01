@@ -2,7 +2,7 @@
 
 from flask import session
 
-from utils.abteilungen import get_sichtbare_abteilungen_fuer_mitarbeiter
+from utils.abteilungen import get_mitarbeiter_abteilungen
 
 
 def user_perms():
@@ -42,14 +42,16 @@ def hat_wartung_zugriff(mitarbeiter_id, wartung_id, conn):
         return False
     if row['ErstelltVonID'] == mitarbeiter_id:
         return True
-    sichtbare = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
-    if not sichtbare:
+    # Nur Primär- und direkt zugewiesene Zusatzabteilungen (keine rekursiven Unterabteilungen),
+    # damit z. B. Eltern-Abteilungen nicht automatisch alle Kinder-Wartungen sehen.
+    abteilungen = get_mitarbeiter_abteilungen(mitarbeiter_id, conn)
+    if not abteilungen:
         return False
-    ph = ','.join(['?'] * len(sichtbare))
+    ph = ','.join(['?'] * len(abteilungen))
     n = conn.execute(
         f'''SELECT COUNT(*) AS c FROM WartungAbteilungZugriff
             WHERE WartungID = ? AND AbteilungID IN ({ph})''',
-        [wartung_id] + sichtbare,
+        [wartung_id] + abteilungen,
     ).fetchone()
     return n['c'] > 0
 

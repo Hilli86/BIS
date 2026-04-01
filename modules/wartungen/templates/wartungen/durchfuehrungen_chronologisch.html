@@ -1,0 +1,121 @@
+{% extends "layout/base.html" %}
+{% block content %}
+<h1 class="mb-4">Protokollierte Wartungen</h1>
+<div class="mb-3">
+  <a href="{{ url_for('wartungen.wartung_liste') }}" class="btn btn-secondary">
+    <i class="bi bi-arrow-left"></i> Zurück zur Wartungsliste
+  </a>
+</div>
+
+{% if not bereiche %}
+<div class="alert alert-info">Für Ihr Konto sind keine Wartungen sichtbar.</div>
+{% else %}
+<form method="get" action="{{ url_for('wartungen.durchfuehrungen_chronologisch') }}" class="card shadow-sm mb-4" id="form-durchfuehrungen-chrono">
+  <div class="card-body py-3">
+    <div class="row g-3 align-items-end">
+      <div class="col-xl-2 col-lg-3 col-md-6">
+        <label class="form-label mb-1" for="filter-ch-bereich">Bereich</label>
+        <select class="form-select" id="filter-ch-bereich" name="bereich_id" onchange="this.form.submit()">
+          <option value="" {% if bereich_id is none %}selected{% endif %}>Alle Bereiche</option>
+          {% for b in bereiche %}
+          <option value="{{ b.ID }}" {% if bereich_id == b.ID %}selected{% endif %}>{{ b.Bezeichnung }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-xl-2 col-lg-3 col-md-6">
+        <label class="form-label mb-1" for="filter-ch-gewerk">Gewerk</label>
+        <select class="form-select" id="filter-ch-gewerk" name="gewerk_id" onchange="this.form.submit()" {% if not gewerke %}disabled{% endif %}>
+          <option value="" {% if gewerk_id is none %}selected{% endif %}>Alle Gewerke</option>
+          {% for g in gewerke %}
+          <option value="{{ g.ID }}" {% if gewerk_id == g.ID %}selected{% endif %}>
+            {{ g.Bezeichnung }}{% if bereich_id is none and g.BereichLabel %} ({{ g.BereichLabel }}){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-xl-2 col-lg-3 col-md-6">
+        <label class="form-label mb-1" for="filter-ch-wartung">Wartung</label>
+        <select class="form-select" id="filter-ch-wartung" name="wartung_id" onchange="this.form.submit()" {% if not wartungen_filter %}disabled{% endif %}>
+          <option value="" {% if wartung_id is none %}selected{% endif %}>Alle Wartungen</option>
+          {% for w in wartungen_filter %}
+          <option value="{{ w.ID }}" {% if wartung_id == w.ID %}selected{% endif %}>{{ w.Bezeichnung }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-xl-2 col-lg-3 col-md-6">
+        <label class="form-label mb-1" for="filter-ch-von">Von (Datum)</label>
+        <input type="date" class="form-control" id="filter-ch-von" name="datum_von" value="{{ datum_von or '' }}" onchange="this.form.submit()">
+      </div>
+      <div class="col-xl-2 col-lg-3 col-md-6">
+        <label class="form-label mb-1" for="filter-ch-bis">Bis (Datum)</label>
+        <input type="date" class="form-control" id="filter-ch-bis" name="datum_bis" value="{{ datum_bis or '' }}" onchange="this.form.submit()">
+      </div>
+      <div class="col-xl-2 col-lg-3 col-md-6">
+        <label class="form-label mb-1 d-none d-xl-block">&nbsp;</label>
+        <a href="{{ url_for('wartungen.durchfuehrungen_chronologisch') }}" class="btn btn-outline-secondary w-100">Zurücksetzen</a>
+      </div>
+    </div>
+  </div>
+</form>
+
+{% if not gewerke %}
+<div class="alert alert-warning">{% if bereich_id is not none %}Im gewählten Bereich gibt es kein Gewerk mit sichtbaren Wartungen.{% else %}Für die Anzeige stehen keine Gewerke zur Verfügung.{% endif %}</div>
+{% else %}
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    {% if durchfuehrungen %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0 align-middle">
+        <thead>
+          <tr>
+            <th style="white-space: nowrap;">Durchgeführt am</th>
+            <th>Bereich</th>
+            <th>Gewerk</th>
+            <th>Wartung</th>
+            <th>Plan (Intervall)</th>
+            <th class="text-center">Dateien</th>
+            <th>Protokolliert von</th>
+            <th>Bemerkung</th>
+            <th style="min-width: 5rem;">Aktionen</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for x in durchfuehrungen %}
+          <tr style="cursor: pointer;" onclick="window.location.href='{{ url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=x.ID) }}';">
+            <td style="white-space: nowrap;">{% if x.DurchgefuehrtAm %}{{ x.DurchgefuehrtAm[:16] }}{% else %}–{% endif %}</td>
+            <td>{{ x.Bereich }}</td>
+            <td>{{ x.Gewerk }}</td>
+            <td class="text-break"><strong>{{ x.WartungBez }}</strong></td>
+            <td>Alle {{ x.IntervallAnzahl }} {{ x.IntervallEinheit }}(e)</td>
+            <td class="text-center text-nowrap">
+              {% if x.DateiAnzahl and x.DateiAnzahl > 0 %}
+              <span class="badge bg-secondary" title="{{ x.DateiAnzahl }} Datei(en)"><i class="bi bi-paperclip"></i> {{ x.DateiAnzahl }}</span>
+              {% else %}
+              <span class="text-muted">–</span>
+              {% endif %}
+            </td>
+            <td>{{ x.ProtokolliertVon or '–' }}</td>
+            <td class="text-break">{{ x.Bemerkung or '–' }}</td>
+            <td onclick="event.stopPropagation();">
+              <a href="{{ url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=x.ID) }}" class="btn btn-sm btn-outline-primary" title="Detail">
+                <i class="bi bi-box-arrow-in-right"></i>
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="small text-muted mb-0 px-3 py-2">Chronologisch absteigend (neueste zuerst), max. 5000 Einträge.</p>
+    {% else %}
+    <div class="card-body">
+      <div class="alert alert-info mb-0">
+        <i class="bi bi-info-circle"></i> Keine protokollierten Durchführungen für die gewählten Filter.
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

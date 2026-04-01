@@ -27,6 +27,7 @@ MENUE_DEFINITIONEN = [
     {'schluessel': 'wartungen_liste', 'bezeichnung': 'Wartungen', 'gruppe': 'Wartungen', 'berechtigung': None},
     {'schluessel': 'wartungen_plaene', 'bezeichnung': 'Wartungspläne', 'gruppe': 'Wartungen', 'berechtigung': None},
     {'schluessel': 'wartungen_jahresuebersicht', 'bezeichnung': 'Jahresübersicht', 'gruppe': 'Wartungen', 'berechtigung': None},
+    {'schluessel': 'wartungen_protokolle', 'bezeichnung': 'Protokolle', 'gruppe': 'Wartungen', 'berechtigung': None},
     {
         'schluessel': 'wartungen_mehrere',
         'bezeichnung': 'Mehrere protokollieren',

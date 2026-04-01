@@ -1,5 +1,34 @@
 {% extends "layout/base.html" %}
 {% block content %}
+<style>
+  /* Fixierte horizontale Scrollleiste (synchron mit der Matrix), damit man oben auf der Seite nicht erst nach unten scrollen muss */
+  .jahresmatrix-dock-scroll {
+    position: fixed;
+    bottom: 0;
+    /* Position/Breite per JS an #jahresmatrix-scroll-main (gleiche Viewport-Breite wie die Tabelle) */
+    right: auto;
+    height: 18px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    background-color: var(--bs-body-bg, #fff);
+    border-top: 1px solid var(--bs-border-color, #dee2e6);
+    z-index: 1030;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+  }
+  .jahresmatrix-dock-scroll-inner {
+    height: 1px;
+  }
+  body.jahresmatrix-dock-active {
+    padding-bottom: 18px;
+  }
+  .jahresmatrix-scroll-main.jahresmatrix-hide-h-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .jahresmatrix-scroll-main.jahresmatrix-hide-h-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+</style>
 <h1 class="mb-4">Wartungen – Jahresübersicht</h1>
 <div class="mb-3">
   <a href="{{ url_for('wartungen.wartung_liste') }}" class="btn btn-secondary">
@@ -54,11 +83,19 @@
 {% else %}
 <div class="card shadow-sm">
   <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-hover table-sm table-bordered mb-0 align-middle text-center">
+    <p class="small text-muted px-3 pt-3 mb-0 border-bottom">
+      Nächste Fälligkeit:
+      <span class="badge text-bg-info">innerhalb 7 Tage</span>
+      · <span class="badge text-bg-warning text-dark">heute bis 7 Tage überfällig</span>
+      · <span class="badge text-bg-danger">über 7 Tage überfällig</span>
+    </p>
+    <div id="jahresmatrix-scroll-main" class="table-responsive jahresmatrix-scroll-main" style="overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%;">
+      <table class="table table-hover table-sm table-bordered mb-0 align-middle text-center" style="min-width: max-content; width: 100%;">
         <thead>
           <tr>
             <th class="text-start bg-body-secondary" style="min-width: 12rem;">Wartung</th>
+            <th class="text-start bg-body-secondary" style="min-width: 7.5rem;">Intervall</th>
+            <th class="text-start bg-body-secondary text-nowrap" style="min-width: 8rem;">Nächste Fälligkeit</th>
             <th class="text-center bg-body-secondary align-middle" style="min-width: 3.5rem;" title="Auswahl für Mehrere protokollieren">
               {% if kann_protokollieren %}
               <button type="button" class="btn btn-sm btn-primary px-2" id="btn-jahres-matrix-batch" title="Ausgewählte Wartungen im Formular „Mehrere protokollieren“ öffnen">
@@ -76,13 +113,47 @@
       {% for grp in matrix_groups %}
         <tbody>
           <tr class="table-secondary">
-            <td colspan="{{ 2 + monatsnamen|length }}" class="text-start fw-semibold small py-2">{{ grp.bereich }} · {{ grp.gewerk }}</td>
+            <td colspan="{{ 4 + monatsnamen|length }}" class="text-start fw-semibold small py-2">{{ grp.bereich }} · {{ grp.gewerk }}</td>
           </tr>
           {% for row in grp.rows %}
           <tr>
             <td class="text-start">
-              {{ row.wartung.Bezeichnung }}
-              {% if not row.wartung.Aktiv %}<span class="badge bg-secondary ms-1">inaktiv</span>{% endif %}
+              <a href="{{ url_for('wartungen.wartung_detail', wartung_id=row.wartung.ID) }}" class="text-decoration-none text-reset d-block" title="Wartungsdetail öffnen">
+                {{ row.wartung.Bezeichnung }}
+                {% if not row.wartung.Aktiv %}<span class="badge bg-secondary ms-1">inaktiv</span>{% endif %}
+              </a>
+            </td>
+            <td class="text-start small align-middle">
+              {% for pm in row.aktive_plaene_meta %}
+              <div class="{% if not loop.first %}mt-1 pt-1 border-top border-light{% endif %}">Alle {{ pm.IntervallAnzahl }} {{ pm.IntervallEinheit }}(e)</div>
+              {% else %}
+              <span class="text-muted">–</span>
+              {% endfor %}
+            </td>
+            <td class="text-start small align-middle">
+              {% for pm in row.aktive_plaene_meta %}
+              <div class="text-nowrap{% if not loop.first %} mt-1 pt-1 border-top border-light{% endif %}">
+                {% if kann_protokollieren and pm.PlanID %}
+                <a href="{{ url_for('wartungen.durchfuehrung_neu', plan_id=pm.PlanID, **jahresuebersicht_protokoll_query) }}" class="text-decoration-none text-reset d-inline-block" title="Wartung protokollieren">
+                  {% if pm.NaechsteFaelligkeit %}
+                    {% set fbc = pm.NaechsteFaelligkeit|wartung_faelligkeit_badge_class %}
+                    {% if fbc %}<span class="badge {{ fbc }}">{{ pm.NaechsteFaelligkeit }}</span>{% else %}{{ pm.NaechsteFaelligkeit }}{% endif %}
+                  {% else %}
+                    <span class="text-muted">–</span>
+                  {% endif %}
+                </a>
+                {% else %}
+                  {% if pm.NaechsteFaelligkeit %}
+                    {% set fbc = pm.NaechsteFaelligkeit|wartung_faelligkeit_badge_class %}
+                    {% if fbc %}<span class="badge {{ fbc }}">{{ pm.NaechsteFaelligkeit }}</span>{% else %}{{ pm.NaechsteFaelligkeit }}{% endif %}
+                  {% else %}
+                    <span class="text-muted">–</span>
+                  {% endif %}
+                {% endif %}
+              </div>
+              {% else %}
+              <span class="text-muted">–</span>
+              {% endfor %}
             </td>
             <td class="text-center p-1 align-middle">
               {% if kann_protokollieren %}
@@ -116,13 +187,16 @@
       {% if not matrix_groups %}
         <tbody>
           <tr>
-            <td colspan="{{ 2 + monatsnamen|length }}" class="text-muted text-start">Keine Wartungen für die gewählten Filter.</td>
+            <td colspan="{{ 4 + monatsnamen|length }}" class="text-muted text-start">Keine Wartungen für die gewählten Filter.</td>
           </tr>
         </tbody>
       {% endif %}
       </table>
     </div>
   </div>
+</div>
+<div id="jahresmatrix-dock-scroll" class="jahresmatrix-dock-scroll" hidden>
+  <div class="jahresmatrix-dock-scroll-inner" aria-hidden="true"></div>
 </div>
 {% endif %}
 {% endif %}
@@ -144,8 +218,116 @@
 <script>
 (function () {
   document.addEventListener('DOMContentLoaded', function () {
+    var main = document.getElementById('jahresmatrix-scroll-main');
+    var dock = document.getElementById('jahresmatrix-dock-scroll');
+    var dockInner = dock ? dock.querySelector('.jahresmatrix-dock-scroll-inner') : null;
+
+    if (main && dock && dockInner) {
+      var syncFromMain = false;
+      var syncFromDock = false;
+      var mainContentEl = document.querySelector('.main-content');
+
+      function alignDockToScrollMain() {
+        if (!dock || !main) return;
+        var r = main.getBoundingClientRect();
+        var left = Math.max(0, Math.round(r.left));
+        var w = Math.max(0, Math.round(r.width));
+        dock.style.left = left + 'px';
+        dock.style.width = w + 'px';
+        dock.style.right = 'auto';
+      }
+
+      function maxScroll(el) {
+        return Math.max(0, el.scrollWidth - el.clientWidth);
+      }
+
+      function syncDockFromMain() {
+        var m = maxScroll(main);
+        var d = maxScroll(dock);
+        if (m <= 0) {
+          dock.scrollLeft = 0;
+          return;
+        }
+        if (d <= 0) return;
+        dock.scrollLeft = Math.round((main.scrollLeft / m) * d);
+      }
+
+      function syncMainFromDock() {
+        var m = maxScroll(main);
+        var d = maxScroll(dock);
+        if (d <= 0) {
+          main.scrollLeft = 0;
+          return;
+        }
+        if (m <= 0) return;
+        main.scrollLeft = Math.round((dock.scrollLeft / d) * m);
+      }
+
+      function updateDockScrollbar() {
+        alignDockToScrollMain();
+        var sw = main.scrollWidth;
+        var cw = main.clientWidth;
+        /* Leicht aufblasen gegen Rundungsfehler am rechten Rand */
+        dockInner.style.width = Math.ceil(sw) + 'px';
+        if (sw > cw) {
+          dock.removeAttribute('hidden');
+          document.body.classList.add('jahresmatrix-dock-active');
+          main.classList.add('jahresmatrix-hide-h-scrollbar');
+          syncDockFromMain();
+        } else {
+          dock.setAttribute('hidden', '');
+          document.body.classList.remove('jahresmatrix-dock-active');
+          main.classList.remove('jahresmatrix-hide-h-scrollbar');
+        }
+      }
+
+      main.addEventListener('scroll', function () {
+        if (syncFromDock) return;
+        syncFromMain = true;
+        syncDockFromMain();
+        syncFromMain = false;
+      });
+      dock.addEventListener('scroll', function () {
+        if (syncFromMain) return;
+        syncFromDock = true;
+        syncMainFromDock();
+        syncFromDock = false;
+      });
+
+      if (typeof ResizeObserver !== 'undefined') {
+        var ro = new ResizeObserver(function () {
+          updateDockScrollbar();
+        });
+        ro.observe(main);
+      }
+      window.addEventListener('resize', function () {
+        updateDockScrollbar();
+      });
+      window.addEventListener('load', function () {
+        updateDockScrollbar();
+      });
+      window.addEventListener('scroll', function () {
+        alignDockToScrollMain();
+        syncDockFromMain();
+      }, { passive: true });
+      if (mainContentEl && typeof MutationObserver !== 'undefined') {
+        var mo = new MutationObserver(function () {
+          requestAnimationFrame(function () {
+            updateDockScrollbar();
+          });
+        });
+        mo.observe(mainContentEl, { attributes: true, attributeFilter: ['class'] });
+      }
+      updateDockScrollbar();
+      requestAnimationFrame(function () {
+        updateDockScrollbar();
+      });
+    }
+
     var modalEl = document.getElementById('wartungJahrModal');
-    if (!modalEl || typeof bootstrap === 'undefined') return;
+    if (!modalEl || typeof bootstrap === 'undefined') {
+      /* Modal optional; Batch-Button und Dock funktionieren ohne */
+    } else {
 
     function escapeHtml(s) {
       if (s == null || s === '') return '';
@@ -189,6 +371,7 @@
       html += '</ul>';
       bodyEl.innerHTML = html;
     });
+    }
 
     var batchBtn = document.getElementById('btn-jahres-matrix-batch');
     if (batchBtn) {

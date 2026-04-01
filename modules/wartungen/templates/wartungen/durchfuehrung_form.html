@@ -7,9 +7,15 @@
     <i class="bi bi-arrow-left"></i> Zurück zu Wartungsplänen
   </a>
   {% else %}
-  <a href="{{ url_for('wartungen.wartung_detail', wartung_id=wartung.ID, plan_id=plan.ID) }}" class="btn btn-secondary">
-    <i class="bi bi-arrow-left"></i> Zurück zur Wartung
-  </a>
+    {% if zurueck_jahres_url %}
+    <a href="{{ zurueck_jahres_url }}" class="btn btn-secondary">
+      <i class="bi bi-arrow-left"></i> Zurück zur Jahresübersicht
+    </a>
+    {% else %}
+    <a href="{{ url_for('wartungen.wartung_detail', wartung_id=wartung.ID, plan_id=plan.ID) }}" class="btn btn-secondary">
+      <i class="bi bi-arrow-left"></i> Zurück zur Wartung
+    </a>
+    {% endif %}
   {% endif %}
 </div>
 {% if not batch %}
@@ -90,6 +96,16 @@
 {% else %}
 
 <form method="post" id="durchfuehrungSingleForm" enctype="multipart/form-data">
+  {% if protokoll_kontext and protokoll_kontext.herkunft == 'jahresuebersicht' %}
+  <input type="hidden" name="protokoll_herkunft" value="jahresuebersicht">
+  <input type="hidden" name="jahr" value="{{ protokoll_kontext.jahr }}">
+  {% if protokoll_kontext.bereich_id is not none %}
+  <input type="hidden" name="bereich_id" value="{{ protokoll_kontext.bereich_id }}">
+  {% endif %}
+  {% if protokoll_kontext.gewerk_id is not none %}
+  <input type="hidden" name="gewerk_id" value="{{ protokoll_kontext.gewerk_id }}">
+  {% endif %}
+  {% endif %}
   <div class="card mb-4 shadow-sm">
     <div class="card-header bg-primary text-white">
       <h5 class="mb-0">Termin &amp; Bemerkung</h5>
@@ -180,10 +196,19 @@
     </div>
   </div>
 
-  <div class="mb-3">
-    <button type="submit" class="btn btn-primary">
+  <div class="mb-3 d-flex flex-wrap gap-2">
+    {% if protokoll_kontext and protokoll_kontext.herkunft == 'jahresuebersicht' %}
+    <button type="submit" name="speichern_aktion" value="jahresuebersicht" class="btn btn-primary">
+      <i class="bi bi-check-lg"></i> Speichern und zurück zur Übersicht
+    </button>
+    <button type="submit" name="speichern_aktion" value="detail" class="btn btn-outline-secondary">
+      <i class="bi bi-box-arrow-in-right"></i> Speichern und zur Durchführung
+    </button>
+    {% else %}
+    <button type="submit" name="speichern_aktion" value="detail" class="btn btn-primary">
       <i class="bi bi-check-lg"></i> Speichern
     </button>
+    {% endif %}
   </div>
 </form>
 

@@ -767,11 +767,12 @@
     {% endif %}
     {% endif %}
 
-    {% if menue_sichtbar('wartungen_liste') or menue_sichtbar('wartungen_plaene') or menue_sichtbar('wartungen_jahresuebersicht') or menue_sichtbar('wartungen_mehrere') %}
+    {% if menue_sichtbar('wartungen_liste') or menue_sichtbar('wartungen_plaene') or menue_sichtbar('wartungen_jahresuebersicht') or menue_sichtbar('wartungen_protokolle') or menue_sichtbar('wartungen_mehrere') %}
     {% set w_ep = request.endpoint or '' %}
     {% set w_stamm_active = w_ep in ['wartungen.wartung_liste', 'wartungen.wartung_neu', 'wartungen.wartung_detail', 'wartungen.wartung_bearbeiten', 'wartungen.wartung_datei', 'wartungen.wartung_datei_loeschen', 'wartungen.wartung_datei_upload'] %}
     {% set w_plaene_active = w_ep in ['wartungen.plaene_uebersicht', 'wartungen.plan_neu', 'wartungen.plan_bearbeiten', 'wartungen.durchfuehrung_neu', 'wartungen.durchfuehrung_detail', 'wartungen.durchfuehrung_mehrere'] %}
     {% set w_jahres_active = w_ep == 'wartungen.jahresuebersicht' %}
+    {% set w_proto_active = w_ep == 'wartungen.durchfuehrungen_chronologisch' %}
     {% set w_mehrere_active = w_ep == 'wartungen.durchfuehrung_mehrere' %}
     <h6>Wartungen</h6>
     {% if menue_sichtbar('wartungen_liste') %}
@@ -787,6 +788,11 @@
     {% if menue_sichtbar('wartungen_jahresuebersicht') %}
     <a href="{{ url_for('wartungen.jahresuebersicht') }}" class="{% if w_jahres_active %}active{% endif %}">
       📊 Jahresübersicht
+    </a>
+    {% endif %}
+    {% if menue_sichtbar('wartungen_protokolle') %}
+    <a href="{{ url_for('wartungen.durchfuehrungen_chronologisch') }}" class="{% if w_proto_active %}active{% endif %}">
+      📋 Protokolle
     </a>
     {% endif %}
     {% if menue_sichtbar('wartungen_mehrere') %}

@@ -88,6 +88,82 @@ def _query_int_arg(name):
     return int(raw)
 
 
+PROTOKOLL_HERKUNFT_JAHRESUEBERSICHT = 'jahresuebersicht'
+
+
+def _jahresuebersicht_protokoll_query_args(jahr, bereich_id, gewerk_id):
+    """Query-Parameter für durchfuehrung_neu, wenn der Aufruf von der Jahresübersicht kommt."""
+    q = {'herkunft': PROTOKOLL_HERKUNFT_JAHRESUEBERSICHT, 'jahr': jahr}
+    if bereich_id is not None:
+        q['bereich_id'] = bereich_id
+    if gewerk_id is not None:
+        q['gewerk_id'] = gewerk_id
+    return q
+
+
+def _parse_protokoll_kontext_args(args):
+    """Herkunft + Filter aus GET-Query (werkzeug MultiDict)."""
+    h = (args.get('protokoll_herkunft') or args.get('herkunft') or '').strip()
+    if h != PROTOKOLL_HERKUNFT_JAHRESUEBERSICHT:
+        return {'herkunft': '', 'jahr': None, 'bereich_id': None, 'gewerk_id': None}
+    cy = datetime.now().year
+    jahr = args.get('jahr', type=int)
+    if jahr is None or jahr < 1990 or jahr > 2100:
+        jahr = cy
+    bid = args.get('bereich_id', type=int)
+    gid = args.get('gewerk_id', type=int)
+    return {'herkunft': h, 'jahr': jahr, 'bereich_id': bid, 'gewerk_id': gid}
+
+
+def _parse_protokoll_kontext_form(form):
+    """Herkunft + Filter aus POST (versteckte Felder)."""
+    h = (form.get('protokoll_herkunft') or '').strip()
+    if h != PROTOKOLL_HERKUNFT_JAHRESUEBERSICHT:
+        return {'herkunft': '', 'jahr': None, 'bereich_id': None, 'gewerk_id': None}
+    cy = datetime.now().year
+    try:
+        jahr = int(form.get('jahr') or cy)
+    except (TypeError, ValueError):
+        jahr = cy
+    if jahr < 1990 or jahr > 2100:
+        jahr = cy
+    bid = form.get('bereich_id')
+    gid = form.get('gewerk_id')
+    try:
+        bid = int(bid) if bid not in (None, '') else None
+    except (TypeError, ValueError):
+        bid = None
+    try:
+        gid = int(gid) if gid not in (None, '') else None
+    except (TypeError, ValueError):
+        gid = None
+    return {'herkunft': h, 'jahr': jahr, 'bereich_id': bid, 'gewerk_id': gid}
+
+
+def _url_jahresuebersicht_mit_protokoll_kontext(kontext):
+    """Redirect/Zurück-Link zur Jahresmatrix inkl. Filter."""
+    if kontext.get('herkunft') != PROTOKOLL_HERKUNFT_JAHRESUEBERSICHT:
+        return url_for('wartungen.jahresuebersicht')
+    q = {'jahr': kontext['jahr']}
+    if kontext.get('bereich_id') is not None:
+        q['bereich_id'] = kontext['bereich_id']
+    if kontext.get('gewerk_id') is not None:
+        q['gewerk_id'] = kontext['gewerk_id']
+    return url_for('wartungen.jahresuebersicht', **q)
+
+
+def _query_iso_date_arg(name):
+    """YYYY-MM-DD aus request.args oder None."""
+    raw = (request.args.get(name) or '').strip()[:10]
+    if not raw or len(raw) != 10:
+        return None
+    try:
+        datetime.strptime(raw, '%Y-%m-%d')
+        return raw
+    except ValueError:
+        return None
+
+
 BEREICH_TYP_WARTUNGSDURCHFUEHRUNG = 'Wartungsdurchfuehrung'
 
 _SERVICE_BERICHT_EXT = frozenset({'png', 'jpg', 'jpeg', 'gif', 'webp', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'})
@@ -500,6 +576,80 @@ def plaene_uebersicht():
     )
 
 
+@wartungen_bp.route('/durchfuehrungen')
+@login_required
+def durchfuehrungen_chronologisch():
+    mitarbeiter_id = session.get('user_id')
+    adm = is_admin()
+    bereich_id = _query_int_arg('bereich_id')
+    gewerk_id = _query_int_arg('gewerk_id')
+    wartung_id = _query_int_arg('wartung_id')
+    datum_von = _query_iso_date_arg('datum_von')
+    datum_bis = _query_iso_date_arg('datum_bis')
+    if datum_von and datum_bis and datum_von > datum_bis:
+        datum_von, datum_bis = datum_bis, datum_von
+
+    with get_db_connection() as conn:
+        bereiche = services.list_bereiche_fuer_wartungen_sichtbar(conn, mitarbeiter_id, adm)
+        if not bereiche:
+            return render_template(
+                'wartungen/durchfuehrungen_chronologisch.html',
+                bereiche=[],
+                gewerke=[],
+                wartungen_filter=[],
+                durchfuehrungen=[],
+                bereich_id=None,
+                gewerk_id=None,
+                wartung_id=None,
+                datum_von=None,
+                datum_bis=None,
+                title='Protokollierte Wartungen',
+            )
+
+        valid_bereich_ids = {b['ID'] for b in bereiche}
+        if bereich_id is not None and bereich_id not in valid_bereich_ids:
+            bereich_id = None
+
+        gewerke = services.list_gewerke_fuer_wartung_liste_filter(
+            conn, mitarbeiter_id, adm, bereich_id,
+        )
+        valid_gewerk_ids = {g['ID'] for g in gewerke}
+        if gewerk_id is not None and gewerk_id not in valid_gewerk_ids:
+            gewerk_id = None
+
+        wartungen_filter = services.list_wartungen(
+            conn, mitarbeiter_id, adm, bereich_id=bereich_id, gewerk_id=gewerk_id,
+        )
+        valid_wartung_ids = {w['ID'] for w in wartungen_filter}
+        if wartung_id is not None and wartung_id not in valid_wartung_ids:
+            wartung_id = None
+
+        rows = services.list_durchfuehrungen_chronologisch_sichtbar(
+            conn,
+            mitarbeiter_id,
+            adm,
+            bereich_id=bereich_id,
+            gewerk_id=gewerk_id,
+            wartung_id=wartung_id,
+            datum_von=datum_von,
+            datum_bis=datum_bis,
+        )
+
+    return render_template(
+        'wartungen/durchfuehrungen_chronologisch.html',
+        bereiche=bereiche,
+        gewerke=gewerke,
+        wartungen_filter=wartungen_filter,
+        durchfuehrungen=rows,
+        bereich_id=bereich_id,
+        gewerk_id=gewerk_id,
+        wartung_id=wartung_id,
+        datum_von=datum_von,
+        datum_bis=datum_bis,
+        title='Protokollierte Wartungen',
+    )
+
+
 def _format_durchfuehrung_datum_anzeige(durchgefuehrt_am):
     if not durchgefuehrt_am:
         return ''
@@ -592,6 +742,9 @@ def jahresuebersicht():
                 matrix_groups=[],
                 kann_protokollieren=kann_wartung_protokollieren(),
                 title='Wartungen – Jahresübersicht',
+                jahresuebersicht_protokoll_query=_jahresuebersicht_protokoll_query_args(
+                    jahr, _query_int_arg('bereich_id'), _query_int_arg('gewerk_id'),
+                ),
             )
 
         bereich_id = _query_int_arg('bereich_id')
@@ -622,11 +775,17 @@ def jahresuebersicht():
                     wid_list.append(row['wartung']['ID'])
             plan_map = services.map_wartung_zu_aktiven_plan_ids(
                 conn, wid_list, mitarbeiter_id, adm,
+                bereich_id=bereich_id, gewerk_id=gewerk_id,
+            )
+            plan_meta_map = services.map_wartung_aktive_plaene_metadaten(
+                conn, wid_list, mitarbeiter_id, adm,
+                bereich_id=bereich_id, gewerk_id=gewerk_id,
             )
             for g in matrix_groups:
                 for row in g['rows']:
                     wid = row['wartung']['ID']
                     row['aktive_plan_ids'] = plan_map.get(wid, [])
+                    row['aktive_plaene_meta'] = plan_meta_map.get(wid, [])
 
     return render_template(
         'wartungen/jahresuebersicht.html',
@@ -640,6 +799,9 @@ def jahresuebersicht():
         matrix_groups=matrix_groups,
         kann_protokollieren=kann_wartung_protokollieren(),
         title='Wartungen – Jahresübersicht',
+        jahresuebersicht_protokoll_query=_jahresuebersicht_protokoll_query_args(
+            jahr, bereich_id, gewerk_id,
+        ),
     )
 
 
@@ -736,6 +898,14 @@ def durchfuehrung_neu(plan_id):
         flash('Keine Berechtigung zum Protokollieren von Wartungen.', 'danger')
         return redirect(url_for('wartungen.plaene_uebersicht'))
     mitarbeiter_id = session.get('user_id')
+    kontext = (
+        _parse_protokoll_kontext_form(request.form)
+        if request.method == 'POST'
+        else _parse_protokoll_kontext_args(request.args)
+    )
+    zurueck_jahres_url = None
+    if kontext.get('herkunft') == PROTOKOLL_HERKUNFT_JAHRESUEBERSICHT:
+        zurueck_jahres_url = _url_jahresuebersicht_mit_protokoll_kontext(kontext)
     with get_db_connection() as conn:
         if not hat_wartungsplan_zugriff(mitarbeiter_id, plan_id, conn):
             flash('Kein Zugriff.', 'danger')
@@ -748,6 +918,7 @@ def durchfuehrung_neu(plan_id):
         ''').fetchall()
         fremdfirmen = services.list_fremdfirmen(conn, nur_aktiv=True)
         if request.method == 'POST':
+            speichern_aktion = (request.form.get('speichern_aktion') or 'detail').strip()
             dt = _parse_datetime_local(request.form.get('durchgefuehrt_am'))
             if not dt:
                 flash('Datum/Zeit der Durchführung ist erforderlich.', 'danger')
@@ -775,6 +946,11 @@ def durchfuehrung_neu(plan_id):
                         if n_sb:
                             msg += f' {n_sb} Servicebericht(e) gespeichert.'
                         flash(msg, 'success')
+                        if (
+                            speichern_aktion == 'jahresuebersicht'
+                            and kontext.get('herkunft') == PROTOKOLL_HERKUNFT_JAHRESUEBERSICHT
+                        ):
+                            return redirect(_url_jahresuebersicht_mit_protokoll_kontext(kontext))
                         return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=dfid))
                     except Exception as e:
                         flash(f'Fehler: {e}', 'danger')
@@ -786,6 +962,8 @@ def durchfuehrung_neu(plan_id):
         fremdfirmen=fremdfirmen,
         batch=False,
         plan_optionen=[],
+        protokoll_kontext=kontext,
+        zurueck_jahres_url=zurueck_jahres_url,
     )
 
 
@@ -873,6 +1051,8 @@ def durchfuehrung_mehrere():
         batch=True,
         plan_optionen=plan_optionen,
         vorausgewaehlte_plan_ids=vorausgewaehlte_plan_ids,
+        protokoll_kontext=None,
+        zurueck_jahres_url=None,
     )
 
 
