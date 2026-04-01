@@ -2,80 +2,65 @@
 {% from 'components/datei_upload.html' import datei_upload %}
 {% from 'components/datei_liste.html' import datei_liste %}
 {% block content %}
-<h1 class="mb-3">Wartungsdurchführung</h1>
-<div class="mb-3 d-flex flex-wrap gap-2">
-  <a href="{{ url_for('wartungen.plaene_uebersicht') }}" class="btn btn-secondary">
-    <i class="bi bi-arrow-left"></i> Alle Pläne
-  </a>
-  <a href="{{ url_for('wartungen.wartung_detail', wartung_id=d.WartungID, plan_id=d.PlanID) }}" class="btn btn-secondary">
-    <i class="bi bi-calendar-week"></i> Zur Wartung / Plan
-  </a>
+<div class="mb-3">
+  <button type="button" class="btn btn-secondary" id="btnZurueckDurchfuehrung">
+    <i class="bi bi-arrow-left"></i> Zurück
+  </button>
 </div>
-<p class="text-muted">{{ d.Bereich }} – {{ d.Gewerk }} · {{ d.WartungBez }}</p>
-<p><strong>Durchgeführt am:</strong> {{ d.DurchgefuehrtAm }}</p>
-{% if d.Bemerkung %}<p><strong>Bemerkung:</strong> {{ d.Bemerkung }}</p>{% endif %}
 
-<div class="row mb-4 g-3">
-  <div class="col-md-6">
-    <div class="card shadow-sm h-100">
-      <div class="card-header">Mitarbeiter</div>
-      <div class="card-body p-0">
+<div class="card mb-4 shadow-sm">
+  <div class="card-header bg-primary text-white">
+    <h5 class="mb-0">Wartungsinformation</h5>
+  </div>
+  <div class="card-body">
+    <table class="table table-sm table-borderless mb-3">
+      <tbody>
+        <tr>
+          <td class="text-muted align-top" style="width: 11rem;"><strong>Wartung</strong></td>
+          <td><strong class="fs-5">{{ d.WartungBez }}</strong></td>
+        </tr>
+        <tr>
+          <td class="text-muted"><strong>Bereich / Gewerk</strong></td>
+          <td>{{ d.Bereich }} – {{ d.Gewerk }}</td>
+        </tr>
+        <tr>
+          <td class="text-muted"><strong>Durchgeführt am</strong></td>
+          <td class="text-nowrap">{% if d.DurchgefuehrtAm %}{{ d.DurchgefuehrtAm[:16] }}{% else %}–{% endif %}</td>
+        </tr>
+        <tr>
+          <td class="text-muted align-top"><strong>Bemerkung</strong></td>
+          <td class="text-break">{{ d.Bemerkung or '–' }}</td>
+        </tr>
+      </tbody>
+    </table>
+    <hr class="my-3">
+    <div class="row g-4">
+      <div class="col-md-6">
+        <h6 class="text-muted mb-2">Mitarbeiter</h6>
         {% if mitarbeitende %}
-        <div class="table-responsive">
-          <table class="table table-hover mb-0">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th style="white-space: nowrap;">Personalnr.</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for m in mitarbeitende %}
-              <tr>
-                <td>{{ m.Nachname }}, {{ m.Vorname }}</td>
-                <td>{{ m.Personalnummer }}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+        <ul class="list-unstyled mb-0 small">
+          {% for m in mitarbeitende %}
+          <li class="mb-1">{{ m.Nachname }}, {{ m.Vorname }}{% if m.Personalnummer %} <span class="text-muted">({{ m.Personalnummer }})</span>{% endif %}</li>
+          {% endfor %}
+        </ul>
         {% else %}
-        <div class="card-body">
-          <p class="text-muted mb-0">—</p>
-        </div>
+        <p class="text-muted mb-0 small">—</p>
         {% endif %}
       </div>
-    </div>
-  </div>
-  <div class="col-md-6">
-    <div class="card shadow-sm h-100">
-      <div class="card-header">Fremdfirmen</div>
-      <div class="card-body p-0">
+      <div class="col-md-6">
+        <h6 class="text-muted mb-2">Fremdfirmen</h6>
         {% if fremd %}
-        <div class="table-responsive">
-          <table class="table table-hover mb-0">
-            <thead>
-              <tr>
-                <th>Firma</th>
-                <th>Techniker</th>
-                <th>Telefon</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for f in fremd %}
-              <tr>
-                <td>{{ f.Firmenname }}</td>
-                <td>{{ f.Techniker }}</td>
-                <td style="white-space: nowrap;">{{ f.Telefon or '–' }}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+        <ul class="list-unstyled mb-0 small">
+          {% for f in fremd %}
+          <li class="mb-2">
+            <strong>{{ f.Firmenname }}</strong>
+            {% if f.Techniker %}<br>Techniker: {{ f.Techniker }}{% endif %}
+            {% if f.Telefon %}<br><span class="text-nowrap">Tel. {{ f.Telefon }}</span>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
         {% else %}
-        <div class="card-body">
-          <p class="text-muted mb-0">—</p>
-        </div>
+        <p class="text-muted mb-0 small">—</p>
         {% endif %}
       </div>
     </div>
@@ -125,82 +110,163 @@
   </div>
 </div>
 
-<div class="card shadow-sm mb-4">
-  <div class="card-header">Lagerbuchungen</div>
-  <div class="card-body p-0">
+<div class="card mb-4 shadow-sm">
+  <div class="card-header bg-warning text-dark">
+    <h5 class="mb-0">Verwendete Ersatzteile</h5>
+  </div>
+  <div class="card-body">
     {% if lagerbuchungen %}
     <div class="table-responsive">
-      <table class="table table-hover mb-0 align-middle">
+      <table class="table table-sm mb-0">
         <thead>
           <tr>
-            <th style="white-space: nowrap;">Datum</th>
-            <th>Artikel</th>
-            <th style="white-space: nowrap;">Menge</th>
+            <th>Datum</th>
+            <th>ID</th>
+            <th>Ersatzteil</th>
+            <th>Typ</th>
+            <th>Menge</th>
+            <th>Preis</th>
+            <th>Kostenstelle</th>
+            <th>Grund</th>
+            <th>Von</th>
             <th>Bemerkung</th>
           </tr>
         </thead>
         <tbody>
-          {% for l in lagerbuchungen %}
+          {% for v in lagerbuchungen %}
           <tr>
-            <td style="white-space: nowrap;">{% if l.Buchungsdatum %}{{ l.Buchungsdatum[:16] }}{% else %}–{% endif %}</td>
-            <td><span class="text-muted">{{ l.Bestellnummer }}</span> {{ l.ErsatzteilBez }}</td>
-            <td>{{ l.Menge }}</td>
-            <td class="text-break">{{ l.Bemerkung or '–' }}</td>
+            <td>{{ v.Buchungsdatum[:16] if v.Buchungsdatum else '-' }}</td>
+            <td>
+              <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=v.ErsatzteilID) }}" class="text-decoration-none">
+                {{ v.ErsatzteilID }}
+              </a>
+            </td>
+            <td>
+              <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=v.ErsatzteilID) }}" class="text-decoration-none">
+                {{ v.Bestellnummer }} - {{ v.ErsatzteilBezeichnung }}
+              </a>
+            </td>
+            <td>
+              {% if v.Typ == 'Eingang' %}
+              <span class="badge bg-success">Eingang</span>
+              {% elif v.Typ == 'Inventur' %}
+              <span class="badge bg-info">Inventur</span>
+              {% else %}
+              <span class="badge bg-danger">Ausgang</span>
+              {% endif %}
+            </td>
+            <td><strong>{{ v.Menge }}</strong></td>
+            <td>
+              {% if v.Preis %}
+              {{ "%.2f"|format(v.Preis) }} {{ v.Waehrung or 'EUR' }}
+              {% else %}
+              -
+              {% endif %}
+            </td>
+            <td>{{ v.Kostenstelle or '-' }}</td>
+            <td>{{ v.Grund or '-' }}</td>
+            <td>{{ v.VerwendetVon or '-' }}</td>
+            <td>{{ v.Bemerkung or '-' }}</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
     {% else %}
-    <div class="card-body">
-      <div class="alert alert-info mb-0">
-        <i class="bi bi-info-circle"></i> Keine Lagerbuchungen zu dieser Durchführung.
-      </div>
+    <div class="alert alert-info mb-0">
+      <i class="bi bi-info-circle"></i> Keine Lagerbuchungen zu dieser Durchführung.
     </div>
     {% endif %}
   </div>
 </div>
 
 {% if kann_protokollieren %}
-<div class="card shadow-sm mb-4">
-  <div class="card-header">Ersatzteile verbuchen</div>
+<div class="card mb-4 shadow-sm">
+  <div class="card-header bg-info text-white">
+    <h5 class="mb-0">Ersatzteil zuordnen</h5>
+  </div>
   <div class="card-body">
-    <form method="post">
-      {% for row in [1,2,3] %}
-      <div class="row g-2 mb-2">
+    <form method="post" action="{{ url_for('wartungen.durchfuehrung_ersatzteil_verknuepfen', durchfuehrung_id=d.ID) }}" id="ersatzteilZuordnenFormWd">
+      <div class="row g-3">
         <div class="col-md-4">
-          <select name="ersatzteil_id[]" class="form-select">
-            <option value="">— Artikel —</option>
-            {% for e in ersatzteile %}
-            <option value="{{ e.ID }}">{{ e.Bezeichnung }} ({{ e.Bestellnummer }}, Best. {{ e.AktuellerBestand }})</option>
-            {% endfor %}
-          </select>
+          <label class="form-label"><strong>Ersatzteil-ID:</strong></label>
+          <div class="input-group">
+            <input type="number" id="ersatzteil_id_wd" class="form-control" placeholder="ID eingeben" min="1">
+            <button type="button" class="btn btn-outline-secondary" onclick="lookupErsatzteilWdButton(this)">
+              <i class="bi bi-arrow-right"></i>
+            </button>
+          </div>
+          <input type="hidden" name="ersatzteil_id" id="ersatzteil_id_hidden_wd" required>
+          <div class="mt-2">
+            <small class="text-muted"><span id="ersatzteil_info_wd"></span></small>
+          </div>
         </div>
         <div class="col-md-2">
-          <input type="number" name="ersatzteil_menge[]" class="form-control" min="1" value="1" placeholder="Menge">
+          <label class="form-label"><strong>Menge:</strong></label>
+          <input type="number" name="menge" class="form-control" min="1" required value="1">
         </div>
         <div class="col-md-3">
-          <select name="ersatzteil_kostenstelle[]" class="form-select">
-            <option value="">Kostenstelle</option>
+          <label class="form-label"><strong>Kostenstelle:</strong></label>
+          <select name="kostenstelle_id" class="form-select">
+            <option value="">-- Keine --</option>
             {% for k in kostenstellen %}
             <option value="{{ k.ID }}">{{ k.Bezeichnung }}</option>
             {% endfor %}
           </select>
         </div>
         <div class="col-md-3">
-          <input type="text" name="ersatzteil_bemerkung[]" class="form-control" placeholder="Bemerkung">
+          <label class="form-label"><strong>Bemerkung:</strong></label>
+          <input type="text" name="bemerkung" class="form-control">
+        </div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg"></i> Zuordnen
+          </button>
         </div>
       </div>
-      {% endfor %}
-      <button type="submit" class="btn btn-primary">Ausgang buchen</button>
     </form>
   </div>
 </div>
 {% endif %}
+
+<div class="modal fade" id="ersatzteilModalWd" tabindex="-1" aria-labelledby="ersatzteilModalWdLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="ersatzteilModalWdLabel">Ersatzteil auswählen</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <input type="text" class="form-control" id="ersatzteilSearchWd" placeholder="Suchen nach Bestellnummer, Bezeichnung oder ID…" autocomplete="off">
+        </div>
+        <div id="ersatzteilModalListWd">
+          <div class="text-center p-4">
+            <div class="spinner-border" role="status"><span class="visually-hidden">Lädt…</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+(function () {
+  const fallbackUrl = {{ fallback_zurueck|tojson }};
+  document.getElementById('btnZurueckDurchfuehrung').addEventListener('click', function () {
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      window.location.href = fallbackUrl;
+    }
+  });
+})();
+
 async function ladeImportDateienWartungsdurchfuehrung(durchfuehrungId) {
   const listeId = 'wd-sb-import-tab-dateien-liste';
   const liste = document.getElementById(listeId);
@@ -273,5 +339,162 @@ async function verschiebeAusImportWartungsdurchfuehrung(filename, durchfuehrungI
     alert('Fehler beim Verschieben der Datei.');
   }
 }
+
+function lookupErsatzteilWdButton(button) {
+  const ersatzteilInput = document.getElementById('ersatzteil_id_wd');
+  const ersatzteilId = ersatzteilInput.value.trim();
+  const infoSpan = document.getElementById('ersatzteil_info_wd');
+  if (!ersatzteilId) {
+    openErsatzteilModalWd();
+    return;
+  }
+  button.disabled = true;
+  button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  ersatzteilInput.disabled = true;
+  fetch('/ersatzteile/api/ersatzteil/' + ersatzteilId)
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      button.disabled = false;
+      button.innerHTML = '<i class="bi bi-arrow-right"></i>';
+      ersatzteilInput.disabled = false;
+      if (data.success) {
+        document.getElementById('ersatzteil_id_hidden_wd').value = data.id;
+        infoSpan.innerHTML = '<strong>' + (data.bestellnummer || 'Keine Bestellnummer') + '</strong> - ' + (data.bezeichnung || 'Keine Bezeichnung');
+        infoSpan.className = 'text-success';
+        ersatzteilInput.classList.remove('is-invalid');
+      } else {
+        infoSpan.innerHTML = '';
+        ersatzteilInput.classList.add('is-invalid');
+        alert(data.message || 'Ersatzteil nicht gefunden.');
+      }
+    })
+    .catch(function () {
+      button.disabled = false;
+      button.innerHTML = '<i class="bi bi-arrow-right"></i>';
+      ersatzteilInput.disabled = false;
+      alert('Fehler beim Laden der Ersatzteil-Daten.');
+    });
+}
+
+function openErsatzteilModalWd() {
+  const el = document.getElementById('ersatzteilModalWd');
+  const modal = new bootstrap.Modal(el);
+  const modalBody = document.getElementById('ersatzteilModalListWd');
+  modalBody.innerHTML = '<div class="text-center p-4"><div class="spinner-border" role="status"><span class="visually-hidden">Lädt…</span></div></div>';
+  const searchInput = document.getElementById('ersatzteilSearchWd');
+  if (searchInput) searchInput.value = '';
+  modal.show();
+  fetch('/ersatzteile/api/ersatzteile/alle')
+    .then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function (data) {
+      if (data.success && data.ersatzteile && data.ersatzteile.length > 0) {
+        window.ersatzteilListWd = data.ersatzteile;
+        renderErsatzteilListWd(data.ersatzteile);
+        if (searchInput) setTimeout(function () { searchInput.focus(); }, 100);
+      } else {
+        modalBody.innerHTML = '<div class="alert alert-info">Keine Ersatzteile gefunden.</div>';
+      }
+    })
+    .catch(function (err) {
+      modalBody.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Ersatzteile.</div>';
+      console.error(err);
+    });
+}
+
+function renderErsatzteilListWd(ersatzteile) {
+  const modalBody = document.getElementById('ersatzteilModalListWd');
+  if (!modalBody) return;
+  if (ersatzteile.length === 0) {
+    modalBody.innerHTML = '<div class="alert alert-info">Keine Ersatzteile gefunden.</div>';
+    return;
+  }
+  let html = '<div class="list-group">';
+  ersatzteile.forEach(function (ersatzteil) {
+    const bestandText = (String(ersatzteil.bestand || 0) + ' ' + (ersatzteil.einheit || '')).trim();
+    const bestellnummerEscaped = (ersatzteil.bestellnummer || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    const bezeichnungEscaped = (ersatzteil.bezeichnung || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    html += '<a href="#" class="list-group-item list-group-item-action" onclick="selectErsatzteilWd(' + ersatzteil.id + ', \'' + bestellnummerEscaped + '\', \'' + bezeichnungEscaped + '\', event)">' +
+      '<div class="d-flex w-100 justify-content-between"><h6 class="mb-1">' + (ersatzteil.bestellnummer || 'Keine Bestellnummer') + '</h6><small>' + bestandText + '</small></div>' +
+      '<p class="mb-1">' + (ersatzteil.bezeichnung || 'Keine Bezeichnung') + '</p><small>ID: ' + ersatzteil.id + '</small></a>';
+  });
+  html += '</div>';
+  modalBody.innerHTML = html;
+}
+
+function filterErsatzteilListWd(searchTerm) {
+  if (!window.ersatzteilListWd) return;
+  const term = searchTerm.toLowerCase().trim();
+  if (term === '') {
+    renderErsatzteilListWd(window.ersatzteilListWd);
+    return;
+  }
+  const filtered = window.ersatzteilListWd.filter(function (ersatzteil) {
+    const bestellnummer = (ersatzteil.bestellnummer || '').toLowerCase();
+    const bezeichnung = (ersatzteil.bezeichnung || '').toLowerCase();
+    const id = String(ersatzteil.id);
+    return bestellnummer.includes(term) || bezeichnung.includes(term) || id.includes(term);
+  });
+  renderErsatzteilListWd(filtered);
+}
+
+function selectErsatzteilWd(id, bestellnummer, bezeichnung, event) {
+  event.preventDefault();
+  const modal = bootstrap.Modal.getInstance(document.getElementById('ersatzteilModalWd'));
+  const ersatzteilInput = document.getElementById('ersatzteil_id_wd');
+  const hiddenInput = document.getElementById('ersatzteil_id_hidden_wd');
+  const infoSpan = document.getElementById('ersatzteil_info_wd');
+  if (ersatzteilInput) ersatzteilInput.value = id;
+  if (hiddenInput) hiddenInput.value = id;
+  if (infoSpan) {
+    infoSpan.innerHTML = '<strong>' + (bestellnummer || '') + '</strong> - ' + (bezeichnung || '');
+    infoSpan.className = 'text-success';
+  }
+  if (ersatzteilInput) ersatzteilInput.classList.remove('is-invalid');
+  if (modal) modal.hide();
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  const ersatzteilInput = document.getElementById('ersatzteil_id_wd');
+  if (ersatzteilInput) {
+    ersatzteilInput.addEventListener('keypress', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const btn = ersatzteilInput.closest('.input-group') && ersatzteilInput.closest('.input-group').querySelector('button');
+        if (btn) lookupErsatzteilWdButton(btn);
+      }
+    });
+    ersatzteilInput.addEventListener('blur', function () {
+      if (this.value.trim()) {
+        const btn = this.closest('.input-group') && this.closest('.input-group').querySelector('button');
+        if (btn) lookupErsatzteilWdButton(btn);
+      }
+    });
+  }
+  const searchInput = document.getElementById('ersatzteilSearchWd');
+  if (searchInput) {
+    searchInput.addEventListener('input', function () {
+      filterErsatzteilListWd(this.value);
+    });
+  }
+  const form = document.getElementById('ersatzteilZuordnenFormWd');
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      const hiddenInput = document.getElementById('ersatzteil_id_hidden_wd');
+      const idInput = document.getElementById('ersatzteil_id_wd');
+      if (idInput.value.trim() && !hiddenInput.value) {
+        hiddenInput.value = idInput.value.trim();
+      }
+      if (!hiddenInput.value && !idInput.value.trim()) {
+        e.preventDefault();
+        alert('Bitte wählen Sie ein Ersatzteil aus oder geben Sie eine ID ein.');
+        idInput.focus();
+        return false;
+      }
+    });
+  }
+});
 </script>
 {% endblock %}

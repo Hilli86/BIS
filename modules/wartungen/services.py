@@ -935,9 +935,24 @@ def get_durchfuehrung_detail(conn, durchfuehrung_id):
         ORDER BY z.ID
     ''', (durchfuehrung_id,)).fetchall()
     lager = conn.execute('''
-        SELECT l.ID, l.Menge, l.Buchungsdatum, l.Bemerkung, e.Bestellnummer, e.Bezeichnung AS ErsatzteilBez
+        SELECT
+            l.ID AS BuchungsID,
+            l.ErsatzteilID,
+            l.Typ,
+            l.Menge,
+            l.Grund,
+            l.Buchungsdatum,
+            l.Bemerkung,
+            l.Preis,
+            l.Waehrung,
+            e.Bestellnummer,
+            e.Bezeichnung AS ErsatzteilBezeichnung,
+            m.Vorname || ' ' || m.Nachname AS VerwendetVon,
+            k.Bezeichnung AS Kostenstelle
         FROM Lagerbuchung l
         JOIN Ersatzteil e ON l.ErsatzteilID = e.ID
+        LEFT JOIN Mitarbeiter m ON l.VerwendetVonID = m.ID
+        LEFT JOIN Kostenstelle k ON l.KostenstelleID = k.ID
         WHERE l.WartungsdurchfuehrungID = ?
         ORDER BY l.Buchungsdatum DESC
     ''', (durchfuehrung_id,)).fetchall()
@@ -1051,6 +1066,39 @@ def process_ersatzteile_fuer_wartungsdurchfuehrung(
         if ok:
             verarbeitet += 1
     return verarbeitet
+
+
+def buche_ein_ersatzteil_wartungsdurchfuehrung(
+    conn,
+    durchfuehrung_id,
+    ersatzteil_id_raw,
+    menge_raw,
+    bemerkung_form,
+    kostenstelle_id_raw,
+    mitarbeiter_id,
+    is_admin,
+):
+    """Eine Lagerbuchung (Ausgang) für eine Wartungsdurchführung – gleiche Regeln wie Mehrfach-Formular."""
+    if not ersatzteil_id_raw or not str(ersatzteil_id_raw).strip():
+        return False, 'Bitte ein Ersatzteil wählen oder die ID eingeben.'
+    ks_list = []
+    if kostenstelle_id_raw and str(kostenstelle_id_raw).strip():
+        ks_list = [str(kostenstelle_id_raw).strip()]
+    else:
+        ks_list = ['']
+    n = process_ersatzteile_fuer_wartungsdurchfuehrung(
+        durchfuehrung_id,
+        [str(ersatzteil_id_raw).strip()],
+        [str(menge_raw) if menge_raw is not None else '1'],
+        [bemerkung_form or ''],
+        mitarbeiter_id,
+        conn,
+        is_admin=is_admin,
+        ersatzteil_kostenstellen=ks_list,
+    )
+    if n:
+        return True, 'Ersatzteil zugeordnet und Lagerbuchung ausgeführt.'
+    return False, 'Buchung nicht möglich (Artikel unbekannt, kein Bestand oder keine Berechtigung).'
 
 
 # --- Fremdfirma ---

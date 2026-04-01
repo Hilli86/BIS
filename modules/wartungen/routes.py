@@ -1104,7 +1104,41 @@ def durchfuehrung_mehrere():
     )
 
 
-@wartungen_bp.route('/durchfuehrung/<int:durchfuehrung_id>', methods=['GET', 'POST'])
+@wartungen_bp.route('/durchfuehrung/<int:durchfuehrung_id>/ersatzteil-verknuepfen', methods=['POST'])
+@login_required
+def durchfuehrung_ersatzteil_verknuepfen(durchfuehrung_id):
+    mitarbeiter_id = session.get('user_id')
+    adm = is_admin()
+    if not kann_wartung_protokollieren():
+        flash('Keine Berechtigung zum Verbuchen.', 'danger')
+        return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=durchfuehrung_id))
+    eid = request.form.get('ersatzteil_id')
+    menge = request.form.get('menge', 1)
+    bem = request.form.get('bemerkung', '').strip()
+    ks = request.form.get('kostenstelle_id')
+    with get_db_connection() as conn:
+        if not hat_wartungsdurchfuehrung_zugriff(mitarbeiter_id, durchfuehrung_id, conn):
+            flash('Kein Zugriff.', 'danger')
+            return redirect(url_for('wartungen.wartung_liste'))
+        ok, msg = services.buche_ein_ersatzteil_wartungsdurchfuehrung(
+            conn,
+            durchfuehrung_id,
+            eid,
+            menge,
+            bem,
+            ks,
+            mitarbeiter_id,
+            adm,
+        )
+        if ok:
+            conn.commit()
+            flash(msg, 'success')
+        else:
+            flash(msg, 'danger')
+    return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=durchfuehrung_id))
+
+
+@wartungen_bp.route('/durchfuehrung/<int:durchfuehrung_id>', methods=['GET'])
 @login_required
 def durchfuehrung_detail(durchfuehrung_id):
     mitarbeiter_id = session.get('user_id')
@@ -1113,21 +1147,6 @@ def durchfuehrung_detail(durchfuehrung_id):
         if not hat_wartungsdurchfuehrung_zugriff(mitarbeiter_id, durchfuehrung_id, conn):
             flash('Kein Zugriff.', 'danger')
             return redirect(url_for('wartungen.wartung_liste'))
-        if request.method == 'POST':
-            if not kann_wartung_protokollieren():
-                flash('Keine Berechtigung zum Verbuchen.', 'danger')
-                return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=durchfuehrung_id))
-            eids = request.form.getlist('ersatzteil_id[]')
-            mengen = request.form.getlist('ersatzteil_menge[]')
-            bems = request.form.getlist('ersatzteil_bemerkung[]')
-            ks = request.form.getlist('ersatzteil_kostenstelle[]')
-            n = services.process_ersatzteile_fuer_wartungsdurchfuehrung(
-                durchfuehrung_id, eids, mengen, bems, mitarbeiter_id, conn,
-                is_admin=adm, ersatzteil_kostenstellen=ks,
-            )
-            conn.commit()
-            flash(f'{n} Lagerbuchung(en) ausgeführt.', 'success')
-            return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=durchfuehrung_id))
         d, mit, ff, lager = services.get_durchfuehrung_detail(conn, durchfuehrung_id)
         if not d:
             flash('Nicht gefunden.', 'danger')
@@ -1135,10 +1154,12 @@ def durchfuehrung_detail(durchfuehrung_id):
         serviceberichte = get_dateien_fuer_bereich(
             BEREICH_TYP_WARTUNGSDURCHFUEHRUNG, durchfuehrung_id, conn
         )
-        ersatzteile = services.get_verfuegbare_ersatzteile(conn, mitarbeiter_id, adm)
         kostenstellen = conn.execute(
             'SELECT ID, Bezeichnung FROM Kostenstelle WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung'
         ).fetchall()
+    fallback_zurueck = url_for(
+        'wartungen.wartung_detail', wartung_id=d['WartungID'], plan_id=d['PlanID'],
+    )
     return render_template(
         'wartungen/durchfuehrung_detail.html',
         d=d,
@@ -1146,9 +1167,9 @@ def durchfuehrung_detail(durchfuehrung_id):
         fremd=ff,
         lagerbuchungen=lager,
         serviceberichte=serviceberichte,
-        ersatzteile=ersatzteile,
         kostenstellen=kostenstellen,
         kann_protokollieren=kann_wartung_protokollieren(),
+        fallback_zurueck=fallback_zurueck,
     )
 
 
