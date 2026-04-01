@@ -36,6 +36,16 @@
           <label class="form-label">Nächste Fälligkeit (optional)</label>
           <input type="date" name="naechste_faelligkeit" class="form-control w-auto" value="{{ plan.NaechsteFaelligkeit if plan and plan.NaechsteFaelligkeit else '' }}">
         </div>
+        <div class="mb-3">
+          <div class="form-check">
+            <input type="checkbox" name="hat_festes_intervall" value="1" class="form-check-input" id="hat_festes_intervall"
+              {% if plan and plan.HatFestesIntervall %}checked{% endif %}>
+            <label class="form-check-label" for="hat_festes_intervall">Hat festes Intervall</label>
+          </div>
+          <div class="form-text">
+            Wenn aktiviert, wird die nächste Fälligkeit vom bisherigen Solltermin gerechnet; sonst vom Datum der Durchführung.
+          </div>
+        </div>
         {% if plan %}
         <div class="mb-0 form-check">
           <input type="checkbox" name="aktiv" value="1" class="form-check-input" id="aktiv" {% if plan.Aktiv %}checked{% endif %}>

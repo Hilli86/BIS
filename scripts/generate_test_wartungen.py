@@ -172,8 +172,9 @@ def insert_plan(
 ) -> int:
     cur = conn.execute(
         '''
-        INSERT INTO Wartungsplan (WartungID, IntervallEinheit, IntervallAnzahl, NaechsteFaelligkeit)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO Wartungsplan
+        (WartungID, IntervallEinheit, IntervallAnzahl, NaechsteFaelligkeit, HatFestesIntervall)
+        VALUES (?, ?, ?, ?, 0)
         ''',
         (wartung_id, einheit, anzahl, naechste),
     )

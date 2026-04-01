@@ -715,6 +715,7 @@ def init_database_schema(db_path, verbose=False):
                 IntervallEinheit TEXT NOT NULL,
                 IntervallAnzahl INTEGER NOT NULL DEFAULT 1,
                 NaechsteFaelligkeit DATE,
+                HatFestesIntervall INTEGER NOT NULL DEFAULT 0,
                 Aktiv INTEGER NOT NULL DEFAULT 1,
                 ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (WartungID) REFERENCES Wartung(ID) ON DELETE CASCADE
@@ -723,6 +724,11 @@ def init_database_schema(db_path, verbose=False):
             'CREATE INDEX idx_wartungsplan_wartung ON Wartungsplan(WartungID)',
             'CREATE INDEX idx_wartungsplan_aktiv ON Wartungsplan(Aktiv)'
         ])
+        if table_exists(conn, 'Wartungsplan') and not column_exists(conn, 'Wartungsplan', 'HatFestesIntervall'):
+            create_column_if_not_exists(
+                conn, 'Wartungsplan', 'HatFestesIntervall',
+                'ALTER TABLE Wartungsplan ADD COLUMN HatFestesIntervall INTEGER NOT NULL DEFAULT 0',
+            )
         
         create_table_if_not_exists(conn, 'Wartungsdurchfuehrung', '''
             CREATE TABLE Wartungsdurchfuehrung (

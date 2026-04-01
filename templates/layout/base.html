@@ -881,6 +881,19 @@
       });
     });
 
+    // Native Kalender bzw. Datum/Uhrzeit-Popup: nach bestätigter Auswahl Fokus entfernen (hilft, das Overlay in Chromium, Edge und Firefox zu schließen)
+    document.addEventListener(
+      'change',
+      function (e) {
+        var el = e.target;
+        if (!el || (el.type !== 'date' && el.type !== 'datetime-local')) return;
+        requestAnimationFrame(function () {
+          el.blur();
+        });
+      },
+      true,
+    );
+
     // Mobile Menü Toggle (nur wenn Elemente vorhanden sind)
     const menuToggle = document.getElementById('menuToggle');
     const sidebar = document.getElementById('sidebar');

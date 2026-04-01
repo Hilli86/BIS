@@ -88,6 +88,14 @@ def _query_int_arg(name):
     return int(raw)
 
 
+def _prefill_durchgefuehrt_am_datetime_local():
+    """Wert für datetime-local-Feld: jetzt oder letzter POST nach Validierungsfehler."""
+    raw = (request.form.get('durchgefuehrt_am') or '').strip()
+    if raw:
+        return raw
+    return datetime.now().strftime('%Y-%m-%dT%H:%M')
+
+
 PROTOKOLL_HERKUNFT_JAHRESUEBERSICHT = 'jahresuebersicht'
 
 
@@ -821,8 +829,11 @@ def plan_neu(wartung_id):
             einheit = request.form.get('intervall_einheit', '')
             anzahl = request.form.get('intervall_anzahl', 1)
             naechste = request.form.get('naechste_faelligkeit', '')
+            hat_fest = request.form.get('hat_festes_intervall') == '1'
             try:
-                pid = services.create_wartungsplan(conn, wartung_id, einheit, anzahl, naechste)
+                pid = services.create_wartungsplan(
+                    conn, wartung_id, einheit, anzahl, naechste, hat_festes_intervall=hat_fest,
+                )
                 conn.commit()
                 flash('Wartungsplan angelegt.', 'success')
                 return redirect(
@@ -873,8 +884,12 @@ def plan_bearbeiten(plan_id):
             anzahl = request.form.get('intervall_anzahl', 1)
             naechste = request.form.get('naechste_faelligkeit', '')
             aktiv = request.form.get('aktiv') == '1'
+            hat_fest = request.form.get('hat_festes_intervall') == '1'
             try:
-                services.update_wartungsplan(conn, plan_id, einheit, anzahl, naechste, aktiv)
+                services.update_wartungsplan(
+                    conn, plan_id, einheit, anzahl, naechste, aktiv,
+                    hat_festes_intervall=hat_fest,
+                )
                 conn.commit()
                 flash('Gespeichert.', 'success')
                 w_id = p['WartungID']
@@ -898,6 +913,7 @@ def durchfuehrung_neu(plan_id):
         flash('Keine Berechtigung zum Protokollieren von Wartungen.', 'danger')
         return redirect(url_for('wartungen.plaene_uebersicht'))
     mitarbeiter_id = session.get('user_id')
+    adm = is_admin()
     kontext = (
         _parse_protokoll_kontext_form(request.form)
         if request.method == 'POST'
@@ -917,6 +933,9 @@ def durchfuehrung_neu(plan_id):
             WHERE Aktiv = 1 ORDER BY Nachname, Vorname
         ''').fetchall()
         fremdfirmen = services.list_fremdfirmen(conn, nur_aktiv=True)
+        kostenstellen = conn.execute(
+            'SELECT ID, Bezeichnung FROM Kostenstelle WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung',
+        ).fetchall()
         if request.method == 'POST':
             speichern_aktion = (request.form.get('speichern_aktion') or 'detail').strip()
             dt = _parse_datetime_local(request.form.get('durchgefuehrt_am'))
@@ -930,7 +949,7 @@ def durchfuehrung_neu(plan_id):
                     flash(err, 'danger')
                 else:
                     try:
-                        dfid = services.insert_wartungsdurchfuehrung(
+                        dfid, naechste_plan = services.insert_wartungsdurchfuehrung(
                             conn, plan_id, dt, request.form.get('bemerkung', ''), teil, mitarbeiter_id,
                         )
                         sb_files = [f for f in request.files.getlist('file') if f and f.filename]
@@ -939,12 +958,28 @@ def durchfuehrung_neu(plan_id):
                         n_sb, sb_errs = _save_serviceberichte_files(
                             conn, dfid, mitarbeiter_id, sb_files, sb_besch, sb_typ,
                         )
+                        eids = request.form.getlist('ersatzteil_id[]')
+                        mengen = request.form.getlist('ersatzteil_menge[]')
+                        bems = request.form.getlist('ersatzteil_bemerkung[]')
+                        ks = request.form.getlist('ersatzteil_kostenstelle[]')
+                        n_lb = services.process_ersatzteile_fuer_wartungsdurchfuehrung(
+                            dfid, eids, mengen, bems, mitarbeiter_id, conn,
+                            is_admin=adm, ersatzteil_kostenstellen=ks,
+                        )
+                        conn.commit()
                         for e in sb_errs:
                             flash(e, 'warning')
-                        conn.commit()
                         msg = 'Durchführung protokolliert.'
                         if n_sb:
                             msg += f' {n_sb} Servicebericht(e) gespeichert.'
+                        if n_lb:
+                            msg += f' {n_lb} Lagerbuchung(en) ausgeführt.'
+                        if naechste_plan:
+                            try:
+                                d_fmt = datetime.strptime(naechste_plan, '%Y-%m-%d').strftime('%d.%m.%Y')
+                            except ValueError:
+                                d_fmt = naechste_plan
+                            msg += f' Nächste Fälligkeit des Plans auf {d_fmt} gesetzt.'
                         flash(msg, 'success')
                         if (
                             speichern_aktion == 'jahresuebersicht'
@@ -953,6 +988,7 @@ def durchfuehrung_neu(plan_id):
                             return redirect(_url_jahresuebersicht_mit_protokoll_kontext(kontext))
                         return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=dfid))
                     except Exception as e:
+                        conn.rollback()
                         flash(f'Fehler: {e}', 'danger')
     return render_template(
         'wartungen/durchfuehrung_form.html',
@@ -960,10 +996,12 @@ def durchfuehrung_neu(plan_id):
         wartung=w,
         mitarbeiter=mitarbeiter,
         fremdfirmen=fremdfirmen,
+        kostenstellen=kostenstellen,
         batch=False,
         plan_optionen=[],
         protokoll_kontext=kontext,
         zurueck_jahres_url=zurueck_jahres_url,
+        durchgefuehrt_am_value=_prefill_durchgefuehrt_am_datetime_local(),
     )
 
 
@@ -1033,12 +1071,20 @@ def durchfuehrung_mehrere():
                                     break
                             if ok_all:
                                 try:
+                                    naechste_aktualisiert = False
                                     for pid, bem in pairs:
-                                        services.insert_wartungsdurchfuehrung(
+                                        _, naechste_plan = services.insert_wartungsdurchfuehrung(
                                             conn, pid, dt, bem, teil, mitarbeiter_id,
                                         )
+                                        if naechste_plan:
+                                            naechste_aktualisiert = True
                                     conn.commit()
-                                    flash(f'{len(pairs)} Durchführungen gespeichert.', 'success')
+                                    msg_batch = f'{len(pairs)} Durchführungen gespeichert.'
+                                    if naechste_aktualisiert:
+                                        msg_batch += (
+                                            ' Nächste Fälligkeit wurde bei den betroffenen aktiven Plänen angepasst.'
+                                        )
+                                    flash(msg_batch, 'success')
                                     return redirect(url_for('wartungen.plaene_uebersicht'))
                                 except Exception as e:
                                     flash(f'Fehler: {e}', 'danger')
@@ -1053,6 +1099,8 @@ def durchfuehrung_mehrere():
         vorausgewaehlte_plan_ids=vorausgewaehlte_plan_ids,
         protokoll_kontext=None,
         zurueck_jahres_url=None,
+        kostenstellen=[],
+        durchgefuehrt_am_value=_prefill_durchgefuehrt_am_datetime_local(),
     )
 
 

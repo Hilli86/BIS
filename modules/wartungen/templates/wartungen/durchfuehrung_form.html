@@ -30,9 +30,9 @@
     </div>
     <div class="card-body">
       <div class="row g-3">
-        <div class="col-md-6">
+        <div class="col-auto">
           <label class="form-label">Durchgeführt am</label>
-          <input type="datetime-local" name="durchgefuehrt_am" class="form-control" required>
+          <input type="datetime-local" name="durchgefuehrt_am" class="form-control form-control-sm" style="max-width: 13.5rem;" value="{{ durchgefuehrt_am_value }}" required>
         </div>
       </div>
     </div>
@@ -112,9 +112,9 @@
     </div>
     <div class="card-body">
       <div class="row g-3">
-        <div class="col-md-6">
+        <div class="col-auto">
           <label class="form-label">Durchgeführt am</label>
-          <input type="datetime-local" name="durchgefuehrt_am" class="form-control" required>
+          <input type="datetime-local" name="durchgefuehrt_am" class="form-control form-control-sm" style="max-width: 13.5rem;" value="{{ durchgefuehrt_am_value }}" required>
         </div>
         <div class="col-md-12">
           <label class="form-label">Bemerkung</label>
@@ -153,6 +153,8 @@
       </div>
     </div>
   </div>
+
+  {% include 'wartungen/_durchfuehrung_artikel_positionen.html' %}
 
   <div class="card mb-4 shadow-sm">
     <div class="card-header bg-primary text-white">

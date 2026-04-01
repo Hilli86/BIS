@@ -120,6 +120,7 @@
           <tr>
             <th>Intervall</th>
             <th style="white-space: nowrap;">Nächste Fälligkeit</th>
+            <th class="text-nowrap">Bezug</th>
             <th>Aktiv</th>
             <th style="min-width: 10rem;">Aktionen</th>
           </tr>
@@ -130,6 +131,13 @@
             <td>Alle {{ p.IntervallAnzahl }} {{ p.IntervallEinheit }}(e)</td>
             {% set ftd = p.NaechsteFaelligkeit|wartung_faelligkeit_td_class %}
             <td class="text-nowrap{% if ftd %} {{ ftd }}{% endif %}">{{ p.NaechsteFaelligkeit or '–' }}</td>
+            <td>
+              {% if p.HatFestesIntervall %}
+              <span class="badge text-bg-secondary" title="Nächster Termin vom Solltermin">Soll</span>
+              {% else %}
+              <span class="badge text-bg-light text-dark border" title="Nächster Termin von der Durchführung">Durchführung</span>
+              {% endif %}
+            </td>
             <td>{% if p.Aktiv %}<span class="badge bg-success">Ja</span>{% else %}<span class="badge bg-secondary">Nein</span>{% endif %}</td>
             <td class="text-nowrap" onclick="event.stopPropagation();">
               <div class="d-inline-flex gap-1 flex-wrap">

@@ -1,11 +1,113 @@
 """Business-Logik Wartungen."""
 
+import calendar
+from datetime import date, datetime, timedelta
+
 from utils.abteilungen import (
     get_mitarbeiter_abteilungen,
     get_sichtbare_abteilungen_fuer_mitarbeiter,
 )
 
 INTERVALL_EINHEITEN = ('Tag', 'Woche', 'Monat')
+
+
+def _add_months(d: date, months: int) -> date:
+    """Addiert Monate; Tag wird auf den letzten Tag des Zielmonats begrenzt."""
+    y, m = d.year, d.month + months
+    while m > 12:
+        m -= 12
+        y += 1
+    while m < 1:
+        m += 12
+        y -= 1
+    last = calendar.monthrange(y, m)[1]
+    return date(y, m, min(d.day, last))
+
+
+def berechne_naechste_faelligkeit_nach_basis(basis_datum: date, einheit: str, anzahl) -> date:
+    """Nächstes Fälligkeitsdatum = Basis-Kalendertag + Plan-Intervall (Durchführung oder Soll)."""
+    if basis_datum is None:
+        raise ValueError('Basisdatum fehlt.')
+    if einheit not in INTERVALL_EINHEITEN:
+        raise ValueError('Ungültige Intervall-Einheit.')
+    try:
+        n = int(anzahl)
+    except (TypeError, ValueError):
+        raise ValueError('Intervall-Anzahl ungültig.') from None
+    if n < 1:
+        raise ValueError('Intervall-Anzahl muss mindestens 1 sein.')
+    if einheit == 'Tag':
+        return basis_datum + timedelta(days=n)
+    if einheit == 'Woche':
+        return basis_datum + timedelta(weeks=n)
+    return _add_months(basis_datum, n)
+
+
+def _datum_aus_durchgefuehrt_am(durchgefuehrt_am):
+    """Kalendertag aus datetime, date oder ISO-ähnlichem String (erste 10 Zeichen YYYY-MM-DD)."""
+    if durchgefuehrt_am is None:
+        return None
+    if isinstance(durchgefuehrt_am, datetime):
+        return durchgefuehrt_am.date()
+    if isinstance(durchgefuehrt_am, date):
+        return durchgefuehrt_am
+    s = str(durchgefuehrt_am).strip()
+    if len(s) >= 10:
+        try:
+            return datetime.strptime(s[:10], '%Y-%m-%d').date()
+        except ValueError:
+            pass
+    return None
+
+
+def _datum_aus_naechste_faelligkeit_feld(wert):
+    """Kalendertag aus DB-Feld NaechsteFaelligkeit (meist YYYY-MM-DD)."""
+    if wert is None:
+        return None
+    if isinstance(wert, datetime):
+        return wert.date()
+    if isinstance(wert, date):
+        return wert
+    s = str(wert).strip()
+    if len(s) >= 10:
+        try:
+            return datetime.strptime(s[:10], '%Y-%m-%d').date()
+        except ValueError:
+            pass
+    return None
+
+
+def aktualisiere_naechste_faelligkeit_nach_durchfuehrung(conn, plan_id, durchgefuehrt_am):
+    """Setzt NaechsteFaelligkeit aus Basisdatum + Intervall; nur bei aktivem Plan.
+    Bei HatFestesIntervall: Basis = bisherige NaechsteFaelligkeit, sonst Durchführungstag (Fallback wie im Plan).
+    Gibt das neue Datum als YYYY-MM-DD zurück, sonst None."""
+    plan = get_plan(conn, plan_id)
+    if not plan or not plan['Aktiv']:
+        return None
+    df_basis = _datum_aus_durchgefuehrt_am(durchgefuehrt_am)
+    if df_basis is None:
+        return None
+    try:
+        hat_fest = bool(plan['HatFestesIntervall'])
+    except (KeyError, IndexError):
+        hat_fest = False
+    if hat_fest:
+        soll_basis = _datum_aus_naechste_faelligkeit_feld(plan['NaechsteFaelligkeit'])
+        basis = soll_basis if soll_basis is not None else df_basis
+    else:
+        basis = df_basis
+    einheit = plan['IntervallEinheit']
+    try:
+        neu = berechne_naechste_faelligkeit_nach_basis(basis, einheit, plan['IntervallAnzahl'])
+    except ValueError:
+        return None
+    neu_str = neu.isoformat()
+    conn.execute(
+        '''UPDATE Wartungsplan SET NaechsteFaelligkeit = ?
+           WHERE ID = ? AND Aktiv = 1''',
+        (neu_str, plan_id),
+    )
+    return neu_str
 
 
 def list_wartungen(conn, mitarbeiter_id, is_admin, bereich_id=None, gewerk_id=None):
@@ -450,7 +552,7 @@ def update_wartung(conn, wartung_id, gewerk_id, bezeichnung, beschreibung, aktiv
 
 def list_plaene_fuer_wartung(conn, wartung_id):
     return conn.execute('''
-        SELECT ID, IntervallEinheit, IntervallAnzahl, NaechsteFaelligkeit, Aktiv, ErstelltAm
+        SELECT ID, IntervallEinheit, IntervallAnzahl, NaechsteFaelligkeit, HatFestesIntervall, Aktiv, ErstelltAm
         FROM Wartungsplan
         WHERE WartungID = ?
         ORDER BY Aktiv DESC, ID DESC
@@ -464,7 +566,7 @@ def get_plan(conn, plan_id):
     ).fetchone()
 
 
-def create_wartungsplan(conn, wartung_id, einheit, anzahl, naechste):
+def create_wartungsplan(conn, wartung_id, einheit, anzahl, naechste, hat_festes_intervall=False):
     if einheit not in INTERVALL_EINHEITEN:
         raise ValueError('Ungültige Intervall-Einheit.')
     try:
@@ -475,14 +577,15 @@ def create_wartungsplan(conn, wartung_id, einheit, anzahl, naechste):
         raise ValueError('Intervall-Anzahl muss mindestens 1 sein.')
     na = (naechste or '').strip() or None
     cur = conn.execute(
-        '''INSERT INTO Wartungsplan (WartungID, IntervallEinheit, IntervallAnzahl, NaechsteFaelligkeit)
-           VALUES (?, ?, ?, ?)''',
-        (wartung_id, einheit, anzahl, na),
+        '''INSERT INTO Wartungsplan
+           (WartungID, IntervallEinheit, IntervallAnzahl, NaechsteFaelligkeit, HatFestesIntervall)
+           VALUES (?, ?, ?, ?, ?)''',
+        (wartung_id, einheit, anzahl, na, 1 if hat_festes_intervall else 0),
     )
     return cur.lastrowid
 
 
-def update_wartungsplan(conn, plan_id, einheit, anzahl, naechste, aktiv):
+def update_wartungsplan(conn, plan_id, einheit, anzahl, naechste, aktiv, hat_festes_intervall=False):
     if einheit not in INTERVALL_EINHEITEN:
         raise ValueError('Ungültige Intervall-Einheit.')
     try:
@@ -494,8 +597,8 @@ def update_wartungsplan(conn, plan_id, einheit, anzahl, naechste, aktiv):
     na = (naechste or '').strip() or None
     conn.execute(
         '''UPDATE Wartungsplan SET IntervallEinheit = ?, IntervallAnzahl = ?,
-           NaechsteFaelligkeit = ?, Aktiv = ? WHERE ID = ?''',
-        (einheit, anzahl, na, 1 if aktiv else 0, plan_id),
+           NaechsteFaelligkeit = ?, HatFestesIntervall = ?, Aktiv = ? WHERE ID = ?''',
+        (einheit, anzahl, na, 1 if hat_festes_intervall else 0, 1 if aktiv else 0, plan_id),
     )
 
 
@@ -751,7 +854,8 @@ def validate_teilnehmer(mitarbeiter_ids, fremdfirma_zeilen):
 
 
 def insert_wartungsdurchfuehrung(conn, plan_id, durchgefuehrt_am, bemerkung, teilnehmer, protokollierer_id):
-    """teilnehmer: dict von validate_teilnehmer (ohne Fehler)."""
+    """teilnehmer: dict von validate_teilnehmer (ohne Fehler).
+    Rückgabe: (Wartungsdurchfuehrung-ID, neues NaechsteFaelligkeit YYYY-MM-DD oder None)."""
     cur = conn.execute(
         '''INSERT INTO Wartungsdurchfuehrung
            (WartungsplanID, DurchgefuehrtAm, Bemerkung, ProtokolliertVonID)
@@ -772,7 +876,8 @@ def insert_wartungsdurchfuehrung(conn, plan_id, durchgefuehrt_am, bemerkung, tei
                VALUES (?, ?, ?, ?)''',
             (df_id, z['fremdfirma_id'], z['techniker'], z['telefon']),
         )
-    return df_id
+    naechste = aktualisiere_naechste_faelligkeit_nach_durchfuehrung(conn, plan_id, durchgefuehrt_am)
+    return df_id, naechste
 
 
 def list_durchfuehrungen_fuer_plan(conn, plan_id):
