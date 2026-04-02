@@ -1,6 +1,7 @@
 """Routen Modul Wartungen."""
 
 import os
+from collections import defaultdict
 from datetime import datetime
 
 from flask import (
@@ -1033,6 +1034,9 @@ def durchfuehrung_mehrere():
             WHERE Aktiv = 1 ORDER BY Nachname, Vorname
         ''').fetchall()
         fremdfirmen = services.list_fremdfirmen(conn, nur_aktiv=True)
+        kostenstellen = conn.execute(
+            'SELECT ID, Bezeichnung FROM Kostenstelle WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung',
+        ).fetchall()
         if request.method == 'POST':
             dt = _parse_datetime_local(request.form.get('durchgefuehrt_am'))
             if not dt:
@@ -1072,18 +1076,55 @@ def durchfuehrung_mehrere():
                             if ok_all:
                                 try:
                                     naechste_aktualisiert = False
+                                    plan_to_dfid = {}
                                     for pid, bem in pairs:
-                                        _, naechste_plan = services.insert_wartungsdurchfuehrung(
+                                        dfid, naechste_plan = services.insert_wartungsdurchfuehrung(
                                             conn, pid, dt, bem, teil, mitarbeiter_id,
                                         )
+                                        plan_to_dfid[pid] = dfid
                                         if naechste_plan:
                                             naechste_aktualisiert = True
+
+                                    eids = request.form.getlist('ersatzteil_id[]')
+                                    ap_ids = request.form.getlist('artikel_plan_id[]')
+                                    mengen = request.form.getlist('ersatzteil_menge[]')
+                                    ebems = request.form.getlist('ersatzteil_bemerkung[]')
+                                    eks = request.form.getlist('ersatzteil_kostenstelle[]')
+                                    by_plan = defaultdict(list)
+                                    for i, eid_raw in enumerate(eids):
+                                        if not (eid_raw or '').strip():
+                                            continue
+                                        raw_ap = ap_ids[i] if i < len(ap_ids) else ''
+                                        try:
+                                            target_pid = int(raw_ap)
+                                        except (TypeError, ValueError):
+                                            continue
+                                        if target_pid not in plan_to_dfid:
+                                            continue
+                                        by_plan[target_pid].append(i)
+                                    n_lb_total = 0
+                                    for target_pid, indices in by_plan.items():
+                                        dfid = plan_to_dfid[target_pid]
+                                        se = [eids[j] for j in indices]
+                                        sm = [
+                                            mengen[j] if j < len(mengen) else '1'
+                                            for j in indices
+                                        ]
+                                        sb = [ebems[j] if j < len(ebems) else '' for j in indices]
+                                        sk = [eks[j] if j < len(eks) else '' for j in indices]
+                                        n_lb_total += services.process_ersatzteile_fuer_wartungsdurchfuehrung(
+                                            dfid, se, sm, sb, mitarbeiter_id, conn,
+                                            is_admin=adm, ersatzteil_kostenstellen=sk,
+                                        )
+
                                     conn.commit()
                                     msg_batch = f'{len(pairs)} Durchführungen gespeichert.'
                                     if naechste_aktualisiert:
                                         msg_batch += (
                                             ' Nächste Fälligkeit wurde bei den betroffenen aktiven Plänen angepasst.'
                                         )
+                                    if n_lb_total:
+                                        msg_batch += f' {n_lb_total} Lagerbuchung(en) ausgeführt.'
                                     flash(msg_batch, 'success')
                                     return redirect(url_for('wartungen.plaene_uebersicht'))
                                 except Exception as e:
@@ -1099,7 +1140,7 @@ def durchfuehrung_mehrere():
         vorausgewaehlte_plan_ids=vorausgewaehlte_plan_ids,
         protokoll_kontext=None,
         zurueck_jahres_url=None,
-        kostenstellen=[],
+        kostenstellen=kostenstellen,
         durchgefuehrt_am_value=_prefill_durchgefuehrt_am_datetime_local(),
     )
 

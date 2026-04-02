@@ -134,14 +134,16 @@
               {% for pm in row.aktive_plaene_meta %}
               <div class="text-nowrap{% if not loop.first %} mt-1 pt-1 border-top border-light{% endif %}">
                 {% if kann_protokollieren and pm.PlanID %}
-                <a href="{{ url_for('wartungen.durchfuehrung_neu', plan_id=pm.PlanID, **jahresuebersicht_protokoll_query) }}" class="text-decoration-none text-reset d-inline-block" title="Wartung protokollieren">
                   {% if pm.NaechsteFaelligkeit %}
+                  <a href="{{ url_for('wartungen.durchfuehrung_neu', plan_id=pm.PlanID, **jahresuebersicht_protokoll_query) }}" class="text-decoration-none text-reset d-inline-block" title="Wartung protokollieren">
                     {% set fbc = pm.NaechsteFaelligkeit|wartung_faelligkeit_badge_class %}
                     {% if fbc %}<span class="badge {{ fbc }}">{{ pm.NaechsteFaelligkeit }}</span>{% else %}{{ pm.NaechsteFaelligkeit }}{% endif %}
+                  </a>
                   {% else %}
-                    <span class="text-muted">–</span>
+                  <a href="{{ url_for('wartungen.durchfuehrung_neu', plan_id=pm.PlanID, **jahresuebersicht_protokoll_query) }}" class="btn btn-sm btn-outline-primary py-0 px-2 text-nowrap" title="Wartung protokollieren (kein Solltermin gesetzt)">
+                    <i class="bi bi-journal-plus"></i> Protokoll
+                  </a>
                   {% endif %}
-                </a>
                 {% else %}
                   {% if pm.NaechsteFaelligkeit %}
                     {% set fbc = pm.NaechsteFaelligkeit|wartung_faelligkeit_badge_class %}
@@ -152,7 +154,13 @@
                 {% endif %}
               </div>
               {% else %}
-              <span class="text-muted">–</span>
+                {% if kann_protokollieren and row.aktive_plan_ids %}
+                <a href="{{ url_for('wartungen.durchfuehrung_neu', plan_id=row.aktive_plan_ids[0], **jahresuebersicht_protokoll_query) }}" class="btn btn-sm btn-outline-primary py-0 px-2 text-nowrap" title="Wartung protokollieren">
+                  <i class="bi bi-journal-plus"></i> Protokoll
+                </a>
+                {% else %}
+                <span class="text-muted">–</span>
+                {% endif %}
               {% endfor %}
             </td>
             <td class="text-center p-1 align-middle">
