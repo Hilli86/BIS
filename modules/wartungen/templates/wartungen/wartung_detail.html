@@ -141,9 +141,6 @@
             <td>{% if p.Aktiv %}<span class="badge bg-success">Ja</span>{% else %}<span class="badge bg-secondary">Nein</span>{% endif %}</td>
             <td class="text-nowrap" onclick="event.stopPropagation();">
               <div class="d-inline-flex gap-1 flex-wrap">
-                <a href="{{ url_for('wartungen.wartung_detail', wartung_id=wartung.ID, plan_id=p.ID) }}" class="btn btn-sm btn-outline-primary" title="Plan hervorheben">
-                  <i class="bi bi-box-arrow-in-right"></i>
-                </a>
                 {% if kann_plan %}
                 <a href="{{ url_for('wartungen.plan_bearbeiten', plan_id=p.ID) }}" class="btn btn-sm btn-outline-secondary" title="Plan bearbeiten">
                   <i class="bi bi-pencil"></i>
@@ -181,17 +178,18 @@
       <table class="table table-hover mb-0 align-middle">
         <thead>
           <tr>
+            <th class="text-nowrap">ID</th>
             <th style="white-space: nowrap;">Durchgeführt am</th>
             <th>Plan (Intervall)</th>
             <th class="text-center">Dateien</th>
             <th>Protokolliert von</th>
             <th>Bemerkung</th>
-            <th style="min-width: 5rem;">Aktionen</th>
           </tr>
         </thead>
         <tbody>
           {% for x in durchfuehrungen %}
           <tr style="cursor: pointer;" onclick="window.location.href='{{ url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=x.ID) }}';">
+            <td class="text-muted text-nowrap">{{ x.ID }}</td>
             <td style="white-space: nowrap;">{% if x.DurchgefuehrtAm %}{{ x.DurchgefuehrtAm[:16] }}{% else %}–{% endif %}</td>
             <td>Alle {{ x.IntervallAnzahl }} {{ x.IntervallEinheit }}(e)</td>
             <td class="text-center text-nowrap">
@@ -203,11 +201,6 @@
             </td>
             <td>{{ x.ProtokolliertVon or '–' }}</td>
             <td class="text-break">{{ x.Bemerkung or '–' }}</td>
-            <td onclick="event.stopPropagation();">
-              <a href="{{ url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=x.ID) }}" class="btn btn-sm btn-outline-primary" title="Detail">
-                <i class="bi bi-box-arrow-in-right"></i>
-              </a>
-            </td>
           </tr>
           {% endfor %}
         </tbody>
