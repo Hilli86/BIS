@@ -1,0 +1,25 @@
+---
+description: BIS – Menü, Flash, Auth, AJAX/JSON, globale Suche, Jinja-Filter
+globs: "**/*.py"
+alwaysApply: false
+---
+
+# BIS – Flask-Integration (neue Features einbinden)
+
+- **Sidebar / Menü:** Einen neuen Menüpunkt nicht nur in [`templates/layout/base.html`](templates/layout/base.html) verlinken. Zuerst Eintrag in **`MENUE_DEFINITIONEN`** in [`utils/menue_definitions.py`](utils/menue_definitions.py) (`schluessel`, `gruppe`, `berechtigung`); dann Link in `base.html` mit **`{% if menue_sichtbar('schluessel') %}`** und **`active`**-Logik wie bei Nachbarmodulen. Global `menue_sichtbar` kommt aus [`app.py`](app.py).
+
+- **Flash:** `flash(Nachricht, 'success'|'danger'|'warning'|'info')`; kurze, klare deutsche Texte. [`base.html`](templates/layout/base.html) mappt **`error` ? `danger`** – einheitlich **`danger`** bevorzugen oder `error` bewusst nutzen.
+
+- **Auth / Gast:** Geschützte Routen mit vorhandenen Dekoratoren (z. B. `login_required` aus `utils`); Berechtigungen über `session.get('user_berechtigungen', [])` wie in bestehenden Modulen. **Gast:** `session.get('is_guest')` berücksichtigen – keine parallele Session-Logik; siehe [`flask-blueprints.mdc`](flask-blueprints.mdc) und `modules/auth/`.
+
+- **JSON / AJAX:** Wo die App APIs nutzt, einheitlich z. B. **`success`**-Flag und sinnvolle Nutzlast. Fetch von eigenen Endpunkten mit Header **`X-Requested-With: XMLHttpRequest`** wie in [`base.html`](templates/layout/base.html) / bestehenden Routen.
+
+- **Globale Suche erweitern:** Neue durchsuchbare Entität vollständig anbinden: Parser und `search_all` / Teilfunktionen in [`modules/search/services.py`](modules/search/services.py), **`url_for`-Zuordnung** und JSON/HTML in [`modules/search/routes.py`](modules/search/routes.py), leere Struktur und **Dropdown-Rendering** in [`templates/layout/base.html`](templates/layout/base.html) sowie ggf. [`templates/search/search_results.html`](templates/search/search_results.html).
+
+- **Jinja-Filter:** Neue Template-Filter zentral in [`app.py`](app.py) registrieren (`@app.template_filter`), nicht verstreut in Blueprints.
+
+```python
+# Flash – üblich im Projekt
+flash('Gespeichert.', 'success')
+flash('Keine Berechtigung.', 'danger')
+```

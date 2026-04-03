@@ -8,4 +8,6 @@ alwaysApply: true
 - **Stack:** Flask, modulare **Blueprints** unter `modules/<modul>/`, zentrale App in [`app.py`](app.py) (Registrierung, globale Hooks, Jinja-Filter).
 - **Änderungen fokussieren:** Nur das anfassen, was die Aufgabe braucht. Keine „Mitnahme-Refactors“ oder Stil-Umbauten in fremden Modulen.
 - **Neue Blueprints:** Unterordner in `modules/`, Blueprint in `__init__.py`, Routen importieren; in `app.py` importieren und `app.register_blueprint(...)` ergänzen (siehe bestehende Blueprints).
+- **Neue oder erweiterte Oberflächen:** Layout und Komponenten wie bestehende Seiten – Regel `bis-ui-design`; Jinja-/XSS-Konventionen weiter in `jinja-templates`; Listen/Filter/Formulare in HTML – `bis-listen-formulare`.
+- **Backend-Integration:** Menü (`menue_definitions` + Sidebar), Flash, Auth/AJAX, globale Suche, Jinja-Filter – Regel `bis-flask-integration`.
 - **Sprache der KI-Antworten:** nicht hier wiederholen – gilt über globale User-Rules.

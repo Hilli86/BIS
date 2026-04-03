@@ -1,0 +1,21 @@
+---
+description: BIS – Listen, Filter, Formulare, Aktionen (HTML-Muster)
+globs: "**/*.html"
+alwaysApply: false
+---
+
+# BIS – Listen und Formulare
+
+- **Listen:** Bootstrap-**`table`** / **`table-hover`** wie in bestehenden Übersichten; bei Sortierung dieselbe UX wie vergleichbare Listen (klickbare Spaltenköpfe, Hinweis-Icons), keine frei erfundene Tabellen-Optik.
+
+- **Filter:** Häufig **`card`** mit **`collapse`** und Trigger „Anzeigen / Ausblenden“ (vgl. z. B. Ersatzteil-Liste); Filterzeile mit **`row g-3`**, **`form-label`**, **`form-control`** / **`form-select`**; **`btn btn-primary`** zum Anwenden, **`btn btn-secondary`** zum Zurücksetzen.
+
+- **Aktionen:** Primär **`btn btn-primary`**, sekundär **`btn-outline-*`** / **`btn-secondary`**; iconische Aktionen mit **`bi bi-…`** wie im restlichen BIS.
+
+- **Leerzustand:** Kurzer Hinweis mit **`text-muted`** (z. B. „Keine Einträge“), kein leeres Layout ohne Erklärung.
+
+- **Löschen / kritische Aktionen:** **`confirm('…')`** am Formular oder bestehendes Modal-Muster aus Nachbar-Templates – nicht still löschen.
+
+- **Mobile:** Breite Layouts mit **`row`/`col-*`**; globale Regeln in [`templates/layout/base.html`](templates/layout/base.html) (z. B. Eingabefelder) nicht umgehen.
+
+- **Layout, Komponenten, Upload:** siehe **`bis-ui-design`**; Escaping und `url_for`: **`jinja-templates`**.
