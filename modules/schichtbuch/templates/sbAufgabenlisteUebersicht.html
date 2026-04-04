@@ -1,0 +1,56 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<h1 class="mb-4">Aufgabenlisten</h1>
+<p class="text-muted">Listen enthalten Schichtbuch-Themen; die Sichtbarkeit richtet sich nur nach Ihrer Konfiguration (Abteilungen und/oder einzelne Mitarbeiter).</p>
+
+<div class="mb-3">
+  <a href="{{ url_for('schichtbuch.aufgabenliste_neu') }}" class="btn btn-success">
+    <i class="bi bi-plus-lg"></i> Neue Aufgabenliste
+  </a>
+</div>
+
+{% if listen %}
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Bezeichnung</th>
+            <th class="text-nowrap">Erstellt am</th>
+            <th>Erstellt von</th>
+            <th class="text-nowrap">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for l in listen %}
+          {% set detail_url = url_for('schichtbuch.aufgabenliste_detail', liste_id=l.ID) %}
+          <tr class="aufgabenliste-uebersicht-row" style="cursor: pointer;"
+              onclick="window.location.href='{{ detail_url }}'">
+            <td class="fw-medium">{{ l.Bezeichnung }}</td>
+            <td class="text-muted text-nowrap small">
+              {% if l.ErstelltAm %}{{ l.ErstelltAm|schichtbuch_datum }}{% else %}&ndash;{% endif %}
+            </td>
+            <td class="text-muted">
+              {% set von = ((l.Vorname or '') ~ ' ' ~ (l.Nachname or ''))|trim %}
+              {% if von %}{{ von }}{% else %}&ndash;{% endif %}
+            </td>
+            <td>
+              {% if l.IstOffen %}
+              <span class="badge rounded-pill bg-warning text-dark">Offen</span>
+              {% else %}
+              <span class="badge rounded-pill bg-success">Erledigt</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="alert alert-info">Für Sie sind keine Aufgabenlisten sichtbar.</div>
+{% endif %}
+{% endblock %}

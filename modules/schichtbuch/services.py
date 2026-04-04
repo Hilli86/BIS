@@ -9,7 +9,8 @@ from utils.helpers import build_sichtbarkeits_filter_query
 
 
 def build_themen_query(sichtbare_abteilungen, bereich_filter=None, gewerk_filter=None, 
-                       status_filter_list=None, q_filter=None, limit=None, offset=None, mitarbeiter_id=None):
+                       status_filter_list=None, q_filter=None, limit=None, offset=None, mitarbeiter_id=None,
+                       aufgabenliste_sichtbar_ids=None):
     """
     Baut die SQL-Query für Themenliste auf
     
@@ -50,6 +51,18 @@ def build_themen_query(sichtbare_abteilungen, bereich_filter=None, gewerk_filter
         WHERE t.Gelöscht = 0
     '''
     params = []
+
+    aufgabenliste_or = ''
+    aufgabenliste_params = []
+    if aufgabenliste_sichtbar_ids:
+        pha = ','.join(['?'] * len(aufgabenliste_sichtbar_ids))
+        aufgabenliste_or = f'''
+            OR EXISTS (
+                SELECT 1 FROM AufgabenlisteThema at
+                INNER JOIN Aufgabenliste al ON al.ID = at.AufgabenlisteID AND al.Aktiv = 1
+                WHERE at.ThemaID = t.ID AND at.AufgabenlisteID IN ({pha})
+            )'''
+        aufgabenliste_params = list(aufgabenliste_sichtbar_ids)
     
     # Sichtbarkeitsfilter: Themen aus sichtbaren Abteilungen ODER selbst erstellte Themen
     if mitarbeiter_id and sichtbare_abteilungen:
@@ -71,13 +84,15 @@ def build_themen_query(sichtbare_abteilungen, bereich_filter=None, gewerk_filter
                     FROM SchichtbuchBemerkungen b2 
                     WHERE b2.ThemaID = t.ID AND b2.Gelöscht = 0
                 )
-            )
+            ){aufgabenliste_or}
         )'''
         params.extend(sichtbare_abteilungen)
         params.append(mitarbeiter_id)
+        params.extend(aufgabenliste_params)
     elif mitarbeiter_id:
         # Keine sichtbaren Abteilungen, aber selbst erstellte Themen anzeigen
-        query += ''' AND EXISTS (
+        query += f''' AND (
+            EXISTS (
             SELECT 1 FROM SchichtbuchBemerkungen b_first
             WHERE b_first.ThemaID = t.ID 
             AND b_first.Gelöscht = 0
@@ -87,8 +102,10 @@ def build_themen_query(sichtbare_abteilungen, bereich_filter=None, gewerk_filter
                 FROM SchichtbuchBemerkungen b2 
                 WHERE b2.ThemaID = t.ID AND b2.Gelöscht = 0
             )
+            ){aufgabenliste_or}
         )'''
         params.append(mitarbeiter_id)
+        params.extend(aufgabenliste_params)
     else:
         # Standard-Sichtbarkeitsfilter (ohne selbst erstellte Themen)
         query, params = build_sichtbarkeits_filter_query(
@@ -206,19 +223,29 @@ def check_thema_berechtigung(thema_id, mitarbeiter_id, conn):
         # Benutzer ist Ersteller - immer berechtigt
         return True
     
+    from utils.berechtigungen import ist_admin
+    from . import aufgabenliste_services
+
+    is_adm = ist_admin(mitarbeiter_id, conn)
+
     # Prüfe Sichtbarkeit über Abteilungen
     sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
-    
-    if not sichtbare_abteilungen:
-        return False
-    
-    placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
-    berechtigt = conn.execute(f'''
-        SELECT COUNT(*) as count FROM SchichtbuchThemaSichtbarkeit
-        WHERE ThemaID = ? AND AbteilungID IN ({placeholders})
-    ''', [thema_id] + sichtbare_abteilungen).fetchone()
-    
-    return berechtigt['count'] > 0
+
+    if sichtbare_abteilungen:
+        placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
+        berechtigt = conn.execute(f'''
+            SELECT COUNT(*) as count FROM SchichtbuchThemaSichtbarkeit
+            WHERE ThemaID = ? AND AbteilungID IN ({placeholders})
+        ''', [thema_id] + sichtbare_abteilungen).fetchone()
+        if berechtigt['count'] > 0:
+            return True
+
+    if aufgabenliste_services.thema_sichtbar_ueber_aufgabenliste(
+        thema_id, mitarbeiter_id, conn, is_admin=is_adm
+    ):
+        return True
+
+    return False
 
 
 def get_thema_info_fuer_lagerbuchung(thema_id, conn):
@@ -412,7 +439,7 @@ def get_verfuegbare_ersatzteile_fuer_thema(mitarbeiter_id, conn, is_admin=False)
 
 
 def create_thema(gewerk_id, status_id, mitarbeiter_id, taetigkeit_id, bemerkung, 
-                 sichtbare_abteilungen, conn, vorgang_datum=None):
+                 sichtbare_abteilungen, conn, vorgang_datum=None, aufgabenliste_ids=None, is_admin=False):
     """
     Erstellt ein neues Thema mit erster Bemerkung und Sichtbarkeiten
     
@@ -548,6 +575,12 @@ def create_thema(gewerk_id, status_id, mitarbeiter_id, taetigkeit_id, bemerkung,
         "LetzteBemerkung": thema["LetzteBemerkung"],
         "LetzteBemerkungDatum": thema["LetzteBemerkungDatum"]
     }
+
+    if aufgabenliste_ids:
+        from . import aufgabenliste_services
+        aufgabenliste_services.link_thema_zu_aufgabenlisten(
+            thema_id, mitarbeiter_id, aufgabenliste_ids, conn, is_admin=is_admin
+        )
     
     return thema_id, thema_dict
 
@@ -704,6 +737,14 @@ def get_thema_erstellung_form_data(mitarbeiter_id, conn):
     # Kostenstellen für Dropdown
     kostenstellen = conn.execute('SELECT ID, Bezeichnung FROM Kostenstelle WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung').fetchall()
 
+    from utils.berechtigungen import ist_admin
+    from . import aufgabenliste_services
+
+    is_adm = ist_admin(mitarbeiter_id, conn)
+    aufgabenlisten = aufgabenliste_services.get_aufgabenlisten_fuer_thema_neu_formular(
+        mitarbeiter_id, conn, is_admin=is_adm
+    )
+
     return {
         'gewerke': gewerke,
         'taetigkeiten': taetigkeiten,
@@ -711,7 +752,8 @@ def get_thema_erstellung_form_data(mitarbeiter_id, conn):
         'bereiche': bereiche,
         'auswaehlbare_abteilungen': auswaehlbare_abteilungen,
         'primaer_abteilung_id': primaer_abteilung_id,
-        'kostenstellen': kostenstellen
+        'kostenstellen': kostenstellen,
+        'aufgabenlisten': aufgabenlisten,
     }
 
 

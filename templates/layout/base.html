@@ -695,7 +695,7 @@
     </a>
     {% endif %}
 
-    {% if menue_sichtbar('schichtbuch_suche') or menue_sichtbar('schichtbuch_liste') %}
+    {% if menue_sichtbar('schichtbuch_suche') or menue_sichtbar('schichtbuch_liste') or menue_sichtbar('schichtbuch_aufgabenlisten') %}
     <h6>Schichtbuch</h6>
     {% if menue_sichtbar('schichtbuch_suche') %}
     <a href="{{ url_for('schichtbuch.suche_thema') }}" class="{% if request.endpoint == 'schichtbuch.suche_thema' %}active{% endif %}">
@@ -705,6 +705,11 @@
     {% if menue_sichtbar('schichtbuch_liste') %}
     <a href="{{ url_for('schichtbuch.themaliste') }}" class="{% if request.endpoint == 'schichtbuch.themaliste' %}active{% endif %}">
       🧾 Themenliste
+    </a>
+    {% endif %}
+    {% if menue_sichtbar('schichtbuch_aufgabenlisten') %}
+    <a href="{{ url_for('schichtbuch.aufgabenlisten_liste') }}" class="{% if request.endpoint and 'aufgabenliste' in request.endpoint %}active{% endif %}">
+      📑 Aufgabenlisten
     </a>
     {% endif %}
     {% endif %}

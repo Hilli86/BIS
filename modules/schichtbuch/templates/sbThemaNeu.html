@@ -126,6 +126,33 @@
     </div>
     {% endif %}
 
+    {% if aufgabenlisten %}
+    <div class="mb-3">
+        <label class="form-label fw-bold">
+            <i class="bi bi-list-task"></i> Aufgabenlisten (optional)
+        </label>
+        <div class="form-text text-muted mb-2">
+            Thema direkt einer oder mehreren Listen zuordnen. Ohne Berechtigung zur Zuordnung sind die Kästchen deaktiviert.
+        </div>
+        <div class="card">
+            <div class="card-body">
+                {% for al in aufgabenlisten %}
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" name="aufgabenliste_ids" value="{{ al.id }}"
+                           id="al_{{ al.id }}" {% if not al.darf_zuordnen %}disabled{% endif %}>
+                    <label class="form-check-label {% if not al.darf_zuordnen %}text-muted{% endif %}" for="al_{{ al.id }}">
+                        {{ al.bezeichnung }}
+                    </label>
+                    {% if al.beschreibung %}
+                    <small class="d-block text-muted ms-4">{{ al.beschreibung }}</small>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Ersatzteile -->
     <div class="mb-3">
         <label class="form-label fw-bold">

@@ -20,6 +20,11 @@
                     <i class="bi bi-eye"></i> <span class="d-none d-sm-inline">Sichtbarkeit</span>
                 </button>
                 <button class="btn btn-sm btn-light" type="button"
+                        onclick="openAufgabenlistenModal({{ thema.ID }})"
+                        title="Aufgabenlisten">
+                    <i class="bi bi-list-task"></i> <span class="d-none d-sm-inline">Aufgabenlisten</span>
+                </button>
+                <button class="btn btn-sm btn-light" type="button"
                         onclick="openQRCodeModal({{ thema.ID }})"
                         title="QR-Code anzeigen">
                     <i class="bi bi-qr-code"></i> <span class="d-none d-sm-inline">QR-Code</span>
@@ -428,6 +433,33 @@
         </div>
     </div>
 
+    <!-- Modal: Aufgabenlisten -->
+    <div class="modal fade" id="aufgabenlistenModal" tabindex="-1" aria-labelledby="aufgabenlistenModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-secondary text-white">
+                    <h5 class="modal-title" id="aufgabenlistenModalLabel">
+                        <i class="bi bi-list-task"></i> Aufgabenlisten
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Schließen"></button>
+                </div>
+                <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                    <p class="text-muted small">Sichtbare Listen; bearbeiten nur mit Berechtigung oder als Ersteller der Liste.</p>
+                    <form id="aufgabenlistenForm">
+                        <div id="aufgabenlistenCheckboxen">
+                            <div class="text-center py-3">
+                                <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+                    <button type="button" class="btn btn-primary" id="btnSaveAufgabenlisten" style="display:none;" onclick="saveAufgabenlisten()">Speichern</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Modal: QR-Code anzeigen -->
     <div class="modal fade" id="qrCodeModal" tabindex="-1" aria-labelledby="qrCodeModalLabel" aria-hidden="true">
@@ -670,6 +702,78 @@ async function saveSichtbarkeit() {
         // Button wieder aktivieren
         saveButton.disabled = false;
         saveButton.innerHTML = '<i class="bi bi-check-lg"></i> <span class="d-none d-sm-inline">Speichern</span>';
+    }
+}
+</script>
+
+<script>
+let currentAufgabenlistenThemaId = null;
+
+window.openAufgabenlistenModal = async function(themaId) {
+    currentAufgabenlistenThemaId = themaId;
+    const modalEl = document.getElementById('aufgabenlistenModal');
+    const modal = new bootstrap.Modal(modalEl);
+    const container = document.getElementById('aufgabenlistenCheckboxen');
+    const btnSave = document.getElementById('btnSaveAufgabenlisten');
+    container.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
+    if (btnSave) btnSave.style.display = 'none';
+    modal.show();
+    try {
+        const response = await fetch('/schichtbuch/thema/' + themaId + '/aufgabenlisten');
+        const data = await response.json();
+        if (!data.success) {
+            container.innerHTML = '<div class="alert alert-danger">Fehler beim Laden.</div>';
+            return;
+        }
+        let html = '';
+        (data.listen || []).forEach(l => {
+            const checked = l.is_current ? 'checked' : '';
+            const disabled = l.darf_edit ? '' : 'disabled';
+            const hint = l.darf_edit ? '' : ' <small class="text-muted">(nur Anzeige)</small>';
+            html += '<div class="form-check mb-2">' +
+                '<input class="form-check-input" type="checkbox" name="aufgabenliste_ids" value="' + l.id + '" id="al_m_' + l.id + '" ' + checked + ' ' + disabled + '>' +
+                '<label class="form-check-label" for="al_m_' + l.id + '">' + (l.bezeichnung || '') + hint + '</label></div>';
+        });
+        if (!html) {
+            html = '<p class="text-muted mb-0">Keine Aufgabenlisten für Sie sichtbar.</p>';
+        }
+        container.innerHTML = html;
+        if (data.any_edit && btnSave) btnSave.style.display = 'inline-block';
+    } catch (e) {
+        console.error(e);
+        container.innerHTML = '<div class="alert alert-danger">Fehler beim Laden.</div>';
+    }
+};
+
+async function saveAufgabenlisten() {
+    const themaId = currentAufgabenlistenThemaId;
+    const form = document.getElementById('aufgabenlistenForm');
+    const btn = document.getElementById('btnSaveAufgabenlisten');
+    const formData = new FormData();
+    form.querySelectorAll('input[name="aufgabenliste_ids"]:checked:not([disabled])').forEach(cb => {
+        formData.append('aufgabenliste_ids', cb.value);
+    });
+    if (btn) {
+        btn.disabled = true;
+    }
+    try {
+        const response = await fetch('/schichtbuch/thema/' + themaId + '/aufgabenlisten', {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const data = await response.json();
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('aufgabenlistenModal')).hide();
+            window.location.reload();
+        } else {
+            alert(data.message || 'Fehler beim Speichern');
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Fehler beim Speichern');
+    } finally {
+        if (btn) btn.disabled = false;
     }
 }
 </script>

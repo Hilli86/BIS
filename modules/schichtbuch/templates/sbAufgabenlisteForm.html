@@ -1,0 +1,134 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+{% if liste %}
+<h1 class="mb-4">Aufgabenliste bearbeiten</h1>
+{% else %}
+<h1 class="mb-4">Neue Aufgabenliste</h1>
+{% endif %}
+
+<div class="alert alert-light border mb-4">
+  <strong>Sichtbarkeit:</strong> Es gelten ausschlie&szlig;lich die gew&auml;hlten Abteilungen und/oder Mitarbeiter (oder-Verkn&uuml;pfung).
+  Ohne gew&auml;hlte Abteilung sind <em>nur</em> die ausgew&auml;hlten Mitarbeiter eingeschlossen (zus&auml;tzlich immer Ersteller und Admin).
+</div>
+
+<form method="POST" class="bg-white p-4 rounded shadow-sm">
+  <div class="mb-3">
+    <label for="bezeichnung" class="form-label fw-bold">Bezeichnung</label>
+    <input type="text" class="form-control" id="bezeichnung" name="bezeichnung" required
+           value="{{ liste.Bezeichnung if liste else '' }}">
+  </div>
+  <div class="mb-3">
+    <label for="beschreibung" class="form-label">Kurzbeschreibung / Notiz</label>
+    <textarea class="form-control" id="beschreibung" name="beschreibung" rows="3">{{ liste.Beschreibung if liste else '' }}</textarea>
+  </div>
+
+  {% if auswaehlbare_abteilungen %}
+  <div class="mb-3">
+    <label class="form-label fw-bold"><i class="bi bi-eye"></i> Sichtbarkeit &ndash; Abteilungen</label>
+    <div class="form-text text-muted mb-2">Wie beim Thema: jede Abteilung einzeln ankreuzen.</div>
+    <div class="card">
+      <div class="card-body">
+        <div class="form-check border-bottom pb-2 mb-3">
+          <input class="form-check-input" type="checkbox" id="aufgabenliste_ab_alle" autocomplete="off">
+          <label class="form-check-label fw-semibold" for="aufgabenliste_ab_alle">Alle Abteilungen ausw&auml;hlen / abw&auml;hlen</label>
+        </div>
+        {% for gruppe in auswaehlbare_abteilungen %}
+        <div class="mb-3">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="sichtbare_abteilungen"
+                   value="{{ gruppe.parent.ID }}" id="ab_f_{{ gruppe.parent.ID }}"
+                   {% if gruppe.parent.ID in gewaehlte_abteilungen %}checked{% endif %}>
+            <label class="form-check-label fw-bold" for="ab_f_{{ gruppe.parent.ID }}">{{ gruppe.parent.Bezeichnung }}</label>
+          </div>
+          {% if gruppe.children %}
+          <div class="mt-2">
+            {% for child in gruppe.children %}
+            <div class="form-check" style="margin-left: {{ (child.level + 1) * 1.5 }}rem;">
+              <input class="form-check-input" type="checkbox" name="sichtbare_abteilungen"
+                     value="{{ child.ID }}" id="ab_f_{{ child.ID }}"
+                     {% if child.ID in gewaehlte_abteilungen %}checked{% endif %}>
+              <label class="form-check-label" for="ab_f_{{ child.ID }}">
+                {% for i in range(child.level + 1) %}&#8627;{% endfor %} {{ child.Bezeichnung }}
+              </label>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="mb-3">
+    <label class="form-label fw-bold">Sichtbarkeit &ndash; einzelne Mitarbeiter</label>
+    <div class="form-text text-muted mb-2">Jede Person einzeln ankreuzen. Ohne Abteilungs-Auswahl z&auml;hlen hier nur diese Personen (neben Ersteller/Admin).</div>
+    <div class="card">
+      <div class="card-body aufgabenliste-ma-scroll" style="max-height: 24rem; overflow-y: auto;">
+        {% if mitarbeiter_options %}
+        <div class="form-check border-bottom pb-2 mb-2 sticky-top bg-white aufgabenliste-ma-sticky">
+          <input class="form-check-input" type="checkbox" id="aufgabenliste_ma_alle" autocomplete="off">
+          <label class="form-check-label fw-semibold" for="aufgabenliste_ma_alle">Alle Mitarbeiter ausw&auml;hlen / abw&auml;hlen</label>
+        </div>
+        {% for m in mitarbeiter_options %}
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="sichtbare_mitarbeiter"
+                 value="{{ m.ID }}" id="ma_f_{{ m.ID }}"
+                 {% if m.ID in gewaehlte_mitarbeiter %}checked{% endif %}>
+          <label class="form-check-label" for="ma_f_{{ m.ID }}">
+            {{ m.Nachname }}, {{ m.Vorname or '' }} <span class="text-muted">({{ m.Personalnummer }})</span>
+          </label>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p class="text-muted mb-0">Keine aktiven Mitarbeiter.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <button type="submit" class="btn btn-success"><i class="bi bi-save"></i> Speichern</button>
+  {% if liste %}
+  <a href="{{ url_for('schichtbuch.aufgabenliste_detail', liste_id=liste.ID) }}" class="btn btn-secondary">Zur&uuml;ck</a>
+  {% else %}
+  <a href="{{ url_for('schichtbuch.aufgabenlisten_liste') }}" class="btn btn-secondary">Zur&uuml;ck</a>
+  {% endif %}
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  function bindMaster(masterId, nameAttr) {
+    var master = document.getElementById(masterId);
+    if (!master) return;
+    function boxes() {
+      return Array.prototype.slice.call(document.querySelectorAll('input[name="' + nameAttr + '"]'));
+    }
+    function syncMaster() {
+      var b = boxes();
+      if (!b.length) {
+        master.checked = false;
+        master.indeterminate = false;
+        master.disabled = true;
+        return;
+      }
+      master.disabled = false;
+      var n = b.filter(function (x) { return x.checked; }).length;
+      master.checked = n === b.length;
+      master.indeterminate = n > 0 && n < b.length;
+    }
+    master.addEventListener('change', function () {
+      boxes().forEach(function (cb) { cb.checked = master.checked; });
+      master.indeterminate = false;
+    });
+    boxes().forEach(function (cb) { cb.addEventListener('change', syncMaster); });
+    syncMaster();
+  }
+  bindMaster('aufgabenliste_ab_alle', 'sichtbare_abteilungen');
+  bindMaster('aufgabenliste_ma_alle', 'sichtbare_mitarbeiter');
+})();
+</script>
+{% endblock %}

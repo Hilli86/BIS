@@ -202,6 +202,81 @@ def init_database_schema(db_path, verbose=False):
             if create_column_if_not_exists(conn, 'SchichtbuchThemaSichtbarkeit', 'ErstelltAm', 'ALTER TABLE SchichtbuchThemaSichtbarkeit ADD COLUMN ErstelltAm DATETIME'):
                 conn.execute('UPDATE SchichtbuchThemaSichtbarkeit SET ErstelltAm = datetime(\'now\') WHERE ErstelltAm IS NULL')
         
+        # ========== 10b. Aufgabenliste (Schichtbuch) ==========
+        created_auf = create_table_if_not_exists(conn, 'Aufgabenliste', '''
+            CREATE TABLE Aufgabenliste (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                Bezeichnung TEXT NOT NULL,
+                Beschreibung TEXT,
+                ErstellerMitarbeiterID INTEGER NOT NULL,
+                ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
+                Aktiv INTEGER NOT NULL DEFAULT 1,
+                FOREIGN KEY (ErstellerMitarbeiterID) REFERENCES Mitarbeiter(ID)
+            )
+        ''', [
+            'CREATE INDEX idx_aufgabenliste_ersteller ON Aufgabenliste(ErstellerMitarbeiterID)',
+            'CREATE INDEX idx_aufgabenliste_aktiv ON Aufgabenliste(Aktiv)'
+        ])
+        if not created_auf:
+            if create_column_if_not_exists(conn, 'Aufgabenliste', 'Beschreibung', 'ALTER TABLE Aufgabenliste ADD COLUMN Beschreibung TEXT'):
+                pass
+            if create_column_if_not_exists(conn, 'Aufgabenliste', 'Aktiv', 'ALTER TABLE Aufgabenliste ADD COLUMN Aktiv INTEGER NOT NULL DEFAULT 1'):
+                conn.execute('UPDATE Aufgabenliste SET Aktiv = 1 WHERE Aktiv IS NULL')
+            create_index_if_not_exists(conn, 'idx_aufgabenliste_aktiv', 'CREATE INDEX idx_aufgabenliste_aktiv ON Aufgabenliste(Aktiv)')
+        if table_exists(conn, 'Aufgabenliste'):
+            if create_column_if_not_exists(conn, 'Aufgabenliste', 'ErstelltAm', 'ALTER TABLE Aufgabenliste ADD COLUMN ErstelltAm DATETIME'):
+                conn.execute("UPDATE Aufgabenliste SET ErstelltAm = datetime('now') WHERE ErstelltAm IS NULL")
+        create_table_if_not_exists(conn, 'AufgabenlisteSichtbarkeitAbteilung', '''
+            CREATE TABLE AufgabenlisteSichtbarkeitAbteilung (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                AufgabenlisteID INTEGER NOT NULL,
+                AbteilungID INTEGER NOT NULL,
+                FOREIGN KEY (AufgabenlisteID) REFERENCES Aufgabenliste(ID) ON DELETE CASCADE,
+                FOREIGN KEY (AbteilungID) REFERENCES Abteilung(ID) ON DELETE CASCADE,
+                UNIQUE(AufgabenlisteID, AbteilungID)
+            )
+        ''', [
+            'CREATE INDEX idx_aufgsicht_abt_liste ON AufgabenlisteSichtbarkeitAbteilung(AufgabenlisteID)',
+            'CREATE INDEX idx_aufgsicht_abt_abt ON AufgabenlisteSichtbarkeitAbteilung(AbteilungID)'
+        ])
+        create_table_if_not_exists(conn, 'AufgabenlisteSichtbarkeitMitarbeiter', '''
+            CREATE TABLE AufgabenlisteSichtbarkeitMitarbeiter (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                AufgabenlisteID INTEGER NOT NULL,
+                MitarbeiterID INTEGER NOT NULL,
+                FOREIGN KEY (AufgabenlisteID) REFERENCES Aufgabenliste(ID) ON DELETE CASCADE,
+                FOREIGN KEY (MitarbeiterID) REFERENCES Mitarbeiter(ID) ON DELETE CASCADE,
+                UNIQUE(AufgabenlisteID, MitarbeiterID)
+            )
+        ''', [
+            'CREATE INDEX idx_aufgsicht_ma_liste ON AufgabenlisteSichtbarkeitMitarbeiter(AufgabenlisteID)',
+            'CREATE INDEX idx_aufgsicht_ma_ma ON AufgabenlisteSichtbarkeitMitarbeiter(MitarbeiterID)'
+        ])
+        create_table_if_not_exists(conn, 'AufgabenlisteThema', '''
+            CREATE TABLE AufgabenlisteThema (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                AufgabenlisteID INTEGER NOT NULL,
+                ThemaID INTEGER NOT NULL,
+                Sortierung INTEGER NOT NULL DEFAULT 0,
+                HinzugefuegtAm DATETIME DEFAULT CURRENT_TIMESTAMP,
+                HinzugefuegtVonMitarbeiterID INTEGER,
+                FOREIGN KEY (AufgabenlisteID) REFERENCES Aufgabenliste(ID) ON DELETE CASCADE,
+                FOREIGN KEY (ThemaID) REFERENCES SchichtbuchThema(ID) ON DELETE CASCADE,
+                FOREIGN KEY (HinzugefuegtVonMitarbeiterID) REFERENCES Mitarbeiter(ID),
+                UNIQUE(AufgabenlisteID, ThemaID)
+            )
+        ''', [
+            'CREATE INDEX idx_aufgthema_liste ON AufgabenlisteThema(AufgabenlisteID)',
+            'CREATE INDEX idx_aufgthema_thema ON AufgabenlisteThema(ThemaID)'
+        ])
+        if table_exists(conn, 'AufgabenlisteThema'):
+            if create_column_if_not_exists(conn, 'AufgabenlisteThema', 'Sortierung', 'ALTER TABLE AufgabenlisteThema ADD COLUMN Sortierung INTEGER NOT NULL DEFAULT 0'):
+                pass
+            if create_column_if_not_exists(conn, 'AufgabenlisteThema', 'HinzugefuegtAm', 'ALTER TABLE AufgabenlisteThema ADD COLUMN HinzugefuegtAm DATETIME'):
+                conn.execute("UPDATE AufgabenlisteThema SET HinzugefuegtAm = datetime('now') WHERE HinzugefuegtAm IS NULL")
+            if create_column_if_not_exists(conn, 'AufgabenlisteThema', 'HinzugefuegtVonMitarbeiterID', 'ALTER TABLE AufgabenlisteThema ADD COLUMN HinzugefuegtVonMitarbeiterID INTEGER'):
+                pass
+        
         # ========== 11. Benachrichtigung ==========
         created = create_table_if_not_exists(conn, 'Benachrichtigung', '''
             CREATE TABLE Benachrichtigung (
@@ -1108,6 +1183,11 @@ def init_database_schema(db_path, verbose=False):
             INSERT OR IGNORE INTO Berechtigung (Schluessel, Bezeichnung, Beschreibung, Aktiv)
             VALUES ('wartung_protokollieren', 'Wartungen protokollieren',
                     'Erlaubt das Erfassen von Wartungsdurchführungen, Serviceberichte und Ersatzteil-Ausgänge', 1)
+        ''')
+        conn.execute('''
+            INSERT OR IGNORE INTO Berechtigung (Schluessel, Bezeichnung, Beschreibung, Aktiv)
+            VALUES ('darf_aufgabenliste_themen_verwalten', 'Darf Aufgabenliste-Themen verwalten',
+                    'Erlaubt Zuordnung und Entfernen von Themen in Aufgabenlisten (nicht Stammdaten der Liste)', 1)
         ''')
         
         # ========== 31. MitarbeiterBerechtigung ==========

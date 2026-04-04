@@ -1276,6 +1276,56 @@ DATABASE_SCHEMA = {
             'idx_sichtbarkeit_abteilung'
         ]
     },
+    'Aufgabenliste': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'Bezeichnung': 'TEXT NOT NULL',
+            'Beschreibung': 'TEXT',
+            'ErstellerMitarbeiterID': 'INTEGER NOT NULL',
+            'ErstelltAm': 'DATETIME DEFAULT CURRENT_TIMESTAMP',
+            'Aktiv': 'INTEGER NOT NULL DEFAULT 1'
+        },
+        'indexes': [
+            'idx_aufgabenliste_ersteller',
+            'idx_aufgabenliste_aktiv'
+        ]
+    },
+    'AufgabenlisteSichtbarkeitAbteilung': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'AufgabenlisteID': 'INTEGER NOT NULL',
+            'AbteilungID': 'INTEGER NOT NULL'
+        },
+        'indexes': [
+            'idx_aufgsicht_abt_liste',
+            'idx_aufgsicht_abt_abt'
+        ]
+    },
+    'AufgabenlisteSichtbarkeitMitarbeiter': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'AufgabenlisteID': 'INTEGER NOT NULL',
+            'MitarbeiterID': 'INTEGER NOT NULL'
+        },
+        'indexes': [
+            'idx_aufgsicht_ma_liste',
+            'idx_aufgsicht_ma_ma'
+        ]
+    },
+    'AufgabenlisteThema': {
+        'columns': {
+            'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+            'AufgabenlisteID': 'INTEGER NOT NULL',
+            'ThemaID': 'INTEGER NOT NULL',
+            'Sortierung': 'INTEGER NOT NULL DEFAULT 0',
+            'HinzugefuegtAm': 'DATETIME DEFAULT CURRENT_TIMESTAMP',
+            'HinzugefuegtVonMitarbeiterID': 'INTEGER'
+        },
+        'indexes': [
+            'idx_aufgthema_liste',
+            'idx_aufgthema_thema'
+        ]
+    },
     'Benachrichtigung': {
         'columns': {
             'ID': 'INTEGER PRIMARY KEY AUTOINCREMENT',

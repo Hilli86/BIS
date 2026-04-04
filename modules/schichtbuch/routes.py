@@ -12,6 +12,7 @@ from utils import get_db_connection, login_required, get_sichtbare_abteilungen_f
 from utils.helpers import build_sichtbarkeits_filter_query, row_to_dict
 from utils.reports import generate_thema_pdf
 from . import services
+from . import aufgabenliste_services
 from modules.ersatzteile.services import get_dateien_fuer_bereich, speichere_datei, get_datei_typ_aus_dateiname, loesche_datei
 from utils.file_handling import save_uploaded_file, create_upload_folder, originale_loeschen_aus_formular, loesche_import_kopie_nach_upload
 
@@ -45,7 +46,12 @@ def themaliste():
         # Abteilungsfilter: Nur Themen aus sichtbaren Abteilungen
         mitarbeiter_id = session.get('user_id')
         sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
-        
+        is_admin = 'admin' in session.get('user_berechtigungen', [])
+        auf_liste_rows = aufgabenliste_services.list_aufgabenlisten_fuer_mitarbeiter(
+            mitarbeiter_id, conn, is_admin=is_admin
+        )
+        aufgabenliste_sichtbar_ids = [r['ID'] for r in auf_liste_rows] or None
+
         # Query mit Service-Funktion aufbauen
         query, params = services.build_themen_query(
             sichtbare_abteilungen,
@@ -54,7 +60,8 @@ def themaliste():
             status_filter_list=status_filter_list,
             q_filter=q_filter,
             limit=items_per_page,
-            mitarbeiter_id=mitarbeiter_id
+            mitarbeiter_id=mitarbeiter_id,
+            aufgabenliste_sichtbar_ids=aufgabenliste_sichtbar_ids,
         )
 
         themen = conn.execute(query, params).fetchall()
@@ -108,7 +115,12 @@ def themaliste_load_more():
         # Abteilungsfilter auch hier anwenden
         mitarbeiter_id = session.get('user_id')
         sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
-        
+        is_admin = 'admin' in session.get('user_berechtigungen', [])
+        auf_liste_rows = aufgabenliste_services.list_aufgabenlisten_fuer_mitarbeiter(
+            mitarbeiter_id, conn, is_admin=is_admin
+        )
+        aufgabenliste_sichtbar_ids = [r['ID'] for r in auf_liste_rows] or None
+
         # Query mit Service-Funktion aufbauen
         query, params = services.build_themen_query(
             sichtbare_abteilungen,
@@ -118,7 +130,8 @@ def themaliste_load_more():
             q_filter=q_filter,
             limit=limit,
             offset=offset,
-            mitarbeiter_id=mitarbeiter_id
+            mitarbeiter_id=mitarbeiter_id,
+            aufgabenliste_sichtbar_ids=aufgabenliste_sichtbar_ids,
         )
 
         themen = conn.execute(query, params).fetchall()
@@ -253,14 +266,17 @@ def themaneu():
         status_id = request.form['status']
         bemerkung = request.form['bemerkung']
         sichtbare_abteilungen = request.form.getlist('sichtbare_abteilungen')
+        aufgabenliste_ids = request.form.getlist('aufgabenliste_ids')
         vorgang_datum = (request.form.get('vorgang_datum') or '').strip() or None
 
         try:
             with get_db_connection() as conn:
                 # Thema erstellen über Service
+                is_admin = 'admin' in session.get('user_berechtigungen', [])
                 thema_id, thema_dict = services.create_thema(
                     gewerk_id, status_id, mitarbeiter_id, taetigkeit_id, bemerkung,
-                    sichtbare_abteilungen, conn, vorgang_datum=vorgang_datum
+                    sichtbare_abteilungen, conn, vorgang_datum=vorgang_datum,
+                    aufgabenliste_ids=aufgabenliste_ids, is_admin=is_admin,
                 )
 
                 # Ersatzteile verarbeiten
@@ -268,8 +284,6 @@ def themaneu():
                 ersatzteil_mengen = request.form.getlist('ersatzteil_menge[]')
                 ersatzteil_bemerkungen = request.form.getlist('ersatzteil_bemerkung[]')
                 ersatzteil_kostenstellen = request.form.getlist('ersatzteil_kostenstelle[]')
-
-                is_admin = 'admin' in session.get('user_berechtigungen', [])
                 services.process_ersatzteile_fuer_thema(
                     thema_id, ersatzteil_ids, ersatzteil_mengen, ersatzteil_bemerkungen,
                     mitarbeiter_id, conn, is_admin=is_admin, ersatzteil_kostenstellen=ersatzteil_kostenstellen
@@ -294,7 +308,8 @@ def themaneu():
         bereiche=form_data['bereiche'],
         auswaehlbare_abteilungen=form_data['auswaehlbare_abteilungen'],
         primaer_abteilung_id=form_data['primaer_abteilung_id'],
-        kostenstellen=form_data['kostenstellen']
+        kostenstellen=form_data['kostenstellen'],
+        aufgabenlisten=form_data.get('aufgabenlisten') or [],
     )
 
 
@@ -574,6 +589,289 @@ def update_thema_sichtbarkeit(thema_id):
             return jsonify({'success': True, 'message': message})
         else:
             return jsonify({'success': False, 'message': message}), 400
+
+
+# ========== Aufgabenlisten ==========
+
+
+@schichtbuch_bp.route('/aufgabenlisten')
+@login_required
+def aufgabenlisten_liste():
+    mitarbeiter_id = session.get('user_id')
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
+    with get_db_connection() as conn:
+        listen = aufgabenliste_services.list_aufgabenlisten_fuer_mitarbeiter(
+            mitarbeiter_id, conn, is_admin=is_admin
+        )
+    return render_template('sbAufgabenlisteUebersicht.html', listen=listen)
+
+
+@schichtbuch_bp.route('/aufgabenlisten/neu', methods=['GET', 'POST'])
+@login_required
+def aufgabenliste_neu():
+    mitarbeiter_id = session.get('user_id')
+    from utils import get_abteilungsbaum_fuer_sichtbarkeit
+
+    if request.method == 'POST':
+        bezeichnung = (request.form.get('bezeichnung') or '').strip()
+        beschreibung = (request.form.get('beschreibung') or '').strip()
+        abt = request.form.getlist('sichtbare_abteilungen')
+        ma_ids = request.form.getlist('sichtbare_mitarbeiter')
+        if not bezeichnung:
+            flash('Bitte eine Bezeichnung angeben.', 'danger')
+        else:
+            with get_db_connection() as conn:
+                lid = aufgabenliste_services.create_aufgabenliste(
+                    bezeichnung, beschreibung, mitarbeiter_id, abt, ma_ids, conn
+                )
+                conn.commit()
+            flash('Aufgabenliste angelegt.', 'success')
+            return redirect(url_for('schichtbuch.aufgabenliste_detail', liste_id=lid))
+
+    with get_db_connection() as conn:
+        auswaehlbare = get_abteilungsbaum_fuer_sichtbarkeit(mitarbeiter_id, conn)
+        mitarbeiter_options = aufgabenliste_services.alle_aktiven_mitarbeiter_options(conn)
+
+    return render_template(
+        'sbAufgabenlisteForm.html',
+        liste=None,
+        auswaehlbare_abteilungen=auswaehlbare,
+        mitarbeiter_options=mitarbeiter_options,
+        gewaehlte_abteilungen=set(),
+        gewaehlte_mitarbeiter=set(),
+    )
+
+
+@schichtbuch_bp.route('/aufgabenlisten/<int:liste_id>')
+@login_required
+def aufgabenliste_detail(liste_id):
+    mitarbeiter_id = session.get('user_id')
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
+    status_filter_list = request.args.getlist('status')
+    bereich_filter = request.args.get('bereich')
+    gewerk_filter = request.args.get('gewerk')
+
+    with get_db_connection() as conn:
+        if not aufgabenliste_services.mitarbeiter_sieht_aufgabenliste(
+            mitarbeiter_id, liste_id, conn, is_admin=is_admin
+        ):
+            flash('Keine Berechtigung für diese Aufgabenliste.', 'danger')
+            return redirect(url_for('schichtbuch.aufgabenlisten_liste'))
+        detail = aufgabenliste_services.get_aufgabenliste_detail(liste_id, conn)
+        themen = aufgabenliste_services.list_themen_fuer_aufgabenliste(
+            liste_id,
+            conn,
+            bereich_filter=bereich_filter or None,
+            gewerk_filter=gewerk_filter or None,
+            status_filter_list=status_filter_list or None,
+        )
+        status_liste = conn.execute(
+            'SELECT ID, Bezeichnung FROM Status WHERE Aktiv = 1 ORDER BY Sortierung ASC'
+        ).fetchall()
+        bereich_liste = conn.execute(
+            'SELECT Bezeichnung FROM Bereich WHERE Aktiv = 1 ORDER BY Bezeichnung'
+        ).fetchall()
+        if bereich_filter:
+            gewerke_liste = conn.execute(
+                '''
+                SELECT G.Bezeichnung FROM Gewerke G
+                JOIN Bereich B ON G.BereichID = B.ID
+                WHERE B.Bezeichnung = ? AND G.Aktiv = 1 ORDER BY G.Bezeichnung
+                ''',
+                (bereich_filter,),
+            ).fetchall()
+        else:
+            gewerke_liste = conn.execute(
+                'SELECT Bezeichnung FROM Gewerke WHERE Aktiv = 1 ORDER BY Bezeichnung'
+            ).fetchall()
+
+        darf_stamm = aufgabenliste_services.darf_aufgabenliste_stammdaten_bearbeiten(
+            mitarbeiter_id, liste_id, conn, is_admin=is_admin
+        )
+        darf_themen = aufgabenliste_services.darf_themen_zu_aufgabenliste_zuordnen(
+            mitarbeiter_id, liste_id, conn, is_admin=is_admin
+        )
+
+    return render_template(
+        'sbAufgabenlisteDetail.html',
+        detail=detail,
+        themen=themen,
+        status_liste=status_liste,
+        bereich_liste=bereich_liste,
+        gewerke_liste=gewerke_liste,
+        status_filter_list=status_filter_list,
+        bereich_filter=bereich_filter,
+        gewerk_filter=gewerk_filter,
+        darf_stamm=darf_stamm,
+        darf_themen=darf_themen,
+    )
+
+
+@schichtbuch_bp.route('/aufgabenlisten/<int:liste_id>/bearbeiten', methods=['GET', 'POST'])
+@login_required
+def aufgabenliste_bearbeiten(liste_id):
+    mitarbeiter_id = session.get('user_id')
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
+    from utils import get_abteilungsbaum_fuer_sichtbarkeit
+
+    with get_db_connection() as conn:
+        if not aufgabenliste_services.darf_aufgabenliste_stammdaten_bearbeiten(
+            mitarbeiter_id, liste_id, conn, is_admin=is_admin
+        ):
+            flash('Keine Berechtigung.', 'danger')
+            return redirect(url_for('schichtbuch.aufgabenliste_detail', liste_id=liste_id))
+
+        if request.method == 'POST':
+            bezeichnung = (request.form.get('bezeichnung') or '').strip()
+            beschreibung = (request.form.get('beschreibung') or '').strip()
+            abt = request.form.getlist('sichtbare_abteilungen')
+            ma_ids = request.form.getlist('sichtbare_mitarbeiter')
+            if not bezeichnung:
+                flash('Bitte eine Bezeichnung angeben.', 'danger')
+            else:
+                aufgabenliste_services.update_aufgabenliste_stammdaten(
+                    liste_id, bezeichnung, beschreibung, abt, ma_ids, conn
+                )
+                conn.commit()
+                flash('Gespeichert.', 'success')
+                return redirect(url_for('schichtbuch.aufgabenliste_detail', liste_id=liste_id))
+
+        detail = aufgabenliste_services.get_aufgabenliste_detail(liste_id, conn)
+        if not detail:
+            flash('Liste nicht gefunden.', 'danger')
+            return redirect(url_for('schichtbuch.aufgabenlisten_liste'))
+        auswaehlbare = get_abteilungsbaum_fuer_sichtbarkeit(mitarbeiter_id, conn)
+        mitarbeiter_options = aufgabenliste_services.alle_aktiven_mitarbeiter_options(conn)
+        gew_abt = {r['ID'] for r in detail['abteilungen']}
+        gew_ma = {r['ID'] for r in detail['mitarbeiter']}
+
+    return render_template(
+        'sbAufgabenlisteForm.html',
+        liste=detail['liste'],
+        auswaehlbare_abteilungen=auswaehlbare,
+        mitarbeiter_options=mitarbeiter_options,
+        gewaehlte_abteilungen=gew_abt,
+        gewaehlte_mitarbeiter=gew_ma,
+    )
+
+
+@schichtbuch_bp.route('/aufgabenlisten/<int:liste_id>/duplizieren', methods=['POST'])
+@login_required
+def aufgabenliste_duplizieren(liste_id):
+    mitarbeiter_id = session.get('user_id')
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
+    mit_themen = request.form.get('mit_themen') == '1'
+
+    with get_db_connection() as conn:
+        if not aufgabenliste_services.mitarbeiter_sieht_aufgabenliste(
+            mitarbeiter_id, liste_id, conn, is_admin=is_admin
+        ):
+            flash('Keine Berechtigung.', 'danger')
+            return redirect(url_for('schichtbuch.aufgabenlisten_liste'))
+        if not aufgabenliste_services.darf_aufgabenliste_stammdaten_bearbeiten(
+            mitarbeiter_id, liste_id, conn, is_admin=is_admin
+        ):
+            flash('Nur Ersteller oder Admin dürfen duplizieren.', 'danger')
+            return redirect(url_for('schichtbuch.aufgabenliste_detail', liste_id=liste_id))
+        new_id = aufgabenliste_services.duplicate_aufgabenliste(
+            liste_id, mitarbeiter_id, conn, mit_themen=mit_themen
+        )
+        conn.commit()
+    if new_id:
+        flash('Kopie angelegt.', 'success')
+        return redirect(url_for('schichtbuch.aufgabenliste_detail', liste_id=new_id))
+    flash('Duplizieren fehlgeschlagen.', 'danger')
+    return redirect(url_for('schichtbuch.aufgabenliste_detail', liste_id=liste_id))
+
+
+@schichtbuch_bp.route('/aufgabenlisten/<int:liste_id>/archivieren', methods=['POST'])
+@login_required
+def aufgabenliste_archivieren(liste_id):
+    mitarbeiter_id = session.get('user_id')
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
+
+    with get_db_connection() as conn:
+        if not aufgabenliste_services.mitarbeiter_sieht_aufgabenliste(
+            mitarbeiter_id, liste_id, conn, is_admin=is_admin
+        ):
+            flash('Keine Berechtigung.', 'danger')
+            return redirect(url_for('schichtbuch.aufgabenlisten_liste'))
+        ok, msg = aufgabenliste_services.archiviere_aufgabenliste(
+            liste_id, mitarbeiter_id, conn, is_admin=is_admin
+        )
+        if ok:
+            conn.commit()
+            flash(msg, 'success')
+            return redirect(url_for('schichtbuch.aufgabenlisten_liste'))
+        conn.rollback()
+    flash(msg, 'danger')
+    return redirect(url_for('schichtbuch.aufgabenliste_detail', liste_id=liste_id))
+
+
+@schichtbuch_bp.route('/aufgabenlisten/<int:liste_id>/sortierung', methods=['POST'])
+@login_required
+def aufgabenliste_sortierung(liste_id):
+    mitarbeiter_id = session.get('user_id')
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
+    order = request.form.getlist('thema_reihenfolge[]')
+
+    with get_db_connection() as conn:
+        ok, msg = aufgabenliste_services.reorder_aufgabenliste_themen(
+            liste_id, order, mitarbeiter_id, conn, is_admin=is_admin
+        )
+        conn.commit()
+    if ok:
+        return jsonify({'success': True, 'message': msg})
+    return jsonify({'success': False, 'message': msg}), 403
+
+
+@schichtbuch_bp.route('/aufgabenlisten/<int:liste_id>/thema/<int:thema_id>/entfernen', methods=['POST'])
+@login_required
+def aufgabenliste_thema_entfernen(liste_id, thema_id):
+    mitarbeiter_id = session.get('user_id')
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
+
+    with get_db_connection() as conn:
+        ok, msg = aufgabenliste_services.remove_thema_from_aufgabenliste(
+            liste_id, thema_id, mitarbeiter_id, conn, is_admin=is_admin
+        )
+        conn.commit()
+    if ok:
+        flash(msg, 'info')
+    else:
+        flash(msg, 'danger')
+    return redirect(url_for('schichtbuch.aufgabenliste_detail', liste_id=liste_id))
+
+
+@schichtbuch_bp.route('/thema/<int:thema_id>/aufgabenlisten', methods=['GET'])
+@login_required
+def get_thema_aufgabenlisten(thema_id):
+    mitarbeiter_id = session.get('user_id')
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
+    with get_db_connection() as conn:
+        if not services.check_thema_berechtigung(thema_id, mitarbeiter_id, conn):
+            return jsonify({'success': False, 'message': 'Kein Zugriff'}), 403
+        data = aufgabenliste_services.get_thema_aufgabenlisten_json(
+            thema_id, mitarbeiter_id, conn, is_admin=is_admin
+        )
+    return jsonify(data)
+
+
+@schichtbuch_bp.route('/thema/<int:thema_id>/aufgabenlisten', methods=['POST'])
+@login_required
+def update_thema_aufgabenlisten(thema_id):
+    mitarbeiter_id = session.get('user_id')
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
+    gewaehlt = request.form.getlist('aufgabenliste_ids')
+
+    with get_db_connection() as conn:
+        if not services.check_thema_berechtigung(thema_id, mitarbeiter_id, conn):
+            return jsonify({'success': False, 'message': 'Kein Zugriff'}), 403
+        aufgabenliste_services.set_thema_aufgabenlisten(
+            thema_id, mitarbeiter_id, gewaehlt, conn, is_admin=is_admin
+        )
+        conn.commit()
+    return jsonify({'success': True, 'message': 'Gespeichert.'})
 
 
 # ========== Dateien/Anhänge ==========
@@ -864,20 +1162,10 @@ def thema_pdf_export(thema_id):
     try:
         # Berechtigungsprüfung
         with get_db_connection() as conn:
-            sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
-            
-            if sichtbare_abteilungen:
-                # Prüfe ob Thema für Benutzer sichtbar ist
-                placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
-                berechtigt = conn.execute(f'''
-                    SELECT COUNT(*) as count FROM SchichtbuchThemaSichtbarkeit
-                    WHERE ThemaID = ? AND AbteilungID IN ({placeholders})
-                ''', [thema_id] + sichtbare_abteilungen).fetchone()
-                
-                if berechtigt['count'] == 0:
-                    flash('Sie haben keine Berechtigung, dieses Thema zu exportieren.', 'danger')
-                    return redirect(url_for('schichtbuch.themaliste'))
-        
+            if not services.check_thema_berechtigung(thema_id, mitarbeiter_id, conn):
+                flash('Sie haben keine Berechtigung, dieses Thema zu exportieren.', 'danger')
+                return redirect(url_for('schichtbuch.themaliste'))
+
             # Bericht generieren
             content, filename, mimetype, is_pdf = generate_thema_pdf(thema_id, conn)
             
@@ -931,17 +1219,14 @@ def suche_thema():
                     table_alias='t'
                 )
                 
-                if not sichtbare_abteilungen:
-                    # Keine Berechtigung
-                    flash('Thema nicht gefunden oder Sie haben keine Berechtigung.', 'danger')
-                    return render_template('thema_suche.html')
-                
-                thema = conn.execute(query, params).fetchone()
-                
+                thema = conn.execute(query, params).fetchone() if sichtbare_abteilungen else None
+
+                if not thema and services.check_thema_berechtigung(thema_id, mitarbeiter_id, conn):
+                    return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
+
                 if thema:
                     return redirect(url_for('schichtbuch.thema_detail', thema_id=thema['ID']))
-                else:
-                    flash('Thema nicht gefunden oder Sie haben keine Berechtigung.', 'danger')
+                flash('Thema nicht gefunden oder Sie haben keine Berechtigung.', 'danger')
         except ValueError:
             flash('Bitte geben Sie eine gültige Thema-ID ein.', 'danger')
         except Exception as e:
