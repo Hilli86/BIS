@@ -843,6 +843,77 @@ def aufgabenliste_thema_entfernen(liste_id, thema_id):
     return redirect(url_for('schichtbuch.aufgabenliste_detail', liste_id=liste_id))
 
 
+@schichtbuch_bp.route('/aufgabenlisten/<int:liste_id>/api/offene-themen', methods=['GET'])
+@login_required
+def aufgabenliste_api_offene_themen(liste_id):
+    mitarbeiter_id = session.get('user_id')
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
+    with get_db_connection() as conn:
+        if not aufgabenliste_services.mitarbeiter_sieht_aufgabenliste(
+            mitarbeiter_id, liste_id, conn, is_admin=is_admin
+        ):
+            return jsonify({'success': False, 'message': 'Keine Berechtigung.'}), 403
+        rows = aufgabenliste_services.list_offene_themen_picker_fuer_aufgabenliste(
+            liste_id, mitarbeiter_id, conn, is_admin=is_admin, limit=20
+        )
+    themen = []
+    for r in rows:
+        themen.append({
+            'id': r['ID'],
+            'bereich': r['Bereich'],
+            'gewerk': r['Gewerk'],
+            'status': r['Status'],
+            'farbe': r['Farbe'] or '#6c757d',
+        })
+    return jsonify({'success': True, 'themen': themen})
+
+
+@schichtbuch_bp.route('/aufgabenlisten/<int:liste_id>/thema-hinzufuegen', methods=['POST'])
+@login_required
+def aufgabenliste_thema_hinzufuegen(liste_id):
+    mitarbeiter_id = session.get('user_id')
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
+    thema_id = request.form.get('thema_id', type=int)
+    if thema_id is None:
+        body = request.get_json(silent=True) or {}
+        try:
+            thema_id = int(body.get('thema_id'))
+        except (TypeError, ValueError):
+            thema_id = None
+    try:
+        thema_id = int(thema_id)
+    except (TypeError, ValueError):
+        thema_id = None
+    if not thema_id or thema_id < 1:
+        err = 'Ungültige Themen-ID.'
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': err}), 400
+        flash(err, 'danger')
+        return redirect(url_for('schichtbuch.aufgabenliste_detail', liste_id=liste_id))
+
+    is_xhr = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+    with get_db_connection() as conn:
+        ok, msg = aufgabenliste_services.add_thema_to_aufgabenliste(
+            liste_id, thema_id, mitarbeiter_id, conn, is_admin=is_admin
+        )
+        if ok:
+            conn.commit()
+        else:
+            conn.rollback()
+
+    if is_xhr:
+        if ok:
+            return jsonify({'success': True, 'message': msg})
+        return jsonify({'success': False, 'message': msg}), 400
+
+    if ok:
+        flash(msg, 'success')
+    else:
+        flash(msg, 'danger')
+    return redirect(url_for('schichtbuch.aufgabenliste_detail', liste_id=liste_id))
+
+
 @schichtbuch_bp.route('/thema/<int:thema_id>/aufgabenlisten', methods=['GET'])
 @login_required
 def get_thema_aufgabenlisten(thema_id):

@@ -10,7 +10,8 @@ from utils.helpers import build_sichtbarkeits_filter_query
 
 def build_themen_query(sichtbare_abteilungen, bereich_filter=None, gewerk_filter=None, 
                        status_filter_list=None, q_filter=None, limit=None, offset=None, mitarbeiter_id=None,
-                       aufgabenliste_sichtbar_ids=None):
+                       aufgabenliste_sichtbar_ids=None, exclude_aufgabenliste_id=None,
+                       exclude_erledigt_status=False):
     """
     Baut die SQL-Query für Themenliste auf
     
@@ -23,6 +24,8 @@ def build_themen_query(sichtbare_abteilungen, bereich_filter=None, gewerk_filter
         limit: Optionales Limit
         offset: Optionales Offset
         mitarbeiter_id: Optional: ID des Mitarbeiters (für Anzeige selbst erstellter Themen)
+        exclude_aufgabenliste_id: Thema auslassen, wenn es bereits in dieser Aufgabenliste liegt
+        exclude_erledigt_status: Nur Themen mit StatusID != 1 (offen, nicht erledigt)
         
     Returns:
         Tuple (query, params)
@@ -132,6 +135,15 @@ def build_themen_query(sichtbare_abteilungen, bereich_filter=None, gewerk_filter
     if q_filter:
         query += ' AND EXISTS (SELECT 1 FROM SchichtbuchBemerkungen b2 WHERE b2.ThemaID = t.ID AND b2.Gelöscht = 0 AND b2.Bemerkung LIKE ? )'
         params.append(f'%{q_filter}%')
+    
+    if exclude_aufgabenliste_id is not None:
+        query += (
+            ' AND NOT EXISTS (SELECT 1 FROM AufgabenlisteThema at_ex '
+            'WHERE at_ex.AufgabenlisteID = ? AND at_ex.ThemaID = t.ID)'
+        )
+        params.append(exclude_aufgabenliste_id)
+    if exclude_erledigt_status:
+        query += ' AND t.StatusID != 1'
     
     query += ' GROUP BY t.ID'
     

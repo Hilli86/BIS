@@ -1,0 +1,27 @@
+---
+description: BIS – Entitäts-Detailseiten (Zurück-Link, erste Karte mit Aktionsleiste)
+globs: "**/*.html"
+alwaysApply: false
+---
+
+# BIS – Detailseiten (Layout)
+
+Orientierung: [`ersatzteil_detail.html`](modules/ersatzteile/templates/ersatzteil_detail.html), [`bestellung_detail.html`](modules/ersatzteile/templates/bestellung_detail.html), [`sbAufgabenlisteDetail.html`](modules/schichtbuch/templates/sbAufgabenlisteDetail.html).
+
+## Seitenkopf
+
+1. **`h1`** mit Objekttitel (z. B. Name, Nummer), unten **`mb-4`**.
+2. **Zurück zur übergeordneten Liste:** darunter ein Block **`mb-3`** mit Link **`btn btn-secondary`**, Icon **`bi-arrow-left`**, Label z. B. **„Zurück zur Liste“** (Ziel: passende Übersichts-`url_for`, ggf. Filter-Query wie bei Bestellungen).
+
+## Erste Inhalts-Karte („Block 1“)
+
+- **`card mb-4 shadow-sm`**
+- **`card-header bg-primary text-white d-flex justify-content-between align-items-center flex-wrap gap-2`**
+  - **Links:** **`h5.mb-0`** mit kurzem Bereichstitel (z. B. „Ersatzteil-Details“, „Sichtbarkeit“) und sinnvollem **`bi`-Icon**.
+  - **Rechts:** **`div.d-flex.flex-wrap.gap-2.align-items-center.justify-content-end`** mit Kontextaktionen (Bearbeiten, Duplizieren, …).
+- **Aktionen im farbigen Header:** **`btn btn-sm btn-light`** (ggf. **`d-none d-sm-inline`** auf langen Button-Texten für schmale Viewports).
+- **`card-body`:** Stammdaten, Beschreibung, Tabellen – **keine** lose Button-Leiste mehr oberhalb der Karte, die dasselbe tun würde.
+
+## Weitere Blöcke
+
+Filter, Tabellen, sekundäre Cards wie bisher darunter; siehe **`bis-ui-design`** und **`bis-listen-formulare`**.

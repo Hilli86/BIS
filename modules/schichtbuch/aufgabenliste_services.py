@@ -5,6 +5,8 @@ Aufgabenlisten: Sichtbarkeit, Stammdaten, Themen-Zuordnung (Schichtbuch).
 from utils import get_sichtbare_abteilungen_fuer_mitarbeiter
 from utils.berechtigungen import hat_berechtigung
 
+from . import services as schichtbuch_services
+
 BERECHTIGUNG_THEMEN = 'darf_aufgabenliste_themen_verwalten'
 
 
@@ -435,6 +437,68 @@ def remove_thema_from_aufgabenliste(aufgabenliste_id, thema_id, mitarbeiter_id, 
         (aufgabenliste_id, thema_id),
     )
     return True, 'Entfernt.'
+
+
+def add_thema_to_aufgabenliste(aufgabenliste_id, thema_id, mitarbeiter_id, conn, is_admin=False):
+    """Thema zur Liste hinzufügen (nicht gelöscht, noch nicht zugeordnet)."""
+    import sqlite3
+
+    if not mitarbeiter_sieht_aufgabenliste(mitarbeiter_id, aufgabenliste_id, conn, is_admin=is_admin):
+        return False, 'Keine Berechtigung für diese Liste.'
+    if not darf_themen_zu_aufgabenliste_zuordnen(mitarbeiter_id, aufgabenliste_id, conn, is_admin=is_admin):
+        return False, 'Keine Berechtigung, Themen zuzuordnen.'
+    row = conn.execute(
+        'SELECT ID FROM SchichtbuchThema WHERE ID = ? AND Gelöscht = 0',
+        (thema_id,),
+    ).fetchone()
+    if not row:
+        return False, 'Thema nicht gefunden.'
+    dup = conn.execute(
+        'SELECT 1 FROM AufgabenlisteThema WHERE AufgabenlisteID = ? AND ThemaID = ?',
+        (aufgabenliste_id, thema_id),
+    ).fetchone()
+    if dup:
+        return False, 'Thema ist bereits in der Liste.'
+    max_sort = conn.execute(
+        'SELECT COALESCE(MAX(Sortierung), -1) AS m FROM AufgabenlisteThema WHERE AufgabenlisteID = ?',
+        (aufgabenliste_id,),
+    ).fetchone()['m']
+    try:
+        conn.execute(
+            '''INSERT INTO AufgabenlisteThema
+               (AufgabenlisteID, ThemaID, Sortierung, HinzugefuegtVonMitarbeiterID)
+               VALUES (?, ?, ?, ?)''',
+            (aufgabenliste_id, thema_id, max_sort + 1, mitarbeiter_id),
+        )
+    except sqlite3.IntegrityError:
+        return False, 'Thema ist bereits zugeordnet.'
+    return True, 'Thema hinzugefügt.'
+
+
+def list_offene_themen_picker_fuer_aufgabenliste(
+    aufgabenliste_id, mitarbeiter_id, conn, is_admin=False, limit=20
+):
+    """
+    Zuletzt aktive, nicht erledigte Themen (Schichtbuch-Sichtbarkeit wie Themenliste),
+    die noch nicht in dieser Aufgabenliste sind.
+    """
+    if not mitarbeiter_sieht_aufgabenliste(mitarbeiter_id, aufgabenliste_id, conn, is_admin=is_admin):
+        return []
+    if not darf_themen_zu_aufgabenliste_zuordnen(mitarbeiter_id, aufgabenliste_id, conn, is_admin=is_admin):
+        return []
+    sichtbare = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn) or []
+    auf_liste_rows = list_aufgabenlisten_fuer_mitarbeiter(mitarbeiter_id, conn, is_admin=is_admin)
+    auf_ids = [r['ID'] for r in auf_liste_rows] or None
+    query, params = schichtbuch_services.build_themen_query(
+        sichtbare,
+        limit=limit,
+        offset=0,
+        mitarbeiter_id=mitarbeiter_id,
+        aufgabenliste_sichtbar_ids=auf_ids,
+        exclude_aufgabenliste_id=aufgabenliste_id,
+        exclude_erledigt_status=True,
+    )
+    return conn.execute(query, params).fetchall()
 
 
 def reorder_aufgabenliste_themen(aufgabenliste_id, thema_ids_ordered, mitarbeiter_id, conn, is_admin=False):
