@@ -5,7 +5,7 @@
   <style>
   /* 1) Themenzeile: alle TDs dieser TR immer hellgrau */
   .table tbody tr.thema-row > td {
-    background-color: #e9ecef !important;
+    background-color: var(--bs-tertiary-bg, #e9ecef) !important;
   }
 
   /* 2) Bemerkungszeile & Collapse-Zeile: TDs immer weiß */
@@ -14,10 +14,15 @@
     background-color: #ffffff !important;
   }
 
-  /* 3) Falls List-Group-Items verwendet werden, sicherstellen, dass sie weiß sind */
-  .table .list-group-item {
+  /* 3) List-Group-Items in Bemerkungen: kein linker Akzentbalken, kein Hover-Grau */
+  .table tbody tr.bemerkung-row .list-group-item {
     background-color: #ffffff !important;
-    border-left: 3px solid #dee2e6; /* optional: dezenter linker Balken */
+    border-left: none;
+  }
+
+  .table tbody tr.bemerkung-row .list-group-item:hover,
+  .table tbody tr.bemerkung-row .list-group-item:focus {
+    background-color: #ffffff !important;
   }
 
   /* 4) Verhindern, dass .table-striped wieder einfärbt (falls irgendwo noch gesetzt) */
@@ -33,7 +38,7 @@
 
   /* Themenzeilen grau */
   .thema-row {
-    background-color: #f2f2f2 !important;
+    background-color: var(--bs-tertiary-bg, #f2f2f2) !important;
   }
 
   /* Bemerkungen immer weiß */
@@ -42,18 +47,42 @@
     background-color: #ffffff !important;
   }
 
-  /* Dezent abgesetzte Bemerkungen */
   .bemerkung-list li {
-    border-left: 3px solid #dee2e6;
     margin-bottom: 4px;
   }
 
-  /* Hover-Effekt nur für Themen-Zeilen, nicht für Bemerkungen */
-  .table tbody tr.thema-row:hover > td {
-    background-color: #dee2e6 !important;
+  /*
+   * Bootstrap 5.3: .table-hover dunkelt per inset box-shadow (--bs-table-bg-state),
+   * nicht nur per background. Nur die Zeile unter der Maus bekam so eine Extra-Schicht –
+   * Paar-Hover wirkte zweifarbig. State auf transparent, Farbe kommt von background-color.
+   */
+  .table.table-hover > tbody > tr.thema-row:hover > td {
+    --bs-table-accent-bg: transparent !important;
+    --bs-table-bg-state: transparent !important;
+    --bs-table-color-state: inherit;
   }
 
-  /* Bemerkungs- und Collapse-Zeilen sollen niemals einen Hover-Effekt haben */
+  /*
+   * Kopf + Bemerkungs-Vorschau gemeinsam leicht absetzen (heller als früheres Secondary-Grau).
+   * Gilt nur für .thema-row-kopf / .sb-tl-follow, nicht für die weißen Bemerkungs-Collapse-Zeilen.
+   */
+  .table tbody tr.thema-row-kopf:hover > td,
+  .table tbody tr.thema-row-kopf:hover + tr.sb-tl-follow > td,
+  .table tbody tr.sb-tl-follow:hover > td,
+  .table tbody tr.thema-row-kopf:has(+ tr.sb-tl-follow:hover) > td {
+    background-color: var(--sb-tl-pair-hover-bg, #e3e6e9) !important;
+  }
+
+  /* Bemerkungs- und Collapse-Zeilen: kein table-hover (Bootstrap setzt --bs-table-accent-bg) */
+  .table.table-hover > tbody > tr.bemerkung-row:hover > td,
+  .table.table-hover > tbody > tr.collapse-row:hover > td {
+    --bs-table-accent-bg: transparent !important;
+    --bs-table-bg: #ffffff;
+    background-color: #ffffff !important;
+    color: inherit;
+    box-shadow: none;
+  }
+
   .table tbody tr.bemerkung-row:hover,
   .table tbody tr.collapse-row:hover,
   .table tbody tr.bemerkung-row:hover > td,
@@ -80,8 +109,57 @@
   }
 
   .table tbody tr.bemerkung-row:hover .list-group-item,
-  .table tbody tr.bemerkung-row:hover .list-group-item:hover {
+  .table tbody tr.bemerkung-row:hover .list-group-item:hover,
+  .table tbody tr.bemerkung-row .list-group-item-action:hover {
     background-color: #ffffff !important;
+  }
+
+  /* Größere Klickfläche: Pfeil für weitere Bemerkungen (Desktop-Tabelle + Karten) */
+  .sb-bemerk-history-toggle {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    padding: 0.35rem 0.55rem !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    line-height: 1;
+  }
+
+  /* Pfeil: weitere Bemerkungen aufklappen */
+  .sb-bemerk-chevron {
+    display: inline-block;
+    transition: transform 0.2s ease;
+    font-size: 1.1rem;
+    line-height: 1;
+    vertical-align: middle;
+  }
+  .sb-bemerk-history-toggle[aria-expanded="true"] .sb-bemerk-chevron {
+    transform: rotate(180deg);
+  }
+  .sb-bemerk-history-toggle:focus {
+    box-shadow: none;
+  }
+
+  .sb-tl-bemerkung-text {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 1rem;
+    line-height: 1.45;
+  }
+
+  /* Keine graue Trennlinie zwischen Kopfzeile und Bemerkungs-Vorschau */
+  .table tbody tr.thema-row-kopf:has(+ tr.sb-tl-follow) > td {
+    border-bottom: 0 !important;
+  }
+  .table tbody tr.sb-tl-follow > td {
+    border-top: 0 !important;
+  }
+
+  .sb-tl-bereich {
+    font-size: 1.1rem;
+    font-weight: 500;
+    line-height: 1.35;
   }
 
   /* Action-Buttons in kleiner Ansicht - alle gleich breit */
@@ -203,18 +281,18 @@
 {% endblock %}
 
 {% block content %}
-<h1 class="mb-4">📋 Themenliste</h1>
-
-<div class="mb-3">
-    <a href="{{ url_for('schichtbuch.themaneu') }}" class="btn btn-primary">
-        <i class="bi bi-plus-circle"></i> Neues Thema
+<div class="container-fluid mt-4">
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
+    <h2 class="mb-0"><i class="bi bi-journal-text"></i> Themenliste</h2>
+    <a href="{{ url_for('schichtbuch.themaneu') }}" class="btn btn-primary text-nowrap">
+      <i class="bi bi-plus-circle"></i> Neues Thema
     </a>
-</div>
+  </div>
 
-<!-- 🔹 Filter (einklappbar) -->
-<div class="card mb-4 shadow-sm">
+<!-- Filter (einklappbar) -->
+<div class="card mb-4">
   <div class="card-header d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#filterCollapse" aria-expanded="false" aria-controls="filterCollapse">
-    <strong>Filter</strong>
+    <strong><i class="bi bi-funnel me-1"></i>Filter</strong>
     <span class="btn btn-sm btn-outline-primary">Anzeigen / Ausblenden</span>
   </div>
   <div class="collapse" id="filterCollapse">
@@ -246,7 +324,7 @@
         <div class="row g-3 mt-1">
           <div class="col-12">
             <label class="form-label"><strong>Status</strong> (mehrere wählbar)</label>
-            <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto; background-color: #f8f9fa;">
+            <div class="border rounded p-3 bg-light" style="max-height: 200px; overflow-y: auto;">
               {% for s in status_liste %}
                 <div class="form-check">
                   <input class="form-check-input status-filter-cb" type="checkbox" name="status" value="{{ s.Bezeichnung }}" 
@@ -276,17 +354,9 @@
 
         <!-- Zeile 4: Buttons -->
         <div class="row g-3 mt-2">
-          <div class="col-12">
-            <!-- Desktop: Buttons nebeneinander -->
-            <div class="d-none d-md-flex">
-              <button type="submit" class="btn btn-primary me-2">Filtern</button>
-              <a href="{{ url_for('schichtbuch.themaliste') }}" class="btn btn-secondary">Alle anzeigen</a>
-            </div>
-            <!-- Mobile: Buttons untereinander -->
-            <div class="d-md-none">
-              <button type="submit" class="btn btn-primary w-100 mb-2">Filtern</button>
-              <a href="{{ url_for('schichtbuch.themaliste') }}" class="btn btn-secondary w-100">Alle anzeigen</a>
-            </div>
+          <div class="col-12 d-flex flex-column flex-sm-row flex-wrap gap-2">
+            <button type="submit" class="btn btn-primary">Filter anwenden</button>
+            <a href="{{ url_for('schichtbuch.themaliste') }}" class="btn btn-secondary">Zurücksetzen</a>
           </div>
         </div>
       </form>
@@ -295,60 +365,73 @@
 </div>
 
 <!-- Themen-Liste -->
-<div class="card shadow-sm">
-    <div class="card-body">
+<div class="card mb-4">
+    <div class="card-body p-0">
         {% if themen %}
         <!-- Desktop: Tabelle (ab md-Breakpoint) -->
         <div class="d-none d-md-block">
             <div class="table-responsive">
-                <table class="table align-middle">
-                    <thead>
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
                         <tr>
-                            <th>ID</th>
+                            <th class="text-nowrap" style="width: 1%;">ID</th>
+                            <th class="text-nowrap">Letzte Aktivität</th>
                             <th>Bereich – Gewerk</th>
-                            <th>Status</th>
-                            <th>Aktionen</th>
+                            <th class="text-nowrap">Status</th>
+                            <th>Tätigkeit</th>
+                            <th class="text-nowrap">Autor</th>
+                            <th>Bemerkung</th>
+                            <th class="text-center text-nowrap" style="width: 1%;">Aktionen</th>
                         </tr>
                     </thead>
-                    <tbody>
         {% for thema in themen %}
-    <!-- 🔸 Themen-Zeile -->
-    <tr class="thema-row" style="color: {{ thema.Farbe or 'inherit' }}; cursor: pointer;" onclick="window.location.href='{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}'">
+    {% set bs = bemerk_dict.get(thema.ID) or [] %}
+    {% set letzte = bs[0] if bs else none %}
+    <tbody>
+    <tr class="thema-row thema-row-kopf" style="color: {{ thema.Farbe or 'inherit' }}; cursor: pointer;" onclick="window.location.href='{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}'">
       <td>
-        <a href="{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}" class="text-decoration-none" onclick="event.stopPropagation();">
-          #{{ thema.ID }}
-        </a>
+        <span class="d-inline-flex align-items-center gap-1">
+          <a href="{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}" class="text-decoration-none" onclick="event.stopPropagation();">
+            #{{ thema.ID }}
+          </a>
+          {% if bs|length > 1 %}
+          <button type="button" class="btn btn-sm btn-link text-body p-0 sb-bemerk-history-toggle"
+                  data-bs-toggle="collapse" data-bs-target="#bemerkHistory{{ thema.ID }}"
+                  aria-expanded="false" aria-controls="bemerkHistory{{ thema.ID }}"
+                  title="Weitere Bemerkungen anzeigen"
+                  onclick="event.stopPropagation();">
+            <i class="bi bi-chevron-down sb-bemerk-chevron" aria-hidden="true"></i>
+          </button>
+          {% endif %}
+        </span>
       </td>
-      <td>{{ thema.Bereich }} – {{ thema.Gewerk }}</td>
-      <td>
+      <td class="text-nowrap small sb-tl-datum text-muted">{% if letzte %}{{ letzte.Datum|schichtbuch_datum }}{% else %}–{% endif %}</td>
+      <td class="sb-tl-bereich text-body">{{ thema.Bereich }} – {{ thema.Gewerk }}</td>
+      <td class="sb-tl-status-wrap">
         <span class="badge rounded-pill" style="background-color: {{ thema.Farbe|default('#ccc')|trim }}; color: #fff;">
           {{ thema.Status }}
         </span>
       </td>
-      <td class="text-center" onclick="event.stopPropagation();">
+      <td class="small sb-tl-taet">{% if letzte and letzte.Taetigkeit %}{{ letzte.Taetigkeit }}{% else %}<span class="text-muted">–</span>{% endif %}</td>
+      <td class="small sb-tl-autor">{% if letzte %}<span class="text-body">{{ letzte.Vorname }} {{ letzte.Nachname }}</span>{% else %}<span class="text-muted">–</span>{% endif %}</td>
+      <td class="small text-muted">{% if not letzte or not letzte.Bemerkung %}–{% endif %}</td>
+      <td class="text-center" onclick="event.stopPropagation();"{% if letzte and letzte.Bemerkung %} rowspan="2"{% endif %}>
         <div class="d-flex flex-column flex-sm-row justify-content-center gap-1">
-          <!-- 🔸 Neue Bemerkung Button -->
           <button class="btn btn-sm btn-outline-success" type="button"
                   data-bs-toggle="collapse" data-bs-target="#newBemerkung{{ thema.ID }}" aria-expanded="false"
                   title="Neue Bemerkung">
             <i class="bi bi-plus-lg"></i>
           </button>
-          
-          <!-- 🔸 Dateien anzeigen Button -->
           <button class="btn btn-sm btn-outline-secondary" type="button"
                   onclick="openDateienModal({{ thema.ID }})"
                   title="Dateien & Bilder">
             <i class="bi bi-paperclip"></i>
           </button>
-
-          <!-- 🔸 Aufgabenlisten (wie im Thema-Detail) -->
           <button class="btn btn-sm btn-outline-primary" type="button"
                   onclick="openAufgabenlistenModal({{ thema.ID }})"
                   title="Aufgabenlisten">
             <i class="bi bi-list-task"></i>
           </button>
-          
-          <!-- 🔸 Löschen Button -->
           <form action="{{ url_for('schichtbuch.delete_thema', thema_id=thema.ID) }}" method="post" class="m-0 p-0">
             <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Thema wirklich löschen?');"
                     title="Thema löschen">
@@ -358,35 +441,41 @@
         </div>
       </td>
     </tr>
+    {% if letzte and letzte.Bemerkung %}
+    <tr class="thema-row sb-tl-follow" style="color: {{ thema.Farbe or 'inherit' }}; cursor: pointer;" onclick="window.location.href='{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}'">
+      <td></td>
+      <td colspan="6" class="text-body sb-tl-bemerkung-text pt-0 pb-2">{{ letzte.Bemerkung }}</td>
+    </tr>
+    {% endif %}
 
-    <!-- 🔹 Bemerkungen -->
+    {% if bs|length > 1 %}
     <tr class="bemerkung-row">
-      <td colspan="4">
-        {% if bemerk_dict.get(thema.ID) %}
-          <ul class="list-group list-group-flush bemerkung-list">
-            {% for b in bemerk_dict[thema.ID] %}
-            <li class="list-group-item bg-white">
-              <div class="d-flex">
-                <small class="text-muted">
-                  {{ b.Datum|schichtbuch_datum }} - <strong>{{ b.Vorname }} {{ b.Nachname }}</strong>
-                  {% if b.Taetigkeit %}
-                    <span class="text-secondary">({{ b.Taetigkeit }})</span>
-                  {% endif %}
-                </small>
-              </div>
-              <div>{{ b.Bemerkung }}</div>
-            </li>
-            {% endfor %}
-          </ul>
-        {% else %}
-          <p class="text-muted fst-italic mb-0">Keine Bemerkungen vorhanden.</p>
-        {% endif %}
+      <td colspan="8" class="p-0 border-0">
+        <div class="collapse" id="bemerkHistory{{ thema.ID }}">
+          <div class="border-top bg-white px-3 py-2">
+            <ul class="list-group list-group-flush bemerkung-list">
+              {% for b in bs[1:] %}
+              <li class="list-group-item bg-white">
+                <div class="d-flex">
+                  <small class="text-muted">
+                    {{ b.Datum|schichtbuch_datum }} - <strong>{{ b.Vorname }} {{ b.Nachname }}</strong>
+                    {% if b.Taetigkeit %}
+                      <span class="text-secondary">({{ b.Taetigkeit }})</span>
+                    {% endif %}
+                  </small>
+                </div>
+                <div>{{ b.Bemerkung }}</div>
+              </li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
       </td>
     </tr>
+    {% endif %}
 
-    <!-- 🔸 Eingeklappter Bereich -->
     <tr class="collapse collapse-row" id="newBemerkung{{ thema.ID }}">
-      <td colspan="4">
+      <td colspan="8">
         <form action="{{ url_for('schichtbuch.add_bemerkung') }}" method="post" class="mt-2">
           <input type="hidden" name="thema_id" value="{{ thema.ID }}">
           <input type="hidden" name="next" value="{{ request.full_path }}">
@@ -437,36 +526,56 @@
         </form>
       </td>
     </tr>
+    </tbody>
         {% endfor %}
-                    </tbody>
                 </table>
             </div>
         </div>
 
-        <!-- Mobile: Cards (nur auf sm und kleiner) -->
-        <div class="d-md-none">
+        <!-- Mobile: Cards -->
+        <div class="d-md-none p-3">
             <div id="themenCardsContainer">
                 {% for thema in themen %}
+                {% set bs_m = bemerk_dict.get(thema.ID) or [] %}
+                {% set letzte_m = bs_m[0] if bs_m else none %}
                 <div class="thema-card-mobile mb-3" data-thema-id="{{ thema.ID }}" style="color: {{ thema.Farbe or 'inherit' }};">
                     <div class="card shadow-sm thema-card-clickable" onclick="window.location.href='{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}'">
                         <!-- Card Header: ID + Status -->
-                        <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                            <a href="{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}" class="text-decoration-none fw-bold" onclick="event.stopPropagation();">
+                        <div class="card-header bg-light d-flex justify-content-between align-items-center gap-2">
+                            <span class="d-inline-flex align-items-center gap-1" onclick="event.stopPropagation();">
+                              <a href="{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}" class="text-decoration-none fw-bold" onclick="event.stopPropagation();">
                                 #{{ thema.ID }}
-                            </a>
-                            <span class="badge rounded-pill" style="background-color: {{ thema.Farbe|default('#ccc')|trim }}; color: #fff;">
+                              </a>
+                              {% if bs_m|length > 1 %}
+                              <button type="button" class="btn btn-sm btn-link text-body p-0 sb-bemerk-history-toggle"
+                                      data-bs-toggle="collapse" data-bs-target="#bemerkHistoryMobile{{ thema.ID }}"
+                                      aria-expanded="false" aria-controls="bemerkHistoryMobile{{ thema.ID }}"
+                                      title="Weitere Bemerkungen anzeigen"
+                                      onclick="event.stopPropagation();">
+                                <i class="bi bi-chevron-down sb-bemerk-chevron" aria-hidden="true"></i>
+                              </button>
+                              {% endif %}
+                            </span>
+                            <span class="badge rounded-pill flex-shrink-0" style="background-color: {{ thema.Farbe|default('#ccc')|trim }}; color: #fff;">
                                 {{ thema.Status }}
                             </span>
                         </div>
                         
-                        <!-- Card Body: Bereich – Gewerk + Alle Bemerkungen -->
                         <div class="card-body">
                             <h6 class="card-title mb-2 fw-bold">{{ thema.Bereich }} – {{ thema.Gewerk }}</h6>
-                            
-                            <!-- Alle Bemerkungen -->
-                            {% if bemerk_dict.get(thema.ID) %}
-                                <ul class="list-group list-group-flush bemerkung-list mb-3">
-                                    {% for b in bemerk_dict[thema.ID] %}
+                            <p class="small text-muted mb-2 sb-mobile-meta">
+                              {% if letzte_m %}
+                                {{ letzte_m.Datum|schichtbuch_datum }}
+                                {% if letzte_m.Taetigkeit %} · {{ letzte_m.Taetigkeit }}{% else %} · –{% endif %}
+                                · <strong>{{ letzte_m.Vorname }} {{ letzte_m.Nachname }}</strong>
+                              {% else %}
+                                <span class="text-muted">– · – · –</span>
+                              {% endif %}
+                            </p>
+                            {% if bs_m|length > 1 %}
+                                <div class="collapse" id="bemerkHistoryMobile{{ thema.ID }}">
+                                  <ul class="list-group list-group-flush bemerkung-list mb-0">
+                                    {% for b in bs_m[1:] %}
                                     <li class="list-group-item bg-white px-0">
                                         <div class="d-flex">
                                             <small class="text-muted">
@@ -479,9 +588,12 @@
                                         <div class="mt-1">{{ b.Bemerkung }}</div>
                                     </li>
                                     {% endfor %}
-                                </ul>
+                                  </ul>
+                                </div>
+                            {% elif bs_m|length == 1 %}
+                                <p class="small text-body mb-0 sb-mobile-bemerkung-preview">{{ bs_m[0].Bemerkung }}</p>
                             {% else %}
-                                <p class="text-muted fst-italic mb-3 small">Keine Bemerkungen vorhanden.</p>
+                                <p class="text-muted fst-italic mb-0 small">Keine Bemerkungen vorhanden.</p>
                             {% endif %}
                         </div>
                         
@@ -575,8 +687,8 @@
             </div>
         </div>
         {% else %}
-        <div class="alert alert-info">
-            <i class="bi bi-info-circle"></i> Keine Themen gefunden.
+        <div class="p-4">
+          <p class="text-muted mb-0"><i class="bi bi-inbox"></i> Keine Themen gefunden.</p>
         </div>
         {% endif %}
     </div>
@@ -587,7 +699,7 @@
   <div class="spinner-border text-primary" role="status">
     <span class="visually-hidden">Laden...</span>
   </div>
-  <p class="mt-2">Weitere Einträge werden geladen...</p>
+  <p class="mt-2 text-muted">Weitere Einträge werden geladen...</p>
 </div>
 
 </div>
@@ -605,6 +717,121 @@ function formatSchichtbuchDatum(s) {
   const m = str.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
   if (m) return `${m[3]}.${m[2]}.${m[1]} ${m[4]}:${m[5]}`;
   return str;
+}
+
+function escapeHtml(s) {
+  if (s == null || s === '') return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function escapeHtmlBr(s) {
+  return String(s ?? '').split('\n').map(escapeHtml).join('<br>');
+}
+
+function sbEnsureThemaRowHistoryToggle(themaRow, themaId) {
+  if (!themaRow || themaRow.querySelector('.sb-bemerk-history-toggle')) return;
+  const firstTd = themaRow.querySelector('td');
+  const link = firstTd && firstTd.querySelector('a');
+  if (!firstTd || !link) return;
+  const span = document.createElement('span');
+  span.className = 'd-inline-flex align-items-center gap-1';
+  link.replaceWith(span);
+  span.appendChild(link);
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn btn-sm btn-link text-body p-0 sb-bemerk-history-toggle';
+  btn.setAttribute('data-bs-toggle', 'collapse');
+  btn.setAttribute('data-bs-target', `#bemerkHistory${themaId}`);
+  btn.setAttribute('aria-expanded', 'false');
+  btn.setAttribute('aria-controls', `bemerkHistory${themaId}`);
+  btn.title = 'Weitere Bemerkungen anzeigen';
+  btn.onclick = (e) => e.stopPropagation();
+  btn.innerHTML = '<i class="bi bi-chevron-down sb-bemerk-chevron" aria-hidden="true"></i>';
+  span.appendChild(btn);
+}
+
+function sbEnsureMobileHistoryToggle(themaCard, themaId) {
+  const header = themaCard.querySelector('.thema-card-clickable .card-header');
+  if (!header || header.querySelector('.sb-bemerk-history-toggle')) return;
+  const link = header.querySelector('a');
+  if (!link) return;
+  const wrap = link.parentElement;
+  if (wrap && wrap.classList.contains('d-inline-flex') && wrap.classList.contains('align-items-center')) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-sm btn-link text-body p-0 sb-bemerk-history-toggle';
+    btn.setAttribute('data-bs-toggle', 'collapse');
+    btn.setAttribute('data-bs-target', `#bemerkHistoryMobile${themaId}`);
+    btn.setAttribute('aria-expanded', 'false');
+    btn.setAttribute('aria-controls', `bemerkHistoryMobile${themaId}`);
+    btn.title = 'Weitere Bemerkungen anzeigen';
+    btn.onclick = (e) => e.stopPropagation();
+    btn.innerHTML = '<i class="bi bi-chevron-down sb-bemerk-chevron" aria-hidden="true"></i>';
+    wrap.appendChild(btn);
+    return;
+  }
+  const span = document.createElement('span');
+  span.className = 'd-inline-flex align-items-center gap-1';
+  span.addEventListener('click', (e) => e.stopPropagation());
+  link.replaceWith(span);
+  span.appendChild(link);
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn btn-sm btn-link text-body p-0 sb-bemerk-history-toggle';
+  btn.setAttribute('data-bs-toggle', 'collapse');
+  btn.setAttribute('data-bs-target', `#bemerkHistoryMobile${themaId}`);
+  btn.setAttribute('aria-expanded', 'false');
+  btn.setAttribute('aria-controls', `bemerkHistoryMobile${themaId}`);
+  btn.title = 'Weitere Bemerkungen anzeigen';
+  btn.onclick = (e) => e.stopPropagation();
+  btn.innerHTML = '<i class="bi bi-chevron-down sb-bemerk-chevron" aria-hidden="true"></i>';
+  span.appendChild(btn);
+}
+
+function setThemaPreviewFromAjax(themaKopf, bemText) {
+  if (!themaKopf) return;
+  const actionsCell = themaKopf.querySelector("td.text-center:last-child");
+  const bemMetaCell = themaKopf.querySelector("td:nth-child(7)");
+  let textRow = themaKopf.nextElementSibling;
+  if (!textRow || !textRow.classList.contains("sb-tl-follow")) {
+    textRow = null;
+  }
+
+  if (bemText != null && bemText !== "") {
+    if (bemMetaCell) bemMetaCell.innerHTML = "";
+    if (textRow) {
+      const previewCell = textRow.querySelector(".sb-tl-bemerkung-text");
+      if (previewCell) previewCell.textContent = bemText;
+    } else {
+      if (actionsCell) actionsCell.setAttribute("rowspan", "2");
+      const tr = document.createElement("tr");
+      tr.className = "thema-row sb-tl-follow";
+      tr.style.cssText = themaKopf.getAttribute("style") || "";
+      tr.style.cursor = "pointer";
+      const href = themaKopf.querySelector('a[href*="/schichtbuch/thema"]')?.getAttribute("href");
+      tr.onclick = () => {
+        if (href) window.location.href = href;
+      };
+      tr.innerHTML =
+        '<td></td><td colspan="6" class="text-body sb-tl-bemerkung-text pt-0 pb-2"></td>';
+      tr.querySelector(".sb-tl-bemerkung-text").textContent = bemText;
+      const nextTr = themaKopf.nextElementSibling;
+      if (
+        nextTr &&
+        (nextTr.classList.contains("bemerkung-row") || nextTr.classList.contains("collapse-row"))
+      ) {
+        themaKopf.parentNode.insertBefore(tr, nextTr);
+      } else {
+        themaKopf.insertAdjacentElement("afterend", tr);
+      }
+    }
+  } else if (textRow) {
+    textRow.remove();
+    if (actionsCell) actionsCell.removeAttribute("rowspan");
+    if (bemMetaCell) bemMetaCell.innerHTML = '<span class="text-muted">–</span>';
+  }
 }
 
 document.addEventListener("submit", async (e) => {
@@ -650,46 +877,58 @@ document.addEventListener("submit", async (e) => {
     const isMobile = window.innerWidth < 768;
     
     if (isMobile) {
-      // Mobile: Card-Struktur aktualisieren
       const themaCard = form.closest(".thema-card-mobile");
       if (themaCard) {
-        // Bemerkungsliste finden oder erstellen
-        let bemerkungsList = themaCard.querySelector(".bemerkung-list");
         const cardBody = themaCard.querySelector(".card-body");
-        
-        if (!bemerkungsList && cardBody) {
-          // Wenn keine Bemerkungen vorhanden waren, erstelle die Liste
-          const titleElement = cardBody.querySelector(".card-title");
-          if (titleElement) {
-            const bemerkungenContainer = document.createElement("ul");
-            bemerkungenContainer.className = "list-group list-group-flush bemerkung-list mb-3";
-            titleElement.insertAdjacentElement("afterend", bemerkungenContainer);
-            bemerkungsList = bemerkungenContainer;
-          }
+        const meta = themaCard.querySelector(".sb-mobile-meta");
+        if (meta) {
+          const ta = data.taetigkeit || "";
+          meta.innerHTML = `${formatSchichtbuchDatum(data.datum)}${ta ? " · " + escapeHtml(ta) : " · –"} · <strong>${escapeHtml(data.vorname)} ${escapeHtml(data.nachname)}</strong>`;
         }
-        
-        if (bemerkungsList) {
-          // Entferne "Keine Bemerkungen"-Text falls vorhanden
-          const noBemerkungen = cardBody.querySelector("p.text-muted.fst-italic");
-          if (noBemerkungen) {
-            noBemerkungen.remove();
+        cardBody.querySelector("p.text-muted.fst-italic")?.remove();
+
+        if (data.vorherige) {
+          themaCard.querySelector(".sb-mobile-bemerkung-preview")?.remove();
+          let collapseEl = document.getElementById(`bemerkHistoryMobile${themaId}`);
+          let ul = collapseEl && collapseEl.querySelector(".bemerkung-list");
+          if (!ul && cardBody) {
+            collapseEl = document.createElement("div");
+            collapseEl.className = "collapse";
+            collapseEl.id = `bemerkHistoryMobile${themaId}`;
+            ul = document.createElement("ul");
+            ul.className = "list-group list-group-flush bemerkung-list mb-0";
+            collapseEl.appendChild(ul);
+            const metaEl = themaCard.querySelector(".sb-mobile-meta");
+            if (metaEl) metaEl.insertAdjacentElement("afterend", collapseEl);
+            else cardBody.appendChild(collapseEl);
+            sbEnsureMobileHistoryToggle(themaCard, themaId);
           }
-          
-          const newItem = document.createElement("li");
-          newItem.className = "list-group-item bg-white px-0";
-          newItem.innerHTML = `
-            <div class="d-flex">
-              <small class="text-muted">
-                ${formatSchichtbuchDatum(data.datum)} - <strong>${data.vorname} ${data.nachname}</strong>
-                ${data.taetigkeit ? `<span class="text-secondary">(${data.taetigkeit})</span>` : ""}
-              </small>
-            </div>
-            <div class="mt-1">${data.bemerkung}</div>
-          `;
-          bemerkungsList.insertBefore(newItem, bemerkungsList.firstChild);
+          if (ul) {
+            const v = data.vorherige;
+            const li = document.createElement("li");
+            li.className = "list-group-item bg-white px-0";
+            li.innerHTML = `
+              <div class="d-flex">
+                <small class="text-muted">
+                  ${formatSchichtbuchDatum(v.datum)} - <strong>${escapeHtml(v.vorname)} ${escapeHtml(v.nachname)}</strong>
+                  ${v.taetigkeit ? `<span class="text-secondary">(${escapeHtml(v.taetigkeit)})</span>` : ""}
+                </small>
+              </div>
+              <div class="mt-1">${escapeHtmlBr(v.bemerkung)}</div>`;
+            ul.insertBefore(li, ul.firstChild);
+          }
+        } else {
+          let preview = themaCard.querySelector(".sb-mobile-bemerkung-preview");
+          if (!preview && cardBody) {
+            preview = document.createElement("p");
+            preview.className = "small text-body mb-0 sb-mobile-bemerkung-preview";
+            const metaEl = themaCard.querySelector(".sb-mobile-meta");
+            if (metaEl) metaEl.insertAdjacentElement("afterend", preview);
+            else cardBody.appendChild(preview);
+          }
+          if (preview) preview.textContent = data.bemerkung;
         }
-        
-        // Status-Badge aktualisieren
+
         if (data.neuer_status && data.neue_farbe) {
           const badge = themaCard.querySelector(".badge");
           if (badge) {
@@ -707,33 +946,55 @@ document.addEventListener("submit", async (e) => {
         collapseInstance.hide();
       }
     } else {
-      // Desktop: Tabellenstruktur aktualisieren
       const collapseRow = form.closest("tr.collapse-row");
       if (collapseRow) {
-        const bemerkungsRow = collapseRow.previousElementSibling;
-        const themaRow = bemerkungsRow ? bemerkungsRow.previousElementSibling : null;
+        let prev = collapseRow.previousElementSibling;
+        let bemerkungsRow = null;
+        if (prev && prev.classList.contains("bemerkung-row")) {
+          bemerkungsRow = prev;
+          prev = prev.previousElementSibling;
+        }
+        if (prev && prev.classList.contains("sb-tl-follow")) {
+          prev = prev.previousElementSibling;
+        }
+        const themaRow = prev && prev.classList.contains("thema-row-kopf") ? prev : null;
 
-        let bemerkungsList = bemerkungsRow ? bemerkungsRow.querySelector(".list-group") : null;
-        if (!bemerkungsList && bemerkungsRow) {
-          bemerkungsList = document.createElement("ul");
-          bemerkungsList.className = "list-group list-group-flush bemerkung-list";
-          bemerkungsRow.querySelector("td").innerHTML = "";
-          bemerkungsRow.querySelector("td").appendChild(bemerkungsList);
+        function setThemaSummaryFromAjax(tr, d) {
+          if (!tr) return;
+          const dCell = tr.querySelector("td.sb-tl-datum");
+          const tCell = tr.querySelector("td.sb-tl-taet");
+          const aCell = tr.querySelector("td.sb-tl-autor");
+          if (dCell) dCell.textContent = formatSchichtbuchDatum(d.datum) || "–";
+          if (tCell) tCell.innerHTML = d.taetigkeit ? escapeHtml(d.taetigkeit) : '<span class="text-muted">–</span>';
+          if (aCell) aCell.innerHTML = `<span class="text-body">${escapeHtml(d.vorname)} ${escapeHtml(d.nachname)}</span>`;
         }
 
-        if (bemerkungsList) {
-          const newItem = document.createElement("li");
-          newItem.className = "list-group-item bg-white";
-          newItem.innerHTML = `
-            <div class="d-flex">
-              <small class="text-muted">
-                ${formatSchichtbuchDatum(data.datum)} – <strong>${data.vorname} ${data.nachname}</strong>
-                ${data.taetigkeit ? `<span class="text-secondary">(${data.taetigkeit})</span>` : ""}
-              </small>
-            </div>
-            <div>${data.bemerkung}</div>
-          `;
-          bemerkungsList.prepend(newItem);
+        setThemaSummaryFromAjax(themaRow, data);
+        setThemaPreviewFromAjax(themaRow, data.bemerkung);
+
+        if (data.vorherige && themaRow) {
+          const v = data.vorherige;
+          const tid = String(data.thema_id);
+          const liHtml = `
+            <li class="list-group-item bg-white">
+              <div class="d-flex">
+                <small class="text-muted">
+                  ${formatSchichtbuchDatum(v.datum)} - <strong>${escapeHtml(v.vorname)} ${escapeHtml(v.nachname)}</strong>
+                  ${v.taetigkeit ? `<span class="text-secondary">(${escapeHtml(v.taetigkeit)})</span>` : ""}
+                </small>
+              </div>
+              <div>${escapeHtmlBr(v.bemerkung)}</div>
+            </li>`;
+          if (bemerkungsRow) {
+            const ul = bemerkungsRow.querySelector(".bemerkung-list");
+            if (ul) ul.insertAdjacentHTML("afterbegin", liHtml);
+          } else {
+            const tr = document.createElement("tr");
+            tr.className = "bemerkung-row";
+            tr.innerHTML = `<td colspan="8" class="p-0 border-0"><div class="collapse" id="bemerkHistory${tid}"><div class="border-top bg-white px-3 py-2"><ul class="list-group list-group-flush bemerkung-list">${liHtml}</ul></div></div></td>`;
+            collapseRow.parentNode.insertBefore(tr, collapseRow);
+          }
+          sbEnsureThemaRowHistoryToggle(themaRow, tid);
         }
 
         if (data.neuer_status && data.neue_farbe && themaRow) {
@@ -743,8 +1004,7 @@ document.addEventListener("submit", async (e) => {
             badge.style.backgroundColor = data.neue_farbe;
           }
         }
-        
-        // Collapse schließen
+
         const collapseId = `newBemerkung${themaId}`;
         const collapseElement = document.getElementById(collapseId);
         if (collapseElement) {
@@ -788,7 +1048,7 @@ async function loadMoreThemen() {
   isLoading = true;
 
   const loadingIndicator = document.getElementById('loadingIndicator');
-  const tbody = document.querySelector('table tbody');
+  const tableEl = document.querySelector('.d-none.d-md-block .table-responsive table.table-hover');
   const cardsContainer = document.getElementById('themenCardsContainer');
   const isMobile = window.innerWidth < 768;
   
@@ -818,36 +1078,47 @@ async function loadMoreThemen() {
           let cardHtml = `
             <div class="thema-card-mobile mb-3" data-thema-id="${thema.ID}" style="color: ${thema.Farbe || 'inherit'};">
               <div class="card shadow-sm thema-card-clickable" onclick="window.location.href='${detailUrl}'">
-                <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                  <a href="${detailUrl}" class="text-decoration-none fw-bold" onclick="event.stopPropagation();">
-                    #${thema.ID}
-                  </a>
-                  <span class="badge rounded-pill" style="background-color: ${thema.Farbe || '#ccc'}; color: #fff;">
-                    ${thema.Status}
+                <div class="card-header bg-light d-flex justify-content-between align-items-center gap-2">
+                  <span class="d-inline-flex align-items-center gap-1" onclick="event.stopPropagation();">
+                    <a href="${detailUrl}" class="text-decoration-none fw-bold" onclick="event.stopPropagation();">
+                      #${thema.ID}
+                    </a>
+                    ${bemerkungen.length > 1 ? `
+                    <button type="button" class="btn btn-sm btn-link text-body p-0 sb-bemerk-history-toggle" data-bs-toggle="collapse" data-bs-target="#bemerkHistoryMobile${thema.ID}" aria-expanded="false" aria-controls="bemerkHistoryMobile${thema.ID}" title="Weitere Bemerkungen anzeigen" onclick="event.stopPropagation();">
+                      <i class="bi bi-chevron-down sb-bemerk-chevron" aria-hidden="true"></i>
+                    </button>` : ''}
+                  </span>
+                  <span class="badge rounded-pill flex-shrink-0" style="background-color: ${thema.Farbe || '#ccc'}; color: #fff;">
+                    ${escapeHtml(thema.Status)}
                   </span>
                 </div>
                 <div class="card-body">
-                  <h6 class="card-title mb-2 fw-bold">${thema.Bereich} – ${thema.Gewerk}</h6>`;
-          
-          // Alle Bemerkungen
-          if (bemerkungen.length > 0) {
-            cardHtml += `
-                  <ul class="list-group list-group-flush bemerkung-list mb-3">`;
-            bemerkungen.forEach(b => {
+                  <h6 class="card-title mb-2 fw-bold">${escapeHtml(thema.Bereich)} – ${escapeHtml(thema.Gewerk)}</h6>`;
+          const b0m = bemerkungen[0];
+          if (b0m) {
+            cardHtml += `<p class="small text-muted mb-2 sb-mobile-meta">${formatSchichtbuchDatum(b0m.Datum)}${b0m.Taetigkeit ? ' · ' + escapeHtml(b0m.Taetigkeit) : ' · –'} · <strong>${escapeHtml(b0m.Vorname)} ${escapeHtml(b0m.Nachname)}</strong></p>`;
+          } else {
+            cardHtml += `<p class="small text-muted mb-2 sb-mobile-meta"><span class="text-muted">– · – · –</span></p>`;
+          }
+          if (bemerkungen.length > 1) {
+            cardHtml += `<div class="collapse" id="bemerkHistoryMobile${thema.ID}"><ul class="list-group list-group-flush bemerkung-list mb-0">`;
+            bemerkungen.slice(1).forEach(b => {
               cardHtml += `
                     <li class="list-group-item bg-white px-0">
                       <div class="d-flex">
                         <small class="text-muted">
-                          ${formatSchichtbuchDatum(b.Datum)} - <strong>${b.Vorname} ${b.Nachname}</strong>
-                          ${b.Taetigkeit ? `<span class="text-secondary">(${b.Taetigkeit})</span>` : ''}
+                          ${formatSchichtbuchDatum(b.Datum)} - <strong>${escapeHtml(b.Vorname)} ${escapeHtml(b.Nachname)}</strong>
+                          ${b.Taetigkeit ? `<span class="text-secondary">(${escapeHtml(b.Taetigkeit)})</span>` : ''}
                         </small>
                       </div>
-                      <div class="mt-1">${b.Bemerkung}</div>
+                      <div class="mt-1">${escapeHtmlBr(b.Bemerkung)}</div>
                     </li>`;
             });
-            cardHtml += '</ul>';
+            cardHtml += '</ul></div>';
+          } else if (bemerkungen.length === 1) {
+            cardHtml += `<p class="small text-body mb-0 sb-mobile-bemerkung-preview">${escapeHtmlBr(bemerkungen[0].Bemerkung)}</p>`;
           } else {
-            cardHtml += `<p class="text-muted fst-italic mb-3 small">Keine Bemerkungen vorhanden.</p>`;
+            cardHtml += `<p class="text-muted fst-italic mb-0 small">Keine Bemerkungen vorhanden.</p>`;
           }
           
           cardHtml += `
@@ -915,26 +1186,41 @@ async function loadMoreThemen() {
             </div>`;
           
           cardsContainer.insertAdjacentHTML('beforeend', cardHtml);
-        } else if (tbody) {
-          // Desktop: Tabellenzeilen erstellen
+        } else if (tableEl) {
+          // Desktop: pro Thema ein <tbody> wie im Server-Template
+          const gruppe = document.createElement('tbody');
           const themaRow = document.createElement('tr');
-          themaRow.className = 'thema-row';
+          themaRow.className = 'thema-row thema-row-kopf';
           themaRow.style.color = thema.Farbe || 'inherit';
           themaRow.style.cursor = 'pointer';
           themaRow.onclick = () => { window.location.href = detailUrl; };
+          const b0 = bemerkungen[0];
+          const historyBtn = bemerkungen.length > 1 ? `
+            <button type="button" class="btn btn-sm btn-link text-body p-0 sb-bemerk-history-toggle" data-bs-toggle="collapse" data-bs-target="#bemerkHistory${thema.ID}" aria-expanded="false" aria-controls="bemerkHistory${thema.ID}" title="Weitere Bemerkungen anzeigen" onclick="event.stopPropagation();">
+              <i class="bi bi-chevron-down sb-bemerk-chevron" aria-hidden="true"></i>
+            </button>` : '';
+          const actionsRowspan = b0 && b0.Bemerkung ? ' rowspan="2"' : '';
+          const bemerkungHeadCell = b0 && b0.Bemerkung ? '' : '<span class="text-muted">–</span>';
           themaRow.innerHTML = `
             <td>
-              <a href="${detailUrl}" class="text-decoration-none" onclick="event.stopPropagation();">
-                #${thema.ID}
-              </a>
-            </td>
-            <td>${thema.Bereich} – ${thema.Gewerk}</td>
-            <td>
-              <span class="badge rounded-pill" style="background-color: ${thema.Farbe || '#ccc'}; color: #fff;">
-                ${thema.Status}
+              <span class="d-inline-flex align-items-center gap-1">
+                <a href="${detailUrl}" class="text-decoration-none" onclick="event.stopPropagation();">
+                  #${thema.ID}
+                </a>
+                ${historyBtn}
               </span>
             </td>
-            <td class="text-center" onclick="event.stopPropagation();">
+            <td class="text-nowrap small sb-tl-datum text-muted">${b0 ? formatSchichtbuchDatum(b0.Datum) : '–'}</td>
+            <td class="sb-tl-bereich text-body">${escapeHtml(thema.Bereich)} – ${escapeHtml(thema.Gewerk)}</td>
+            <td class="sb-tl-status-wrap">
+              <span class="badge rounded-pill" style="background-color: ${thema.Farbe || '#ccc'}; color: #fff;">
+                ${escapeHtml(thema.Status)}
+              </span>
+            </td>
+            <td class="small sb-tl-taet">${b0 && b0.Taetigkeit ? escapeHtml(b0.Taetigkeit) : '<span class="text-muted">–</span>'}</td>
+            <td class="small sb-tl-autor">${b0 ? `<span class="text-body">${escapeHtml(b0.Vorname)} ${escapeHtml(b0.Nachname)}</span>` : '<span class="text-muted">–</span>'}</td>
+            <td class="small text-muted">${bemerkungHeadCell}</td>
+            <td class="text-center"${actionsRowspan} onclick="event.stopPropagation();">
               <div class="d-flex flex-column flex-sm-row justify-content-center gap-1">
                 <button class="btn btn-sm btn-outline-success" type="button"
                         data-bs-toggle="collapse" data-bs-target="#newBemerkung${thema.ID}" aria-expanded="false"
@@ -961,36 +1247,26 @@ async function loadMoreThemen() {
             </td>
           `;
 
-          // Bemerkungen-Zeile
-          const bemerkungRow = document.createElement('tr');
-          bemerkungRow.className = 'bemerkung-row';
-          if (bemerkungen.length > 0) {
-            let bemerkHtml = '<ul class="list-group list-group-flush bemerkung-list">';
-            bemerkungen.forEach(b => {
-              bemerkHtml += `
-                <li class="list-group-item bg-white">
-                  <div class="d-flex">
-                    <small class="text-muted">
-                      ${formatSchichtbuchDatum(b.Datum)} - <strong>${b.Vorname} ${b.Nachname}</strong>
-                      ${b.Taetigkeit ? `<span class="text-secondary">(${b.Taetigkeit})</span>` : ''}
-                    </small>
-                  </div>
-                  <div>${b.Bemerkung}</div>
-                </li>
-              `;
-            });
-            bemerkHtml += '</ul>';
-            bemerkungRow.innerHTML = `<td colspan="4">${bemerkHtml}</td>`;
-          } else {
-            bemerkungRow.innerHTML = '<td colspan="4"><p class="text-muted fst-italic mb-0">Keine Bemerkungen vorhanden.</p></td>';
+          gruppe.appendChild(themaRow);
+
+          if (b0 && b0.Bemerkung) {
+            const followRow = document.createElement('tr');
+            followRow.className = 'thema-row sb-tl-follow';
+            followRow.style.color = thema.Farbe || 'inherit';
+            followRow.style.cursor = 'pointer';
+            followRow.onclick = () => { window.location.href = detailUrl; };
+            followRow.innerHTML = `
+              <td></td>
+              <td colspan="6" class="text-body sb-tl-bemerkung-text pt-0 pb-2">${escapeHtmlBr(b0.Bemerkung)}</td>
+            `;
+            gruppe.appendChild(followRow);
           }
 
-          // Collapse-Zeile
           const collapseRow = document.createElement('tr');
           collapseRow.className = 'collapse collapse-row';
           collapseRow.id = `newBemerkung${thema.ID}`;
           collapseRow.innerHTML = `
-            <td colspan="4">
+            <td colspan="8">
               <form action="/schichtbuch/themaliste/add" method="post" class="mt-2">
                 <input type="hidden" name="thema_id" value="${thema.ID}">
                 <input type="hidden" name="next" value="${window.location.pathname}${window.location.search}">
@@ -1029,9 +1305,29 @@ async function loadMoreThemen() {
             </td>
           `;
 
-          tbody.appendChild(themaRow);
-          tbody.appendChild(bemerkungRow);
-          tbody.appendChild(collapseRow);
+          if (bemerkungen.length > 1) {
+            const bemerkungRow = document.createElement('tr');
+            bemerkungRow.className = 'bemerkung-row';
+            let bemerkHtml = '<ul class="list-group list-group-flush bemerkung-list">';
+            bemerkungen.slice(1).forEach(b => {
+              bemerkHtml += `
+                <li class="list-group-item bg-white">
+                  <div class="d-flex">
+                    <small class="text-muted">
+                      ${formatSchichtbuchDatum(b.Datum)} - <strong>${escapeHtml(b.Vorname)} ${escapeHtml(b.Nachname)}</strong>
+                      ${b.Taetigkeit ? `<span class="text-secondary">(${escapeHtml(b.Taetigkeit)})</span>` : ''}
+                    </small>
+                  </div>
+                  <div>${escapeHtmlBr(b.Bemerkung)}</div>
+                </li>
+              `;
+            });
+            bemerkHtml += '</ul>';
+            bemerkungRow.innerHTML = `<td colspan="8" class="p-0 border-0"><div class="collapse" id="bemerkHistory${thema.ID}"><div class="border-top bg-white px-3 py-2">${bemerkHtml}</div></div></td>`;
+            gruppe.appendChild(bemerkungRow);
+          }
+          gruppe.appendChild(collapseRow);
+          tableEl.appendChild(gruppe);
         }
       });
 

@@ -225,7 +225,32 @@ def add_bemerkung():
         user_row = conn.execute("SELECT Vorname, Nachname FROM Mitarbeiter WHERE ID = ?", (mitarbeiter_id,)).fetchone()
         user = row_to_dict(user_row)
 
+        # Zwei neueste Bemerkungen (für Themenliste: vorherige = jetzt „weitere“)
+        latest_rows = conn.execute(
+            """
+            SELECT b.Datum, b.Bemerkung, m.Vorname, m.Nachname, t.Bezeichnung AS Taetigkeit
+            FROM SchichtbuchBemerkungen b
+            JOIN Mitarbeiter m ON b.MitarbeiterID = m.ID
+            LEFT JOIN Taetigkeit t ON b.TaetigkeitID = t.ID
+            WHERE b.ThemaID = ? AND b.Gelöscht = 0
+            ORDER BY b.Datum DESC, b.ID DESC
+            LIMIT 2
+            """,
+            (thema_id,),
+        ).fetchall()
+
         conn.commit()
+
+    vorherige_payload = None
+    if len(latest_rows) >= 2:
+        r = row_to_dict(latest_rows[1])
+        vorherige_payload = {
+            "datum": str(r["Datum"]) if r.get("Datum") is not None else "",
+            "bemerkung": r.get("Bemerkung") or "",
+            "vorname": r.get("Vorname") or "",
+            "nachname": r.get("Nachname") or "",
+            "taetigkeit": r.get("Taetigkeit") or "",
+        }
 
     # Wenn per AJAX (fetch)
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
@@ -246,7 +271,8 @@ def add_bemerkung():
             "nachname": user["Nachname"],
             "taetigkeit": taetigkeit_name,
             "neuer_status": neuer_status,
-            "neue_farbe": neue_farbe
+            "neue_farbe": neue_farbe,
+            "vorherige": vorherige_payload,
         })
     else: 
         flash("Bemerkung erfolgreich hinzugefügt.", "success")
