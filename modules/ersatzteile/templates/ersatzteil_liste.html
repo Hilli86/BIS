@@ -262,11 +262,13 @@
                         <th class="text-center column-sichtbare-abteilungen" style="display: none;">Sichtbare Abteilungen</th>
                         {% endif %}
                         <th class="column-artikelfoto" style="display: none;">Artikelfoto</th>
-                        <th>Aktionen</th>
-                        <th style="width: 50px;">
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#spaltenModal" title="Spalten anzeigen/ausblenden" onclick="event.stopPropagation();">
-                                <i class="bi bi-columns-gap"></i>
-                            </button>
+                        <th class="text-nowrap">
+                            <div class="d-flex align-items-center justify-content-start gap-4">
+                                <span>Aktionen</span>
+                                <button type="button" class="btn btn-sm btn-outline-secondary flex-shrink-0" data-bs-toggle="modal" data-bs-target="#spaltenModal" title="Spalten anzeigen/ausblenden" onclick="event.stopPropagation();">
+                                    <i class="bi bi-columns-gap"></i>
+                                </button>
+                            </div>
                         </th>
                     </tr>
                 </thead>
@@ -996,8 +998,7 @@ async function loadMoreErsatzteile() {
                         <td class="column-lagerplatz"><a href="${detailUrl}" class="text-decoration-none text-dark">${e.LagerplatzName || '-'}</a></td>
                         ${abtCell}
                         ${fotoCell}
-                        <td onclick="event.stopPropagation();"><div class="btn-group" role="group">${actionsHtml}</div></td>
-                        <td></td>`;
+                        <td onclick="event.stopPropagation();"><div class="btn-group" role="group">${actionsHtml}</div></td>`;
                     tbody.appendChild(tr);
                 }
             });

@@ -706,6 +706,14 @@
               <span>Mein Profil</span>
             </a>
           </li>
+          {% if menue_sichtbar('admin') %}
+          <li>
+            <a class="dropdown-item{% if request.endpoint and request.endpoint.startswith('admin.') %} active{% endif %}" href="{{ url_for('admin.dashboard') }}">
+              <i class="bi bi-gear"></i>
+              <span>Adminbereich</span>
+            </a>
+          </li>
+          {% endif %}
           <li><hr class="dropdown-divider"></li>
           {% endif %}
           <li>
@@ -733,12 +741,6 @@
     {% endif %}
 
     {% if not session.get('is_guest') %}
-    {% if menue_sichtbar('admin') %}
-    <a href="{{ url_for('admin.dashboard') }}" class="{% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
-      ⚙️ Adminbereich
-    </a>
-    {% endif %}
-
     {% if menue_sichtbar('schichtbuch_suche') or menue_sichtbar('schichtbuch_liste') or menue_sichtbar('schichtbuch_aufgabenlisten') %}
     <h6>Schichtbuch</h6>
     {% if menue_sichtbar('schichtbuch_suche') %}

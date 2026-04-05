@@ -137,11 +137,13 @@
                         <th class="column-bestellt-am" style="display: none;">Bestellt am</th>
                         <th class="column-bestellt-von" style="display: none;">Bestellt von</th>
                         <th>Abteilung</th>
-                        <th style="min-width: 70px;">Aktionen</th>
-                        <th style="width: 50px;">
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#spaltenModal" title="Spalten anzeigen/ausblenden" onclick="event.stopPropagation();">
-                                <i class="bi bi-columns-gap"></i>
-                            </button>
+                        <th class="text-nowrap" style="min-width: 70px;">
+                            <div class="d-flex align-items-center justify-content-start gap-1">
+                                <span>Aktionen</span>
+                                <button type="button" class="btn btn-sm btn-outline-secondary flex-shrink-0" data-bs-toggle="modal" data-bs-target="#spaltenModal" title="Spalten anzeigen/ausblenden" onclick="event.stopPropagation();">
+                                    <i class="bi bi-columns-gap"></i>
+                                </button>
+                            </div>
                         </th>
                     </tr>
                 </thead>
@@ -229,11 +231,10 @@
                                 {% endif %}
                             </div>
                         </td>
-                        <td onclick="event.stopPropagation();"></td>
                     </tr>
                     {% if b.PositionenAnzahl and b.PositionenAnzahl > 0 %}
                     <tr id="positionen-{{ b.ID }}" class="positionen-row" style="display: none;">
-                        <td colspan="15" class="bg-light p-0" onclick="event.stopPropagation();">
+                        <td colspan="14" class="bg-light p-0" onclick="event.stopPropagation();">
                             <div class="p-3">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
                                     <strong><i class="bi bi-list-ul"></i> Positionen ({{ b.PositionenAnzahl }})</strong>

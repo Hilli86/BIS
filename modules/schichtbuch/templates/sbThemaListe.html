@@ -148,12 +148,18 @@
     line-height: 1.45;
   }
 
-  /* Keine graue Trennlinie zwischen Kopfzeile und Bemerkungs-Vorschau */
+  /*
+   * Trennlinie zwischen Kopf und Bemerkungszeile: nur eine Linie (oben an der Folgezeile),
+   * nicht doppelt. Ohne rowspan in Spalte Aktionen eine eigene Zelle in der Folgezeile,
+   * damit der Balken durchgehend bis zum rechten Rand läuft.
+   */
   .table tbody tr.thema-row-kopf:has(+ tr.sb-tl-follow) > td {
     border-bottom: 0 !important;
   }
-  .table tbody tr.sb-tl-follow > td {
-    border-top: 0 !important;
+
+  .table tbody tr.sb-tl-follow .sb-tl-follow-actions-cell {
+    width: 1%;
+    vertical-align: top;
   }
 
   .sb-tl-bereich {
@@ -281,13 +287,13 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-4">
-  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
-    <h2 class="mb-0"><i class="bi bi-journal-text"></i> Themenliste</h2>
-    <a href="{{ url_for('schichtbuch.themaneu') }}" class="btn btn-primary text-nowrap">
-      <i class="bi bi-plus-circle"></i> Neues Thema
-    </a>
-  </div>
+<h1 class="mb-4">🧾 Themenliste</h1>
+
+<div class="mb-3">
+  <a href="{{ url_for('schichtbuch.themaneu') }}" class="btn btn-primary text-nowrap">
+    <i class="bi bi-plus-circle"></i> Neues Thema
+  </a>
+</div>
 
 <!-- Filter (einklappbar) -->
 <div class="card mb-4">
@@ -415,7 +421,7 @@
       <td class="small sb-tl-taet">{% if letzte and letzte.Taetigkeit %}{{ letzte.Taetigkeit }}{% else %}<span class="text-muted">–</span>{% endif %}</td>
       <td class="small sb-tl-autor">{% if letzte %}<span class="text-body">{{ letzte.Vorname }} {{ letzte.Nachname }}</span>{% else %}<span class="text-muted">–</span>{% endif %}</td>
       <td class="small text-muted">{% if not letzte or not letzte.Bemerkung %}–{% endif %}</td>
-      <td class="text-center" onclick="event.stopPropagation();"{% if letzte and letzte.Bemerkung %} rowspan="2"{% endif %}>
+      <td class="text-center sb-tl-actions-cell" onclick="event.stopPropagation();">
         <div class="d-flex flex-column flex-sm-row justify-content-center gap-1">
           <button class="btn btn-sm btn-outline-success" type="button"
                   data-bs-toggle="collapse" data-bs-target="#newBemerkung{{ thema.ID }}" aria-expanded="false"
@@ -445,6 +451,7 @@
     <tr class="thema-row sb-tl-follow" style="color: {{ thema.Farbe or 'inherit' }}; cursor: pointer;" onclick="window.location.href='{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}'">
       <td></td>
       <td colspan="6" class="text-body sb-tl-bemerkung-text pt-0 pb-2">{{ letzte.Bemerkung }}</td>
+      <td class="sb-tl-follow-actions-cell p-0" onclick="event.stopPropagation();" aria-hidden="true"></td>
     </tr>
     {% endif %}
 
@@ -792,7 +799,7 @@ function sbEnsureMobileHistoryToggle(themaCard, themaId) {
 
 function setThemaPreviewFromAjax(themaKopf, bemText) {
   if (!themaKopf) return;
-  const actionsCell = themaKopf.querySelector("td.text-center:last-child");
+  const actionsCell = themaKopf.querySelector("td.sb-tl-actions-cell, td.text-center:last-child");
   const bemMetaCell = themaKopf.querySelector("td:nth-child(7)");
   let textRow = themaKopf.nextElementSibling;
   if (!textRow || !textRow.classList.contains("sb-tl-follow")) {
@@ -805,7 +812,7 @@ function setThemaPreviewFromAjax(themaKopf, bemText) {
       const previewCell = textRow.querySelector(".sb-tl-bemerkung-text");
       if (previewCell) previewCell.textContent = bemText;
     } else {
-      if (actionsCell) actionsCell.setAttribute("rowspan", "2");
+      if (actionsCell) actionsCell.removeAttribute("rowspan");
       const tr = document.createElement("tr");
       tr.className = "thema-row sb-tl-follow";
       tr.style.cssText = themaKopf.getAttribute("style") || "";
@@ -815,7 +822,7 @@ function setThemaPreviewFromAjax(themaKopf, bemText) {
         if (href) window.location.href = href;
       };
       tr.innerHTML =
-        '<td></td><td colspan="6" class="text-body sb-tl-bemerkung-text pt-0 pb-2"></td>';
+        '<td></td><td colspan="6" class="text-body sb-tl-bemerkung-text pt-0 pb-2"></td><td class="sb-tl-follow-actions-cell p-0" onclick="event.stopPropagation();" aria-hidden="true"></td>';
       tr.querySelector(".sb-tl-bemerkung-text").textContent = bemText;
       const nextTr = themaKopf.nextElementSibling;
       if (
@@ -1199,7 +1206,6 @@ async function loadMoreThemen() {
             <button type="button" class="btn btn-sm btn-link text-body p-0 sb-bemerk-history-toggle" data-bs-toggle="collapse" data-bs-target="#bemerkHistory${thema.ID}" aria-expanded="false" aria-controls="bemerkHistory${thema.ID}" title="Weitere Bemerkungen anzeigen" onclick="event.stopPropagation();">
               <i class="bi bi-chevron-down sb-bemerk-chevron" aria-hidden="true"></i>
             </button>` : '';
-          const actionsRowspan = b0 && b0.Bemerkung ? ' rowspan="2"' : '';
           const bemerkungHeadCell = b0 && b0.Bemerkung ? '' : '<span class="text-muted">–</span>';
           themaRow.innerHTML = `
             <td>
@@ -1220,7 +1226,7 @@ async function loadMoreThemen() {
             <td class="small sb-tl-taet">${b0 && b0.Taetigkeit ? escapeHtml(b0.Taetigkeit) : '<span class="text-muted">–</span>'}</td>
             <td class="small sb-tl-autor">${b0 ? `<span class="text-body">${escapeHtml(b0.Vorname)} ${escapeHtml(b0.Nachname)}</span>` : '<span class="text-muted">–</span>'}</td>
             <td class="small text-muted">${bemerkungHeadCell}</td>
-            <td class="text-center"${actionsRowspan} onclick="event.stopPropagation();">
+            <td class="text-center sb-tl-actions-cell" onclick="event.stopPropagation();">
               <div class="d-flex flex-column flex-sm-row justify-content-center gap-1">
                 <button class="btn btn-sm btn-outline-success" type="button"
                         data-bs-toggle="collapse" data-bs-target="#newBemerkung${thema.ID}" aria-expanded="false"
@@ -1258,6 +1264,7 @@ async function loadMoreThemen() {
             followRow.innerHTML = `
               <td></td>
               <td colspan="6" class="text-body sb-tl-bemerkung-text pt-0 pb-2">${escapeHtmlBr(b0.Bemerkung)}</td>
+              <td class="sb-tl-follow-actions-cell p-0" onclick="event.stopPropagation();" aria-hidden="true"></td>
             `;
             gruppe.appendChild(followRow);
           }
