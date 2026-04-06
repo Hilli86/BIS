@@ -77,14 +77,14 @@
 </div>
 
 <form method="POST" id="wareneingangForm">
-    <div class="card mb-4 shadow-sm">
+    <!-- Desktop: äußere Card um Tabelle -->
+    <div class="card mb-4 shadow-sm d-none d-md-block">
         <div class="card-header bg-success text-white">
             <h5 class="mb-0">Positionen - Erhaltene Mengen eingeben</h5>
         </div>
         <div class="card-body">
             {% if positionen %}
-            <!-- Desktop-Version: Tabelle (nur auf md+ sichtbar) -->
-            <div class="table-responsive d-none d-md-block">
+            <div class="table-responsive">
                 <table class="table table-sm">
                     <thead>
                         <tr>
@@ -144,79 +144,89 @@
                     </tbody>
                 </table>
             </div>
-            
-            <!-- Mobile-Version: Cards (nur auf sm und kleiner sichtbar) -->
-            <div class="d-md-none">
-                {% for p in positionen %}
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <input type="hidden" name="position_id[]" value="{{ p.ID }}">
-                        
-                        <div class="mb-2">
-                            <strong>Artikelnummer:</strong>
-                            {% if p.ErsatzteilID %}
-                            <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=p.ErsatzteilID) }}" class="text-decoration-none">
-                                {{ p.ErsatzteilID }}
-                            </a>
-                            {% else %}
-                            -
-                            {% endif %}
-                        </div>
-                        
-                        <div class="mb-2">
-                            <strong>Bestellnummer:</strong> {{ p.Bestellnummer or '-' }}
-                        </div>
-                        
-                        <div class="mb-2">
-                            <strong>Bezeichnung:</strong> {{ p.Bezeichnung or '-' }}
-                        </div>
-                        
-                        <div class="mb-2">
-                            <strong>Bestellt:</strong> <span class="badge bg-primary">{{ p.Menge }}</span>
-                        </div>
-                        
-                        <div class="mb-2">
-                            <strong>Bereits erhalten:</strong>
-                            {% if p.ErhalteneMenge > 0 %}
-                            <span class="badge bg-info">{{ p.ErhalteneMenge }}</span>
-                            {% else %}
-                            <span class="badge bg-secondary">0</span>
-                            {% endif %}
-                        </div>
-                        
-                        <div class="mb-3">
-                            <strong>Offen:</strong>
-                            {% set offen = p.Menge - p.ErhalteneMenge %}
-                            {% if offen > 0 %}
-                            <span class="badge bg-warning text-dark">{{ offen }}</span>
-                            {% else %}
-                            <span class="badge bg-success">0</span>
-                            {% endif %}
-                        </div>
-                        
-                        <div class="mb-2">
-                            <label class="form-label"><strong>Erhaltene Menge:</strong></label>
-                            <input type="number" 
-                                   name="erhaltene_menge[]" 
-                                   class="form-control" 
-                                   min="0" 
-                                   max="{{ p.Menge - p.ErhalteneMenge }}"
-                                   inputmode="numeric">
-                            <small class="text-muted">Max: {{ p.Menge - p.ErhalteneMenge }} {{ p.Einheit or 'Stk' }}</small>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            <div class="alert alert-info mt-3">
+            <div class="alert alert-info mt-3 mb-0">
                 <i class="bi bi-info-circle"></i> <strong>Hinweis:</strong> Geben Sie die erhaltene Menge für diese Lieferung ein. Die Menge wird zu den bereits erhaltenen Mengen addiert. Vollständig gebuchte Bestellungen werden automatisch als "Erledigt" markiert.
             </div>
             {% else %}
-            <div class="alert alert-warning">
+            <div class="alert alert-warning mb-0">
                 <i class="bi bi-exclamation-triangle"></i> Keine Positionen vorhanden.
             </div>
             {% endif %}
         </div>
+    </div>
+
+    <!-- Mobil: keine äußere Card, Überschrift + Einzelkarten -->
+    <div class="d-md-none mb-4">
+        <h5 class="mb-3 pb-2 border-bottom text-success">Positionen - Erhaltene Mengen eingeben</h5>
+        {% if positionen %}
+        {% for p in positionen %}
+        <div class="card mb-3 shadow-sm">
+            <div class="card-body">
+                <input type="hidden" name="position_id[]" value="{{ p.ID }}">
+                
+                <div class="mb-2">
+                    <strong>Artikelnummer:</strong>
+                    {% if p.ErsatzteilID %}
+                    <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=p.ErsatzteilID) }}" class="text-decoration-none">
+                        {{ p.ErsatzteilID }}
+                    </a>
+                    {% else %}
+                    -
+                    {% endif %}
+                </div>
+                
+                <div class="mb-2">
+                    <strong>Bestellnummer:</strong> {{ p.Bestellnummer or '-' }}
+                </div>
+                
+                <div class="mb-2">
+                    <strong>Bezeichnung:</strong> {{ p.Bezeichnung or '-' }}
+                </div>
+                
+                <div class="mb-2">
+                    <strong>Bestellt:</strong> <span class="badge bg-primary">{{ p.Menge }}</span>
+                </div>
+                
+                <div class="mb-2">
+                    <strong>Bereits erhalten:</strong>
+                    {% if p.ErhalteneMenge > 0 %}
+                    <span class="badge bg-info">{{ p.ErhalteneMenge }}</span>
+                    {% else %}
+                    <span class="badge bg-secondary">0</span>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-3">
+                    <strong>Offen:</strong>
+                    {% set offen = p.Menge - p.ErhalteneMenge %}
+                    {% if offen > 0 %}
+                    <span class="badge bg-warning text-dark">{{ offen }}</span>
+                    {% else %}
+                    <span class="badge bg-success">0</span>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-2">
+                    <label class="form-label"><strong>Erhaltene Menge:</strong></label>
+                    <input type="number" 
+                           name="erhaltene_menge[]" 
+                           class="form-control" 
+                           min="0" 
+                           max="{{ p.Menge - p.ErhalteneMenge }}"
+                           inputmode="numeric">
+                    <small class="text-muted">Max: {{ p.Menge - p.ErhalteneMenge }} {{ p.Einheit or 'Stk' }}</small>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> <strong>Hinweis:</strong> Geben Sie die erhaltene Menge für diese Lieferung ein. Die Menge wird zu den bereits erhaltenen Mengen addiert. Vollständig gebuchte Bestellungen werden automatisch als "Erledigt" markiert.
+        </div>
+        {% else %}
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle"></i> Keine Positionen vorhanden.
+        </div>
+        {% endif %}
     </div>
 
     <div class="mb-3">

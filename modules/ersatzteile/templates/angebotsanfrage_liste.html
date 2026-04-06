@@ -43,11 +43,10 @@
 </div>
 
 <!-- Angebotsanfragen-Liste -->
-<div class="card shadow-sm">
+{% if angebotsanfragen %}
+<div class="card shadow-sm d-none d-md-block">
     <div class="card-body">
-        {% if angebotsanfragen %}
-        <!-- Desktop: Tabelle (md+) -->
-        <div class="table-responsive d-none d-md-block">
+        <div class="table-responsive">
             <table class="table table-hover">
                 <thead>
                     <tr>
@@ -97,55 +96,61 @@
                 </tbody>
             </table>
         </div>
-
-        <!-- Mobil: Karten (< md) -->
-        <div class="d-md-none">
-            {% for a in angebotsanfragen %}
-            <div class="card mb-3" style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.angebotsanfrage_detail', angebotsanfrage_id=a.ID) }}{% if status_filter %}?status={{ status_filter|urlencode }}{% endif %}';">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <div>
-                            <div class="mb-1"><strong>Nr.:</strong> {{ a.ID }}</div>
-                            <div class="mb-1"><strong>Lieferant:</strong> {{ a.LieferantName or '-' }}</div>
-                        </div>
-                        <div>
-                            {% if a.Status == 'Offen' %}
-                            <span class="badge bg-primary">Offen</span>
-                            {% elif a.Status == 'Versendet' %}
-                            <span class="badge bg-warning">Versendet</span>
-                            {% elif a.Status == 'Angebot erhalten' %}
-                            <span class="badge bg-success">Angebot erhalten</span>
-                            {% elif a.Status == 'Abgeschlossen' %}
-                            <span class="badge bg-secondary">Abgeschlossen</span>
-                            {% else %}
-                            <span class="badge bg-secondary">{{ a.Status }}</span>
-                            {% endif %}
-                        </div>
-                    </div>
-                    <div class="mb-2 small">
-                        <strong>Bestellnr. / Bez.:</strong> {{ a.ErsteBestellnummer or '-' }} / {{ a.ErsteBezeichnung or '-' }}
-                    </div>
-                    <div class="mb-2 small text-muted">
-                        <strong>Erstellt:</strong> {{ a.ErstelltAm[:16] if a.ErstelltAm else '-' }}
-                        · <strong>von:</strong> {{ a.ErstelltVon or '-' }}
-                    </div>
-                    <div class="mb-2 small"><strong>Abteilung:</strong> {{ a.Abteilung or '-' }} · <strong>Pos.:</strong> {{ a.PositionenAnzahl }}</div>
-                    <div class="mt-3" onclick="event.stopPropagation();">
-                        <button type="button" class="btn btn-sm btn-outline-danger" title="Als PDF exportieren" onclick="exportAngebotsanfragePDF({{ a.ID }})">
-                            <i class="bi bi-file-pdf"></i> PDF
-                        </button>
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="alert alert-info">
-            <i class="bi bi-info-circle"></i> Keine Angebotsanfragen gefunden.
-        </div>
-        {% endif %}
     </div>
 </div>
+
+<div class="d-md-none">
+    {% for a in angebotsanfragen %}
+    <div class="card mb-3 shadow-sm" style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.angebotsanfrage_detail', angebotsanfrage_id=a.ID) }}{% if status_filter %}?status={{ status_filter|urlencode }}{% endif %}';">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                    <div class="mb-1"><strong>Nr.:</strong> {{ a.ID }}</div>
+                    <div class="mb-1"><strong>Lieferant:</strong> {{ a.LieferantName or '-' }}</div>
+                </div>
+                <div>
+                    {% if a.Status == 'Offen' %}
+                    <span class="badge bg-primary">Offen</span>
+                    {% elif a.Status == 'Versendet' %}
+                    <span class="badge bg-warning">Versendet</span>
+                    {% elif a.Status == 'Angebot erhalten' %}
+                    <span class="badge bg-success">Angebot erhalten</span>
+                    {% elif a.Status == 'Abgeschlossen' %}
+                    <span class="badge bg-secondary">Abgeschlossen</span>
+                    {% else %}
+                    <span class="badge bg-secondary">{{ a.Status }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="mb-2 small">
+                <strong>Bestellnr. / Bez.:</strong> {{ a.ErsteBestellnummer or '-' }} / {{ a.ErsteBezeichnung or '-' }}
+            </div>
+            <div class="mb-2 small text-muted">
+                <strong>Erstellt:</strong> {{ a.ErstelltAm[:16] if a.ErstelltAm else '-' }}
+                · <strong>von:</strong> {{ a.ErstelltVon or '-' }}
+            </div>
+            <div class="mb-2 small"><strong>Abteilung:</strong> {{ a.Abteilung or '-' }} · <strong>Pos.:</strong> {{ a.PositionenAnzahl }}</div>
+            <div class="mt-3" onclick="event.stopPropagation();">
+                <button type="button" class="btn btn-sm btn-outline-danger" title="Als PDF exportieren" onclick="exportAngebotsanfragePDF({{ a.ID }})">
+                    <i class="bi bi-file-pdf"></i> PDF
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card shadow-sm d-none d-md-block">
+    <div class="card-body">
+        <div class="alert alert-info mb-0">
+            <i class="bi bi-info-circle"></i> Keine Angebotsanfragen gefunden.
+        </div>
+    </div>
+</div>
+<div class="alert alert-info d-md-none mb-0">
+    <i class="bi bi-info-circle"></i> Keine Angebotsanfragen gefunden.
+</div>
+{% endif %}
 
 <script>
 // PDF-Export mit Ladeanzeige

@@ -367,18 +367,31 @@
       }
     }
 
+    /* Sehr schmale Viewports: Reihenfolge Menü | Suche (wächst) | Profil rechts */
     @media (max-width: 400px) {
-      .header-search-container {
-        order: 3; /* Nach Badge verschieben */
-        flex: 1;
+      .menu-toggle {
+        order: 1;
+        flex-shrink: 0;
       }
 
       .mobile-header-title {
         display: none;
+        order: 0;
+      }
+
+      .header-search-container {
+        order: 2;
+        flex: 1;
+        min-width: 0;
+        max-width: none;
+        margin: 0 0.25rem;
       }
 
       .header-right-container {
-        gap: 0.25rem; /* Weniger Abstand auf sehr kleinen Bildschirmen */
+        order: 3;
+        margin-left: 0;
+        flex-shrink: 0;
+        gap: 0.25rem;
       }
     }
 

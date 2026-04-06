@@ -131,11 +131,10 @@
 </div>
 
 <!-- Bestellungen-Liste -->
-<div class="card shadow-sm">
+{% if bestellungen %}
+<div class="card shadow-sm d-none d-md-block">
     <div class="card-body">
-        {% if bestellungen %}
-        <!-- Desktop-Version: Tabelle (nur auf md+ sichtbar) -->
-        <div class="table-responsive table-bestellungen-wrap d-none d-md-block">
+        <div class="table-responsive table-bestellungen-wrap">
             <table class="table table-hover table-bestellungen-liste">
                 <thead>
                     <tr>
@@ -332,11 +331,12 @@
                 </tbody>
             </table>
         </div>
-        
-        <!-- Mobile-Version: Cards (nur auf sm und kleiner sichtbar) -->
-        <div class="d-md-none">
+    </div>
+</div>
+
+<div class="d-md-none">
             {% for b in bestellungen %}
-            <div class="card mb-3" style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.bestellung_detail', bestellung_id=b.ID) }}{% if status_filter_list or lieferant_filter or abteilung_filter or prioritaet_filter_list %}?{% endif %}{% for status in status_filter_list %}status={{ status|urlencode }}{% if not loop.last %}&{% endif %}{% endfor %}{% if status_filter_list and (lieferant_filter or abteilung_filter or prioritaet_filter_list) %}&{% endif %}{% if lieferant_filter %}lieferant={{ lieferant_filter|urlencode }}{% endif %}{% if lieferant_filter and (abteilung_filter or prioritaet_filter_list) %}&{% endif %}{% if abteilung_filter %}abteilung={{ abteilung_filter|urlencode }}{% endif %}{% if abteilung_filter and prioritaet_filter_list %}&{% endif %}{% for prioritaet in prioritaet_filter_list %}prioritaet={{ prioritaet|urlencode }}{% if not loop.last %}&{% endif %}{% endfor %}';">
+            <div class="card mb-3 shadow-sm" style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.bestellung_detail', bestellung_id=b.ID) }}{% if status_filter_list or lieferant_filter or abteilung_filter or prioritaet_filter_list %}?{% endif %}{% for status in status_filter_list %}status={{ status|urlencode }}{% if not loop.last %}&{% endif %}{% endfor %}{% if status_filter_list and (lieferant_filter or abteilung_filter or prioritaet_filter_list) %}&{% endif %}{% if lieferant_filter %}lieferant={{ lieferant_filter|urlencode }}{% endif %}{% if lieferant_filter and (abteilung_filter or prioritaet_filter_list) %}&{% endif %}{% if abteilung_filter %}abteilung={{ abteilung_filter|urlencode }}{% endif %}{% if abteilung_filter and prioritaet_filter_list %}&{% endif %}{% for prioritaet in prioritaet_filter_list %}prioritaet={{ prioritaet|urlencode }}{% if not loop.last %}&{% endif %}{% endfor %}';">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                         <div>
@@ -530,14 +530,19 @@
                 </div>
             </div>
             {% endfor %}
-        </div>
-        {% else %}
-        <div class="alert alert-info">
+</div>
+{% else %}
+<div class="card shadow-sm d-none d-md-block">
+    <div class="card-body">
+        <div class="alert alert-info mb-0">
             <i class="bi bi-info-circle"></i> Keine Bestellungen gefunden.
         </div>
-        {% endif %}
     </div>
 </div>
+<div class="alert alert-info d-md-none mb-0">
+    <i class="bi bi-info-circle"></i> Keine Bestellungen gefunden.
+</div>
+{% endif %}
 
 <script>
 // Positionen ein-/ausklappen (Desktop)
