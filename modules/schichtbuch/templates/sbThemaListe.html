@@ -99,6 +99,29 @@
   margin-bottom: 4px;
 }
 
+/* Obere Schnellsuche (gemeinsam mit Ersatzteilliste: .bis-list-*) */
+.bis-list-filter-toolbar {
+  min-width: 0;
+}
+@media (min-width: 768px) {
+  .bis-list-filter-toolbar {
+    overflow-x: auto;
+  }
+  .bis-list-filter-toolbar > .bis-list-neu-btn {
+    width: auto;
+    align-self: auto;
+  }
+  .bis-list-filter-toolbar > .bis-list-filter-actions {
+    width: auto;
+  }
+  .bis-list-quicksearch-wrap {
+    width: 30rem;
+    min-width: 11rem;
+    max-width: 30rem;
+    flex-shrink: 0;
+  }
+}
+
 @media (max-width: 575.98px) {
   .d-flex.flex-column > button,
   .d-flex.flex-column > form {
@@ -110,6 +133,20 @@
 }
 
 @media (max-width: 767.98px) {
+  /* Mobilkarten: Aktions-Footer im DOM belassen, nur ausblenden (wieder sichtbar: diese Regel entfernen) */
+  .sb-tl-mobile-card-actions {
+    display: none !important;
+  }
+  .bis-list-quicksearch-wrap {
+    width: 100%;
+    max-width: none;
+  }
+  .bis-list-filter-toolbar > .bis-list-neu-btn {
+    width: 100%;
+  }
+  .bis-list-filter-toolbar > .bis-list-filter-actions {
+    width: 100%;
+  }
   .thema-card-mobile { margin-bottom: 1rem; }
   .thema-card-clickable {
     cursor: pointer;
@@ -182,18 +219,20 @@
 {% block content %}
 <h1 class="mb-4">Themenliste</h1>
 
-<!-- Schnellsuche + Filter (wie Ersatzteilliste) -->
+<!-- Schnellsuche + Filter (Muster wie Ersatzteilliste, Klassen .bis-list-*); mobil: Neu → Suche → Filterbuttons -->
 <form method="get" id="filterForm">
-  <div class="d-flex flex-nowrap align-items-end gap-3 mb-3 overflow-x-auto pb-1">
-    <a href="{{ url_for('schichtbuch.themaneu') }}" class="btn btn-primary flex-shrink-0">
+  <div class="d-flex flex-column flex-md-row flex-md-nowrap align-items-stretch align-items-md-end gap-3 mb-3 pb-1 bis-list-filter-toolbar">
+    <a href="{{ url_for('schichtbuch.themaneu') }}" class="btn btn-primary flex-shrink-0 bis-list-neu-btn">
       <i class="bi bi-plus-circle"></i> Neues Thema
     </a>
-    <div class="input-group flex-shrink-0" style="width: 30rem; min-width: 11rem; max-width: 30rem;">
+    <div class="input-group flex-shrink-0 bis-list-quicksearch-wrap">
       <input type="text" name="q" id="themaQuickSearchQ" class="form-control" value="{{ q_filter or '' }}"
              placeholder="Thema-ID oder Text in Bemerkungen …" aria-label="Suche Thema-ID oder Bemerkung">
     </div>
-    <button type="submit" class="btn btn-primary flex-shrink-0">Filter anwenden</button>
-    <a href="{{ url_for('schichtbuch.themaliste') }}" class="btn btn-secondary flex-shrink-0">Zurücksetzen</a>
+    <div class="d-flex gap-2 flex-md-shrink-0 bis-list-filter-actions">
+      <button type="submit" class="btn btn-primary flex-grow-1 flex-md-grow-0">Filter anwenden</button>
+      <a href="{{ url_for('schichtbuch.themaliste') }}" class="btn btn-secondary flex-grow-1 flex-md-grow-0">Zurücksetzen</a>
+    </div>
   </div>
 
 <!-- Filter (einklappbar) -->
@@ -262,12 +301,12 @@
 </div>
 </form>
 
-<!-- Themen-Liste (Struktur wie Ersatzteilliste/Bestellliste: eine Tabelle, ein tbody) -->
-<div class="card shadow-sm">
+<!-- Themen-Liste: Desktop in Card; Mobil nur Karten (kein äußerer Card-Wrapper) -->
+{% if themen %}
+<div class="card shadow-sm d-none d-md-block">
     <div class="card-body">
-        {% if themen %}
-        <!-- Desktop: Tabelle (ab md-Breakpoint) -->
-        <div class="table-responsive d-none d-md-block">
+        <!-- Desktop: Tabelle -->
+        <div class="table-responsive">
                 <table id="themenListeTable" class="table table-hover table-themen-liste">
                     <thead>
                         <tr>
@@ -426,6 +465,8 @@
                     </tbody>
                 </table>
         </div>
+    </div>
+</div>
 
         <!-- Mobile: Cards -->
         <div class="d-md-none">
@@ -469,9 +510,10 @@
                             </p>
                             {% if bs_m|length > 1 %}
                                 <div class="collapse" id="bemerkHistoryMobile{{ thema.ID }}">
+                                  <div class="sb-tl-mobile-bemerk-history-inner border-top border-secondary-subtle bg-body-secondary px-3 py-2">
                                   <ul class="list-group list-group-flush bemerkung-list mb-0">
                                     {% for b in bs_m[1:] %}
-                                    <li class="list-group-item bg-white px-0">
+                                    <li class="list-group-item bg-transparent px-0 border-secondary-subtle">
                                         <div class="d-flex">
                                             <small class="text-muted">
                                                 {{ b.Datum|schichtbuch_datum }} - <strong>{{ b.Vorname }} {{ b.Nachname }}</strong>
@@ -484,6 +526,7 @@
                                     </li>
                                     {% endfor %}
                                   </ul>
+                                  </div>
                                 </div>
                             {% elif bs_m|length == 1 %}
                                 <p class="text-body mb-0 sb-mobile-bemerkung-preview">{{ bs_m[0].Bemerkung }}</p>
@@ -492,8 +535,8 @@
                             {% endif %}
                         </div>
                         
-                        <!-- Card Footer: Action-Buttons -->
-                        <div class="card-footer bg-white" onclick="event.stopPropagation();">
+                        <!-- Card Footer: Action-Buttons (mobil per CSS ausgeblendet: .sb-tl-mobile-card-actions) -->
+                        <div class="card-footer bg-white sb-tl-mobile-card-actions" onclick="event.stopPropagation();">
                             <div class="d-flex gap-2 justify-content-center">
                                 <button class="btn btn-sm btn-outline-success flex-fill" type="button"
                                         data-bs-toggle="collapse" data-bs-target="#newBemerkungMobile{{ thema.ID }}" aria-expanded="false"
@@ -581,13 +624,15 @@
                 {% endfor %}
             </div>
         </div>
-        {% else %}
+{% else %}
+<div class="card shadow-sm">
+    <div class="card-body">
         <div class="alert alert-info mb-0">
             <i class="bi bi-info-circle"></i> Keine Themen gefunden.
         </div>
-        {% endif %}
     </div>
 </div>
+{% endif %}
 
 <!-- Loading Indicator -->
 <div id="loadingIndicator" class="text-center my-4" style="display: none;">
@@ -785,9 +830,12 @@ document.addEventListener("submit", async (e) => {
             collapseEl = document.createElement("div");
             collapseEl.className = "collapse";
             collapseEl.id = `bemerkHistoryMobile${themaId}`;
+            const innerHist = document.createElement("div");
+            innerHist.className = "sb-tl-mobile-bemerk-history-inner border-top border-secondary-subtle bg-body-secondary px-3 py-2";
             ul = document.createElement("ul");
             ul.className = "list-group list-group-flush bemerkung-list mb-0";
-            collapseEl.appendChild(ul);
+            innerHist.appendChild(ul);
+            collapseEl.appendChild(innerHist);
             const metaEl = themaCard.querySelector(".sb-mobile-meta");
             if (metaEl) metaEl.insertAdjacentElement("afterend", collapseEl);
             else cardBody.appendChild(collapseEl);
@@ -796,7 +844,7 @@ document.addEventListener("submit", async (e) => {
           if (ul) {
             const v = data.vorherige;
             const li = document.createElement("li");
-            li.className = "list-group-item bg-white px-0";
+            li.className = "list-group-item bg-transparent px-0 border-secondary-subtle";
             li.innerHTML = `
               <div class="d-flex">
                 <small class="text-muted">
@@ -991,10 +1039,10 @@ async function loadMoreThemen() {
             cardHtml += `<p class="text-muted mb-2 sb-mobile-meta"><span class="text-muted">– · – · –</span></p>`;
           }
           if (bemerkungen.length > 1) {
-            cardHtml += `<div class="collapse" id="bemerkHistoryMobile${thema.ID}"><ul class="list-group list-group-flush bemerkung-list mb-0">`;
+            cardHtml += `<div class="collapse" id="bemerkHistoryMobile${thema.ID}"><div class="sb-tl-mobile-bemerk-history-inner border-top border-secondary-subtle bg-body-secondary px-3 py-2"><ul class="list-group list-group-flush bemerkung-list mb-0">`;
             bemerkungen.slice(1).forEach(b => {
               cardHtml += `
-                    <li class="list-group-item bg-white px-0">
+                    <li class="list-group-item bg-transparent px-0 border-secondary-subtle">
                       <div class="d-flex">
                         <small class="text-muted">
                           ${formatSchichtbuchDatum(b.Datum)} - <strong>${escapeHtml(b.Vorname)} ${escapeHtml(b.Nachname)}</strong>
@@ -1004,7 +1052,7 @@ async function loadMoreThemen() {
                       <div class="mt-1">${escapeHtmlBr(b.Bemerkung)}</div>
                     </li>`;
             });
-            cardHtml += '</ul></div>';
+            cardHtml += '</ul></div></div>';
           } else if (bemerkungen.length === 1) {
             cardHtml += `<p class="text-body mb-0 sb-mobile-bemerkung-preview">${escapeHtmlBr(bemerkungen[0].Bemerkung)}</p>`;
           } else {
@@ -1013,7 +1061,7 @@ async function loadMoreThemen() {
           
           cardHtml += `
                 </div>
-                <div class="card-footer bg-white" onclick="event.stopPropagation();">
+                <div class="card-footer bg-white sb-tl-mobile-card-actions" onclick="event.stopPropagation();">
                   <div class="d-flex gap-2 justify-content-center">
                     <button class="btn btn-sm btn-outline-success flex-fill" type="button"
                             data-bs-toggle="collapse" data-bs-target="#newBemerkungMobile${thema.ID}" aria-expanded="false"

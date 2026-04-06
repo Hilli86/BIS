@@ -46,23 +46,73 @@
             min-width: 80px;
         }
     }
+
+    /* Obere Schnellsuche (Muster wie Themenliste, Klassen .bis-list-*) */
+    .bis-list-filter-toolbar {
+        min-width: 0;
+    }
+    @media (min-width: 768px) {
+        .bis-list-filter-toolbar {
+            overflow-x: auto;
+        }
+        .bis-list-filter-toolbar > .bis-list-neu-btn {
+            width: auto;
+            align-self: auto;
+        }
+        .bis-list-filter-toolbar > .bis-list-filter-actions {
+            width: auto;
+        }
+        .bis-list-quicksearch-wrap {
+            width: 30rem;
+            min-width: 11rem;
+            max-width: 30rem;
+            flex-shrink: 0;
+        }
+    }
+    @media (max-width: 767.98px) {
+        .bis-list-quicksearch-wrap {
+            width: 100%;
+            max-width: none;
+        }
+        .bis-list-filter-toolbar > .bis-list-neu-btn {
+            width: 100%;
+        }
+        .bis-list-filter-toolbar > .bis-list-filter-actions {
+            width: 100%;
+        }
+        #filterCollapse .form-select,
+        #filterCollapse .form-control {
+            min-height: 44px;
+            font-size: 1rem;
+        }
+        #filterCollapse .btn {
+            min-height: 44px;
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+        #filterCollapse .btn:last-child {
+            margin-bottom: 0;
+        }
+    }
 </style>
 
 <h1 class="mb-4">Ersatzteile</h1>
 
-<!-- Schnellsuche + Filter -->
+<!-- Schnellsuche + Filter (Muster wie Themenliste); mobil: Neu → Suche → Filterbuttons -->
 <form method="get" id="filterForm">
-    <div class="d-flex flex-nowrap align-items-end gap-3 mb-3 overflow-x-auto pb-1">
+    <div class="d-flex flex-column flex-md-row flex-md-nowrap align-items-stretch align-items-md-end gap-3 mb-3 pb-1 bis-list-filter-toolbar">
         {% if 'admin' in session.get('user_berechtigungen', []) %}
-        <a href="{{ url_for('ersatzteile.ersatzteil_neu') }}" class="btn btn-primary flex-shrink-0">
+        <a href="{{ url_for('ersatzteile.ersatzteil_neu') }}" class="btn btn-primary flex-shrink-0 bis-list-neu-btn">
             <i class="bi bi-plus-circle"></i> Neues Ersatzteil
         </a>
         {% endif %}
-        <div class="input-group flex-shrink-0" style="width: 30rem; min-width: 11rem; max-width: 30rem;">
+        <div class="input-group flex-shrink-0 bis-list-quicksearch-wrap">
             <input type="text" name="q" id="ersatzteilQuickSearchQ" class="form-control" value="{{ q_filter or '' }}" placeholder="Suchbegriff eingeben: ArtNr., Bestellnr., Bezeichnung …" aria-label="Textsuche">
         </div>
-        <button type="submit" class="btn btn-primary flex-shrink-0">Filter anwenden</button>
-        <a href="{{ url_for('ersatzteile.ersatzteil_liste') }}" class="btn btn-secondary flex-shrink-0">Zurücksetzen</a>
+        <div class="d-flex gap-2 flex-md-shrink-0 bis-list-filter-actions">
+            <button type="submit" class="btn btn-primary flex-grow-1 flex-md-grow-0">Filter anwenden</button>
+            <a href="{{ url_for('ersatzteile.ersatzteil_liste') }}" class="btn btn-secondary flex-grow-1 flex-md-grow-0">Zurücksetzen</a>
+        </div>
     </div>
 
     <div class="card mb-4 shadow-sm">
@@ -161,11 +211,11 @@
     'sort': sort_by or '',
     'dir': sort_dir or ''
 } %}
-<div class="card shadow-sm">
+{% if ersatzteile %}
+<!-- Desktop: Tabelle in Card -->
+<div class="card shadow-sm d-none d-md-block">
     <div class="card-body">
-        {% if ersatzteile %}
-        <!-- Desktop-Version: Tabelle (nur auf md+ sichtbar) -->
-        <div class="table-responsive d-none d-md-block">
+        <div class="table-responsive">
             <table class="table table-hover">
                 <thead>
                     <tr>
@@ -350,8 +400,10 @@
                 </tbody>
             </table>
         </div>
-        
-        <!-- Mobile-Version: Cards (nur auf sm und kleiner sichtbar) -->
+    </div>
+</div>
+
+        <!-- Mobile: Cards ohne äußere Card -->
         <div class="d-md-none" id="ersatzteileCardsContainer">
             {% for e in ersatzteile %}
             <div class="card mb-3 {% if not e.EndOfLife and e.Mindestbestand > 0 and e.AktuellerBestand < e.Mindestbestand %}border-warning{% endif %}" style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID, **detail_url_params) }}';">
@@ -458,13 +510,15 @@
             </div>
             {% endfor %}
         </div>
-        {% else %}
-        <div class="alert alert-info">
+{% else %}
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="alert alert-info mb-0">
             <i class="bi bi-info-circle"></i> Keine Ersatzteile gefunden.
         </div>
-        {% endif %}
     </div>
 </div>
+{% endif %}
 
 {% if ersatzteile %}
 <!-- Loading Indicator für Lazy Load -->
