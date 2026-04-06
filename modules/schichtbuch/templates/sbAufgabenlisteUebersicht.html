@@ -2,11 +2,10 @@
 
 {% block content %}
 <h1 class="mb-4">Aufgabenlisten</h1>
-<p class="text-muted">Listen enthalten Schichtbuch-Themen; die Sichtbarkeit richtet sich nur nach Ihrer Konfiguration (Abteilungen und/oder einzelne Mitarbeiter).</p>
 
 <div class="mb-3">
-  <a href="{{ url_for('schichtbuch.aufgabenliste_neu') }}" class="btn btn-success">
-    <i class="bi bi-plus-lg"></i> Neue Aufgabenliste
+  <a href="{{ url_for('schichtbuch.aufgabenliste_neu') }}" class="btn btn-primary text-nowrap">
+    <i class="bi bi-plus-circle"></i> Neue Aufgabenliste
   </a>
 </div>
 

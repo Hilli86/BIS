@@ -50,25 +50,19 @@
 
 <h1 class="mb-4">🔧 Ersatzteile</h1>
 
-{% if 'admin' in session.get('user_berechtigungen', []) %}
-<div class="mb-3">
-    <a href="{{ url_for('ersatzteile.ersatzteil_neu') }}" class="btn btn-primary">
-        <i class="bi bi-plus-circle"></i> Neues Ersatzteil
-    </a>
-</div>
-{% endif %}
-
 <!-- Schnellsuche + Filter -->
 <form method="get" id="filterForm">
-    <div class="row g-3 align-items-end mb-3">
-        <div class="col-md-4">
-            <label class="form-label">Textsuche</label>
-            <input type="text" name="q" class="form-control" value="{{ q_filter or '' }}" placeholder="Bestellnummer, Bezeichnung...">
+    <div class="d-flex flex-nowrap align-items-end gap-3 mb-3 overflow-x-auto pb-1">
+        {% if 'admin' in session.get('user_berechtigungen', []) %}
+        <a href="{{ url_for('ersatzteile.ersatzteil_neu') }}" class="btn btn-primary flex-shrink-0">
+            <i class="bi bi-plus-circle"></i> Neues Ersatzteil
+        </a>
+        {% endif %}
+        <div class="input-group flex-shrink-0" style="width: 30rem; min-width: 11rem; max-width: 30rem;">
+            <input type="text" name="q" id="ersatzteilQuickSearchQ" class="form-control" value="{{ q_filter or '' }}" placeholder="Suchbegriff eingeben: ArtNr., Bestellnr., Bezeichnung …" aria-label="Textsuche">
         </div>
-        <div class="col-md-4">
-            <button type="submit" class="btn btn-primary me-2">Filter anwenden</button>
-            <a href="{{ url_for('ersatzteile.ersatzteil_liste') }}" class="btn btn-secondary">Zurücksetzen</a>
-        </div>
+        <button type="submit" class="btn btn-primary flex-shrink-0">Filter anwenden</button>
+        <a href="{{ url_for('ersatzteile.ersatzteil_liste') }}" class="btn btn-secondary flex-shrink-0">Zurücksetzen</a>
     </div>
 
     <div class="card mb-4 shadow-sm">
@@ -276,14 +270,14 @@
                     {% for e in ersatzteile %}
                     <tr {% if not e.EndOfLife and e.Mindestbestand > 0 and e.AktuellerBestand < e.Mindestbestand %}class="table-warning"{% endif %} style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID, **detail_url_params) }}';">
                         <td>
+                            <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID, **detail_url_params) }}" class="text-decoration-none fw-bold" onclick="event.stopPropagation();">
+                                {{ e.ID }}
+                            </a>
                             {% if e.Kennzeichen %}
                             <span class="badge bg-info me-1" style="width: 30px; display: inline-block; text-align: center;">{{ e.Kennzeichen }}</span>
                             {% else %}
                             <span class="badge me-1" style="width: 30px; display: inline-block; visibility: hidden;"></span>
                             {% endif %}
-                            <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID, **detail_url_params) }}" class="text-decoration-none fw-bold" onclick="event.stopPropagation();">
-                                {{ e.ID }}
-                            </a>
                         </td>
                         <td class="column-kategorie"><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID, **detail_url_params) }}" class="text-decoration-none text-dark">{{ e.Kategorie or '-' }}</a></td>
                         <td class="column-bezeichnung"><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=e.ID, **detail_url_params) }}" class="text-decoration-none text-dark">{{ e.Bezeichnung }}</a></td>
@@ -984,8 +978,8 @@ async function loadMoreErsatzteile() {
                     tr.style.cursor = 'pointer';
                     tr.onclick = () => { window.location.href = detailUrl; };
                     tr.innerHTML = `
-                        <td>${e.Kennzeichen ? '<span class="badge bg-info me-1" style="width: 30px; display: inline-block; text-align: center;">' + e.Kennzeichen + '</span>' : '<span class="badge me-1" style="width: 30px; display: inline-block; visibility: hidden;"></span>'}
-                            <a href="${detailUrl}" class="text-decoration-none fw-bold" onclick="event.stopPropagation();">${e.ID}</a></td>
+                        <td><a href="${detailUrl}" class="text-decoration-none fw-bold" onclick="event.stopPropagation();">${e.ID}</a>
+                            ${e.Kennzeichen ? '<span class="badge bg-info me-1" style="width: 30px; display: inline-block; text-align: center;">' + e.Kennzeichen + '</span>' : '<span class="badge me-1" style="width: 30px; display: inline-block; visibility: hidden;"></span>'}</td>
                         <td class="column-kategorie"><a href="${detailUrl}" class="text-decoration-none text-dark">${e.Kategorie || '-'}</a></td>
                         <td class="column-bezeichnung"><a href="${detailUrl}" class="text-decoration-none text-dark">${e.Bezeichnung || ''}</a></td>
                         <td class="column-lieferant"><a href="${detailUrl}" class="text-decoration-none text-dark">${e.Lieferant || '-'}</a></td>

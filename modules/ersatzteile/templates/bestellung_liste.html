@@ -1,6 +1,22 @@
 {% extends "layout/base.html" %}
 
 {% block content %}
+<style>
+  /* Volle Breite: Spalten nutzen den verfügbaren Platz (kein „kurzes“ Tabellenlayout) */
+  .table-responsive.table-bestellungen-wrap .table-bestellungen-liste {
+    width: 100%;
+    min-width: 100%;
+    table-layout: fixed;
+  }
+  .table-bestellungen-liste th,
+  .table-bestellungen-liste td {
+    vertical-align: middle;
+  }
+  .table-bestellungen-liste td {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+</style>
 <h1 class="mb-4">🛒 Bestellungen</h1>
 
 {% if 'admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', []) %}
@@ -10,7 +26,6 @@
     </a>
 </div>
 {% endif %}
-
 <!-- Filter -->
 <div class="card mb-4 shadow-sm">
     <div class="card-header d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#filterCollapse" aria-expanded="false" aria-controls="filterCollapse">
@@ -120,25 +135,25 @@
     <div class="card-body">
         {% if bestellungen %}
         <!-- Desktop-Version: Tabelle (nur auf md+ sichtbar) -->
-        <div class="table-responsive d-none d-md-block">
-            <table class="table table-hover">
+        <div class="table-responsive table-bestellungen-wrap d-none d-md-block">
+            <table class="table table-hover table-bestellungen-liste">
                 <thead>
                     <tr>
-                        <th style="width: 60px;">Nr.</th>
-                        <th style="width: 80px;">Priorität</th>
-                        <th style="min-width: 200px;">Lieferant</th>
-                        <th style="min-width: 250px;">Status</th>
-                        <th style="width: 80px;">Positionen</th>
-                        <th>Gesamtbetrag</th>
-                        <th>Erstellt am</th>
-                        <th>Lieferdatum</th>
-                        <th class="column-freigegeben-am" style="display: none;">Freigegeben am</th>
-                        <th class="column-freigegeben-von" style="display: none;">Freigegeben von</th>
-                        <th class="column-bestellt-am" style="display: none;">Bestellt am</th>
-                        <th class="column-bestellt-von" style="display: none;">Bestellt von</th>
-                        <th>Abteilung</th>
-                        <th class="text-nowrap" style="min-width: 70px;">
-                            <div class="d-flex align-items-center justify-content-start gap-1">
+                        <th style="width: 3.25rem;">Nr.</th>
+                        <th style="width: 6rem;">Priorität</th>
+                        <th>Lieferant</th>
+                        <th>Status</th>
+                        <th style="width: 6.5rem;">Positionen</th>
+                        <th style="width: 9rem;">Gesamtbetrag</th>
+                        <th style="width: 7rem;">Erstellt am</th>
+                        <th style="width: 7rem;">Lieferdatum</th>
+                        <th style="width: 7rem;" class="column-freigegeben-am" style="display: none;">Freigegeben am</th>
+                        <th style="width: 7rem;" class="column-freigegeben-von" style="display: none;">Freigegeben von</th>
+                        <th style="width: 7rem;" class="column-bestellt-am" style="display: none;">Bestellt am</th>
+                        <th style="width: 7rem;" class="column-bestellt-von" style="display: none;">Bestellt von</th>
+                        <th style="width: 10rem;">Abteilung</th>
+                        <th class="text-end text-nowrap" style="width: 7.5rem;">
+                            <div class="d-flex align-items-center justify-content-end gap-1">
                                 <span>Aktionen</span>
                                 <button type="button" class="btn btn-sm btn-outline-secondary flex-shrink-0" data-bs-toggle="modal" data-bs-target="#spaltenModal" title="Spalten anzeigen/ausblenden" onclick="event.stopPropagation();">
                                     <i class="bi bi-columns-gap"></i>
@@ -213,19 +228,23 @@
                         <td class="column-bestellt-am" style="display: none;">{{ b.BestelltAm[:16] if b.BestelltAm else '-' }}</td>
                         <td class="column-bestellt-von" style="display: none;">{{ b.BestelltVon or '-' }}</td>
                         <td>{{ b.Abteilung or '-' }}</td>
-                        <td onclick="event.stopPropagation();" style="white-space: nowrap;">
-                            <div class="d-flex flex-nowrap gap-1">
+                        <td class="text-end" onclick="event.stopPropagation();" style="white-space: nowrap;">
+                            <div class="d-flex flex-nowrap gap-1 justify-content-end">
                                 {% if b.Status in ['Freigegeben', 'Bestellt'] %}
-                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="exportBestellungPDF({{ b.ID }})" title="Als PDF exportieren">
-                                    <i class="bi bi-file-pdf"></i>
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="exportBestellungPDF({{ b.ID }})" title="Als PDF exportieren">
+                                    <i class="bi bi-file-earmark-pdf"></i>
                                 </button>
                                 {% else %}
-                                <button type="button" class="btn btn-sm btn-outline-danger invisible" disabled>
-                                    <i class="bi bi-file-pdf"></i>
+                                <button type="button" class="btn btn-sm btn-outline-primary invisible" disabled tabindex="-1" aria-hidden="true">
+                                    <i class="bi bi-file-earmark-pdf"></i>
                                 </button>
                                 {% endif %}
                                 {% if ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) and b.Status in ['Erstellt', 'Zur Freigabe', 'Freigegeben'] %}
                                 <button type="button" class="btn btn-sm btn-outline-danger" onclick="loescheBestellung({{ b.ID }})" title="Bestellung löschen">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                                {% else %}
+                                <button type="button" class="btn btn-sm btn-outline-danger invisible" disabled tabindex="-1" aria-hidden="true">
                                     <i class="bi bi-trash"></i>
                                 </button>
                                 {% endif %}
@@ -487,15 +506,23 @@
                     {% endif %}
                     
                     <div class="mt-3" onclick="event.stopPropagation();">
-                        <div class="btn-group w-100" role="group">
+                        <div class="d-flex flex-wrap gap-2" role="group">
                             {% if b.Status in ['Freigegeben', 'Bestellt'] %}
-                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="exportBestellungPDF({{ b.ID }})" title="Als PDF exportieren">
-                                <i class="bi bi-file-pdf"></i> PDF
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="exportBestellungPDF({{ b.ID }})" title="Als PDF exportieren">
+                                <i class="bi bi-file-earmark-pdf"></i> PDF
+                            </button>
+                            {% else %}
+                            <button type="button" class="btn btn-sm btn-outline-primary invisible" disabled tabindex="-1" aria-hidden="true">
+                                <i class="bi bi-file-earmark-pdf"></i>
                             </button>
                             {% endif %}
                             {% if ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) and b.Status in ['Erstellt', 'Zur Freigabe', 'Freigegeben'] %}
                             <button type="button" class="btn btn-sm btn-outline-danger" onclick="loescheBestellung({{ b.ID }})" title="Bestellung löschen">
                                 <i class="bi bi-trash"></i> Löschen
+                            </button>
+                            {% else %}
+                            <button type="button" class="btn btn-sm btn-outline-danger invisible" disabled tabindex="-1" aria-hidden="true">
+                                <i class="bi bi-trash"></i>
                             </button>
                             {% endif %}
                         </div>
