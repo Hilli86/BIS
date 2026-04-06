@@ -7,95 +7,116 @@
 <h1 class="mb-4">Neue Aufgabenliste</h1>
 {% endif %}
 
-<div class="alert alert-light border mb-4">
-  <strong>Sichtbarkeit:</strong> Es gelten ausschlie&szlig;lich die gew&auml;hlten Abteilungen und/oder Mitarbeiter (oder-Verkn&uuml;pfung).
-  Ohne gew&auml;hlte Abteilung sind <em>nur</em> die ausgew&auml;hlten Mitarbeiter eingeschlossen (zus&auml;tzlich immer Ersteller und Admin).
+<div class="card shadow-sm mb-3">
+  <div class="card-header bg-info text-white">
+    <h5 class="mb-0"><i class="bi bi-info-circle"></i> Hinweise zur Sichtbarkeit</h5>
+  </div>
+  <div class="card-body py-3">
+    <p class="mb-0 text-muted small">
+      <strong>Sichtbarkeit:</strong> Es gelten ausschließlich die gewählten Abteilungen und/oder Mitarbeiter (oder-Verknüpfung).
+      Ohne gewählte Abteilung sind <em>nur</em> die ausgewählten Mitarbeiter eingeschlossen (zusätzlich immer Ersteller und Admin).
+    </p>
+  </div>
 </div>
 
-<form method="POST" class="bg-white p-4 rounded shadow-sm">
-  <div class="mb-3">
-    <label for="bezeichnung" class="form-label fw-bold">Bezeichnung</label>
-    <input type="text" class="form-control" id="bezeichnung" name="bezeichnung" required
-           value="{{ liste.Bezeichnung if liste else '' }}">
+<div class="card shadow-sm">
+  <div class="card-header bg-primary text-white">
+    <h5 class="mb-0">{% if liste %}Aufgabenliste bearbeiten{% else %}Aufgabenliste anlegen{% endif %}</h5>
   </div>
-  <div class="mb-3">
-    <label for="beschreibung" class="form-label">Kurzbeschreibung / Notiz</label>
-    <textarea class="form-control" id="beschreibung" name="beschreibung" rows="3">{{ liste.Beschreibung if liste else '' }}</textarea>
-  </div>
-
-  {% if auswaehlbare_abteilungen %}
-  <div class="mb-3">
-    <label class="form-label fw-bold"><i class="bi bi-eye"></i> Sichtbarkeit &ndash; Abteilungen</label>
-    <div class="form-text text-muted mb-2">Wie beim Thema: jede Abteilung einzeln ankreuzen.</div>
-    <div class="card">
-      <div class="card-body">
-        <div class="form-check border-bottom pb-2 mb-3">
-          <input class="form-check-input" type="checkbox" id="aufgabenliste_ab_alle" autocomplete="off">
-          <label class="form-check-label fw-semibold" for="aufgabenliste_ab_alle">Alle Abteilungen ausw&auml;hlen / abw&auml;hlen</label>
+  <div class="card-body">
+    <form method="POST">
+      <div class="row g-3">
+        <div class="col-12">
+          <label for="bezeichnung" class="form-label"><strong>Bezeichnung:</strong> <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="bezeichnung" name="bezeichnung" required
+                 value="{{ liste.Bezeichnung if liste else '' }}">
         </div>
-        {% for gruppe in auswaehlbare_abteilungen %}
-        <div class="mb-3">
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="sichtbare_abteilungen"
-                   value="{{ gruppe.parent.ID }}" id="ab_f_{{ gruppe.parent.ID }}"
-                   {% if gruppe.parent.ID in gewaehlte_abteilungen %}checked{% endif %}>
-            <label class="form-check-label fw-bold" for="ab_f_{{ gruppe.parent.ID }}">{{ gruppe.parent.Bezeichnung }}</label>
-          </div>
-          {% if gruppe.children %}
-          <div class="mt-2">
-            {% for child in gruppe.children %}
-            <div class="form-check" style="margin-left: {{ (child.level + 1) * 1.5 }}rem;">
-              <input class="form-check-input" type="checkbox" name="sichtbare_abteilungen"
-                     value="{{ child.ID }}" id="ab_f_{{ child.ID }}"
-                     {% if child.ID in gewaehlte_abteilungen %}checked{% endif %}>
-              <label class="form-check-label" for="ab_f_{{ child.ID }}">
-                {% for i in range(child.level + 1) %}&#8627;{% endfor %} {{ child.Bezeichnung }}
-              </label>
+        <div class="col-12">
+          <label for="beschreibung" class="form-label"><strong>Kurzbeschreibung / Notiz:</strong></label>
+          <textarea class="form-control" id="beschreibung" name="beschreibung" rows="3">{{ liste.Beschreibung if liste else '' }}</textarea>
+        </div>
+
+        {% if auswaehlbare_abteilungen %}
+        <div class="col-12">
+          <hr class="my-2">
+          <label class="form-label fw-bold"><i class="bi bi-eye"></i> Sichtbarkeit – Abteilungen</label>
+          <div class="form-text text-muted mb-2">Wie beim Thema: jede Abteilung einzeln ankreuzen.</div>
+          <div class="card border">
+            <div class="card-body">
+              <div class="form-check border-bottom pb-2 mb-3">
+                <input class="form-check-input" type="checkbox" id="aufgabenliste_ab_alle" autocomplete="off">
+                <label class="form-check-label fw-semibold" for="aufgabenliste_ab_alle">Alle Abteilungen auswählen / abwählen</label>
+              </div>
+              {% for gruppe in auswaehlbare_abteilungen %}
+              <div class="mb-3">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="sichtbare_abteilungen"
+                         value="{{ gruppe.parent.ID }}" id="ab_f_{{ gruppe.parent.ID }}"
+                         {% if gruppe.parent.ID in gewaehlte_abteilungen %}checked{% endif %}>
+                  <label class="form-check-label fw-bold" for="ab_f_{{ gruppe.parent.ID }}">{{ gruppe.parent.Bezeichnung }}</label>
+                </div>
+                {% if gruppe.children %}
+                <div class="mt-2">
+                  {% for child in gruppe.children %}
+                  <div class="form-check" style="margin-left: {{ (child.level + 1) * 1.5 }}rem;">
+                    <input class="form-check-input" type="checkbox" name="sichtbare_abteilungen"
+                           value="{{ child.ID }}" id="ab_f_{{ child.ID }}"
+                           {% if child.ID in gewaehlte_abteilungen %}checked{% endif %}>
+                    <label class="form-check-label" for="ab_f_{{ child.ID }}">
+                      {% for i in range(child.level + 1) %}&#8627;{% endfor %} {{ child.Bezeichnung }}
+                    </label>
+                  </div>
+                  {% endfor %}
+                </div>
+                {% endif %}
+              </div>
+              {% endfor %}
             </div>
-            {% endfor %}
           </div>
+        </div>
+        {% endif %}
+
+        <div class="col-12">
+          <hr class="my-2">
+          <label class="form-label fw-bold">Sichtbarkeit – einzelne Mitarbeiter</label>
+          <div class="form-text text-muted mb-2">Jede Person einzeln ankreuzen. Ohne Abteilungs-Auswahl zählen hier nur diese Personen (neben Ersteller/Admin).</div>
+          <div class="card border">
+            <div class="card-body aufgabenliste-ma-scroll" style="max-height: 24rem; overflow-y: auto;">
+              {% if mitarbeiter_options %}
+              <div class="form-check border-bottom pb-2 mb-2 sticky-top bg-white aufgabenliste-ma-sticky">
+                <input class="form-check-input" type="checkbox" id="aufgabenliste_ma_alle" autocomplete="off">
+                <label class="form-check-label fw-semibold" for="aufgabenliste_ma_alle">Alle Mitarbeiter auswählen / abwählen</label>
+              </div>
+              {% for m in mitarbeiter_options %}
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="sichtbare_mitarbeiter"
+                       value="{{ m.ID }}" id="ma_f_{{ m.ID }}"
+                       {% if m.ID in gewaehlte_mitarbeiter %}checked{% endif %}>
+                <label class="form-check-label" for="ma_f_{{ m.ID }}">
+                  {{ m.Nachname }}, {{ m.Vorname or '' }} <span class="text-muted">({{ m.Personalnummer }})</span>
+                </label>
+              </div>
+              {% endfor %}
+              {% else %}
+              <p class="text-muted mb-0">Keine aktiven Mitarbeiter.</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <hr class="my-3">
+          <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Speichern</button>
+          {% if liste %}
+          <a href="{{ url_for('schichtbuch.aufgabenliste_detail', liste_id=liste.ID) }}" class="btn btn-secondary"><i class="bi bi-x-lg"></i> Abbrechen</a>
+          {% else %}
+          <a href="{{ url_for('schichtbuch.aufgabenlisten_liste') }}" class="btn btn-secondary"><i class="bi bi-x-lg"></i> Abbrechen</a>
           {% endif %}
         </div>
-        {% endfor %}
       </div>
-    </div>
+    </form>
   </div>
-  {% endif %}
-
-  <div class="mb-3">
-    <label class="form-label fw-bold">Sichtbarkeit &ndash; einzelne Mitarbeiter</label>
-    <div class="form-text text-muted mb-2">Jede Person einzeln ankreuzen. Ohne Abteilungs-Auswahl z&auml;hlen hier nur diese Personen (neben Ersteller/Admin).</div>
-    <div class="card">
-      <div class="card-body aufgabenliste-ma-scroll" style="max-height: 24rem; overflow-y: auto;">
-        {% if mitarbeiter_options %}
-        <div class="form-check border-bottom pb-2 mb-2 sticky-top bg-white aufgabenliste-ma-sticky">
-          <input class="form-check-input" type="checkbox" id="aufgabenliste_ma_alle" autocomplete="off">
-          <label class="form-check-label fw-semibold" for="aufgabenliste_ma_alle">Alle Mitarbeiter ausw&auml;hlen / abw&auml;hlen</label>
-        </div>
-        {% for m in mitarbeiter_options %}
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" name="sichtbare_mitarbeiter"
-                 value="{{ m.ID }}" id="ma_f_{{ m.ID }}"
-                 {% if m.ID in gewaehlte_mitarbeiter %}checked{% endif %}>
-          <label class="form-check-label" for="ma_f_{{ m.ID }}">
-            {{ m.Nachname }}, {{ m.Vorname or '' }} <span class="text-muted">({{ m.Personalnummer }})</span>
-          </label>
-        </div>
-        {% endfor %}
-        {% else %}
-        <p class="text-muted mb-0">Keine aktiven Mitarbeiter.</p>
-        {% endif %}
-      </div>
-    </div>
-  </div>
-
-  <button type="submit" class="btn btn-success"><i class="bi bi-save"></i> Speichern</button>
-  {% if liste %}
-  <a href="{{ url_for('schichtbuch.aufgabenliste_detail', liste_id=liste.ID) }}" class="btn btn-secondary">Zur&uuml;ck</a>
-  {% else %}
-  <a href="{{ url_for('schichtbuch.aufgabenlisten_liste') }}" class="btn btn-secondary">Zur&uuml;ck</a>
-  {% endif %}
-</form>
+</div>
 {% endblock %}
 
 {% block scripts %}

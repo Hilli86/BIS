@@ -7,10 +7,16 @@
 <div class="alert alert-success">{{ message }}</div>
 {% endif %}
 
-<form id="themaForm" method="POST" class="bg-white p-4 rounded shadow-sm">
+<div class="card shadow-sm">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Thema anlegen</h5>
+    </div>
+    <div class="card-body">
+<form id="themaForm" method="POST">
 
-    <div class="mb-3">
-        <label for="bereich" class="form-label">Bereich</label>
+    <div class="row g-3">
+    <div class="col-md-6">
+        <label for="bereich" class="form-label"><strong>Bereich:</strong> <span class="text-danger">*</span></label>
         <select class="form-select" id="bereich" required>
             <option value="">-- bitte wählen --</option>
             {% for b in bereiche %}
@@ -19,22 +25,23 @@
         </select>
     </div>
 
-    <div class="mb-3">
-        <label for="gewerk" class="form-label">Gewerk</label>
+    <div class="col-md-6">
+        <label for="gewerk" class="form-label"><strong>Gewerk:</strong> <span class="text-danger">*</span></label>
         <select class="form-select" id="gewerk" name="gewerk" required disabled>
             <option value="">-- zuerst Bereich wählen --</option>
             {% for g in gewerke %}
             <option value="{{ g.ID }}" data-bereich="{{ g.BereichID }}">{{ g.Bezeichnung }}</option>
             {% endfor %}
         </select>
-        <div id="offeneThemenContainer" class="mt-2" style="display: none;">
-            <small class="text-muted d-block mb-1">Offene Themen zu diesem Gewerk:</small>
-            <div id="offeneThemenListe" class="list-group list-group-flush"></div>
-        </div>
     </div>
 
-    <div class="mb-3">
-        <label for="taetigkeit" class="form-label">Tätigkeit</label>
+    <div class="col-12" id="offeneThemenContainer" style="display: none;">
+        <small class="text-muted d-block mb-1">Offene Themen zu diesem Gewerk:</small>
+        <div id="offeneThemenListe" class="list-group list-group-flush border rounded"></div>
+    </div>
+
+    <div class="col-md-6">
+        <label for="taetigkeit" class="form-label"><strong>Tätigkeit:</strong> <span class="text-danger">*</span></label>
         <select class="form-select" id="taetigkeit" name="taetigkeit" required>
             <option value="">-- bitte wählen --</option>
             {% for t in taetigkeiten %}
@@ -43,8 +50,8 @@
         </select>
     </div>
 
-    <div class="mb-3">
-        <label for="status" class="form-label">Status</label>
+    <div class="col-md-6">
+        <label for="status" class="form-label"><strong>Status:</strong> <span class="text-danger">*</span></label>
         <select class="form-select" id="status" name="status" required>
             <option value="">-- bitte wählen --</option>
             {% for s in status %}
@@ -53,30 +60,31 @@
         </select>
     </div>
 
-    <div class="mb-3">
-        <label for="vorgang_datum" class="form-label">Vorgangsdatum (optional)</label>
+    <div class="col-md-6">
+        <label for="vorgang_datum" class="form-label"><strong>Vorgangsdatum:</strong> <small class="text-muted">(optional)</small></label>
         <input type="date" class="form-control" id="vorgang_datum" name="vorgang_datum">
         <div class="form-text text-muted">
             Leer lassen: Speicherung mit aktueller Uhrzeit. Datum wählen: Speicherung nur als Kalendertag (ohne Uhrzeit).
         </div>
     </div>
 
-    <div class="mb-3">
-        <label for="bemerkung" class="form-label">Erste Bemerkung</label>
+    <div class="col-12">
+        <label for="bemerkung" class="form-label"><strong>Erste Bemerkung:</strong> <span class="text-danger">*</span></label>
         <textarea class="form-control" id="bemerkung" name="bemerkung" rows="4" required></textarea>
     </div>
 
     {% if auswaehlbare_abteilungen %}
-    <div class="mb-3">
+    <div class="col-12">
+        <hr class="my-2">
         <label class="form-label fw-bold">
-            <i class="bi bi-eye"></i> Sichtbarkeit - Welche Abteilungen sollen dieses Thema sehen?
+            <i class="bi bi-eye"></i> Sichtbarkeit – Welche Abteilungen sollen dieses Thema sehen?
         </label>
         <div class="form-text text-muted mb-2">
             Wählen Sie aus, welche Abteilungen Zugriff auf dieses Thema haben sollen.
             Unterabteilungen werden nicht automatisch hinzugefügt – jede Abteilung einzeln ankreuzen.
         </div>
         
-        <div class="card">
+        <div class="card border">
             <div class="card-body">
                 {% for gruppe in auswaehlbare_abteilungen %}
                     <div class="mb-3">
@@ -127,14 +135,15 @@
     {% endif %}
 
     {% if aufgabenlisten %}
-    <div class="mb-3">
+    <div class="col-12">
+        <hr class="my-2">
         <label class="form-label fw-bold">
-            <i class="bi bi-list-task"></i> Aufgabenlisten (optional)
+            <i class="bi bi-list-task"></i> Aufgabenlisten <small class="text-muted fw-normal">(optional)</small>
         </label>
         <div class="form-text text-muted mb-2">
             Thema direkt einer oder mehreren Listen zuordnen. Ohne Berechtigung zur Zuordnung sind die Kästchen deaktiviert.
         </div>
-        <div class="card">
+        <div class="card border">
             <div class="card-body">
                 {% for al in aufgabenlisten %}
                 <div class="form-check mb-2">
@@ -154,14 +163,15 @@
     {% endif %}
 
     <!-- Ersatzteile -->
-    <div class="mb-3">
+    <div class="col-12">
+        <hr class="my-2">
         <label class="form-label fw-bold">
-            <i class="bi bi-box-seam"></i> Ersatzteile (optional)
+            <i class="bi bi-box-seam"></i> Ersatzteile <small class="text-muted fw-normal">(optional)</small>
         </label>
         <div class="form-text text-muted mb-2">
             Wählen Sie Ersatzteile aus, die für dieses Thema verwendet werden sollen. Diese werden automatisch als Ausgang gebucht.
         </div>
-        <div class="card">
+        <div class="card border">
             <div class="card-body">
                 <div id="ersatzteileContainer">
                     <!-- Ersatzteile werden hier dynamisch hinzugefügt -->
@@ -176,13 +186,20 @@
         </div>
     </div>
 
-    <button type="submit" class="btn btn-success">
+    <div class="col-12">
+        <hr class="my-3">
+        <button type="submit" class="btn btn-primary">
             <i class="bi bi-save"></i> Speichern
-    </button>
-    <a href="{{ url_for('schichtbuch.themaliste') }}" class="btn btn-secondary">
-        <i class="bi bi-arrow-left"></i> Zurück zur Liste
-    </a>
+        </button>
+        <a href="{{ url_for('schichtbuch.themaliste') }}" class="btn btn-secondary">
+            <i class="bi bi-x-lg"></i> Abbrechen
+        </a>
+    </div>
+    </div>
+
 </form>
+    </div>
+</div>
 
 <hr class="my-4">
 <h3>Zuletzt erstellte Themen</h3>

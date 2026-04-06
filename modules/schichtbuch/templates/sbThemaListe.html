@@ -2,287 +2,180 @@
 {% extends "layout/base.html" %}
 
 {% block styles %}
-  <style>
-  /* 1) Themenzeile: alle TDs dieser TR immer hellgrau */
-  .table tbody tr.thema-row > td {
-    background-color: var(--bs-tertiary-bg, #e9ecef) !important;
-  }
+<style>
+/* Wie Ersatzteilliste/Bestellliste: Standard-Bootstrap-Tabelle; Regeln an #themenListeTable gebunden. */
 
-  /* 2) Bemerkungszeile & Collapse-Zeile: TDs immer weiß */
-  .table tbody tr.bemerkung-row > td,
-  .table tbody tr.collapse-row > td {
-    background-color: #ffffff !important;
-  }
+#themenListeTable.table-themen-liste > thead > tr > th,
+#themenListeTable.table-themen-liste > tbody > tr > td {
+  vertical-align: middle;
+}
 
-  /* 3) List-Group-Items in Bemerkungen: kein linker Akzentbalken, kein Hover-Grau */
-  .table tbody tr.bemerkung-row .list-group-item {
-    background-color: #ffffff !important;
-    border-left: none;
-  }
+/* BS 5.3 table-hover: Paar-Hover Kopf + Bemerkungsvorschau */
+#themenListeTable.table-themen-liste.table-hover > tbody > tr.thema-row:hover > td {
+  --bs-table-accent-bg: transparent !important;
+  --bs-table-bg-state: transparent !important;
+}
+#themenListeTable.table-themen-liste > tbody > tr.thema-row-kopf:hover > td,
+#themenListeTable.table-themen-liste > tbody > tr.thema-row-kopf:hover + tr.sb-tl-follow > td,
+#themenListeTable.table-themen-liste > tbody > tr.sb-tl-follow:hover > td,
+#themenListeTable.table-themen-liste > tbody > tr.thema-row-kopf:has(+ tr.sb-tl-follow:hover) > td {
+  background-color: rgba(var(--bs-emphasis-color-rgb, 33, 37, 41), 0.06) !important;
+  box-shadow: inset 0 0 0 9999px transparent !important;
+}
 
-  .table tbody tr.bemerkung-row .list-group-item:hover,
-  .table tbody tr.bemerkung-row .list-group-item:focus {
-    background-color: #ffffff !important;
-  }
+#themenListeTable.table-themen-liste > tbody > tr.thema-row-kopf:has(+ tr.sb-tl-follow) > td {
+  border-bottom: 0 !important;
+}
 
-  /* 4) Verhindern, dass .table-striped wieder einfärbt (falls irgendwo noch gesetzt) */
-  .table.table-striped tbody tr:nth-of-type(odd) > td {
-    background-color: transparent !important;
-  }
+#themenListeTable.table-themen-liste .sb-tl-follow .sb-tl-follow-actions-cell {
+  width: 1%;
+  vertical-align: top;
+}
 
-  /* 5) Optional: etwas Abstand / Padding für die Bemerkungsbox */
-  .table tbody tr.bemerkung-row td .list-group {
-    margin: 0;
-    padding: 0;
-  }
+#themenListeTable.table-themen-liste > tbody > tr.bemerkung-row:hover > td,
+#themenListeTable.table-themen-liste > tbody > tr.collapse-row:hover > td {
+  --bs-table-accent-bg: transparent !important;
+  box-shadow: none !important;
+}
 
-  /* Themenzeilen grau */
-  .thema-row {
-    background-color: var(--bs-tertiary-bg, #f2f2f2) !important;
-  }
+#themenListeTable.table-themen-liste .bemerkung-row .list-group-item {
+  border-left: none;
+}
 
-  /* Bemerkungen immer weiß */
-  .bemerkung-row,
-  .collapse-row {
-    background-color: #ffffff !important;
-  }
+.sb-bemerk-history-toggle {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0.35rem 0.55rem !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  line-height: 1;
+}
+.sb-bemerk-chevron {
+  display: inline-block;
+  transition: transform 0.2s ease;
+  font-size: 1.1rem;
+  line-height: 1;
+  vertical-align: middle;
+}
+.sb-bemerk-history-toggle[aria-expanded="true"] .sb-bemerk-chevron {
+  transform: rotate(180deg);
+}
+.sb-bemerk-history-toggle:focus {
+  box-shadow: none;
+}
 
-  .bemerkung-list li {
-    margin-bottom: 4px;
-  }
+.sb-tl-bemerkung-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 1.0625rem;
+  line-height: 1.45;
+}
 
-  /*
-   * Bootstrap 5.3: .table-hover dunkelt per inset box-shadow (--bs-table-bg-state),
-   * nicht nur per background. Nur die Zeile unter der Maus bekam so eine Extra-Schicht –
-   * Paar-Hover wirkte zweifarbig. State auf transparent, Farbe kommt von background-color.
-   */
-  .table.table-hover > tbody > tr.thema-row:hover > td {
-    --bs-table-accent-bg: transparent !important;
-    --bs-table-bg-state: transparent !important;
-    --bs-table-color-state: inherit;
-  }
+#themenListeTable.table-themen-liste .sb-tl-datum,
+#themenListeTable.table-themen-liste .sb-tl-taet,
+#themenListeTable.table-themen-liste .sb-tl-autor {
+  font-size: 1.0625rem;
+  line-height: 1.4;
+}
 
-  /*
-   * Kopf + Bemerkungs-Vorschau gemeinsam leicht absetzen (heller als früheres Secondary-Grau).
-   * Gilt nur für .thema-row-kopf / .sb-tl-follow, nicht für die weißen Bemerkungs-Collapse-Zeilen.
-   */
-  .table tbody tr.thema-row-kopf:hover > td,
-  .table tbody tr.thema-row-kopf:hover + tr.sb-tl-follow > td,
-  .table tbody tr.sb-tl-follow:hover > td,
-  .table tbody tr.thema-row-kopf:has(+ tr.sb-tl-follow:hover) > td {
-    background-color: var(--sb-tl-pair-hover-bg, #e3e6e9) !important;
-  }
+.sb-mobile-meta {
+  font-size: 1.0625rem;
+  line-height: 1.45;
+}
+.sb-mobile-bemerkung-preview {
+  font-size: 1.0625rem;
+  line-height: 1.45;
+}
 
-  /* Bemerkungs- und Collapse-Zeilen: kein table-hover (Bootstrap setzt --bs-table-accent-bg) */
-  .table.table-hover > tbody > tr.bemerkung-row:hover > td,
-  .table.table-hover > tbody > tr.collapse-row:hover > td {
-    --bs-table-accent-bg: transparent !important;
-    --bs-table-bg: #ffffff;
-    background-color: #ffffff !important;
-    color: inherit;
-    box-shadow: none;
-  }
+.sb-tl-bereich {
+  font-size: 1.05rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
 
-  .table tbody tr.bemerkung-row:hover,
-  .table tbody tr.collapse-row:hover,
-  .table tbody tr.bemerkung-row:hover > td,
-  .table tbody tr.collapse-row:hover > td {
-    background-color: #ffffff !important;
-  }
+.bemerkung-list li {
+  margin-bottom: 4px;
+}
 
-  /* Alle inneren Elemente in Bemerkungszeilen sollen auch bei Hover weiß bleiben */
-  .table tbody tr.bemerkung-row:hover td *:not(.btn),
-  .table tbody tr.collapse-row:hover td *:not(.btn) {
-    background-color: transparent !important;
+@media (max-width: 575.98px) {
+  .d-flex.flex-column > button,
+  .d-flex.flex-column > form {
+    width: 100%;
   }
+  .d-flex.flex-column > form > button {
+    width: 100%;
+  }
+}
 
-  /* Buttons sollen ihre Bootstrap-Farben behalten */
-  .table tbody tr.bemerkung-row:hover td .btn-success,
-  .table tbody tr.collapse-row:hover td .btn-success {
-    background-color: #198754 !important;
-    border-color: #198754 !important;
+@media (max-width: 767.98px) {
+  .thema-card-mobile { margin-bottom: 1rem; }
+  .thema-card-clickable {
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
   }
-  .table tbody tr.bemerkung-row:hover td .btn-success:hover,
-  .table tbody tr.collapse-row:hover td .btn-success:hover {
-    background-color: #157347 !important;
-    border-color: #146c43 !important;
+  .thema-card-clickable:active {
+    transform: scale(0.98);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   }
-
-  .table tbody tr.bemerkung-row:hover .list-group-item,
-  .table tbody tr.bemerkung-row:hover .list-group-item:hover,
-  .table tbody tr.bemerkung-row .list-group-item-action:hover {
-    background-color: #ffffff !important;
-  }
-
-  /* Größere Klickfläche: Pfeil für weitere Bemerkungen (Desktop-Tabelle + Karten) */
-  .sb-bemerk-history-toggle {
-    min-width: 2.75rem;
-    min-height: 2.75rem;
-    padding: 0.35rem 0.55rem !important;
-    display: inline-flex !important;
-    align-items: center;
-    justify-content: center;
-    box-sizing: border-box;
-    line-height: 1;
-  }
-
-  /* Pfeil: weitere Bemerkungen aufklappen */
-  .sb-bemerk-chevron {
-    display: inline-block;
-    transition: transform 0.2s ease;
-    font-size: 1.1rem;
-    line-height: 1;
-    vertical-align: middle;
-  }
-  .sb-bemerk-history-toggle[aria-expanded="true"] .sb-bemerk-chevron {
-    transform: rotate(180deg);
-  }
-  .sb-bemerk-history-toggle:focus {
-    box-shadow: none;
-  }
-
-  .sb-tl-bemerkung-text {
-    white-space: pre-wrap;
-    word-break: break-word;
+  .thema-card-mobile .card-header {
+    padding: 0.75rem 1rem;
     font-size: 1rem;
-    line-height: 1.45;
   }
-
-  /*
-   * Trennlinie zwischen Kopf und Bemerkungszeile: nur eine Linie (oben an der Folgezeile),
-   * nicht doppelt. Ohne rowspan in Spalte Aktionen eine eigene Zelle in der Folgezeile,
-   * damit der Balken durchgehend bis zum rechten Rand läuft.
-   */
-  .table tbody tr.thema-row-kopf:has(+ tr.sb-tl-follow) > td {
-    border-bottom: 0 !important;
+  .thema-card-mobile .card-body { padding: 1rem; }
+  .thema-card-mobile .card-title {
+    font-size: 1rem;
+    line-height: 1.4;
+    word-break: break-word;
   }
-
-  .table tbody tr.sb-tl-follow .sb-tl-follow-actions-cell {
-    width: 1%;
-    vertical-align: top;
+  .thema-card-mobile .card-footer { padding: 0.75rem; }
+  .thema-card-mobile .btn {
+    min-height: 44px;
+    font-size: 0.875rem;
+    padding: 0.5rem 0.75rem;
   }
-
-  .sb-tl-bereich {
-    font-size: 1.1rem;
-    font-weight: 500;
-    line-height: 1.35;
+  .bemerkung-preview {
+    font-size: 0.875rem;
+    line-height: 1.5;
   }
-
-  /* Action-Buttons in kleiner Ansicht - alle gleich breit */
-  @media (max-width: 575.98px) {
-    .d-flex.flex-column > button,
-    .d-flex.flex-column > form {
-      width: 100%;
-    }
-    .d-flex.flex-column > form > button {
-      width: 100%;
-    }
+  .bemerkung-preview .text-truncate {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-
-  /* Mobile Card-Styles */
-  @media (max-width: 767.98px) {
-    .thema-card-mobile {
-      margin-bottom: 1rem;
-    }
-
-    .thema-card-clickable {
-      cursor: pointer;
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .thema-card-clickable:active {
-      transform: scale(0.98);
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
-
-    .thema-card-mobile .card-header {
-      padding: 0.75rem 1rem;
-      font-size: 1rem;
-    }
-
-    .thema-card-mobile .card-body {
-      padding: 1rem;
-    }
-
-    .thema-card-mobile .card-title {
-      font-size: 1rem;
-      line-height: 1.4;
-      word-break: break-word;
-    }
-
-    .thema-card-mobile .card-footer {
-      padding: 0.75rem;
-    }
-
-    .thema-card-mobile .btn {
-      min-height: 44px; /* Touch-Target Mindestgröße */
-      font-size: 0.875rem;
-      padding: 0.5rem 0.75rem;
-    }
-
-    .bemerkung-preview {
-      font-size: 0.875rem;
-      line-height: 1.5;
-    }
-
-    .bemerkung-preview .text-truncate {
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    /* Bemerkungen innerhalb der Card */
-    .thema-card-mobile .card-body.border-top {
-      padding-top: 0.75rem;
-      margin-top: 0;
-    }
-
-    .thema-card-mobile .bemerkung-list {
-      margin-top: 0.5rem;
-    }
-
-    .thema-card-mobile .bemerkung-list .list-group-item {
-      padding-left: 0;
-      padding-right: 0;
-      border-left: none;
-      border-right: none;
-      padding-top: 0.5rem;
-      padding-bottom: 0.5rem;
-    }
-
-    .thema-card-mobile .bemerkung-list .list-group-item:first-child {
-      padding-top: 0;
-    }
-
-    .thema-card-mobile .bemerkung-list .list-group-item:last-child {
-      padding-bottom: 0;
-      border-bottom: none;
-    }
-
-    /* Filter-Optimierungen für Mobile */
-    #filterCollapse {
-      /* Filter standardmäßig eingeklappt auf Mobile */
-    }
-
-    #filterCollapse .form-select,
-    #filterCollapse .form-control {
-      min-height: 44px; /* Größere Touch-Targets */
-      font-size: 1rem; /* Verhindert Zoom auf iOS */
-    }
-
-    #filterCollapse .btn {
-      min-height: 44px;
-      width: 100%;
-      margin-bottom: 0.5rem;
-    }
-
-    #filterCollapse .btn:last-child {
-      margin-bottom: 0;
-    }
-
+  .thema-card-mobile .card-body.border-top {
+    padding-top: 0.75rem;
+    margin-top: 0;
   }
+  .thema-card-mobile .bemerkung-list { margin-top: 0.5rem; }
+  .thema-card-mobile .bemerkung-list .list-group-item {
+    padding-left: 0;
+    padding-right: 0;
+    border-left: none;
+    border-right: none;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+  .thema-card-mobile .bemerkung-list .list-group-item:first-child { padding-top: 0; }
+  .thema-card-mobile .bemerkung-list .list-group-item:last-child {
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+  #filterCollapse .form-select,
+  #filterCollapse .form-control {
+    min-height: 44px;
+    font-size: 1rem;
+  }
+  #filterCollapse .btn {
+    min-height: 44px;
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+  #filterCollapse .btn:last-child { margin-bottom: 0; }
+}
 </style>
 {% endblock %}
 
@@ -292,7 +185,7 @@
 <!-- Schnellsuche + Filter (wie Ersatzteilliste) -->
 <form method="get" id="filterForm">
   <div class="d-flex flex-nowrap align-items-end gap-3 mb-3 overflow-x-auto pb-1">
-    <a href="{{ url_for('schichtbuch.themaneu') }}" class="btn btn-primary text-nowrap flex-shrink-0">
+    <a href="{{ url_for('schichtbuch.themaneu') }}" class="btn btn-primary flex-shrink-0">
       <i class="bi bi-plus-circle"></i> Neues Thema
     </a>
     <div class="input-group flex-shrink-0" style="width: 30rem; min-width: 11rem; max-width: 30rem;">
@@ -304,9 +197,9 @@
   </div>
 
 <!-- Filter (einklappbar) -->
-<div class="card mb-4">
+<div class="card mb-4 shadow-sm">
   <div class="card-header d-flex justify-content-between align-items-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#filterCollapse" aria-expanded="false" aria-controls="filterCollapse">
-    <strong><i class="bi bi-funnel me-1"></i>Filter</strong>
+    <strong>Filter</strong>
     <span class="btn btn-sm btn-outline-primary">Anzeigen / Ausblenden</span>
   </div>
   <div class="collapse" id="filterCollapse">
@@ -369,15 +262,14 @@
 </div>
 </form>
 
-<!-- Themen-Liste -->
-<div class="card mb-4">
-    <div class="card-body p-0">
+<!-- Themen-Liste (Struktur wie Ersatzteilliste/Bestellliste: eine Tabelle, ein tbody) -->
+<div class="card shadow-sm">
+    <div class="card-body">
         {% if themen %}
         <!-- Desktop: Tabelle (ab md-Breakpoint) -->
-        <div class="d-none d-md-block">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light">
+        <div class="table-responsive d-none d-md-block">
+                <table id="themenListeTable" class="table table-hover table-themen-liste">
+                    <thead>
                         <tr>
                             <th class="text-nowrap" style="width: 1%;">ID</th>
                             <th class="text-nowrap">Letzte Aktivität</th>
@@ -388,14 +280,14 @@
                             <th class="text-center text-nowrap" style="width: 1%;">Aktionen</th>
                         </tr>
                     </thead>
+                    <tbody>
         {% for thema in themen %}
     {% set bs = bemerk_dict.get(thema.ID) or [] %}
     {% set letzte = bs[0] if bs else none %}
-    <tbody>
     <tr class="thema-row thema-row-kopf" style="color: {{ thema.Farbe or 'inherit' }}; cursor: pointer;" onclick="window.location.href='{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}'">
       <td>
         <span class="d-inline-flex align-items-center gap-1">
-          <a href="{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}" class="text-decoration-none" onclick="event.stopPropagation();">
+          <a href="{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}" class="text-decoration-none fw-bold" onclick="event.stopPropagation();">
             #{{ thema.ID }}
           </a>
           {% if bs|length > 1 %}
@@ -409,17 +301,17 @@
           {% endif %}
         </span>
       </td>
-      <td class="text-nowrap small sb-tl-datum text-muted">{% if letzte %}{{ letzte.Datum|schichtbuch_datum }}{% else %}–{% endif %}</td>
+      <td class="text-nowrap sb-tl-datum text-muted">{% if letzte %}{{ letzte.Datum|schichtbuch_datum }}{% else %}–{% endif %}</td>
       <td class="sb-tl-bereich text-body">{{ thema.Bereich }} – {{ thema.Gewerk }}</td>
       <td class="sb-tl-status-wrap">
         <span class="badge rounded-pill" style="background-color: {{ thema.Farbe|default('#ccc')|trim }}; color: #fff;">
           {{ thema.Status }}
         </span>
       </td>
-      <td class="small sb-tl-taet">{% if letzte and letzte.Taetigkeit %}{{ letzte.Taetigkeit }}{% else %}<span class="text-muted">–</span>{% endif %}</td>
-      <td class="small sb-tl-autor">{% if letzte %}<span class="text-body">{{ letzte.Vorname }} {{ letzte.Nachname }}</span>{% else %}<span class="text-muted">–</span>{% endif %}</td>
+      <td class="sb-tl-taet">{% if letzte and letzte.Taetigkeit %}{{ letzte.Taetigkeit }}{% else %}<span class="text-muted">–</span>{% endif %}</td>
+      <td class="sb-tl-autor">{% if letzte %}<span class="text-body">{{ letzte.Vorname }} {{ letzte.Nachname }}</span>{% else %}<span class="text-muted">–</span>{% endif %}</td>
       <td class="text-center sb-tl-actions-cell" onclick="event.stopPropagation();">
-        <div class="d-flex flex-column flex-sm-row justify-content-center gap-1">
+        <div class="btn-group" role="group">
           <button class="btn btn-sm btn-outline-success" type="button"
                   data-bs-toggle="collapse" data-bs-target="#newBemerkung{{ thema.ID }}" aria-expanded="false"
                   title="Neue Bemerkung">
@@ -435,7 +327,7 @@
                   title="Aufgabenlisten">
             <i class="bi bi-list-task"></i>
           </button>
-          <form action="{{ url_for('schichtbuch.delete_thema', thema_id=thema.ID) }}" method="post" class="m-0 p-0">
+          <form action="{{ url_for('schichtbuch.delete_thema', thema_id=thema.ID) }}" method="post" class="d-contents m-0 p-0">
             <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Thema wirklich löschen?');"
                     title="Thema löschen">
                 <i class="bi bi-trash"></i>
@@ -453,7 +345,7 @@
     {% endif %}
 
     {% if bs|length > 1 %}
-    <tr class="bemerkung-row">
+    <tr class="bemerkung-row table-light">
       <td colspan="7" class="p-0 border-0">
         <div class="collapse" id="bemerkHistory{{ thema.ID }}">
           <div class="border-top bg-white px-3 py-2">
@@ -478,7 +370,7 @@
     </tr>
     {% endif %}
 
-    <tr class="collapse collapse-row" id="newBemerkung{{ thema.ID }}">
+    <tr class="collapse collapse-row table-light" id="newBemerkung{{ thema.ID }}">
       <td colspan="7">
         <form action="{{ url_for('schichtbuch.add_bemerkung') }}" method="post" class="mt-2">
           <input type="hidden" name="thema_id" value="{{ thema.ID }}">
@@ -530,14 +422,13 @@
         </form>
       </td>
     </tr>
-    </tbody>
         {% endfor %}
+                    </tbody>
                 </table>
-            </div>
         </div>
 
         <!-- Mobile: Cards -->
-        <div class="d-md-none p-3">
+        <div class="d-md-none">
             <div id="themenCardsContainer">
                 {% for thema in themen %}
                 {% set bs_m = bemerk_dict.get(thema.ID) or [] %}
@@ -567,7 +458,7 @@
                         
                         <div class="card-body">
                             <h6 class="card-title mb-2 fw-bold">{{ thema.Bereich }} – {{ thema.Gewerk }}</h6>
-                            <p class="small text-muted mb-2 sb-mobile-meta">
+                            <p class="text-muted mb-2 sb-mobile-meta">
                               {% if letzte_m %}
                                 {{ letzte_m.Datum|schichtbuch_datum }}
                                 {% if letzte_m.Taetigkeit %} · {{ letzte_m.Taetigkeit }}{% else %} · –{% endif %}
@@ -595,7 +486,7 @@
                                   </ul>
                                 </div>
                             {% elif bs_m|length == 1 %}
-                                <p class="small text-body mb-0 sb-mobile-bemerkung-preview">{{ bs_m[0].Bemerkung }}</p>
+                                <p class="text-body mb-0 sb-mobile-bemerkung-preview">{{ bs_m[0].Bemerkung }}</p>
                             {% else %}
                                 <p class="text-muted fst-italic mb-0 small">Keine Bemerkungen vorhanden.</p>
                             {% endif %}
@@ -691,8 +582,8 @@
             </div>
         </div>
         {% else %}
-        <div class="p-4">
-          <p class="text-muted mb-0"><i class="bi bi-inbox"></i> Keine Themen gefunden.</p>
+        <div class="alert alert-info mb-0">
+            <i class="bi bi-info-circle"></i> Keine Themen gefunden.
         </div>
         {% endif %}
     </div>
@@ -704,8 +595,6 @@
     <span class="visually-hidden">Laden...</span>
   </div>
   <p class="mt-2 text-muted">Weitere Einträge werden geladen...</p>
-</div>
-
 </div>
 {% endblock %}
 
@@ -922,7 +811,7 @@ document.addEventListener("submit", async (e) => {
           let preview = themaCard.querySelector(".sb-mobile-bemerkung-preview");
           if (!preview && cardBody) {
             preview = document.createElement("p");
-            preview.className = "small text-body mb-0 sb-mobile-bemerkung-preview";
+            preview.className = "text-body mb-0 sb-mobile-bemerkung-preview";
             const metaEl = themaCard.querySelector(".sb-mobile-meta");
             if (metaEl) metaEl.insertAdjacentElement("afterend", preview);
             else cardBody.appendChild(preview);
@@ -1049,7 +938,7 @@ async function loadMoreThemen() {
   isLoading = true;
 
   const loadingIndicator = document.getElementById('loadingIndicator');
-  const tableEl = document.querySelector('.d-none.d-md-block .table-responsive table.table-hover');
+  const tableEl = document.getElementById('themenListeTable');
   const cardsContainer = document.getElementById('themenCardsContainer');
   const isMobile = window.innerWidth < 768;
   
@@ -1097,9 +986,9 @@ async function loadMoreThemen() {
                   <h6 class="card-title mb-2 fw-bold">${escapeHtml(thema.Bereich)} – ${escapeHtml(thema.Gewerk)}</h6>`;
           const b0m = bemerkungen[0];
           if (b0m) {
-            cardHtml += `<p class="small text-muted mb-2 sb-mobile-meta">${formatSchichtbuchDatum(b0m.Datum)}${b0m.Taetigkeit ? ' · ' + escapeHtml(b0m.Taetigkeit) : ' · –'} · <strong>${escapeHtml(b0m.Vorname)} ${escapeHtml(b0m.Nachname)}</strong></p>`;
+            cardHtml += `<p class="text-muted mb-2 sb-mobile-meta">${formatSchichtbuchDatum(b0m.Datum)}${b0m.Taetigkeit ? ' · ' + escapeHtml(b0m.Taetigkeit) : ' · –'} · <strong>${escapeHtml(b0m.Vorname)} ${escapeHtml(b0m.Nachname)}</strong></p>`;
           } else {
-            cardHtml += `<p class="small text-muted mb-2 sb-mobile-meta"><span class="text-muted">– · – · –</span></p>`;
+            cardHtml += `<p class="text-muted mb-2 sb-mobile-meta"><span class="text-muted">– · – · –</span></p>`;
           }
           if (bemerkungen.length > 1) {
             cardHtml += `<div class="collapse" id="bemerkHistoryMobile${thema.ID}"><ul class="list-group list-group-flush bemerkung-list mb-0">`;
@@ -1117,7 +1006,7 @@ async function loadMoreThemen() {
             });
             cardHtml += '</ul></div>';
           } else if (bemerkungen.length === 1) {
-            cardHtml += `<p class="small text-body mb-0 sb-mobile-bemerkung-preview">${escapeHtmlBr(bemerkungen[0].Bemerkung)}</p>`;
+            cardHtml += `<p class="text-body mb-0 sb-mobile-bemerkung-preview">${escapeHtmlBr(bemerkungen[0].Bemerkung)}</p>`;
           } else {
             cardHtml += `<p class="text-muted fst-italic mb-0 small">Keine Bemerkungen vorhanden.</p>`;
           }
@@ -1188,8 +1077,8 @@ async function loadMoreThemen() {
           
           cardsContainer.insertAdjacentHTML('beforeend', cardHtml);
         } else if (tableEl) {
-          // Desktop: pro Thema ein <tbody> wie im Server-Template
-          const gruppe = document.createElement('tbody');
+          const tbodyEl = tableEl.querySelector('tbody');
+          if (!tbodyEl) return;
           const themaRow = document.createElement('tr');
           themaRow.className = 'thema-row thema-row-kopf';
           themaRow.style.color = thema.Farbe || 'inherit';
@@ -1203,23 +1092,23 @@ async function loadMoreThemen() {
           themaRow.innerHTML = `
             <td>
               <span class="d-inline-flex align-items-center gap-1">
-                <a href="${detailUrl}" class="text-decoration-none" onclick="event.stopPropagation();">
+                <a href="${detailUrl}" class="text-decoration-none fw-bold" onclick="event.stopPropagation();">
                   #${thema.ID}
                 </a>
                 ${historyBtn}
               </span>
             </td>
-            <td class="text-nowrap small sb-tl-datum text-muted">${b0 ? formatSchichtbuchDatum(b0.Datum) : '–'}</td>
+            <td class="text-nowrap sb-tl-datum text-muted">${b0 ? formatSchichtbuchDatum(b0.Datum) : '–'}</td>
             <td class="sb-tl-bereich text-body">${escapeHtml(thema.Bereich)} – ${escapeHtml(thema.Gewerk)}</td>
             <td class="sb-tl-status-wrap">
               <span class="badge rounded-pill" style="background-color: ${thema.Farbe || '#ccc'}; color: #fff;">
                 ${escapeHtml(thema.Status)}
               </span>
             </td>
-            <td class="small sb-tl-taet">${b0 && b0.Taetigkeit ? escapeHtml(b0.Taetigkeit) : '<span class="text-muted">–</span>'}</td>
-            <td class="small sb-tl-autor">${b0 ? `<span class="text-body">${escapeHtml(b0.Vorname)} ${escapeHtml(b0.Nachname)}</span>` : '<span class="text-muted">–</span>'}</td>
+            <td class="sb-tl-taet">${b0 && b0.Taetigkeit ? escapeHtml(b0.Taetigkeit) : '<span class="text-muted">–</span>'}</td>
+            <td class="sb-tl-autor">${b0 ? `<span class="text-body">${escapeHtml(b0.Vorname)} ${escapeHtml(b0.Nachname)}</span>` : '<span class="text-muted">–</span>'}</td>
             <td class="text-center sb-tl-actions-cell" onclick="event.stopPropagation();">
-              <div class="d-flex flex-column flex-sm-row justify-content-center gap-1">
+              <div class="btn-group" role="group">
                 <button class="btn btn-sm btn-outline-success" type="button"
                         data-bs-toggle="collapse" data-bs-target="#newBemerkung${thema.ID}" aria-expanded="false"
                         title="Neue Bemerkung">
@@ -1235,7 +1124,7 @@ async function loadMoreThemen() {
                         title="Aufgabenlisten">
                   <i class="bi bi-list-task"></i>
                 </button>
-                <form action="/schichtbuch/delete_thema/${thema.ID}" method="post" class="m-0 p-0">
+                <form action="/schichtbuch/delete_thema/${thema.ID}" method="post" class="d-contents m-0 p-0">
                   <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Thema wirklich löschen?');"
                           title="Thema löschen">
                     <i class="bi bi-trash"></i>
@@ -1245,7 +1134,7 @@ async function loadMoreThemen() {
             </td>
           `;
 
-          gruppe.appendChild(themaRow);
+          tbodyEl.appendChild(themaRow);
 
           if (b0 && b0.Bemerkung) {
             const followRow = document.createElement('tr');
@@ -1258,11 +1147,11 @@ async function loadMoreThemen() {
               <td colspan="5" class="text-body sb-tl-bemerkung-text pt-0 pb-2">${escapeHtmlBr(b0.Bemerkung)}</td>
               <td class="sb-tl-follow-actions-cell p-0" onclick="event.stopPropagation();" aria-hidden="true"></td>
             `;
-            gruppe.appendChild(followRow);
+            tbodyEl.appendChild(followRow);
           }
 
           const collapseRow = document.createElement('tr');
-          collapseRow.className = 'collapse collapse-row';
+          collapseRow.className = 'collapse collapse-row table-light';
           collapseRow.id = `newBemerkung${thema.ID}`;
           collapseRow.innerHTML = `
             <td colspan="7">
@@ -1306,7 +1195,7 @@ async function loadMoreThemen() {
 
           if (bemerkungen.length > 1) {
             const bemerkungRow = document.createElement('tr');
-            bemerkungRow.className = 'bemerkung-row';
+            bemerkungRow.className = 'bemerkung-row table-light';
             let bemerkHtml = '<ul class="list-group list-group-flush bemerkung-list">';
             bemerkungen.slice(1).forEach(b => {
               bemerkHtml += `
@@ -1323,10 +1212,9 @@ async function loadMoreThemen() {
             });
             bemerkHtml += '</ul>';
             bemerkungRow.innerHTML = `<td colspan="7" class="p-0 border-0"><div class="collapse" id="bemerkHistory${thema.ID}"><div class="border-top bg-white px-3 py-2">${bemerkHtml}</div></div></td>`;
-            gruppe.appendChild(bemerkungRow);
+            tbodyEl.appendChild(bemerkungRow);
           }
-          gruppe.appendChild(collapseRow);
-          tableEl.appendChild(gruppe);
+          tbodyEl.appendChild(collapseRow);
         }
       });
 
