@@ -102,59 +102,67 @@
 </div>
 
 {% if darf_themen and themen|length > 1 %}
-<p class="text-muted small">Zeilen per Ziehen sortieren, dann speichern.</p>
+<p class="text-muted small mb-2">Zeilen per Ziehen sortieren, dann speichern.</p>
 {% endif %}
 
 {% if darf_themen and themen %}
-<button type="button" class="btn btn-secondary btn-sm" id="btnSaveOrder">Reihenfolge speichern</button>
+<div class="mb-3">
+  <button type="button" class="btn btn-secondary btn-sm" id="btnSaveOrder">Reihenfolge speichern</button>
+</div>
 {% endif %}
 
-<div class="table-responsive">
-  <table class="table table-striped table-hover align-middle" id="aufgabenlisteThemenTable">
-    <thead>
-      <tr>
-        {% if darf_themen %}<th style="width:2rem;"></th>{% endif %}
-        <th>ID</th>
-        <th>Bereich</th>
-        <th>Gewerk</th>
-        <th>Status</th>
-        <th>Zuletzt</th>
-        <th>Letzte Bemerkung</th>
-        <th>Zugeordnet</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody id="sortableThemenBody">
-      {% for t in themen %}
-      <tr data-thema-id="{{ t.ID }}" {% if darf_themen %}draggable="true" class="drag-row"{% endif %}>
-        {% if darf_themen %}
-        <td class="text-muted user-select-none" title="Ziehen">&#9776;</td>
-        {% endif %}
-        <td><a href="{{ url_for('schichtbuch.thema_detail', thema_id=t.ID) }}">{{ t.ID }}</a></td>
-        <td>{{ t.Bereich }}</td>
-        <td>{{ t.Gewerk }}</td>
-        <td><span class="badge" style="background-color: {{ t.Farbe or '#6c757d' }}">{{ t.Status }}</span></td>
-        <td class="text-nowrap small">{{ t.LetzteBemerkungDatum|schichtbuch_datum if t.LetzteBemerkungDatum else '-' }}</td>
-        <td class="small text-break">{{ (t.LetzteBemerkungText or '')[:120] }}{% if t.LetzteBemerkungText and t.LetzteBemerkungText|length > 120 %}...{% endif %}</td>
-        <td class="small text-muted">
-          {{ t.HinzugefuegtAm|schichtbuch_datum if t.HinzugefuegtAm else '-' }}
-          {% if t.HinzugefuegtVonNachname %}
-          <br>{{ t.HinzugefuegtVonVorname }} {{ t.HinzugefuegtVonNachname }}
-          {% endif %}
-        </td>
-        <td class="text-end">
-          {% if darf_themen %}
-          <form method="POST" action="{{ url_for('schichtbuch.aufgabenliste_thema_entfernen', liste_id=detail.liste.ID, thema_id=t.ID) }}"
-                class="d-inline" onsubmit="return confirm('Thema von dieser Liste entfernen?');">
-            <button type="submit" class="btn btn-sm btn-outline-danger">Entfernen</button>
-          </form>
-          {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+{% if themen %}
+<div class="card shadow-sm mb-4">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0" id="aufgabenlisteThemenTable">
+        <thead class="table-light">
+          <tr>
+            {% if darf_themen %}<th style="width:2rem;"></th>{% endif %}
+            <th>ID</th>
+            <th>Bereich</th>
+            <th>Gewerk</th>
+            <th>Status</th>
+            <th>Zuletzt</th>
+            <th>Letzte Bemerkung</th>
+            <th>Zugeordnet</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="sortableThemenBody">
+          {% for t in themen %}
+          <tr data-thema-id="{{ t.ID }}" {% if darf_themen %}draggable="true" class="drag-row"{% endif %}>
+            {% if darf_themen %}
+            <td class="text-muted user-select-none" title="Ziehen">&#9776;</td>
+            {% endif %}
+            <td><a href="{{ url_for('schichtbuch.thema_detail', thema_id=t.ID) }}">{{ t.ID }}</a></td>
+            <td>{{ t.Bereich }}</td>
+            <td>{{ t.Gewerk }}</td>
+            <td><span class="badge" style="background-color: {{ t.Farbe or '#6c757d' }}">{{ t.Status }}</span></td>
+            <td class="text-nowrap small">{{ t.LetzteBemerkungDatum|schichtbuch_datum if t.LetzteBemerkungDatum else '-' }}</td>
+            <td class="small text-break">{{ (t.LetzteBemerkungText or '')[:120] }}{% if t.LetzteBemerkungText and t.LetzteBemerkungText|length > 120 %}...{% endif %}</td>
+            <td class="small text-muted">
+              {{ t.HinzugefuegtAm|schichtbuch_datum if t.HinzugefuegtAm else '-' }}
+              {% if t.HinzugefuegtVonNachname %}
+              <br>{{ t.HinzugefuegtVonVorname }} {{ t.HinzugefuegtVonNachname }}
+              {% endif %}
+            </td>
+            <td class="text-end">
+              {% if darf_themen %}
+              <form method="POST" action="{{ url_for('schichtbuch.aufgabenliste_thema_entfernen', liste_id=detail.liste.ID, thema_id=t.ID) }}"
+                    class="d-inline" onsubmit="return confirm('Thema von dieser Liste entfernen?');">
+                <button type="submit" class="btn btn-sm btn-outline-danger">Entfernen</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
+{% endif %}
 
 {% if darf_themen %}
 <div class="card mb-4 shadow-sm">

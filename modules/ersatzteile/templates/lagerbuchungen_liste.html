@@ -1,7 +1,7 @@
 {% extends "layout/base.html" %}
 
 {% block content %}
-<h1 class="mb-4">📋 Lagerbuchungen</h1>
+<h1 class="mb-4">Lagerbuchungen</h1>
 
 <!-- Schnelle Buchung -->
 {% if 'artikel_buchen' in session.get('user_berechtigungen', []) or 'admin' in session.get('user_berechtigungen', []) %}

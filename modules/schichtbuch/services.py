@@ -20,7 +20,7 @@ def build_themen_query(sichtbare_abteilungen, bereich_filter=None, gewerk_filter
         bereich_filter: Optionaler Bereichs-Filter
         gewerk_filter: Optionaler Gewerks-Filter
         status_filter_list: Optionaler Status-Filter (Liste)
-        q_filter: Optionaler Such-Filter
+        q_filter: Optionaler Such-Filter (Text in Bemerkungen; bei ausschließlich Ziffern zusätzlich exakte Thema-ID)
         limit: Optionales Limit
         offset: Optionales Offset
         mitarbeiter_id: Optional: ID des Mitarbeiters (für Anzeige selbst erstellter Themen)
@@ -132,9 +132,21 @@ def build_themen_query(sichtbare_abteilungen, bereich_filter=None, gewerk_filter
         query += f' AND s.Bezeichnung IN ({placeholders})'
         params.extend(status_filter_list)
     
-    if q_filter:
-        query += ' AND EXISTS (SELECT 1 FROM SchichtbuchBemerkungen b2 WHERE b2.ThemaID = t.ID AND b2.Gelöscht = 0 AND b2.Bemerkung LIKE ? )'
-        params.append(f'%{q_filter}%')
+    if q_filter and q_filter.strip():
+        q_trim = q_filter.strip()
+        if q_trim.isdigit():
+            query += (
+                ' AND (t.ID = ? OR EXISTS (SELECT 1 FROM SchichtbuchBemerkungen b2 '
+                'WHERE b2.ThemaID = t.ID AND b2.Gelöscht = 0 AND b2.Bemerkung LIKE ?))'
+            )
+            params.append(int(q_trim))
+            params.append(f'%{q_filter}%')
+        else:
+            query += (
+                ' AND EXISTS (SELECT 1 FROM SchichtbuchBemerkungen b2 '
+                'WHERE b2.ThemaID = t.ID AND b2.Gelöscht = 0 AND b2.Bemerkung LIKE ?)'
+            )
+            params.append(f'%{q_filter}%')
     
     if exclude_aufgabenliste_id is not None:
         query += (

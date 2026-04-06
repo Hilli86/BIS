@@ -1,6 +1,21 @@
 {% extends "layout/base.html" %}
 
 {% block content %}
+<style>
+  .table-responsive.table-aufgabenlisten-wrap .table-aufgabenlisten-liste {
+    width: 100%;
+    min-width: 100%;
+    table-layout: fixed;
+  }
+  .table-aufgabenlisten-liste th,
+  .table-aufgabenlisten-liste td {
+    vertical-align: middle;
+  }
+  .table-aufgabenlisten-liste td {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+</style>
 <h1 class="mb-4">Aufgabenlisten</h1>
 
 <div class="mb-3">
@@ -11,15 +26,15 @@
 
 {% if listen %}
 <div class="card shadow-sm">
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
-        <thead class="table-light">
+  <div class="card-body">
+    <div class="table-responsive table-aufgabenlisten-wrap">
+      <table class="table table-hover table-aufgabenlisten-liste mb-0">
+        <thead>
           <tr>
             <th>Bezeichnung</th>
-            <th class="text-nowrap">Erstellt am</th>
-            <th>Erstellt von</th>
-            <th class="text-nowrap">Status</th>
+            <th class="text-nowrap" style="width: 11rem;">Erstellt am</th>
+            <th style="width: 14rem;">Erstellt von</th>
+            <th class="text-nowrap" style="width: 8rem;">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -27,19 +42,17 @@
           {% set detail_url = url_for('schichtbuch.aufgabenliste_detail', liste_id=l.ID) %}
           <tr class="aufgabenliste-uebersicht-row" style="cursor: pointer;"
               onclick="window.location.href='{{ detail_url }}'">
-            <td class="fw-medium">{{ l.Bezeichnung }}</td>
-            <td class="text-muted text-nowrap small">
-              {% if l.ErstelltAm %}{{ l.ErstelltAm|schichtbuch_datum }}{% else %}&ndash;{% endif %}
-            </td>
-            <td class="text-muted">
+            <td>{{ l.Bezeichnung }}</td>
+            <td class="text-nowrap">{% if l.ErstelltAm %}{{ l.ErstelltAm|schichtbuch_datum }}{% else %}-{% endif %}</td>
+            <td>
               {% set von = ((l.Vorname or '') ~ ' ' ~ (l.Nachname or ''))|trim %}
-              {% if von %}{{ von }}{% else %}&ndash;{% endif %}
+              {% if von %}{{ von }}{% else %}-{% endif %}
             </td>
             <td>
               {% if l.IstOffen %}
-              <span class="badge rounded-pill bg-warning text-dark">Offen</span>
+              <span class="badge bg-info">Offen</span>
               {% else %}
-              <span class="badge rounded-pill bg-success">Erledigt</span>
+              <span class="badge bg-secondary">Erledigt</span>
               {% endif %}
             </td>
           </tr>

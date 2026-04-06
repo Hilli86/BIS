@@ -289,11 +289,19 @@
 {% block content %}
 <h1 class="mb-4">Themenliste</h1>
 
-<div class="mb-3">
-  <a href="{{ url_for('schichtbuch.themaneu') }}" class="btn btn-primary text-nowrap">
-    <i class="bi bi-plus-circle"></i> Neues Thema
-  </a>
-</div>
+<!-- Schnellsuche + Filter (wie Ersatzteilliste) -->
+<form method="get" id="filterForm">
+  <div class="d-flex flex-nowrap align-items-end gap-3 mb-3 overflow-x-auto pb-1">
+    <a href="{{ url_for('schichtbuch.themaneu') }}" class="btn btn-primary text-nowrap flex-shrink-0">
+      <i class="bi bi-plus-circle"></i> Neues Thema
+    </a>
+    <div class="input-group flex-shrink-0" style="width: 30rem; min-width: 11rem; max-width: 30rem;">
+      <input type="text" name="q" id="themaQuickSearchQ" class="form-control" value="{{ q_filter or '' }}"
+             placeholder="Thema-ID oder Text in Bemerkungen …" aria-label="Suche Thema-ID oder Bemerkung">
+    </div>
+    <button type="submit" class="btn btn-primary flex-shrink-0">Filter anwenden</button>
+    <a href="{{ url_for('schichtbuch.themaliste') }}" class="btn btn-secondary flex-shrink-0">Zurücksetzen</a>
+  </div>
 
 <!-- Filter (einklappbar) -->
 <div class="card mb-4">
@@ -303,7 +311,6 @@
   </div>
   <div class="collapse" id="filterCollapse">
     <div class="card-body">
-      <form method="get" id="filterForm">
         <!-- Zeile 1: Bereich + Gewerk -->
         <div class="row g-3 align-items-end">
           <div class="col-md-6">
@@ -350,25 +357,17 @@
           </div>
         </div>
 
-        <!-- Zeile 3: Suchtext -->
-        <div class="row g-3 mt-1">
-          <div class="col-12">
-            <label class="form-label">Text in Bemerkungen</label>
-            <input type="text" name="q" id="filterQ" value="{{ q_filter or '' }}" class="form-control" placeholder="z. B. Pumpe, Fehlercode ..." />
-          </div>
-        </div>
-
-        <!-- Zeile 4: Buttons -->
+        <!-- Zeile 3: Buttons -->
         <div class="row g-3 mt-2">
           <div class="col-12 d-flex flex-column flex-sm-row flex-wrap gap-2">
             <button type="submit" class="btn btn-primary">Filter anwenden</button>
             <a href="{{ url_for('schichtbuch.themaliste') }}" class="btn btn-secondary">Zurücksetzen</a>
           </div>
         </div>
-      </form>
     </div>
   </div>
 </div>
+</form>
 
 <!-- Themen-Liste -->
 <div class="card mb-4">
@@ -386,7 +385,6 @@
                             <th class="text-nowrap">Status</th>
                             <th>Tätigkeit</th>
                             <th class="text-nowrap">Autor</th>
-                            <th>Bemerkung</th>
                             <th class="text-center text-nowrap" style="width: 1%;">Aktionen</th>
                         </tr>
                     </thead>
@@ -420,7 +418,6 @@
       </td>
       <td class="small sb-tl-taet">{% if letzte and letzte.Taetigkeit %}{{ letzte.Taetigkeit }}{% else %}<span class="text-muted">–</span>{% endif %}</td>
       <td class="small sb-tl-autor">{% if letzte %}<span class="text-body">{{ letzte.Vorname }} {{ letzte.Nachname }}</span>{% else %}<span class="text-muted">–</span>{% endif %}</td>
-      <td class="small text-muted">{% if not letzte or not letzte.Bemerkung %}–{% endif %}</td>
       <td class="text-center sb-tl-actions-cell" onclick="event.stopPropagation();">
         <div class="d-flex flex-column flex-sm-row justify-content-center gap-1">
           <button class="btn btn-sm btn-outline-success" type="button"
@@ -450,14 +447,14 @@
     {% if letzte and letzte.Bemerkung %}
     <tr class="thema-row sb-tl-follow" style="color: {{ thema.Farbe or 'inherit' }}; cursor: pointer;" onclick="window.location.href='{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}'">
       <td></td>
-      <td colspan="6" class="text-body sb-tl-bemerkung-text pt-0 pb-2">{{ letzte.Bemerkung }}</td>
+      <td colspan="5" class="text-body sb-tl-bemerkung-text pt-0 pb-2">{{ letzte.Bemerkung }}</td>
       <td class="sb-tl-follow-actions-cell p-0" onclick="event.stopPropagation();" aria-hidden="true"></td>
     </tr>
     {% endif %}
 
     {% if bs|length > 1 %}
     <tr class="bemerkung-row">
-      <td colspan="8" class="p-0 border-0">
+      <td colspan="7" class="p-0 border-0">
         <div class="collapse" id="bemerkHistory{{ thema.ID }}">
           <div class="border-top bg-white px-3 py-2">
             <ul class="list-group list-group-flush bemerkung-list">
@@ -482,7 +479,7 @@
     {% endif %}
 
     <tr class="collapse collapse-row" id="newBemerkung{{ thema.ID }}">
-      <td colspan="8">
+      <td colspan="7">
         <form action="{{ url_for('schichtbuch.add_bemerkung') }}" method="post" class="mt-2">
           <input type="hidden" name="thema_id" value="{{ thema.ID }}">
           <input type="hidden" name="next" value="{{ request.full_path }}">
@@ -800,14 +797,12 @@ function sbEnsureMobileHistoryToggle(themaCard, themaId) {
 function setThemaPreviewFromAjax(themaKopf, bemText) {
   if (!themaKopf) return;
   const actionsCell = themaKopf.querySelector("td.sb-tl-actions-cell, td.text-center:last-child");
-  const bemMetaCell = themaKopf.querySelector("td:nth-child(7)");
   let textRow = themaKopf.nextElementSibling;
   if (!textRow || !textRow.classList.contains("sb-tl-follow")) {
     textRow = null;
   }
 
   if (bemText != null && bemText !== "") {
-    if (bemMetaCell) bemMetaCell.innerHTML = "";
     if (textRow) {
       const previewCell = textRow.querySelector(".sb-tl-bemerkung-text");
       if (previewCell) previewCell.textContent = bemText;
@@ -822,7 +817,7 @@ function setThemaPreviewFromAjax(themaKopf, bemText) {
         if (href) window.location.href = href;
       };
       tr.innerHTML =
-        '<td></td><td colspan="6" class="text-body sb-tl-bemerkung-text pt-0 pb-2"></td><td class="sb-tl-follow-actions-cell p-0" onclick="event.stopPropagation();" aria-hidden="true"></td>';
+        '<td></td><td colspan="5" class="text-body sb-tl-bemerkung-text pt-0 pb-2"></td><td class="sb-tl-follow-actions-cell p-0" onclick="event.stopPropagation();" aria-hidden="true"></td>';
       tr.querySelector(".sb-tl-bemerkung-text").textContent = bemText;
       const nextTr = themaKopf.nextElementSibling;
       if (
@@ -837,7 +832,6 @@ function setThemaPreviewFromAjax(themaKopf, bemText) {
   } else if (textRow) {
     textRow.remove();
     if (actionsCell) actionsCell.removeAttribute("rowspan");
-    if (bemMetaCell) bemMetaCell.innerHTML = '<span class="text-muted">–</span>';
   }
 }
 
@@ -998,7 +992,7 @@ document.addEventListener("submit", async (e) => {
           } else {
             const tr = document.createElement("tr");
             tr.className = "bemerkung-row";
-            tr.innerHTML = `<td colspan="8" class="p-0 border-0"><div class="collapse" id="bemerkHistory${tid}"><div class="border-top bg-white px-3 py-2"><ul class="list-group list-group-flush bemerkung-list">${liHtml}</ul></div></div></td>`;
+            tr.innerHTML = `<td colspan="7" class="p-0 border-0"><div class="collapse" id="bemerkHistory${tid}"><div class="border-top bg-white px-3 py-2"><ul class="list-group list-group-flush bemerkung-list">${liHtml}</ul></div></div></td>`;
             collapseRow.parentNode.insertBefore(tr, collapseRow);
           }
           sbEnsureThemaRowHistoryToggle(themaRow, tid);
@@ -1046,7 +1040,7 @@ let currentOffset = {{ themen|length }};
 const statusFilters = {{ (status_filter_list or []) | tojson }};
 let bereichFilter = '{{ bereich_filter or '' }}';
 let gewerkFilter = '{{ gewerk_filter or '' }}';
-let qFilter = '{{ q_filter or '' }}';
+let qFilter = {{ (q_filter or '') | tojson }};
 let scrollTimeout = null;
 
 async function loadMoreThemen() {
@@ -1206,7 +1200,6 @@ async function loadMoreThemen() {
             <button type="button" class="btn btn-sm btn-link text-body p-0 sb-bemerk-history-toggle" data-bs-toggle="collapse" data-bs-target="#bemerkHistory${thema.ID}" aria-expanded="false" aria-controls="bemerkHistory${thema.ID}" title="Weitere Bemerkungen anzeigen" onclick="event.stopPropagation();">
               <i class="bi bi-chevron-down sb-bemerk-chevron" aria-hidden="true"></i>
             </button>` : '';
-          const bemerkungHeadCell = b0 && b0.Bemerkung ? '' : '<span class="text-muted">–</span>';
           themaRow.innerHTML = `
             <td>
               <span class="d-inline-flex align-items-center gap-1">
@@ -1225,7 +1218,6 @@ async function loadMoreThemen() {
             </td>
             <td class="small sb-tl-taet">${b0 && b0.Taetigkeit ? escapeHtml(b0.Taetigkeit) : '<span class="text-muted">–</span>'}</td>
             <td class="small sb-tl-autor">${b0 ? `<span class="text-body">${escapeHtml(b0.Vorname)} ${escapeHtml(b0.Nachname)}</span>` : '<span class="text-muted">–</span>'}</td>
-            <td class="small text-muted">${bemerkungHeadCell}</td>
             <td class="text-center sb-tl-actions-cell" onclick="event.stopPropagation();">
               <div class="d-flex flex-column flex-sm-row justify-content-center gap-1">
                 <button class="btn btn-sm btn-outline-success" type="button"
@@ -1263,7 +1255,7 @@ async function loadMoreThemen() {
             followRow.onclick = () => { window.location.href = detailUrl; };
             followRow.innerHTML = `
               <td></td>
-              <td colspan="6" class="text-body sb-tl-bemerkung-text pt-0 pb-2">${escapeHtmlBr(b0.Bemerkung)}</td>
+              <td colspan="5" class="text-body sb-tl-bemerkung-text pt-0 pb-2">${escapeHtmlBr(b0.Bemerkung)}</td>
               <td class="sb-tl-follow-actions-cell p-0" onclick="event.stopPropagation();" aria-hidden="true"></td>
             `;
             gruppe.appendChild(followRow);
@@ -1273,7 +1265,7 @@ async function loadMoreThemen() {
           collapseRow.className = 'collapse collapse-row';
           collapseRow.id = `newBemerkung${thema.ID}`;
           collapseRow.innerHTML = `
-            <td colspan="8">
+            <td colspan="7">
               <form action="/schichtbuch/themaliste/add" method="post" class="mt-2">
                 <input type="hidden" name="thema_id" value="${thema.ID}">
                 <input type="hidden" name="next" value="${window.location.pathname}${window.location.search}">
@@ -1330,7 +1322,7 @@ async function loadMoreThemen() {
               `;
             });
             bemerkHtml += '</ul>';
-            bemerkungRow.innerHTML = `<td colspan="8" class="p-0 border-0"><div class="collapse" id="bemerkHistory${thema.ID}"><div class="border-top bg-white px-3 py-2">${bemerkHtml}</div></div></td>`;
+            bemerkungRow.innerHTML = `<td colspan="7" class="p-0 border-0"><div class="collapse" id="bemerkHistory${thema.ID}"><div class="border-top bg-white px-3 py-2">${bemerkHtml}</div></div></td>`;
             gruppe.appendChild(bemerkungRow);
           }
           gruppe.appendChild(collapseRow);

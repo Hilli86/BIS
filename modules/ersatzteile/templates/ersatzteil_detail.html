@@ -17,7 +17,7 @@
     overflow-wrap: anywhere;
 }
 </style>
-<h1 class="mb-4">🔧 Ersatzteil: {{ ersatzteil.Bezeichnung }}</h1>
+<h1 class="mb-4">Ersatzteil: {{ ersatzteil.Bezeichnung }}</h1>
 <div class="mb-3">
     <a href="{{ url_for('ersatzteile.ersatzteil_liste', kategorie=filter_params.kategorie or '', lieferant=filter_params.lieferant or '', lagerort=filter_params.lagerort or '', lagerplatz=filter_params.lagerplatz or '', q=filter_params.q or '', bestandswarnung=filter_params.bestandswarnung or '', kennzeichen=filter_params.kennzeichen or '', nur_ohne_preis=filter_params.nur_ohne_preis or '', sort=filter_params.sort or '', dir=filter_params.dir or '') }}" class="btn btn-secondary">
         <i class="bi bi-arrow-left"></i> Zurück zur Liste
