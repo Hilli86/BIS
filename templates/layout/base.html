@@ -741,13 +741,8 @@
     {% endif %}
 
     {% if not session.get('is_guest') %}
-    {% if menue_sichtbar('schichtbuch_suche') or menue_sichtbar('schichtbuch_liste') or menue_sichtbar('schichtbuch_aufgabenlisten') %}
+    {% if menue_sichtbar('schichtbuch_liste') or menue_sichtbar('schichtbuch_aufgabenlisten') %}
     <h6>Schichtbuch</h6>
-    {% if menue_sichtbar('schichtbuch_suche') %}
-    <a href="{{ url_for('schichtbuch.suche_thema') }}" class="{% if request.endpoint == 'schichtbuch.suche_thema' %}active{% endif %}">
-      🔍 Suche Thema
-    </a>
-    {% endif %}
     {% if menue_sichtbar('schichtbuch_liste') %}
     <a href="{{ url_for('schichtbuch.themaliste') }}" class="{% if request.endpoint == 'schichtbuch.themaliste' %}active{% endif %}">
       🧾 Themenliste

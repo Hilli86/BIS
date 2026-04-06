@@ -12,7 +12,6 @@ from utils.database import get_db_connection
 MENUE_DEFINITIONEN = [
     {'schluessel': 'dashboard', 'bezeichnung': 'Dashboard', 'gruppe': None, 'berechtigung': None},
     {'schluessel': 'admin', 'bezeichnung': 'Adminbereich', 'gruppe': None, 'berechtigung': ['admin']},
-    {'schluessel': 'schichtbuch_suche', 'bezeichnung': 'Suche Thema', 'gruppe': 'Schichtbuch', 'berechtigung': None},
     {'schluessel': 'schichtbuch_liste', 'bezeichnung': 'Themenliste', 'gruppe': 'Schichtbuch', 'berechtigung': None},
     {'schluessel': 'schichtbuch_aufgabenlisten', 'bezeichnung': 'Aufgabenlisten', 'gruppe': 'Schichtbuch', 'berechtigung': None},
     {'schluessel': 'bestellwesen_angebote', 'bezeichnung': 'Angebotsanfragen', 'gruppe': 'Bestellwesen', 'berechtigung': None},
