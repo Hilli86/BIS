@@ -75,51 +75,30 @@ def schichtbuch_datum_filter(value):
     return format_schichtbuch_datum(value)
 
 
-def _wartung_faelligkeit_stufe(value):
-    """
-    Nächste Fälligkeit (Datum) → Kennzeichnungsstufe für Tabellen/Badges.
-    0 neutral, 1 innerhalb der nächsten 7 Tage (Zukunft), 2 heute bis 7 Tage überfällig,
-    3 mehr als 7 Tage überfällig.
-    """
-    from datetime import date, datetime, timedelta
-
-    if not value:
-        return 0
-    s = str(value).strip()[:10]
-    try:
-        d = datetime.strptime(s, '%Y-%m-%d').date()
-    except ValueError:
-        return 0
-    today = date.today()
-    if d > today + timedelta(days=7):
-        return 0
-    if d > today:
-        return 1
-    if d >= today - timedelta(days=7):
-        return 2
-    return 3
-
-
 @app.template_filter('wartung_faelligkeit_td_class')
 def wartung_faelligkeit_td_class(value):
     """CSS-Klasse für <td> (Bootstrap table-*)."""
+    from modules.wartungen.services import naechste_faelligkeit_stufe
+
     return {
         0: '',
         1: 'table-info',
         2: 'table-warning',
         3: 'table-danger',
-    }[_wartung_faelligkeit_stufe(value)]
+    }[naechste_faelligkeit_stufe(value)]
 
 
 @app.template_filter('wartung_faelligkeit_badge_class')
 def wartung_faelligkeit_badge_class(value):
     """CSS-Klasse für Badges (Bootstrap text-bg-*)."""
+    from modules.wartungen.services import naechste_faelligkeit_stufe
+
     return {
         0: '',
         1: 'text-bg-info',
         2: 'text-bg-warning text-dark',
         3: 'text-bg-danger',
-    }[_wartung_faelligkeit_stufe(value)]
+    }[naechste_faelligkeit_stufe(value)]
 
 
 @app.before_request

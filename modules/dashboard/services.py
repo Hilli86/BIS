@@ -4,7 +4,6 @@ Business-Logik für Dashboard-Daten
 """
 
 from utils import get_sichtbare_abteilungen_fuer_mitarbeiter
-from utils.helpers import row_to_dict
 
 
 def get_status_statistiken(sichtbare_abteilungen, conn):
@@ -216,22 +215,12 @@ def get_aktivitaeten(sichtbare_abteilungen, conn, limit=15):
 
 def get_ersatzteil_statistiken(mitarbeiter_id, sichtbare_abteilungen, is_admin, conn):
     """
-    Ermittelt Ersatzteil-Statistiken
-    
-    Args:
-        mitarbeiter_id: ID des Mitarbeiters
-        sichtbare_abteilungen: Liste von sichtbaren Abteilungs-IDs
-        is_admin: Ob Benutzer Admin ist
-        conn: Datenbankverbindung
-        
-    Returns:
-        Dictionary mit Statistiken und Warnungen
+    Kompakte Ersatzteil-Kennzahlen für das Dashboard (gesamt, Bestandswarnungen).
     """
     # Basis-WHERE-Klausel für Ersatzteile
     ersatzteil_where = 'WHERE e.Gelöscht = 0 AND e.Aktiv = 1'
     ersatzteil_params = []
-    
-    # Berechtigungsfilter für Ersatzteile
+
     if not is_admin and sichtbare_abteilungen:
         placeholders = ','.join(['?'] * len(sichtbare_abteilungen))
         ersatzteil_where += f'''
@@ -242,57 +231,79 @@ def get_ersatzteil_statistiken(mitarbeiter_id, sichtbare_abteilungen, is_admin, 
         '''
         ersatzteil_params.extend(sichtbare_abteilungen)
     elif not is_admin:
-        # Keine Berechtigung für Ersatzteile
         ersatzteil_where += ' AND 1=0'
-    
-    # Gesamtanzahl Ersatzteile
-    ersatzteil_gesamt_query = f'''
+
+    ersatzteil_gesamt_result = conn.execute(
+        f'''
         SELECT COUNT(*) AS Gesamt
         FROM Ersatzteil e
         {ersatzteil_where}
-    '''
-    ersatzteil_gesamt_result = conn.execute(ersatzteil_gesamt_query, ersatzteil_params).fetchone()
+        ''',
+        ersatzteil_params,
+    ).fetchone()
     ersatzteil_gesamt = ersatzteil_gesamt_result['Gesamt'] if ersatzteil_gesamt_result else 0
-    
-    # Ersatzteile mit Bestandswarnung
-    warnung_query = f'''
-        SELECT 
-            e.ID,
-            e.Bestellnummer,
-            e.Bezeichnung,
-            e.AktuellerBestand,
-            e.Mindestbestand,
-            e.Einheit,
-            k.Bezeichnung AS Kategorie
-        FROM Ersatzteil e
-        LEFT JOIN ErsatzteilKategorie k ON e.KategorieID = k.ID
+
+    warnung_where = f'''
         {ersatzteil_where}
-        AND e.AktuellerBestand < e.Mindestbestand 
-        AND e.Mindestbestand > 0 
+        AND e.AktuellerBestand < e.Mindestbestand
+        AND e.Mindestbestand > 0
         AND e.EndOfLife = 0
-        ORDER BY e.AktuellerBestand ASC, e.Bezeichnung ASC
-        LIMIT 10
     '''
-    ersatzteil_warnungen = conn.execute(warnung_query, ersatzteil_params).fetchall()
-    
-    # Kategorie-Statistiken
-    kategorie_query = f'''
-        SELECT 
-            k.Bezeichnung AS Kategorie,
-            COUNT(e.ID) AS Anzahl
+    warnungen_result = conn.execute(
+        f'''
+        SELECT COUNT(*) AS Anzahl
         FROM Ersatzteil e
-        LEFT JOIN ErsatzteilKategorie k ON e.KategorieID = k.ID
-        {ersatzteil_where}
-        GROUP BY k.Bezeichnung
-        ORDER BY Anzahl DESC
-        LIMIT 5
-    '''
-    kategorie_stats = conn.execute(kategorie_query, ersatzteil_params).fetchall()
-    
+        {warnung_where}
+        ''',
+        ersatzteil_params,
+    ).fetchone()
+    warnungen = warnungen_result['Anzahl'] if warnungen_result else 0
+
     return {
         'gesamt': ersatzteil_gesamt,
-        'warnungen': len(ersatzteil_warnungen),
-        'kategorien': [row_to_dict(row) for row in kategorie_stats],
-        'warnungen_liste': [row_to_dict(row) for row in ersatzteil_warnungen]
+        'warnungen': warnungen,
+    }
+
+
+def get_wartungen_zusammenfassung(conn, mitarbeiter_id, is_admin):
+    """Sichtbare Wartungen und aktive Pläne mit Fälligkeits-Kennzahlen (gleiche Sicht wie Wartungen-Modul)."""
+    from modules.wartungen import services as wartungen_services
+
+    wartungen = wartungen_services.list_wartungen(conn, mitarbeiter_id, is_admin)
+    n_wartungen = len(wartungen)
+
+    plaene_rows = wartungen_services.list_plaene_sichtbar(conn, mitarbeiter_id, is_admin)
+    aktive = [r for r in plaene_rows if r['Aktiv']]
+    n_aktive_plaene = len(aktive)
+
+    plaene_ohne_termin = 0
+    plaene_bald_faellig = 0
+    plaene_ueberfaellig_leicht = 0
+    plaene_ueberfaellig_stark = 0
+    plaene_term_ok = 0
+
+    for r in aktive:
+        nf = r['NaechsteFaelligkeit']
+        if not nf:
+            plaene_ohne_termin += 1
+            continue
+        st = wartungen_services.naechste_faelligkeit_stufe(nf)
+        if st == 0:
+            plaene_term_ok += 1
+        elif st == 1:
+            plaene_bald_faellig += 1
+        elif st == 2:
+            plaene_ueberfaellig_leicht += 1
+        else:
+            plaene_ueberfaellig_stark += 1
+
+    return {
+        'n_wartungen': n_wartungen,
+        'n_aktive_plaene': n_aktive_plaene,
+        'plaene_bald_faellig': plaene_bald_faellig,
+        'plaene_ueberfaellig_leicht': plaene_ueberfaellig_leicht,
+        'plaene_ueberfaellig_stark': plaene_ueberfaellig_stark,
+        'plaene_ohne_termin': plaene_ohne_termin,
+        'plaene_term_ok': plaene_term_ok,
     }
 

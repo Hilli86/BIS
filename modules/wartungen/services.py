@@ -77,6 +77,29 @@ def _datum_aus_naechste_faelligkeit_feld(wert):
     return None
 
 
+def naechste_faelligkeit_stufe(value):
+    """
+    Nächste Fälligkeit (Datum) → Kennzeichnungsstufe wie in Tabellen/Badges.
+    0 neutral, 1 innerhalb der nächsten 7 Tage, 2 heute bis 7 Tage überfällig,
+    3 mehr als 7 Tage überfällig.
+    """
+    if not value:
+        return 0
+    s = str(value).strip()[:10]
+    try:
+        d = datetime.strptime(s, '%Y-%m-%d').date()
+    except ValueError:
+        return 0
+    today = date.today()
+    if d > today + timedelta(days=7):
+        return 0
+    if d > today:
+        return 1
+    if d >= today - timedelta(days=7):
+        return 2
+    return 3
+
+
 def aktualisiere_naechste_faelligkeit_nach_durchfuehrung(conn, plan_id, durchgefuehrt_am):
     """Setzt NaechsteFaelligkeit aus Basisdatum + Intervall; nur bei aktivem Plan.
     Bei HatFestesIntervall: Basis = bisherige NaechsteFaelligkeit, sonst Durchführungstag (Fallback wie im Plan).

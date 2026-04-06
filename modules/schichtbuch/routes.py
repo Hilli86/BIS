@@ -39,7 +39,8 @@ def themaliste():
     bereich_filter = request.args.get('bereich')
     gewerk_filter = request.args.get('gewerk')
     q_filter = request.args.get('q')
-    
+    nur_offen = request.args.get('nur_offen') == '1'
+
     items_per_page = 50
 
     with get_db_connection() as conn:
@@ -62,6 +63,7 @@ def themaliste():
             limit=items_per_page,
             mitarbeiter_id=mitarbeiter_id,
             aufgabenliste_sichtbar_ids=aufgabenliste_sichtbar_ids,
+            exclude_erledigt_status=nur_offen,
         )
 
         themen = conn.execute(query, params).fetchall()
@@ -96,7 +98,8 @@ def themaliste():
         bereich_filter=bereich_filter,
         gewerk_filter=gewerk_filter,
         q_filter=q_filter,
-        gewerke_liste=gewerke_liste
+        gewerke_liste=gewerke_liste,
+        nur_offen=nur_offen,
     )
 
 
@@ -110,6 +113,7 @@ def themaliste_load_more():
     bereich_filter = request.args.get('bereich')
     gewerk_filter = request.args.get('gewerk')
     q_filter = request.args.get('q')
+    nur_offen = request.args.get('nur_offen') == '1'
 
     with get_db_connection() as conn:
         # Abteilungsfilter auch hier anwenden
@@ -132,6 +136,7 @@ def themaliste_load_more():
             offset=offset,
             mitarbeiter_id=mitarbeiter_id,
             aufgabenliste_sichtbar_ids=aufgabenliste_sichtbar_ids,
+            exclude_erledigt_status=nur_offen,
         )
 
         themen = conn.execute(query, params).fetchall()

@@ -37,15 +37,16 @@ def api_dashboard():
             'success': True,
             'status_daten': [],
             'gesamt': 0,
-            'aktuelle_themen': [],
-            'meine_themen': [],
-            'aktivitaeten': [],
-            'ersatzteil_stats': {
-                'gesamt': 0,
-                'warnungen': 0,
-                'kategorien': []
+            'ersatzteil_stats': {'gesamt': 0, 'warnungen': 0},
+            'wartungen_zusammenfassung': {
+                'n_wartungen': 0,
+                'n_aktive_plaene': 0,
+                'plaene_bald_faellig': 0,
+                'plaene_ueberfaellig_leicht': 0,
+                'plaene_ueberfaellig_stark': 0,
+                'plaene_ohne_termin': 0,
+                'plaene_term_ok': 0,
             },
-            'ersatzteil_warnungen': []
         })
     
     if 'user_id' not in session:
@@ -58,39 +59,26 @@ def api_dashboard():
             # Sichtbare Abteilungen für den Mitarbeiter ermitteln
             sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
             
-            # Status-Statistiken
             status_daten = services.get_status_statistiken(sichtbare_abteilungen, conn)
-            
-            # Gesamtanzahl aller Themen
             gesamt = services.get_gesamtanzahl_themen(sichtbare_abteilungen, conn)
-            
-            # Aktuelle Themen
-            aktuelle_themen = services.get_aktuelle_themen(sichtbare_abteilungen, conn)
-            
-            # Meine offenen Themen
-            meine_themen = services.get_meine_themen(mitarbeiter_id, sichtbare_abteilungen, conn)
-            
-            # Aktivitätsübersicht
-            aktivitaeten = services.get_aktivitaeten(sichtbare_abteilungen, conn)
-            
-            # Ersatzteile-Statistiken
+
             is_admin = 'admin' in session.get('user_berechtigungen', [])
-            ersatzteil_stats_data = services.get_ersatzteil_statistiken(mitarbeiter_id, sichtbare_abteilungen, is_admin, conn)
-            
-            # Daten als JSON zurückgeben
+            ersatzteil_stats_data = services.get_ersatzteil_statistiken(
+                mitarbeiter_id, sichtbare_abteilungen, is_admin, conn
+            )
+            wartungen_zusammenfassung = services.get_wartungen_zusammenfassung(
+                conn, mitarbeiter_id, is_admin
+            )
+
             return jsonify({
                 'success': True,
                 'status_daten': [row_to_dict(row) for row in status_daten],
                 'gesamt': gesamt,
-                'aktuelle_themen': [row_to_dict(row) for row in aktuelle_themen],
-                'meine_themen': [row_to_dict(row) for row in meine_themen],
-                'aktivitaeten': [row_to_dict(row) for row in aktivitaeten],
                 'ersatzteil_stats': {
                     'gesamt': ersatzteil_stats_data['gesamt'],
                     'warnungen': ersatzteil_stats_data['warnungen'],
-                    'kategorien': ersatzteil_stats_data['kategorien']
                 },
-                'ersatzteil_warnungen': ersatzteil_stats_data['warnungen_liste']
+                'wartungen_zusammenfassung': wartungen_zusammenfassung,
             })
     except Exception as e:
         import traceback

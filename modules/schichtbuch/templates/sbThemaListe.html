@@ -221,6 +221,9 @@
 
 <!-- Schnellsuche + Filter (Muster wie Ersatzteilliste, Klassen .bis-list-*); mobil: Neu → Suche → Filterbuttons -->
 <form method="get" id="filterForm">
+  {% if nur_offen %}
+  <input type="hidden" name="nur_offen" value="1">
+  {% endif %}
   <div class="d-flex flex-column flex-md-row flex-md-nowrap align-items-stretch align-items-md-end gap-3 mb-3 pb-1 bis-list-filter-toolbar">
     <a href="{{ url_for('schichtbuch.themaneu') }}" class="btn btn-primary flex-shrink-0 bis-list-neu-btn">
       <i class="bi bi-plus-circle"></i> Neues Thema
@@ -978,6 +981,7 @@ const statusFilters = {{ (status_filter_list or []) | tojson }};
 let bereichFilter = '{{ bereich_filter or '' }}';
 let gewerkFilter = '{{ gewerk_filter or '' }}';
 let qFilter = {{ (q_filter or '') | tojson }};
+const nurOffen = {{ nur_offen | tojson }};
 let scrollTimeout = null;
 
 async function loadMoreThemen() {
@@ -1002,6 +1006,7 @@ async function loadMoreThemen() {
     if (bereichFilter) url.searchParams.append('bereich', bereichFilter);
     if (gewerkFilter) url.searchParams.append('gewerk', gewerkFilter);
     if (qFilter) url.searchParams.append('q', qFilter);
+    if (nurOffen) url.searchParams.append('nur_offen', '1');
 
     const response = await fetch(url);
     const data = await response.json();

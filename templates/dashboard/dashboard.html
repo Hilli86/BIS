@@ -32,6 +32,9 @@
             <a href="{{ url_for('schichtbuch.themaliste') }}" class="btn btn-outline-primary">
               <i class="bi bi-list-ul"></i> Alle Themen
             </a>
+            <a href="{{ url_for('schichtbuch.themaliste', nur_offen='1') }}" class="btn btn-outline-primary">
+              <i class="bi bi-funnel"></i> Nur offene
+            </a>
             <a href="{{ url_for('ersatzteile.ersatzteil_liste') }}" class="btn btn-outline-success" id="ersatzteilBtn" style="display: none;">
               <i class="bi bi-tools"></i> Ersatzteile
             </a>
@@ -70,116 +73,55 @@
     </div>
   </div>
 
-  <!-- Status-Statistiken -->
-  <div class="row mb-4">
-    <div class="col-12">
-      <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h5 class="mb-0">
-            <i class="bi bi-bar-chart"></i> Status-Übersicht
-          </h5>
-          <span class="badge bg-secondary" id="statusGesamt">Gesamt: <span class="spinner-border spinner-border-sm"></span> Themen</span>
-        </div>
-        <div class="card-body" id="statusContainer">
-          <div class="text-center py-4">
-            <div class="spinner-border text-primary" role="status">
-              <span class="visually-hidden">Lädt...</span>
-            </div>
-            <p class="mt-2 text-muted">Daten werden geladen...</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Ersatzteile-Statistiken -->
-  <div class="row mb-4" id="ersatzteilSection" style="display: none;">
-    <div class="col-12">
-      <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h5 class="mb-0">
-            <i class="bi bi-tools"></i> Ersatzteile-Übersicht
-          </h5>
-          <div class="d-flex gap-2">
-            <a href="{{ url_for('ersatzteile.ersatzteil_liste') }}" class="btn btn-sm btn-outline-primary">
-              Alle anzeigen <i class="bi bi-arrow-right"></i>
-            </a>
-            <a href="{{ url_for('ersatzteile.ersatzteil_liste', bestandswarnung='1') }}" class="btn btn-sm btn-outline-warning" id="warnungLink">
-              Bestandswarnungen
-            </a>
-          </div>
-        </div>
-        <div class="card-body" id="ersatzteilContainer">
-          <div class="text-center py-4">
-            <div class="spinner-border text-primary" role="status">
-              <span class="visually-hidden">Lädt...</span>
-            </div>
-            <p class="mt-2 text-muted">Daten werden geladen...</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="row">
-    <!-- Aktuelle Themen -->
-    <div class="col-lg-6 mb-4">
+  <!-- Modul-Zusammenfassungen (gleicher Kartenstil wie Benachrichtigungen) -->
+  <div class="row g-4 mb-4">
+    <div class="col-lg-4">
       <div class="card h-100">
         <div class="card-header d-flex justify-content-between align-items-center">
           <h5 class="mb-0">
-            <i class="bi bi-clock-history"></i> Aktuelle Themen
+            <i class="bi bi-tools"></i> Ersatzteile
           </h5>
-          <a href="{{ url_for('schichtbuch.themaliste') }}" class="btn btn-sm btn-outline-primary">
-            Alle anzeigen <i class="bi bi-arrow-right"></i>
-          </a>
         </div>
-        <div class="card-body" id="aktuelleThemenContainer">
+        <div class="card-body" id="zusammenfassungErsatzteile">
           <div class="text-center py-4">
             <div class="spinner-border text-primary" role="status">
               <span class="visually-hidden">Lädt...</span>
             </div>
-            <p class="mt-2 text-muted">Daten werden geladen...</p>
+            <p class="mt-2 text-muted">Daten werden geladen…</p>
           </div>
         </div>
       </div>
     </div>
-
-    <!-- Meine Themen -->
-    <div class="col-lg-6 mb-4">
+    <div class="col-lg-4">
       <div class="card h-100">
         <div class="card-header d-flex justify-content-between align-items-center">
           <h5 class="mb-0">
-            <i class="bi bi-person-check"></i> Meine Themen
+            <i class="bi bi-journal-text"></i> Themen
           </h5>
-          <span class="badge bg-primary" id="meineThemenBadge">...</span>
         </div>
-        <div class="card-body" id="meineThemenContainer">
+        <div class="card-body" id="zusammenfassungThemen">
           <div class="text-center py-4">
             <div class="spinner-border text-primary" role="status">
               <span class="visually-hidden">Lädt...</span>
             </div>
-            <p class="mt-2 text-muted">Daten werden geladen...</p>
+            <p class="mt-2 text-muted">Daten werden geladen…</p>
           </div>
         </div>
       </div>
     </div>
-  </div>
-
-  <!-- Aktivitätsübersicht -->
-  <div class="row">
-    <div class="col-12">
-      <div class="card">
-        <div class="card-header">
+    <div class="col-lg-4">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
           <h5 class="mb-0">
-            <i class="bi bi-activity"></i> Letzte Aktivitäten
+            <i class="bi bi-calendar-check"></i> Wartungen
           </h5>
         </div>
-        <div class="card-body" id="aktivitaetenContainer">
+        <div class="card-body" id="zusammenfassungWartungen">
           <div class="text-center py-4">
             <div class="spinner-border text-primary" role="status">
               <span class="visually-hidden">Lädt...</span>
             </div>
-            <p class="mt-2 text-muted">Daten werden geladen...</p>
+            <p class="mt-2 text-muted">Daten werden geladen…</p>
           </div>
         </div>
       </div>
@@ -188,22 +130,6 @@
 </div>
 
 <style>
-  .timeline {
-    position: relative;
-  }
-
-  .timeline-item {
-    position: relative;
-  }
-
-  .timeline-marker {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    border: 2px solid white;
-    box-shadow: 0 0 0 2px var(--bs-primary);
-  }
-
   .card {
     transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
   }
@@ -211,15 +137,6 @@
   .card:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important;
-  }
-
-  .status-card-clickable {
-    cursor: pointer;
-  }
-
-  .status-card-link:hover .status-card-clickable {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
   }
 
   .list-group-item {
@@ -263,10 +180,14 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  // Dashboard: keine Chart.js-/Canvas-Diagramme; Kacheln/Listings werden als HTML mit Bootstrap-Grid
-  // (z. B. col-md-6 col-lg-3) gebaut und passen sich bei schmalen Viewports von selbst an.
-  // Dashboard-Daten per AJAX laden
-    fetch('{{ url_for("dashboard.api_dashboard") }}')
+  const urlErsatzteilListe = '{{ url_for("ersatzteile.ersatzteil_liste") }}';
+  const urlErsatzteilWarnung = '{{ url_for("ersatzteile.ersatzteil_liste", bestandswarnung="1") }}';
+  const urlThemenliste = '{{ url_for("schichtbuch.themaliste") }}';
+  const urlThemenlisteNurOffen = '{{ url_for("schichtbuch.themaliste", nur_offen="1") }}';
+  const urlWartungListe = '{{ url_for("wartungen.wartung_liste") }}';
+  const urlWartungPlaene = '{{ url_for("wartungen.plaene_uebersicht", plan_order="faelligkeit_asc") }}';
+
+  fetch('{{ url_for("dashboard.api_dashboard") }}')
     .then(response => {
       if (!response.ok) {
         throw new Error(`HTTP-Fehler! Status: ${response.status}`);
@@ -275,22 +196,7 @@ document.addEventListener('DOMContentLoaded', function() {
     })
     .then(data => {
       if (data.success) {
-        // Status-Statistiken rendern
-        renderStatusStats(data.status_daten, data.gesamt);
-        
-        // Ersatzteile-Sektion rendern
-        if (data.ersatzteil_stats && data.ersatzteil_stats.gesamt > 0) {
-          renderErsatzteile(data.ersatzteil_stats, data.ersatzteil_warnungen);
-        }
-        
-        // Aktuelle Themen rendern
-        renderAktuelleThemen(data.aktuelle_themen);
-        
-        // Meine Themen rendern
-        renderMeineThemen(data.meine_themen);
-        
-        // Aktivitäten rendern
-        renderAktivitaeten(data.aktivitaeten);
+        renderModulZusammenfassungen(data);
       } else {
         console.error('Fehler beim Laden der Dashboard-Daten:', data.error);
         if (data.details) {
@@ -303,283 +209,114 @@ document.addEventListener('DOMContentLoaded', function() {
       console.error('Fehler:', error);
       showError('Fehler bei der Verbindung zum Server: ' + error.message);
     });
-  
-  function renderStatusStats(statusDaten, gesamt) {
-    const container = document.getElementById('statusContainer');
-    const badge = document.getElementById('statusGesamt');
-    
-    badge.textContent = `Gesamt: ${gesamt} Themen`;
-    
-    if (statusDaten.length === 0) {
-      container.innerHTML = '<div class="alert alert-info mb-0"><i class="bi bi-info-circle"></i> Es sind noch keine Themen im System vorhanden.</div>';
-      return;
-    }
-    
-    const themalisteUrl = '{{ url_for("schichtbuch.themaliste") }}';
-    let html = '<div class="row g-3">';
-    statusDaten.forEach(status => {
-      const prozent = gesamt > 0 ? ((status.Anzahl / gesamt * 100).toFixed(1)) : 0;
-      const farbe = status.Farbe || '#6c757d';
-      const filterUrl = themalisteUrl + '?status=' + encodeURIComponent(status.Status);
-      html += `
-        <div class="col-12 col-md-6 col-lg-3">
-          <a href="${filterUrl}" class="text-decoration-none text-body status-card-link">
-            <div class="card border-0 shadow-sm status-card-clickable" style="border-left: 4px solid ${farbe} !important;">
-              <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start gap-2">
-                  <div class="dashboard-main-col">
-                    <h6 class="card-subtitle mb-2 text-muted dashboard-break-xs">${status.Status}</h6>
-                    <h3 class="mb-0">${status.Anzahl}</h3>
-                  </div>
-                  <div class="badge rounded-pill flex-shrink-0" style="background-color: ${farbe}; color: white; opacity: 0.8;">
-                    ${prozent}%
-                  </div>
-                </div>
-              </div>
-            </div>
-          </a>
-        </div>
-      `;
-    });
-    html += '</div>';
-    container.innerHTML = html;
-  }
-  
-  function renderErsatzteile(stats, warnungen) {
-    const section = document.getElementById('ersatzteilSection');
-    const container = document.getElementById('ersatzteilContainer');
+
+  function renderModulZusammenfassungen(data) {
+    renderErsatzteilKurz(data.ersatzteil_stats);
+    renderThemenKurz(data.status_daten || [], data.gesamt);
+    renderWartungenKurz(data.wartungen_zusammenfassung || {});
+
+    const stats = data.ersatzteil_stats;
     const ersatzteilBtn = document.getElementById('ersatzteilBtn');
     const bestandswarnungBtn = document.getElementById('bestandswarnungBtn');
-    const warnungLink = document.getElementById('warnungLink');
-    
-    section.style.display = 'block';
-    if (ersatzteilBtn) ersatzteilBtn.style.display = 'inline-block';
-    if (bestandswarnungBtn) bestandswarnungBtn.style.display = 'inline-block';
-    
-    if (warnungen.length > 0 && warnungLink) {
-      warnungLink.innerHTML = `Bestandswarnungen <span class="badge bg-warning text-dark ms-1">${warnungen.length}</span>`;
+    if (stats && stats.gesamt > 0) {
+      if (ersatzteilBtn) ersatzteilBtn.style.display = 'inline-block';
+      if (bestandswarnungBtn) bestandswarnungBtn.style.display = 'inline-block';
+      const w = stats.warnungen || 0;
+      if (w > 0 && bestandswarnungBtn) {
+        bestandswarnungBtn.innerHTML = `<i class="bi bi-exclamation-triangle"></i> Bestandswarnungen <span class="badge bg-warning text-dark ms-1">${w}</span>`;
+      }
     }
-    if (warnungen.length > 0 && bestandswarnungBtn) {
-      bestandswarnungBtn.innerHTML = `<i class="bi bi-exclamation-triangle"></i> Bestandswarnungen <span class="badge bg-warning text-dark ms-1">${warnungen.length}</span>`;
+  }
+
+  function dlRow(label, value) {
+    return `<div class="d-flex justify-content-between align-items-baseline gap-2 py-1 border-bottom border-light">
+      <span class="text-muted small dashboard-break-xs">${label}</span>
+      <span class="fw-medium text-end">${value}</span>
+    </div>`;
+  }
+
+  function renderErsatzteilKurz(stats) {
+    const el = document.getElementById('zusammenfassungErsatzteile');
+    if (!stats || stats.gesamt === 0) {
+      el.innerHTML = `
+        <p class="text-muted small mb-3 mb-md-4">Keine Ersatzteile für Ihren Zugriff hinterlegt.</p>
+        <a href="${urlErsatzteilListe}" class="btn btn-sm btn-outline-secondary">Zur Ersatzteilliste</a>`;
+      return;
     }
-    
-    let html = '<div class="row g-3 mb-3">';
-    html += `
-      <div class="col-12 col-md-3">
-        <div class="card border-0 shadow-sm bg-light">
-          <div class="card-body text-center">
-            <h6 class="card-subtitle mb-2 text-muted">Gesamt Ersatzteile</h6>
-            <h3 class="mb-0">${stats.gesamt}</h3>
-          </div>
-        </div>
-      </div>
-      <div class="col-12 col-md-3">
-        <div class="card border-0 shadow-sm" style="border-left: 4px solid #ffc107 !important;">
-          <div class="card-body text-center">
-            <h6 class="card-subtitle mb-2 text-muted">Bestandswarnungen</h6>
-            <h3 class="mb-0 text-warning">${stats.warnungen}</h3>
-          </div>
-        </div>
-      </div>
-    `;
-    
-    if (stats.kategorien && stats.kategorien.length > 0) {
-      html += '<div class="col-12 col-md-6"><h6 class="mb-2">Top Kategorien</h6><div class="d-flex flex-wrap gap-2">';
-      stats.kategorien.forEach(kat => {
-        const katLabel = (kat.Kategorie || 'Ohne Kategorie') + ': ' + kat.Anzahl;
-        html += `<span class="badge bg-secondary text-wrap text-start" style="white-space: normal; max-width: 100%;">${katLabel}</span>`;
+    const w = stats.warnungen || 0;
+    let html = '<div class="mb-3">';
+    html += dlRow('Ersatzteile gesamt', stats.gesamt);
+    html += dlRow('Bestandswarnungen', w > 0 ? `<span class="text-warning">${w}</span>` : '0');
+    html += '</div>';
+    html += `<div class="d-flex flex-wrap gap-2">
+      <a href="${urlErsatzteilListe}" class="btn btn-sm btn-outline-secondary">Liste</a>
+      <a href="${urlErsatzteilWarnung}" class="btn btn-sm btn-outline-secondary">Nur Warnungen</a>
+    </div>`;
+    el.innerHTML = html;
+  }
+
+  function renderThemenKurz(statusDaten, gesamt) {
+    const el = document.getElementById('zusammenfassungThemen');
+    if (!gesamt && (!statusDaten || statusDaten.length === 0)) {
+      el.innerHTML = `
+        <p class="text-muted small mb-3 mb-md-4">Es sind noch keine Themen im System vorhanden.</p>
+        <div class="d-flex flex-wrap gap-2">
+          <a href="${urlThemenliste}" class="btn btn-sm btn-outline-secondary">Themenliste</a>
+          <a href="${urlThemenlisteNurOffen}" class="btn btn-sm btn-outline-secondary">Nur offene</a>
+        </div>`;
+      return;
+    }
+    let html = '<div class="mb-3">';
+    html += dlRow('Themen gesamt', gesamt);
+    if (statusDaten && statusDaten.length > 0) {
+      statusDaten.forEach(s => {
+        const farbe = s.Farbe || '#adb5bd';
+        const label = `<span class="d-inline-flex align-items-center gap-1 dashboard-break-xs"><span class="d-inline-block rounded-circle flex-shrink-0" style="width:6px;height:6px;background:${farbe};"></span>${s.Status}</span>`;
+        const filterUrl = urlThemenliste + '?status=' + encodeURIComponent(s.Status);
+        html += dlRow(label, `<a href="${filterUrl}" class="text-decoration-none">${s.Anzahl}</a>`);
       });
-      html += '</div></div>';
     }
-    
     html += '</div>';
-    
-    if (warnungen.length > 0) {
-      html += `
-        <div class="mt-3">
-          <h6 class="mb-2"><i class="bi bi-exclamation-triangle text-warning"></i> Ersatzteile mit niedrigem Bestand</h6>
-          <div class="list-group list-group-flush">
-      `;
-      warnungen.forEach(ersatzteil => {
-        const detailUrl = '{{ url_for("ersatzteile.ersatzteil_detail", ersatzteil_id=0) }}'.replace('/0', '/' + ersatzteil.ID);
-        html += `
-          <a href="${detailUrl}" 
-             class="list-group-item list-group-item-action">
-            <div class="dashboard-list-row d-flex w-100 flex-column flex-md-row gap-2 gap-md-3 justify-content-md-between align-items-start">
-              <div class="flex-grow-1 dashboard-main-col">
-                <div class="mb-1">
-                  <strong class="d-block dashboard-break-xs">${ersatzteil.Bezeichnung}</strong>
-                  ${ersatzteil.Kategorie ? `<div class="mt-1"><span class="badge bg-secondary text-wrap text-start" style="white-space: normal; max-width: 100%;">${ersatzteil.Kategorie}</span></div>` : ''}
-                </div>
-                <small class="text-muted d-block dashboard-break-xs"><i class="bi bi-upc"></i> ${ersatzteil.Bestellnummer}</small>
-              </div>
-              <div class="text-start text-md-end flex-shrink-0 mt-2 mt-md-0 pt-2 pt-md-0 border-top border-md-0 align-self-stretch align-self-md-start">
-                <div class="text-warning fw-bold">
-                  <i class="bi bi-box"></i> ${ersatzteil.AktuellerBestand} ${ersatzteil.Einheit || ''}
-                </div>
-                <small class="text-muted">Mindest: ${ersatzteil.Mindestbestand} ${ersatzteil.Einheit || ''}</small>
-              </div>
-            </div>
-          </a>
-        `;
-      });
-      html += '</div></div>';
-    } else {
-      html += '<div class="alert alert-success mb-0"><i class="bi bi-check-circle"></i> Keine Bestandswarnungen - alle Ersatzteile sind ausreichend vorhanden.</div>';
-    }
-    
-    container.innerHTML = html;
+    html += `<div class="d-flex flex-wrap gap-2">
+      <a href="${urlThemenliste}" class="btn btn-sm btn-outline-secondary">Themenliste</a>
+      <a href="${urlThemenlisteNurOffen}" class="btn btn-sm btn-outline-secondary">Nur offene</a>
+    </div>`;
+    el.innerHTML = html;
   }
-  
-  function renderAktuelleThemen(themen) {
-    const container = document.getElementById('aktuelleThemenContainer');
-    
-    if (themen.length === 0) {
-      container.innerHTML = `
-        <div class="text-center text-muted py-4">
-          <i class="bi bi-inbox" style="font-size: 3rem;"></i>
-          <p class="mt-2 mb-0">Keine Themen vorhanden</p>
-        </div>
-      `;
+
+  function renderWartungenKurz(w) {
+    const el = document.getElementById('zusammenfassungWartungen');
+    const n = w.n_wartungen != null ? w.n_wartungen : 0;
+    if (n === 0 && (w.n_aktive_plaene || 0) === 0) {
+      el.innerHTML = `
+        <p class="text-muted small mb-3 mb-md-4">Keine Wartungen in Ihrem Zugriff.</p>
+        <a href="${urlWartungListe}" class="btn btn-sm btn-outline-secondary">Zur Wartungsliste</a>`;
       return;
     }
-    
-    let html = '<div class="list-group list-group-flush">';
-    const themaDetailUrl = '{{ url_for("schichtbuch.thema_detail", thema_id=0) }}';
-    themen.forEach(thema => {
-      const farbe = thema.StatusFarbe || '#6c757d';
-      const datum = thema.LetzteAktivitaet ? thema.LetzteAktivitaet.substring(0, 10) : '';
-      const url = themaDetailUrl.replace('/0', '/' + thema.ID);
-      html += `
-        <a href="${url}" 
-           class="list-group-item list-group-item-action">
-          <div class="dashboard-list-row d-flex w-100 flex-column flex-md-row gap-2 justify-content-md-between align-items-start">
-            <div class="flex-grow-1 dashboard-main-col">
-              <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-                <span class="badge flex-shrink-0" style="background-color: ${farbe}; color: white;">${thema.Status}</span>
-                <small class="text-muted dashboard-break-xs">${thema.Bereich} / ${thema.Gewerk}</small>
-              </div>
-              <div class="small text-muted dashboard-break-xs">
-                ${thema.Abteilung ? `<i class="bi bi-building"></i> ${thema.Abteilung}` : ''}
-                ${thema.LetzterMitarbeiter ? `<span class="ms-2"><i class="bi bi-person"></i> ${thema.LetzterMitarbeiter}</span>` : ''}
-              </div>
-            </div>
-            <div class="text-start text-md-end flex-shrink-0 ms-md-2">
-              <small class="text-muted d-block">${datum}</small>
-              <small class="text-muted">#${thema.ID}</small>
-            </div>
-          </div>
-        </a>
-      `;
-    });
+    let html = '<div class="mb-3">';
+    html += dlRow('Wartungen', w.n_wartungen);
+    html += dlRow('Aktive Pläne', w.n_aktive_plaene);
+    html += dlRow('Bald fällig (7 Tage)', w.plaene_bald_faellig || 0);
+    html += dlRow('Überfällig (≤7 Tage)', (w.plaene_ueberfaellig_leicht || 0) > 0
+      ? `<span class="text-warning">${w.plaene_ueberfaellig_leicht}</span>`
+      : '0');
+    html += dlRow('Stark überfällig', (w.plaene_ueberfaellig_stark || 0) > 0
+      ? `<span class="text-danger">${w.plaene_ueberfaellig_stark}</span>`
+      : '0');
+    html += dlRow('Ohne nächsten Termin', w.plaene_ohne_termin || 0);
     html += '</div>';
-    container.innerHTML = html;
+    html += `<div class="d-flex flex-wrap gap-2">
+      <a href="${urlWartungListe}" class="btn btn-sm btn-outline-secondary">Wartungen</a>
+      <a href="${urlWartungPlaene}" class="btn btn-sm btn-outline-secondary">Pläne nach Fälligkeit</a>
+    </div>`;
+    el.innerHTML = html;
   }
-  
-  function renderMeineThemen(themen) {
-    const container = document.getElementById('meineThemenContainer');
-    const badge = document.getElementById('meineThemenBadge');
-    
-    if (badge) badge.textContent = themen.length;
-    
-    if (themen.length === 0) {
-      container.innerHTML = `
-        <div class="text-center text-muted py-4">
-          <i class="bi bi-inbox" style="font-size: 3rem;"></i>
-          <p class="mt-2 mb-0">Sie haben noch keine Themen bearbeitet</p>
-          <a href="{{ url_for('schichtbuch.themaneu') }}" class="btn btn-sm btn-primary mt-3">
-            <i class="bi bi-plus-circle"></i> Erstes Thema erstellen
-          </a>
-        </div>
-      `;
-      return;
-    }
-    
-    let html = '<div class="list-group list-group-flush">';
-    const themaDetailUrl = '{{ url_for("schichtbuch.thema_detail", thema_id=0) }}';
-    themen.forEach(thema => {
-      const farbe = thema.StatusFarbe || '#6c757d';
-      const datum = thema.LetzteBemerkung ? thema.LetzteBemerkung.substring(0, 10) : '';
-      const url = themaDetailUrl.replace('/0', '/' + thema.ID);
-      html += `
-        <a href="${url}" 
-           class="list-group-item list-group-item-action">
-          <div class="dashboard-list-row d-flex w-100 flex-column flex-md-row gap-2 justify-content-md-between align-items-start">
-            <div class="flex-grow-1 dashboard-main-col">
-              <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-                <span class="badge flex-shrink-0" style="background-color: ${farbe}; color: white;">${thema.Status}</span>
-                <small class="text-muted dashboard-break-xs">${thema.Bereich} / ${thema.Gewerk}</small>
-              </div>
-              <div class="small text-muted dashboard-break-xs">
-                ${thema.Abteilung ? `<i class="bi bi-building"></i> ${thema.Abteilung}` : ''}
-              </div>
-            </div>
-            <div class="text-start text-md-end flex-shrink-0 ms-md-2">
-              <small class="text-muted d-block">${datum}</small>
-              <small class="text-muted">#${thema.ID}</small>
-            </div>
-          </div>
-        </a>
-      `;
-    });
-    html += '</div>';
-    container.innerHTML = html;
-  }
-  
-  function renderAktivitaeten(aktivitaeten) {
-    const container = document.getElementById('aktivitaetenContainer');
-    
-    if (aktivitaeten.length === 0) {
-      container.innerHTML = `
-        <div class="text-center text-muted py-4">
-          <i class="bi bi-inbox" style="font-size: 3rem;"></i>
-          <p class="mt-2 mb-0">Noch keine Aktivitäten vorhanden</p>
-        </div>
-      `;
-      return;
-    }
-    
-    let html = '<div class="timeline">';
-    const themaDetailUrl = '{{ url_for("schichtbuch.thema_detail", thema_id=0) }}';
-    aktivitaeten.forEach(aktivitaet => {
-      const datum = aktivitaet.Datum ? aktivitaet.Datum.substring(0, 16) : '';
-      const bemerkung = aktivitaet.Bemerkung.length > 150 ? aktivitaet.Bemerkung.substring(0, 150) + '...' : aktivitaet.Bemerkung;
-      const url = themaDetailUrl.replace('/0', '/' + aktivitaet.ThemaID);
-      html += `
-        <div class="timeline-item mb-3">
-          <div class="d-flex">
-            <div class="flex-shrink-0">
-              <div class="timeline-marker bg-primary"></div>
-            </div>
-            <div class="flex-grow-1 ms-3 dashboard-main-col">
-              <div class="d-flex flex-column flex-md-row gap-2 justify-content-md-between align-items-start">
-                <div class="dashboard-main-col">
-                  <strong class="dashboard-break-xs">${aktivitaet.Mitarbeiter}</strong>
-                  ${aktivitaet.Taetigkeit ? `<span class="badge bg-secondary ms-0 ms-md-2 mt-1 mt-md-0 d-inline-block">${aktivitaet.Taetigkeit}</span>` : ''}
-                  <p class="mb-1 mt-1 dashboard-break-xs">${bemerkung}</p>
-                  <small class="text-muted d-block dashboard-break-xs">
-                    <a href="${url}" class="text-decoration-none">
-                      <i class="bi bi-link-45deg"></i> ${aktivitaet.Bereich} / ${aktivitaet.Gewerk} (#${aktivitaet.ThemaID})
-                    </a>
-                  </small>
-                </div>
-                <small class="text-muted flex-shrink-0 ms-md-3">${datum}</small>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    });
-    html += '</div>';
-    container.innerHTML = html;
-  }
-  
+
   function showError(message) {
-    const containers = ['statusContainer', 'ersatzteilContainer', 'aktuelleThemenContainer', 'meineThemenContainer', 'aktivitaetenContainer'];
-    containers.forEach(id => {
+    ['zusammenfassungErsatzteile', 'zusammenfassungThemen', 'zusammenfassungWartungen'].forEach(id => {
       const container = document.getElementById(id);
       if (container) {
-        container.innerHTML = `<div class="alert alert-danger mb-0"><i class="bi bi-exclamation-triangle"></i> ${message}</div>`;
+        container.innerHTML = `<div class="alert alert-danger mb-0 small"><i class="bi bi-exclamation-triangle"></i> ${message}</div>`;
       }
     });
   }
