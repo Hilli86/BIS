@@ -3,8 +3,8 @@
 <h1 class="mb-4">{% if batch %}Mehrere Wartungen protokollieren{% else %}Durchführung protokollieren{% endif %}</h1>
 <div class="mb-3">
   {% if batch %}
-  <a href="{{ url_for('wartungen.plaene_uebersicht') }}" class="btn btn-secondary">
-    <i class="bi bi-arrow-left"></i> Zurück zu Wartungsplänen
+  <a href="{{ url_for('wartungen.jahresuebersicht') }}" class="btn btn-secondary">
+    <i class="bi bi-arrow-left"></i> Zurück zur Jahresübersicht
   </a>
   {% else %}
     {% if zurueck_jahres_url %}
