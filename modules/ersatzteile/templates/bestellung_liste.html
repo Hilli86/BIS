@@ -238,7 +238,7 @@
                                     <i class="bi bi-file-earmark-pdf"></i>
                                 </button>
                                 {% endif %}
-                                {% if ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) and b.Status in ['Erstellt', 'Zur Freigabe', 'Freigegeben'] %}
+                                {% if ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) and b.Status in ['Erstellt', 'Zur Freigabe', 'Freigegeben', 'Bestellt'] %}
                                 <button type="button" class="btn btn-sm btn-outline-danger" onclick="loescheBestellung({{ b.ID }})" title="Bestellung löschen">
                                     <i class="bi bi-trash"></i>
                                 </button>
@@ -516,7 +516,7 @@
                                 <i class="bi bi-file-earmark-pdf"></i>
                             </button>
                             {% endif %}
-                            {% if ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) and b.Status in ['Erstellt', 'Zur Freigabe', 'Freigegeben'] %}
+                            {% if ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) and b.Status in ['Erstellt', 'Zur Freigabe', 'Freigegeben', 'Bestellt'] %}
                             <button type="button" class="btn btn-sm btn-outline-danger" onclick="loescheBestellung({{ b.ID }})" title="Bestellung löschen">
                                 <i class="bi bi-trash"></i> Löschen
                             </button>

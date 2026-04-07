@@ -174,7 +174,7 @@ def bestellung_liste():
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/loeschen', methods=['POST'])
 @login_required
 def bestellung_loeschen(bestellung_id):
-    """Bestellung löschen (nur wenn Status 'Erstellt' oder 'Zur Freigabe')"""
+    """Bestellung löschen (nur in ausgewählten Status, u. a. bis 'Bestellt')."""
     mitarbeiter_id = session.get('user_id')
     is_admin = 'admin' in session.get('user_berechtigungen', [])
     has_bestellungen_erstellen = 'bestellungen_erstellen' in session.get('user_berechtigungen', [])
@@ -202,9 +202,13 @@ def bestellung_loeschen(bestellung_id):
                     flash('Sie haben keine Berechtigung, diese Bestellung zu löschen.', 'danger')
                     return redirect(url_for('ersatzteile.bestellung_liste'))
             
-            # Nur Bestellungen mit Status 'Erstellt', 'Zur Freigabe' oder 'Freigegeben' können gelöscht werden
-            if bestellung['Status'] not in ['Erstellt', 'Zur Freigabe', 'Freigegeben']:
-                flash(f'Bestellungen mit Status "{bestellung["Status"]}" können nicht gelöscht werden. Nur Bestellungen mit Status "Erstellt", "Zur Freigabe" oder "Freigegeben" können gelöscht werden.', 'danger')
+            # Nur Bestellungen mit diesen Status dürfen gelöscht werden (Soft-Delete)
+            if bestellung['Status'] not in ['Erstellt', 'Zur Freigabe', 'Freigegeben', 'Bestellt']:
+                flash(
+                    f'Bestellungen mit Status "{bestellung["Status"]}" können nicht gelöscht werden. '
+                    'Erlaubt sind: Erstellt, Zur Freigabe, Freigegeben, Bestellt.',
+                    'danger',
+                )
                 return redirect(url_for('ersatzteile.bestellung_liste'))
             
             # Bestellung als gelöscht markieren (soft delete)

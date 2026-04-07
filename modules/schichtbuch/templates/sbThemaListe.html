@@ -87,6 +87,8 @@
 .sb-mobile-bemerkung-preview {
   font-size: 1.0625rem;
   line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .sb-tl-bereich {
@@ -511,7 +513,9 @@
                                 <span class="text-muted">– · – · –</span>
                               {% endif %}
                             </p>
-                            {% if bs_m|length > 1 %}
+                            {% if bs_m %}
+                                <p class="text-body sb-mobile-bemerkung-preview{% if bs_m|length > 1 %} mb-2{% else %} mb-0{% endif %}">{{ bs_m[0].Bemerkung }}</p>
+                                {% if bs_m|length > 1 %}
                                 <div class="collapse" id="bemerkHistoryMobile{{ thema.ID }}">
                                   <div class="sb-tl-mobile-bemerk-history-inner border-top border-secondary-subtle bg-body-secondary px-3 py-2">
                                   <ul class="list-group list-group-flush bemerkung-list mb-0">
@@ -531,8 +535,7 @@
                                   </ul>
                                   </div>
                                 </div>
-                            {% elif bs_m|length == 1 %}
-                                <p class="text-body mb-0 sb-mobile-bemerkung-preview">{{ bs_m[0].Bemerkung }}</p>
+                                {% endif %}
                             {% else %}
                                 <p class="text-muted fst-italic mb-0 small">Keine Bemerkungen vorhanden.</p>
                             {% endif %}
@@ -825,8 +828,21 @@ document.addEventListener("submit", async (e) => {
         }
         cardBody.querySelector("p.text-muted.fst-italic")?.remove();
 
+        let preview = themaCard.querySelector(".sb-mobile-bemerkung-preview");
+        if (!preview && cardBody) {
+          preview = document.createElement("p");
+          const metaEl = themaCard.querySelector(".sb-mobile-meta");
+          if (metaEl) metaEl.insertAdjacentElement("afterend", preview);
+          else cardBody.appendChild(preview);
+        }
+        if (preview) {
+          preview.innerHTML = escapeHtmlBr(data.bemerkung);
+          preview.className = data.vorherige
+            ? "text-body mb-2 sb-mobile-bemerkung-preview"
+            : "text-body mb-0 sb-mobile-bemerkung-preview";
+        }
+
         if (data.vorherige) {
-          themaCard.querySelector(".sb-mobile-bemerkung-preview")?.remove();
           let collapseEl = document.getElementById(`bemerkHistoryMobile${themaId}`);
           let ul = collapseEl && collapseEl.querySelector(".bemerkung-list");
           if (!ul && cardBody) {
@@ -839,8 +855,8 @@ document.addEventListener("submit", async (e) => {
             ul.className = "list-group list-group-flush bemerkung-list mb-0";
             innerHist.appendChild(ul);
             collapseEl.appendChild(innerHist);
-            const metaEl = themaCard.querySelector(".sb-mobile-meta");
-            if (metaEl) metaEl.insertAdjacentElement("afterend", collapseEl);
+            const anchor = themaCard.querySelector(".sb-mobile-bemerkung-preview") || themaCard.querySelector(".sb-mobile-meta");
+            if (anchor) anchor.insertAdjacentElement("afterend", collapseEl);
             else cardBody.appendChild(collapseEl);
             sbEnsureMobileHistoryToggle(themaCard, themaId);
           }
@@ -858,16 +874,6 @@ document.addEventListener("submit", async (e) => {
               <div class="mt-1">${escapeHtmlBr(v.bemerkung)}</div>`;
             ul.insertBefore(li, ul.firstChild);
           }
-        } else {
-          let preview = themaCard.querySelector(".sb-mobile-bemerkung-preview");
-          if (!preview && cardBody) {
-            preview = document.createElement("p");
-            preview.className = "text-body mb-0 sb-mobile-bemerkung-preview";
-            const metaEl = themaCard.querySelector(".sb-mobile-meta");
-            if (metaEl) metaEl.insertAdjacentElement("afterend", preview);
-            else cardBody.appendChild(preview);
-          }
-          if (preview) preview.textContent = data.bemerkung;
         }
 
         if (data.neuer_status && data.neue_farbe) {
@@ -1044,6 +1050,7 @@ async function loadMoreThemen() {
             cardHtml += `<p class="text-muted mb-2 sb-mobile-meta"><span class="text-muted">– · – · –</span></p>`;
           }
           if (bemerkungen.length > 1) {
+            cardHtml += `<p class="text-body mb-2 sb-mobile-bemerkung-preview">${escapeHtmlBr(b0m.Bemerkung)}</p>`;
             cardHtml += `<div class="collapse" id="bemerkHistoryMobile${thema.ID}"><div class="sb-tl-mobile-bemerk-history-inner border-top border-secondary-subtle bg-body-secondary px-3 py-2"><ul class="list-group list-group-flush bemerkung-list mb-0">`;
             bemerkungen.slice(1).forEach(b => {
               cardHtml += `
