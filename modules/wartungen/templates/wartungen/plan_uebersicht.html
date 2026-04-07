@@ -78,9 +78,11 @@
             <td class="text-nowrap{% if ftd %} {{ ftd }}{% endif %}">{{ p.NaechsteFaelligkeit or '–' }}</td>
             <td>{% if p.Aktiv %}<span class="badge bg-success">Ja</span>{% else %}<span class="badge bg-secondary">Nein</span>{% endif %}</td>
             <td onclick="event.stopPropagation();">
-              <a href="{{ url_for('wartungen.wartung_detail', wartung_id=p.WartungID, plan_id=p.ID) }}" class="btn btn-sm btn-outline-primary" title="Wartung öffnen">
-                <i class="bi bi-box-arrow-in-right"></i>
+              {% if kann_protokollieren %}
+              <a href="{{ url_for('wartungen.durchfuehrung_neu', plan_id=p.ID, herkunft='plaene_uebersicht', plan_order=plan_order, bereich_id=bereich_id, gewerk_id=gewerk_id) }}" class="btn btn-sm btn-outline-success text-nowrap" title="Durchführung eintragen">
+                <i class="bi bi-clipboard-check"></i> Durchführung eintragen
               </a>
+              {% endif %}
             </td>
           </tr>
           {% endfor %}
@@ -108,11 +110,13 @@
               <span class="text-muted">–</span>
             {% endif %}
           </div>
+          {% if kann_protokollieren %}
           <div onclick="event.stopPropagation();">
-            <a href="{{ url_for('wartungen.wartung_detail', wartung_id=p.WartungID, plan_id=p.ID) }}" class="btn btn-sm btn-outline-primary">
-              <i class="bi bi-box-arrow-in-right"></i> Öffnen
+            <a href="{{ url_for('wartungen.durchfuehrung_neu', plan_id=p.ID, herkunft='plaene_uebersicht', plan_order=plan_order, bereich_id=bereich_id, gewerk_id=gewerk_id) }}" class="btn btn-sm btn-outline-success">
+              <i class="bi bi-clipboard-check"></i> Durchführung eintragen
             </a>
           </div>
+          {% endif %}
         </div>
       </div>
       {% endfor %}

@@ -11,6 +11,8 @@
 <div class="alert alert-info">Für Ihr Konto sind keine Wartungen sichtbar.</div>
 {% else %}
 <form method="get" action="{{ url_for('wartungen.durchfuehrungen_chronologisch') }}" class="card shadow-sm mb-4" id="form-durchfuehrungen-chrono">
+  <input type="hidden" name="sort" value="{{ chrono_sort }}">
+  <input type="hidden" name="dir" value="{{ chrono_dir }}">
   <div class="card-body py-3">
     <div class="row g-3 align-items-end">
       <div class="col-xl-2 col-lg-3 col-md-6">
@@ -68,8 +70,22 @@
       <table class="table table-hover mb-0 align-middle">
         <thead>
           <tr>
-            <th class="text-nowrap">ID</th>
-            <th style="white-space: nowrap;">Durchgeführt am</th>
+            <th class="text-nowrap" scope="col">
+              <a href="{{ chrono_sort_href_id }}" class="text-decoration-none text-body d-inline-flex align-items-center gap-1" title="Nach ID sortieren">
+                ID
+                {% if chrono_sort == 'id' %}
+                <i class="bi bi-arrow-{{ 'up' if chrono_dir == 'asc' else 'down' }}" aria-hidden="true"></i>
+                {% endif %}
+              </a>
+            </th>
+            <th class="text-nowrap" scope="col">
+              <a href="{{ chrono_sort_href_datum }}" class="text-decoration-none text-body d-inline-flex align-items-center gap-1" title="Nach Durchführungsdatum sortieren">
+                Durchgeführt am
+                {% if chrono_sort == 'datum' %}
+                <i class="bi bi-arrow-{{ 'up' if chrono_dir == 'asc' else 'down' }}" aria-hidden="true"></i>
+                {% endif %}
+              </a>
+            </th>
             <th>Bereich</th>
             <th>Gewerk</th>
             <th>Wartung</th>
@@ -102,7 +118,10 @@
         </tbody>
       </table>
     </div>
-    <p class="small text-muted mb-0 px-3 py-2">Chronologisch absteigend (neueste zuerst), max. 5000 Einträge.</p>
+    <p class="small text-muted mb-0 px-3 py-2">
+      Sortierung: {% if chrono_sort == 'datum' %}Durchführungsdatum{% else %}ID{% endif %}
+      ({{ 'aufsteigend' if chrono_dir == 'asc' else 'absteigend' }}), max. 5000 Einträge.
+    </p>
     {% else %}
     <div class="card-body">
       <div class="alert alert-info mb-0">

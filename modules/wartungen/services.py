@@ -446,6 +446,16 @@ def list_durchfuehrungen_jahresuebersicht(
     ''', (jahr_str,) + tuple(params_tail) + tuple(_wartung_sichtbar_params(mitarbeiter_id, sichtbare))).fetchall()
 
 
+_CHRONO_SORT_SQL_COL = {
+    'id': 'd.ID',
+    'datum': 'd.DurchgefuehrtAm',
+}
+_CHRONO_SORT_SQL_DIR = {
+    'asc': 'ASC',
+    'desc': 'DESC',
+}
+
+
 def list_durchfuehrungen_chronologisch_sichtbar(
     conn,
     mitarbeiter_id,
@@ -456,11 +466,18 @@ def list_durchfuehrungen_chronologisch_sichtbar(
     datum_von=None,
     datum_bis=None,
     limit=5000,
+    sort_by='id',
+    sort_dir='desc',
 ):
     """
-    Alle protokollierten Durchführungen für den Nutzer sichtbarer Wartungen, neueste zuerst.
+    Alle protokollierten Durchführungen für den Nutzer sichtbarer Wartungen.
+    sort_by: 'id' | 'datum' (DurchgefuehrtAm), sort_dir: 'asc' | 'desc'.
     datum_von / datum_bis: 'YYYY-MM-DD' oder None.
     """
+    col = _CHRONO_SORT_SQL_COL.get((sort_by or '').strip().lower(), _CHRONO_SORT_SQL_COL['id'])
+    direc = _CHRONO_SORT_SQL_DIR.get((sort_dir or '').strip().lower(), 'DESC')
+    tie = f', d.ID {direc}' if col == _CHRONO_SORT_SQL_COL['datum'] else ''
+    order_clause = f' ORDER BY {col} {direc}{tie} LIMIT ?'
     extra = []
     params = []
     if bereich_id is not None:
@@ -498,7 +515,7 @@ def list_durchfuehrungen_chronologisch_sichtbar(
     '''
 
     if is_admin:
-        sql = base_sql + ' ORDER BY d.DurchgefuehrtAm DESC, d.ID DESC LIMIT ?'
+        sql = base_sql + order_clause
         return conn.execute(sql, params + [limit]).fetchall()
 
     sichtbare = get_mitarbeiter_abteilungen(mitarbeiter_id, conn)
@@ -514,7 +531,7 @@ def list_durchfuehrungen_chronologisch_sichtbar(
             )
         )
     '''
-    sql = base_sql + vis + ' ORDER BY d.DurchgefuehrtAm DESC, d.ID DESC LIMIT ?'
+    sql = base_sql + vis + order_clause
     all_params = params + _wartung_sichtbar_params(mitarbeiter_id, sichtbare) + [limit]
     return conn.execute(sql, all_params).fetchall()
 

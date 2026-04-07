@@ -98,6 +98,11 @@ def _prefill_durchgefuehrt_am_datetime_local():
 
 
 PROTOKOLL_HERKUNFT_JAHRESUEBERSICHT = 'jahresuebersicht'
+PROTOKOLL_HERKUNFT_PLAENE_UEBERSICHT = 'plaene_uebersicht'
+
+
+def _empty_protokoll_kontext():
+    return {'herkunft': '', 'jahr': None, 'bereich_id': None, 'gewerk_id': None, 'plan_order': None}
 
 
 def _jahresuebersicht_protokoll_query_args(jahr, bereich_id, gewerk_id):
@@ -113,40 +118,62 @@ def _jahresuebersicht_protokoll_query_args(jahr, bereich_id, gewerk_id):
 def _parse_protokoll_kontext_args(args):
     """Herkunft + Filter aus GET-Query (werkzeug MultiDict)."""
     h = (args.get('protokoll_herkunft') or args.get('herkunft') or '').strip()
-    if h != PROTOKOLL_HERKUNFT_JAHRESUEBERSICHT:
-        return {'herkunft': '', 'jahr': None, 'bereich_id': None, 'gewerk_id': None}
-    cy = datetime.now().year
-    jahr = args.get('jahr', type=int)
-    if jahr is None or jahr < 1990 or jahr > 2100:
-        jahr = cy
-    bid = args.get('bereich_id', type=int)
-    gid = args.get('gewerk_id', type=int)
-    return {'herkunft': h, 'jahr': jahr, 'bereich_id': bid, 'gewerk_id': gid}
+    if h == PROTOKOLL_HERKUNFT_JAHRESUEBERSICHT:
+        cy = datetime.now().year
+        jahr = args.get('jahr', type=int)
+        if jahr is None or jahr < 1990 or jahr > 2100:
+            jahr = cy
+        bid = args.get('bereich_id', type=int)
+        gid = args.get('gewerk_id', type=int)
+        return {'herkunft': h, 'jahr': jahr, 'bereich_id': bid, 'gewerk_id': gid, 'plan_order': None}
+    if h == PROTOKOLL_HERKUNFT_PLAENE_UEBERSICHT:
+        bid = args.get('bereich_id', type=int)
+        gid = args.get('gewerk_id', type=int)
+        plan_order = (args.get('plan_order') or 'stamm').strip().lower()
+        if plan_order not in ('stamm', 'faelligkeit_asc', 'faelligkeit_desc'):
+            plan_order = 'stamm'
+        return {'herkunft': h, 'jahr': None, 'bereich_id': bid, 'gewerk_id': gid, 'plan_order': plan_order}
+    return _empty_protokoll_kontext()
 
 
 def _parse_protokoll_kontext_form(form):
     """Herkunft + Filter aus POST (versteckte Felder)."""
     h = (form.get('protokoll_herkunft') or '').strip()
-    if h != PROTOKOLL_HERKUNFT_JAHRESUEBERSICHT:
-        return {'herkunft': '', 'jahr': None, 'bereich_id': None, 'gewerk_id': None}
-    cy = datetime.now().year
-    try:
-        jahr = int(form.get('jahr') or cy)
-    except (TypeError, ValueError):
-        jahr = cy
-    if jahr < 1990 or jahr > 2100:
-        jahr = cy
-    bid = form.get('bereich_id')
-    gid = form.get('gewerk_id')
-    try:
-        bid = int(bid) if bid not in (None, '') else None
-    except (TypeError, ValueError):
-        bid = None
-    try:
-        gid = int(gid) if gid not in (None, '') else None
-    except (TypeError, ValueError):
-        gid = None
-    return {'herkunft': h, 'jahr': jahr, 'bereich_id': bid, 'gewerk_id': gid}
+    if h == PROTOKOLL_HERKUNFT_JAHRESUEBERSICHT:
+        cy = datetime.now().year
+        try:
+            jahr = int(form.get('jahr') or cy)
+        except (TypeError, ValueError):
+            jahr = cy
+        if jahr < 1990 or jahr > 2100:
+            jahr = cy
+        bid = form.get('bereich_id')
+        gid = form.get('gewerk_id')
+        try:
+            bid = int(bid) if bid not in (None, '') else None
+        except (TypeError, ValueError):
+            bid = None
+        try:
+            gid = int(gid) if gid not in (None, '') else None
+        except (TypeError, ValueError):
+            gid = None
+        return {'herkunft': h, 'jahr': jahr, 'bereich_id': bid, 'gewerk_id': gid, 'plan_order': None}
+    if h == PROTOKOLL_HERKUNFT_PLAENE_UEBERSICHT:
+        bid = form.get('bereich_id')
+        gid = form.get('gewerk_id')
+        try:
+            bid = int(bid) if bid not in (None, '') else None
+        except (TypeError, ValueError):
+            bid = None
+        try:
+            gid = int(gid) if gid not in (None, '') else None
+        except (TypeError, ValueError):
+            gid = None
+        plan_order = (form.get('plan_order') or 'stamm').strip().lower()
+        if plan_order not in ('stamm', 'faelligkeit_asc', 'faelligkeit_desc'):
+            plan_order = 'stamm'
+        return {'herkunft': h, 'jahr': None, 'bereich_id': bid, 'gewerk_id': gid, 'plan_order': plan_order}
+    return _empty_protokoll_kontext()
 
 
 def _url_jahresuebersicht_mit_protokoll_kontext(kontext):
@@ -161,6 +188,21 @@ def _url_jahresuebersicht_mit_protokoll_kontext(kontext):
     return url_for('wartungen.jahresuebersicht', **q)
 
 
+def _url_plaene_uebersicht_mit_protokoll_kontext(kontext):
+    """Redirect/Zurück-Link zur Wartungsplan-Liste inkl. Filter."""
+    if kontext.get('herkunft') != PROTOKOLL_HERKUNFT_PLAENE_UEBERSICHT:
+        return url_for('wartungen.plaene_uebersicht')
+    q = {}
+    if kontext.get('bereich_id') is not None:
+        q['bereich_id'] = kontext['bereich_id']
+    if kontext.get('gewerk_id') is not None:
+        q['gewerk_id'] = kontext['gewerk_id']
+    po = kontext.get('plan_order') or 'stamm'
+    if po != 'stamm':
+        q['plan_order'] = po
+    return url_for('wartungen.plaene_uebersicht', **q)
+
+
 def _query_iso_date_arg(name):
     """YYYY-MM-DD aus request.args oder None."""
     raw = (request.args.get(name) or '').strip()[:10]
@@ -171,6 +213,65 @@ def _query_iso_date_arg(name):
         return raw
     except ValueError:
         return None
+
+
+def _durchfuehrungen_chrono_sort_args():
+    """sort=id|datum, dir=asc|desc aus der Query (Whitelist)."""
+    s = (request.args.get('sort') or 'id').strip().lower()
+    if s not in ('id', 'datum'):
+        s = 'id'
+    d = (request.args.get('dir') or 'desc').strip().lower()
+    if d not in ('asc', 'desc'):
+        d = 'desc'
+    return s, d
+
+
+def _url_durchfuehrungen_chronologisch(
+    bereich_id,
+    gewerk_id,
+    wartung_id,
+    datum_von,
+    datum_bis,
+    sort_by,
+    sort_dir,
+):
+    q = {'sort': sort_by, 'dir': sort_dir}
+    if bereich_id is not None:
+        q['bereich_id'] = bereich_id
+    if gewerk_id is not None:
+        q['gewerk_id'] = gewerk_id
+    if wartung_id is not None:
+        q['wartung_id'] = wartung_id
+    if datum_von:
+        q['datum_von'] = datum_von
+    if datum_bis:
+        q['datum_bis'] = datum_bis
+    return url_for('wartungen.durchfuehrungen_chronologisch', **q)
+
+
+def _durchfuehrungen_chrono_sort_toggle_href(
+    target_sort,
+    bereich_id,
+    gewerk_id,
+    wartung_id,
+    datum_von,
+    datum_bis,
+    current_sort,
+    current_dir,
+):
+    if current_sort == target_sort:
+        new_dir = 'asc' if current_dir == 'desc' else 'desc'
+    else:
+        new_dir = 'desc'
+    return _url_durchfuehrungen_chronologisch(
+        bereich_id,
+        gewerk_id,
+        wartung_id,
+        datum_von,
+        datum_bis,
+        target_sort,
+        new_dir,
+    )
 
 
 BEREICH_TYP_WARTUNGSDURCHFUEHRUNG = 'Wartungsdurchfuehrung'
@@ -582,6 +683,7 @@ def plaene_uebersicht():
         bereich_id=bereich_id,
         gewerk_id=gewerk_id,
         plan_order=plan_order,
+        kann_protokollieren=kann_wartung_protokollieren(),
     )
 
 
@@ -595,6 +697,7 @@ def durchfuehrungen_chronologisch():
     wartung_id = _query_int_arg('wartung_id')
     datum_von = _query_iso_date_arg('datum_von')
     datum_bis = _query_iso_date_arg('datum_bis')
+    chrono_sort, chrono_dir = _durchfuehrungen_chrono_sort_args()
     if datum_von and datum_bis and datum_von > datum_bis:
         datum_von, datum_bis = datum_bis, datum_von
 
@@ -612,6 +715,14 @@ def durchfuehrungen_chronologisch():
                 wartung_id=None,
                 datum_von=None,
                 datum_bis=None,
+                chrono_sort=chrono_sort,
+                chrono_dir=chrono_dir,
+                chrono_sort_href_id=_durchfuehrungen_chrono_sort_toggle_href(
+                    'id', None, None, None, None, None, chrono_sort, chrono_dir,
+                ),
+                chrono_sort_href_datum=_durchfuehrungen_chrono_sort_toggle_href(
+                    'datum', None, None, None, None, None, chrono_sort, chrono_dir,
+                ),
                 title='Protokollierte Wartungen',
             )
 
@@ -642,6 +753,8 @@ def durchfuehrungen_chronologisch():
             wartung_id=wartung_id,
             datum_von=datum_von,
             datum_bis=datum_bis,
+            sort_by=chrono_sort,
+            sort_dir=chrono_dir,
         )
 
     return render_template(
@@ -655,6 +768,14 @@ def durchfuehrungen_chronologisch():
         wartung_id=wartung_id,
         datum_von=datum_von,
         datum_bis=datum_bis,
+        chrono_sort=chrono_sort,
+        chrono_dir=chrono_dir,
+        chrono_sort_href_id=_durchfuehrungen_chrono_sort_toggle_href(
+            'id', bereich_id, gewerk_id, wartung_id, datum_von, datum_bis, chrono_sort, chrono_dir,
+        ),
+        chrono_sort_href_datum=_durchfuehrungen_chrono_sort_toggle_href(
+            'datum', bereich_id, gewerk_id, wartung_id, datum_von, datum_bis, chrono_sort, chrono_dir,
+        ),
         title='Protokollierte Wartungen',
     )
 
@@ -921,8 +1042,11 @@ def durchfuehrung_neu(plan_id):
         else _parse_protokoll_kontext_args(request.args)
     )
     zurueck_jahres_url = None
+    zurueck_plaene_url = None
     if kontext.get('herkunft') == PROTOKOLL_HERKUNFT_JAHRESUEBERSICHT:
         zurueck_jahres_url = _url_jahresuebersicht_mit_protokoll_kontext(kontext)
+    if kontext.get('herkunft') == PROTOKOLL_HERKUNFT_PLAENE_UEBERSICHT:
+        zurueck_plaene_url = _url_plaene_uebersicht_mit_protokoll_kontext(kontext)
     with get_db_connection() as conn:
         if not hat_wartungsplan_zugriff(mitarbeiter_id, plan_id, conn):
             flash('Kein Zugriff.', 'danger')
@@ -987,6 +1111,11 @@ def durchfuehrung_neu(plan_id):
                             and kontext.get('herkunft') == PROTOKOLL_HERKUNFT_JAHRESUEBERSICHT
                         ):
                             return redirect(_url_jahresuebersicht_mit_protokoll_kontext(kontext))
+                        if (
+                            speichern_aktion == 'plaene_uebersicht'
+                            and kontext.get('herkunft') == PROTOKOLL_HERKUNFT_PLAENE_UEBERSICHT
+                        ):
+                            return redirect(_url_plaene_uebersicht_mit_protokoll_kontext(kontext))
                         return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=dfid))
                     except Exception as e:
                         conn.rollback()
@@ -1002,6 +1131,7 @@ def durchfuehrung_neu(plan_id):
         plan_optionen=[],
         protokoll_kontext=kontext,
         zurueck_jahres_url=zurueck_jahres_url,
+        zurueck_plaene_url=zurueck_plaene_url,
         durchgefuehrt_am_value=_prefill_durchgefuehrt_am_datetime_local(),
     )
 
@@ -1140,6 +1270,7 @@ def durchfuehrung_mehrere():
         vorausgewaehlte_plan_ids=vorausgewaehlte_plan_ids,
         protokoll_kontext=None,
         zurueck_jahres_url=None,
+        zurueck_plaene_url=None,
         kostenstellen=kostenstellen,
         durchgefuehrt_am_value=_prefill_durchgefuehrt_am_datetime_local(),
     )

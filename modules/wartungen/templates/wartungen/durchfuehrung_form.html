@@ -7,7 +7,11 @@
     <i class="bi bi-arrow-left"></i> Zurück zur Jahresübersicht
   </a>
   {% else %}
-    {% if zurueck_jahres_url %}
+    {% if zurueck_plaene_url %}
+    <a href="{{ zurueck_plaene_url }}" class="btn btn-secondary">
+      <i class="bi bi-arrow-left"></i> Zurück zu Wartungsplänen
+    </a>
+    {% elif zurueck_jahres_url %}
     <a href="{{ zurueck_jahres_url }}" class="btn btn-secondary">
       <i class="bi bi-arrow-left"></i> Zurück zur Jahresübersicht
     </a>
@@ -101,6 +105,15 @@
   {% if protokoll_kontext and protokoll_kontext.herkunft == 'jahresuebersicht' %}
   <input type="hidden" name="protokoll_herkunft" value="jahresuebersicht">
   <input type="hidden" name="jahr" value="{{ protokoll_kontext.jahr }}">
+  {% if protokoll_kontext.bereich_id is not none %}
+  <input type="hidden" name="bereich_id" value="{{ protokoll_kontext.bereich_id }}">
+  {% endif %}
+  {% if protokoll_kontext.gewerk_id is not none %}
+  <input type="hidden" name="gewerk_id" value="{{ protokoll_kontext.gewerk_id }}">
+  {% endif %}
+  {% elif protokoll_kontext and protokoll_kontext.herkunft == 'plaene_uebersicht' %}
+  <input type="hidden" name="protokoll_herkunft" value="plaene_uebersicht">
+  <input type="hidden" name="plan_order" value="{{ protokoll_kontext.plan_order or 'stamm' }}">
   {% if protokoll_kontext.bereich_id is not none %}
   <input type="hidden" name="bereich_id" value="{{ protokoll_kontext.bereich_id }}">
   {% endif %}
@@ -204,6 +217,13 @@
     {% if protokoll_kontext and protokoll_kontext.herkunft == 'jahresuebersicht' %}
     <button type="submit" name="speichern_aktion" value="jahresuebersicht" class="btn btn-primary">
       <i class="bi bi-check-lg"></i> Speichern und zurück zur Übersicht
+    </button>
+    <button type="submit" name="speichern_aktion" value="detail" class="btn btn-outline-secondary">
+      <i class="bi bi-box-arrow-in-right"></i> Speichern und zur Durchführung
+    </button>
+    {% elif protokoll_kontext and protokoll_kontext.herkunft == 'plaene_uebersicht' %}
+    <button type="submit" name="speichern_aktion" value="plaene_uebersicht" class="btn btn-primary">
+      <i class="bi bi-check-lg"></i> Speichern und zurück zur Wartungsplan-Liste
     </button>
     <button type="submit" name="speichern_aktion" value="detail" class="btn btn-outline-secondary">
       <i class="bi bi-box-arrow-in-right"></i> Speichern und zur Durchführung
