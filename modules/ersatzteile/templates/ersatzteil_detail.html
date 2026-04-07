@@ -234,7 +234,7 @@
 <!-- Artikelfoto -->
 {% if ersatzteil.ArtikelfotoPfad or kann_bearbeiten %}
 <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0">📷 Artikelfoto</h5>
         {% if kann_bearbeiten %}
         <div class="d-flex gap-2">
@@ -340,7 +340,7 @@
                            accept="image/png,image/jpeg,image/jpg,image/gif,image/webp" required>
                     <small class="form-text text-muted">Erlaubte Formate: PNG, JPG, JPEG, GIF, WEBP (max. 16 MB)</small>
                 </div>
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-success">
                     <i class="bi bi-upload"></i> Hochladen
                 </button>
             </form>
@@ -351,7 +351,7 @@
                        placeholder="https://… (Produktseite oder direkter Link z. B. …/bild.webp)" autocomplete="off"
                        {% if ersatzteil.Link %}value="{{ ersatzteil.Link|e }}"{% endif %}
                        data-gespeicherter-artikel-link="{{ (ersatzteil.Link or '')|e }}">
-                <button type="button" class="btn btn-outline-primary" id="artikelfoto_seite_suchen_btn">
+                <button type="button" class="btn btn-outline-success" id="artikelfoto_seite_suchen_btn">
                     <i class="bi bi-search"></i> Bild suchen
                 </button>
             </div>
@@ -439,7 +439,7 @@
 
 <!-- Dateien -->
 <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0">📁 Dateien</h5>
         <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#dateiUploadCollapse">
             <i class="bi bi-plus-circle"></i> Datei hochladen
@@ -476,7 +476,7 @@
 
 <!-- Angebote & Bestellungen (Lazy-Load) -->
 <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+    <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0">📄 Angebote & Bestellungen</h5>
         <button type="button"
                 class="btn btn-sm btn-light"
@@ -495,7 +495,7 @@
 <!-- Lagerbuchung -->
 {% if 'artikel_buchen' in session.get('user_berechtigungen', []) or 'admin' in session.get('user_berechtigungen', []) %}
 <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-info text-white">
+    <div class="card-header bg-warning text-dark">
         <h5 class="mb-0">📦 Lagerbuchung</h5>
     </div>
     <div class="card-body">
@@ -621,7 +621,7 @@
 <!-- Verknüpfungen mit Themen -->
 {% if verknuepfungen %}
 <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-warning text-dark">
+    <div class="card-header bg-secondary text-white">
         <h5 class="mb-0">🔗 Verknüpfungen mit Themen</h5>
     </div>
     <div class="card-body">
@@ -702,7 +702,7 @@
 <div class="modal fade" id="artikelfotoSeiteBilderModal" tabindex="-1" aria-labelledby="artikelfotoSeiteBilderModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
+            <div class="modal-header bg-success text-white">
                 <h5 class="modal-title" id="artikelfotoSeiteBilderModalLabel">
                     <i class="bi bi-images"></i> Bilder auf der Seite
                 </h5>
@@ -1371,8 +1371,8 @@ async function ladeAngeboteUndBestellungen(ersatzteilId, event) {
                 angebote.forEach(a => {
                     const statusBadgeClass =
                         a.status === 'Offen' ? 'bg-warning text-dark' :
-                        a.status === 'Versendet' ? 'bg-info' :
-                        a.status === 'Angebot erhalten' ? 'bg-primary' :
+                        a.status === 'Versendet' ? 'bg-secondary' :
+                        a.status === 'Angebot erhalten' ? 'bg-success' :
                         a.status === 'Abgeschlossen' ? 'bg-success' : 'bg-secondary';
 
                     const datum = a.erstellt_am ? a.erstellt_am.substring(0, 16) : '-';
@@ -1401,8 +1401,8 @@ async function ladeAngeboteUndBestellungen(ersatzteilId, event) {
                     const statusBadgeClass =
                         b.status === 'Erstellt' ? 'bg-secondary' :
                         b.status === 'Zur Freigabe' ? 'bg-warning text-dark' :
-                        b.status === 'Freigegeben' ? 'bg-info' :
-                        b.status === 'Bestellt' ? 'bg-primary' :
+                        b.status === 'Freigegeben' ? 'bg-secondary' :
+                        b.status === 'Bestellt' ? 'bg-secondary' :
                         ['Teilweise erhalten', 'Erhalten', 'Erledigt'].includes(b.status) ? 'bg-success' :
                         b.status === 'Storniert' ? 'bg-danger' : 'bg-secondary';
 
@@ -1588,7 +1588,7 @@ async function verschiebeAusImportErsatzteil(filename, ersatzteilId) {
 <div class="modal fade" id="etikettAnzahlModal" tabindex="-1" aria-labelledby="etikettAnzahlModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
+            <div class="modal-header bg-warning text-dark">
                 <h5 class="modal-title" id="etikettAnzahlModalLabel">
                     <i class="bi bi-printer"></i> Artikeletiketten drucken
                 </h5>

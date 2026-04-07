@@ -87,7 +87,7 @@
                     <input type="text" name="typ" class="form-control" placeholder="z.B. Datenblatt, Anleitung, Servicebericht">
                 </div>
                 {% endif %}
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-success">
                     <i class="bi bi-upload"></i> Hochladen
                 </button>
             </form>
@@ -98,12 +98,12 @@
         <div class="tab-pane fade" id="{{ import_tab_id }}-pane" role="tabpanel">
             <div id="{{ import_tab_id }}-dateien-liste">
                 <div class="text-center">
-                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <div class="spinner-border spinner-border-sm text-success" role="status">
                         <span class="visually-hidden">Lädt...</span>
                     </div>
                 </div>
             </div>
-            <button type="button" class="btn btn-primary mt-2" {% if import_function %}onclick="{{ import_function }}"{% endif %}>
+            <button type="button" class="btn btn-outline-success mt-2" {% if import_function %}onclick="{{ import_function }}"{% endif %}>
                 <i class="bi bi-arrow-clockwise"></i> Aktualisieren
             </button>
         </div>

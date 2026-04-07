@@ -151,7 +151,7 @@
     <!-- Verknüpfungen mit Ersatzteilen -->
     {% if ersatzteil_verknuepfungen %}
     <div class="card mb-4 shadow-sm">
-        <div class="card-header bg-warning text-dark">
+        <div class="card-header bg-secondary text-white">
             <h5 class="mb-0">🔗 Verwendete Ersatzteile</h5>
         </div>
         <div class="card-body">
@@ -217,7 +217,7 @@
 
     <!-- Ersatzteil zuordnen -->
     <div class="card mb-4 shadow-sm">
-        <div class="card-header bg-info text-white">
+        <div class="card-header bg-warning text-dark">
             <h5 class="mb-0">🔧 Ersatzteil zuordnen</h5>
         </div>
         <div class="card-body">
@@ -305,7 +305,7 @@
                                 <label class="form-label">Beschreibung (optional, für alle Dateien):</label>
                                 <input type="text" class="form-control" id="beschreibungInput" placeholder="z.B. Frontansicht, Datenblatt, etc.">
                             </div>
-                            <button type="submit" class="btn btn-primary btn-sm" id="uploadButton">
+                            <button type="submit" class="btn btn-success btn-sm" id="uploadButton">
                                 <i class="bi bi-upload"></i> Hochladen
                             </button>
                         </form>
@@ -321,12 +321,12 @@
                     <div class="tab-pane fade" id="thema-import-pane" role="tabpanel">
                         <div id="thema-import-dateien-liste">
                             <div class="text-center">
-                                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <div class="spinner-border spinner-border-sm text-success" role="status">
                                     <span class="visually-hidden">Lädt...</span>
                                 </div>
                             </div>
                         </div>
-                        <button type="button" class="btn btn-primary mt-2" onclick="ladeImportDateienThema()">
+                        <button type="button" class="btn btn-outline-success mt-2" onclick="ladeImportDateienThema()">
                             <i class="bi bi-arrow-clockwise"></i> Aktualisieren
                         </button>
                     </div>
@@ -336,7 +336,7 @@
         <div class="card-body">
             <div id="dateienListe">
                 <div class="text-center">
-                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <div class="spinner-border spinner-border-sm text-success" role="status">
                         <span class="visually-hidden">Lädt...</span>
                     </div>
                 </div>
@@ -345,7 +345,7 @@
     </div>
 
     <div class="card mt-4 shadow-sm">
-        <div class="card-header bg-success text-white">
+        <div class="card-header bg-warning text-dark">
             <h5 class="mb-0">💬 Neue Bemerkung hinzufügen / Status ändern</h5>
         </div>
         <div class="card-body">
@@ -398,11 +398,11 @@
     <div class="modal fade" id="sichtbarkeitModal" tabindex="-1" aria-labelledby="sichtbarkeitModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
-                <div class="modal-header bg-info text-white">
+                <div class="modal-header bg-warning text-dark">
                     <h5 class="modal-title" id="sichtbarkeitModalLabel">
                         <i class="bi bi-eye"></i> Sichtbarkeit bearbeiten
                     </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Schließen"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
                 </div>
                 <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
                     <p class="text-muted small">
@@ -1412,7 +1412,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <div class="modal fade" id="ersatzteilModalDetail" tabindex="-1" aria-labelledby="ersatzteilModalDetailLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header">
+            <div class="modal-header bg-warning text-dark">
                 <h5 class="modal-title" id="ersatzteilModalDetailLabel">Ersatzteil auswählen</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>

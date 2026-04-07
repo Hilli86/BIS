@@ -63,7 +63,7 @@
         <!-- Übersichtskarten -->
         <div class="row mb-4">
             <div class="col-md-4">
-                <div class="card bg-primary text-white">
+                <div class="card bg-secondary text-white">
                     <div class="card-body">
                         <h6 class="card-subtitle mb-2">Anzahl Bestellungen</h6>
                         <h3 class="mb-0">{{ bestellungen_auswertung.gesamt.anzahl }}</h3>
@@ -79,7 +79,7 @@
                 </div>
             </div>
             <div class="col-md-4">
-                <div class="card bg-info text-white">
+                <div class="card bg-secondary text-white">
                     <div class="card-body">
                         <h6 class="card-subtitle mb-2">Durchschnitt (EUR)</h6>
                         <h3 class="mb-0">{{ "%.2f"|format(bestellungen_auswertung.durchschnitt) }} €</h3>
@@ -165,7 +165,7 @@
         <!-- Übersichtskarten -->
         <div class="row mb-4">
             <div class="col-md-4">
-                <div class="card bg-primary text-white">
+                <div class="card bg-secondary text-white">
                     <div class="card-body">
                         <h6 class="card-subtitle mb-2">Gesamtlagerwert (EUR)</h6>
                         <h3 class="mb-0">{{ "%.2f"|format(ersatzteilwert_auswertung.gesamt.lagerwert_nach_waehrung.get('EUR', 0)) }} €</h3>
@@ -181,7 +181,7 @@
                 </div>
             </div>
             <div class="col-md-4">
-                <div class="card bg-info text-white">
+                <div class="card bg-secondary text-white">
                     <div class="card-body">
                         <h6 class="card-subtitle mb-2">Artikel mit Bestand</h6>
                         <h3 class="mb-0">{{ ersatzteilwert_auswertung.gesamt.anzahl_mit_bestand }}</h3>

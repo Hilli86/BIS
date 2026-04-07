@@ -6,7 +6,7 @@
 <!-- Schnelle Buchung -->
 {% if 'artikel_buchen' in session.get('user_berechtigungen', []) or 'admin' in session.get('user_berechtigungen', []) %}
 <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+    <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0">⚡ Schnelle Buchung</h5>
         <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#buchungCollapse">
             Anzeigen / Ausblenden

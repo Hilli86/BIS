@@ -323,7 +323,7 @@
 
 <!-- Positionen -->
 <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+    <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
         <h5 class="mb-0">Positionen</h5>
         {% if bestellung.Status in ['Erstellt', 'Zur Freigabe'] %}
         <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#addPositionCollapse">
@@ -549,7 +549,7 @@
 <!-- Auftragsbestätigungen -->
 {% if bestellung.Status in ['Bestellt', 'Teilweise erhalten', 'Erhalten', 'Erledigt'] %}
 <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0">📋 Auftragsbestätigungen</h5>
         <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#auftragsbestätigungUploadCollapse">
             <i class="bi bi-plus-circle"></i> Auftragsbestätigung hochladen
@@ -588,7 +588,7 @@
 <!-- Lieferscheine -->
 {% if bestellung.Status in ['Bestellt', 'Teilweise erhalten', 'Erhalten', 'Erledigt'] %}
 <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0">📦 Lieferscheine</h5>
         <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#lieferscheinUploadCollapse">
             <i class="bi bi-plus-circle"></i> Lieferschein hochladen
@@ -667,7 +667,7 @@
 <div class="modal fade" id="editPositionModal" tabindex="-1" aria-labelledby="editPositionModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
+            <div class="modal-header bg-warning text-dark">
                 <h5 class="modal-title" id="editPositionModalLabel">Position bearbeiten</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -733,17 +733,17 @@
 <div class="modal fade" id="sichtbarkeitModal" tabindex="-1" aria-labelledby="sichtbarkeitModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
-            <div class="modal-header bg-info text-white">
+            <div class="modal-header bg-warning text-dark">
                 <h5 class="modal-title" id="sichtbarkeitModalLabel">
                     <i class="bi bi-eye"></i> Sichtbarkeit bearbeiten
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="sichtbarkeitForm" method="POST" action="">
                 <div class="modal-body">
                     <div id="sichtbarkeitCheckboxen">
                         <div class="text-center">
-                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                            <div class="spinner-border spinner-border-sm text-secondary" role="status">
                                 <span class="visually-hidden">Lädt...</span>
                             </div>
                         </div>
@@ -1503,7 +1503,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <div class="modal fade" id="ersatzteilModalDetail" tabindex="-1" aria-labelledby="ersatzteilModalDetailLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header">
+            <div class="modal-header bg-warning text-dark">
                 <h5 class="modal-title" id="ersatzteilModalDetailLabel">Ersatzteil auswählen</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -1531,11 +1531,11 @@ document.addEventListener('DOMContentLoaded', function() {
 <div class="modal fade" id="unterschriftModal" tabindex="-1" aria-labelledby="unterschriftModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header bg-success text-white">
+            <div class="modal-header bg-warning text-dark">
                 <h5 class="modal-title" id="unterschriftModalLabel">
                     <i class="bi bi-pen"></i> Bestellung freigeben - Unterschrift erforderlich
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="unterschriftForm" method="POST" action="">
                 <div class="modal-body">
@@ -1760,11 +1760,11 @@ async function exportBestellungPDF(bestellungId) {
 <div class="modal fade" id="freigabebemerkungModal" tabindex="-1" aria-labelledby="freigabebemerkungModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
+            <div class="modal-header bg-warning text-dark">
                 <h5 class="modal-title" id="freigabebemerkungModalLabel">
                     <i class="bi bi-pencil"></i> Freigabebemerkung bearbeiten
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="freigabebemerkungForm" method="POST" action="">
                 <div class="modal-body">

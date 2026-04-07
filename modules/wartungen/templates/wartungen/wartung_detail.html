@@ -57,7 +57,7 @@
 </div>
 
 <div class="card mb-4 shadow-sm">
-  <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+  <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
     <h5 class="mb-0">Beschreibungen</h5>
     {% if kann_edit %}
     <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#wartungDateiUploadCollapse">
@@ -99,7 +99,7 @@
 </div>
 
 <div class="card mb-4 shadow-sm" id="section-wartungsplaene">
-  <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2 bg-light">
+  <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2 bg-secondary text-white">
     <h5 class="mb-0">Wartungspläne</h5>
     {% if kann_plan %}
     <a href="{{ url_for('wartungen.plan_neu', wartung_id=wartung.ID) }}" class="btn btn-sm btn-primary">
@@ -169,7 +169,7 @@
 </div>
 
 <div class="card mb-4 shadow-sm">
-  <div class="card-header bg-light">
+  <div class="card-header bg-secondary text-white">
     <h5 class="mb-0">Protokollierte Wartungen</h5>
   </div>
   <div class="card-body p-0">

@@ -482,13 +482,13 @@
                 <div class="thema-card-mobile mb-3" data-thema-id="{{ thema.ID }}" style="color: {{ thema.Farbe or 'inherit' }};">
                     <div class="card shadow-sm thema-card-clickable" onclick="window.location.href='{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}'">
                         <!-- Card Header: ID + Status -->
-                        <div class="card-header bg-light d-flex justify-content-between align-items-center gap-2">
+                        <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center gap-2">
                             <span class="d-inline-flex align-items-center gap-1" onclick="event.stopPropagation();">
-                              <a href="{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}" class="text-decoration-none fw-bold" onclick="event.stopPropagation();">
+                              <a href="{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}" class="text-decoration-none fw-bold text-white" onclick="event.stopPropagation();">
                                 #{{ thema.ID }}
                               </a>
                               {% if bs_m|length > 1 %}
-                              <button type="button" class="btn btn-sm btn-link text-body p-0 sb-bemerk-history-toggle"
+                              <button type="button" class="btn btn-sm btn-link text-white p-0 sb-bemerk-history-toggle"
                                       data-bs-toggle="collapse" data-bs-target="#bemerkHistoryMobile{{ thema.ID }}"
                                       aria-expanded="false" aria-controls="bemerkHistoryMobile{{ thema.ID }}"
                                       title="Weitere Bemerkungen anzeigen"
@@ -1027,13 +1027,13 @@ async function loadMoreThemen() {
           let cardHtml = `
             <div class="thema-card-mobile mb-3" data-thema-id="${thema.ID}" style="color: ${thema.Farbe || 'inherit'};">
               <div class="card shadow-sm thema-card-clickable" onclick="window.location.href='${detailUrl}'">
-                <div class="card-header bg-light d-flex justify-content-between align-items-center gap-2">
+                <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center gap-2">
                   <span class="d-inline-flex align-items-center gap-1" onclick="event.stopPropagation();">
-                    <a href="${detailUrl}" class="text-decoration-none fw-bold" onclick="event.stopPropagation();">
+                    <a href="${detailUrl}" class="text-decoration-none fw-bold text-white" onclick="event.stopPropagation();">
                       #${thema.ID}
                     </a>
                     ${bemerkungen.length > 1 ? `
-                    <button type="button" class="btn btn-sm btn-link text-body p-0 sb-bemerk-history-toggle" data-bs-toggle="collapse" data-bs-target="#bemerkHistoryMobile${thema.ID}" aria-expanded="false" aria-controls="bemerkHistoryMobile${thema.ID}" title="Weitere Bemerkungen anzeigen" onclick="event.stopPropagation();">
+                    <button type="button" class="btn btn-sm btn-link text-white p-0 sb-bemerk-history-toggle" data-bs-toggle="collapse" data-bs-target="#bemerkHistoryMobile${thema.ID}" aria-expanded="false" aria-controls="bemerkHistoryMobile${thema.ID}" title="Weitere Bemerkungen anzeigen" onclick="event.stopPropagation();">
                       <i class="bi bi-chevron-down sb-bemerk-chevron" aria-hidden="true"></i>
                     </button>` : ''}
                   </span>
@@ -1513,7 +1513,7 @@ async function saveSichtbarkeit() {
 <div class="modal fade" id="dateienModal" tabindex="-1" aria-labelledby="dateienModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
-      <div class="modal-header bg-info text-white">
+      <div class="modal-header bg-success text-white">
         <h5 class="modal-title" id="dateienModalLabel">
           <i class="bi bi-paperclip"></i> Dateien & Bilder - Thema #<span id="dateienThemaId"></span>
         </h5>
@@ -1550,7 +1550,7 @@ async function saveSichtbarkeit() {
                       Max. 16 MB pro Datei - Mehrfachauswahl möglich - Erlaubt: Bilder, PDF, Word, Excel, Text
                     </div>
                   </div>
-                  <button type="submit" class="btn btn-primary btn-sm" id="uploadButtonListe">
+                  <button type="submit" class="btn btn-success btn-sm" id="uploadButtonListe">
                     <i class="bi bi-upload"></i> Hochladen
                   </button>
                 </form>
@@ -1566,12 +1566,12 @@ async function saveSichtbarkeit() {
               <div class="tab-pane fade" id="sb-import-pane" role="tabpanel">
                 <div id="sb-import-dateien-liste">
                   <div class="text-center">
-                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <div class="spinner-border spinner-border-sm text-success" role="status">
                       <span class="visually-hidden">Lädt...</span>
                     </div>
                   </div>
                 </div>
-                <button type="button" class="btn btn-primary btn-sm mt-2" onclick="ladeImportDateienSchichtbuch()">
+                <button type="button" class="btn btn-outline-success btn-sm mt-2" onclick="ladeImportDateienSchichtbuch()">
                   <i class="bi bi-arrow-clockwise"></i> Aktualisieren
                 </button>
               </div>
@@ -1583,7 +1583,7 @@ async function saveSichtbarkeit() {
         <h6><i class="bi bi-folder"></i> Gespeicherte Dateien</h6>
         <div id="dateienListe">
           <div class="text-center">
-            <div class="spinner-border spinner-border-sm text-primary" role="status">
+            <div class="spinner-border spinner-border-sm text-success" role="status">
               <span class="visually-hidden">Lädt...</span>
             </div>
           </div>
@@ -1602,11 +1602,11 @@ async function saveSichtbarkeit() {
 <div class="modal fade" id="sichtbarkeitModal" tabindex="-1" aria-labelledby="sichtbarkeitModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
-      <div class="modal-header bg-info text-white">
+      <div class="modal-header bg-warning text-dark">
         <h5 class="modal-title" id="sichtbarkeitModalLabel">
           <i class="bi bi-eye"></i> Sichtbarkeit bearbeiten
         </h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Schließen"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
       </div>
       <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
         <p class="text-muted small">
