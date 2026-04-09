@@ -1,6 +1,16 @@
 {% extends "layout/base.html" %}
 {% from "components/datei_liste.html" import datei_liste %}
 
+{% block styles %}
+{{ super() }}
+<style>
+.bemerkung-view {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+</style>
+{% endblock %}
+
 {% block content %}
     <h1 class="mb-4">Thema #{{ thema.ID }}</h1>
 
@@ -114,7 +124,7 @@
                 
                 <div class="mt-2">
                     <strong class="text-muted">Bemerkung:</strong>
-                    <div class="bemerkung-view mt-1 p-2" data-bemerkung-id="{{ b.BemerkungID }}">{{ b.Bemerkung }}</div>
+                    <div class="bemerkung-view mt-1 p-2 text-break" data-bemerkung-id="{{ b.BemerkungID }}">{{ b.Bemerkung }}</div>
                     {% if session.get('user_id') == b.MitarbeiterID %}
                     <form class="bemerkung-edit d-none mt-2" data-bemerkung-id="{{ b.BemerkungID }}">
                         <div class="mb-2">
@@ -146,6 +156,85 @@
             <i class="bi bi-info-circle"></i> Keine Bemerkungen vorhanden.
         </div>
         {% endfor %}
+    </div>
+
+    <!-- Dateien-Bereich -->
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">📄 Dateien & Bilder</h5>
+            <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#dateienUploadCollapse">
+                <i class="bi bi-plus-circle"></i> Datei hochladen
+            </button>
+        </div>
+        <div class="collapse" id="dateienUploadCollapse">
+            <div class="card-body">
+                <!-- Tab-Auswahl -->
+                <ul class="nav nav-tabs mb-3" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="thema-upload-tab" data-bs-toggle="tab" data-bs-target="#thema-upload-pane" type="button">
+                            <i class="bi bi-cloud-upload"></i> Hochladen
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="thema-import-tab" data-bs-toggle="tab" data-bs-target="#thema-import-pane" type="button" onclick="ladeImportDateienThema()">
+                            <i class="bi bi-folder"></i> Aus Import-Ordner
+                        </button>
+                    </li>
+                </ul>
+                
+                <div class="tab-content">
+                    <!-- Upload-Tab mit Multi-File-Support -->
+                    <div class="tab-pane fade show active" id="thema-upload-pane" role="tabpanel">
+                        <form id="uploadForm" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <label class="form-label">Dateien (Mehrfachauswahl möglich):</label>
+                                <input type="file" class="form-control" id="fileInput" name="files" 
+                                       accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" multiple>
+                                <div class="form-text">
+                                    Max. 16 MB pro Datei - Mehrfachauswahl möglich - Erlaubt: Bilder, PDF, Word, Excel, Text
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Beschreibung (optional, für alle Dateien):</label>
+                                <input type="text" class="form-control" id="beschreibungInput" placeholder="z.B. Frontansicht, Datenblatt, etc.">
+                            </div>
+                            <button type="submit" class="btn btn-success btn-sm" id="uploadButton">
+                                <i class="bi bi-upload"></i> Hochladen
+                            </button>
+                        </form>
+                        <div id="uploadProgress" class="mt-2 d-none">
+                            <div class="progress">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                            </div>
+                        </div>
+                        <div id="uploadMessage" class="mt-2"></div>
+                    </div>
+                    
+                    <!-- Import-Tab -->
+                    <div class="tab-pane fade" id="thema-import-pane" role="tabpanel">
+                        <div id="thema-import-dateien-liste">
+                            <div class="text-center">
+                                <div class="spinner-border spinner-border-sm text-success" role="status">
+                                    <span class="visually-hidden">Lädt...</span>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-outline-success mt-2" onclick="ladeImportDateienThema()">
+                            <i class="bi bi-arrow-clockwise"></i> Aktualisieren
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div id="dateienListe">
+                <div class="text-center">
+                    <div class="spinner-border spinner-border-sm text-success" role="status">
+                        <span class="visually-hidden">Lädt...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Verknüpfungen mit Ersatzteilen -->
@@ -262,85 +351,6 @@
                     </div>
                 </div>
             </form>
-        </div>
-    </div>
-
-    <!-- Dateien-Bereich -->
-    <div class="card mb-4 shadow-sm">
-        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">📄 Dateien & Bilder</h5>
-            <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#dateienUploadCollapse">
-                <i class="bi bi-plus-circle"></i> Datei hochladen
-            </button>
-        </div>
-        <div class="collapse" id="dateienUploadCollapse">
-            <div class="card-body">
-                <!-- Tab-Auswahl -->
-                <ul class="nav nav-tabs mb-3" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="thema-upload-tab" data-bs-toggle="tab" data-bs-target="#thema-upload-pane" type="button">
-                            <i class="bi bi-cloud-upload"></i> Hochladen
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="thema-import-tab" data-bs-toggle="tab" data-bs-target="#thema-import-pane" type="button" onclick="ladeImportDateienThema()">
-                            <i class="bi bi-folder"></i> Aus Import-Ordner
-                        </button>
-                    </li>
-                </ul>
-                
-                <div class="tab-content">
-                    <!-- Upload-Tab mit Multi-File-Support -->
-                    <div class="tab-pane fade show active" id="thema-upload-pane" role="tabpanel">
-                        <form id="uploadForm" enctype="multipart/form-data">
-                            <div class="mb-3">
-                                <label class="form-label">Dateien (Mehrfachauswahl möglich):</label>
-                                <input type="file" class="form-control" id="fileInput" name="files" 
-                                       accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" multiple>
-                                <div class="form-text">
-                                    Max. 16 MB pro Datei - Mehrfachauswahl möglich - Erlaubt: Bilder, PDF, Word, Excel, Text
-                                </div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Beschreibung (optional, für alle Dateien):</label>
-                                <input type="text" class="form-control" id="beschreibungInput" placeholder="z.B. Frontansicht, Datenblatt, etc.">
-                            </div>
-                            <button type="submit" class="btn btn-success btn-sm" id="uploadButton">
-                                <i class="bi bi-upload"></i> Hochladen
-                            </button>
-                        </form>
-                        <div id="uploadProgress" class="mt-2 d-none">
-                            <div class="progress">
-                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
-                            </div>
-                        </div>
-                        <div id="uploadMessage" class="mt-2"></div>
-                    </div>
-                    
-                    <!-- Import-Tab -->
-                    <div class="tab-pane fade" id="thema-import-pane" role="tabpanel">
-                        <div id="thema-import-dateien-liste">
-                            <div class="text-center">
-                                <div class="spinner-border spinner-border-sm text-success" role="status">
-                                    <span class="visually-hidden">Lädt...</span>
-                                </div>
-                            </div>
-                        </div>
-                        <button type="button" class="btn btn-outline-success mt-2" onclick="ladeImportDateienThema()">
-                            <i class="bi bi-arrow-clockwise"></i> Aktualisieren
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="card-body">
-            <div id="dateienListe">
-                <div class="text-center">
-                    <div class="spinner-border spinner-border-sm text-success" role="status">
-                        <span class="visually-hidden">Lädt...</span>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 

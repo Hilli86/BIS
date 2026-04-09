@@ -4,6 +4,11 @@
 
 {% block content %}
 <h1 class="mb-4">Bestellung #{{ bestellung.ID }}</h1>
+{% if bestellung.Gelöscht %}
+<div class="alert alert-secondary mb-3">
+    <i class="bi bi-archive"></i> Diese Bestellung wurde gelöscht und ist nur zur Einsicht verfügbar.
+</div>
+{% endif %}
 <div class="mb-3">
     <a href="{{ url_for('ersatzteile.bestellung_liste') }}{% if status_filter_list or lieferant_filter or abteilung_filter or prioritaet_filter_list %}?{% endif %}{% for status in status_filter_list %}status={{ status|urlencode }}{% if not loop.last %}&{% endif %}{% endfor %}{% if status_filter_list and (lieferant_filter or abteilung_filter or prioritaet_filter_list) %}&{% endif %}{% if lieferant_filter %}lieferant={{ lieferant_filter|urlencode }}{% endif %}{% if lieferant_filter and (abteilung_filter or prioritaet_filter_list) %}&{% endif %}{% if abteilung_filter %}abteilung={{ abteilung_filter|urlencode }}{% endif %}{% if abteilung_filter and prioritaet_filter_list %}&{% endif %}{% for prioritaet in prioritaet_filter_list %}prioritaet={{ prioritaet|urlencode }}{% if not loop.last %}&{% endif %}{% endfor %}" class="btn btn-secondary">
         <i class="bi bi-arrow-left"></i> Zurück zur Liste
@@ -14,10 +19,12 @@
     <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0">Grunddaten</h5>
         <div class="d-flex flex-wrap gap-2 align-items-center justify-content-end">
+            {% if not bestellung.Gelöscht %}
             <button class="btn btn-sm btn-light" type="button" onclick="openSichtbarkeitModal({{ bestellung.ID }})" title="Sichtbarkeit bearbeiten">
                 <i class="bi bi-eye"></i> Sichtbarkeit
             </button>
-            {% if ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) and bestellung.Status in ['Erstellt', 'Zur Freigabe', 'Freigegeben', 'Bestellt'] %}
+            {% endif %}
+            {% if ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) and not bestellung.Gelöscht and bestellung.Status in ['Erstellt', 'Zur Freigabe', 'Freigegeben', 'Bestellt'] %}
             <form method="POST" action="{{ url_for('ersatzteile.bestellung_loeschen', bestellung_id=bestellung.ID) }}" class="d-inline m-0" onsubmit="return confirm('Möchten Sie diese Bestellung wirklich löschen?');">
                 <button type="submit" class="btn btn-sm btn-danger" title="Bestellung löschen">
                     <i class="bi bi-trash"></i> Löschen
@@ -89,6 +96,9 @@
                         <tr>
                             <td class="text-muted" style="width: 150px;"><strong>Status:</strong></td>
                             <td>
+                                {% if bestellung.Gelöscht %}
+                                <span class="badge bg-secondary">Gelöscht</span>
+                                {% endif %}
                                 {% if bestellung.Status == 'Erstellt' %}
                                 <span class="badge bg-secondary">Erstellt</span>
                                 {% elif bestellung.Status == 'Zur Freigabe' %}
@@ -114,7 +124,7 @@
                             <td class="text-muted"><strong>Priorität:</strong></td>
                             <td>
                                 {% set prioritaet = bestellung.Prioritaet or 3 %}
-                                {% if bestellung.Status == 'Erstellt' %}
+                                {% if bestellung.Status == 'Erstellt' and not bestellung.Gelöscht %}
                                 <form method="POST" action="{{ url_for('ersatzteile.bestellung_prioritaet_bearbeiten', bestellung_id=bestellung.ID) }}" class="d-inline">
                                     <div class="d-flex align-items-center gap-2">
                                         <select name="prioritaet" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
@@ -187,10 +197,14 @@
                         <tr>
                             <td class="text-muted"><strong>Lieferdatum:</strong></td>
                             <td>
+                                {% if bestellung.Gelöscht %}
+                                {{ bestellung.Lieferdatum[:10] if bestellung.Lieferdatum else '-' }}
+                                {% else %}
                                 <form method="POST" action="{{ url_for('ersatzteile.bestellung_lieferdatum_bearbeiten', bestellung_id=bestellung.ID) }}" class="d-flex flex-wrap align-items-center gap-2">
                                     <input type="date" name="lieferdatum" class="form-control form-control-sm" style="width: auto; max-width: 100%;" value="{{ bestellung.Lieferdatum[:10] if bestellung.Lieferdatum else '' }}">
                                     <button type="submit" class="btn btn-sm btn-primary">Speichern</button>
                                 </form>
+                                {% endif %}
                             </td>
                         </tr>
                         <tr>
@@ -217,6 +231,7 @@
 </div>
 
 <!-- Workflow-Aktionen -->
+{% if not bestellung.Gelöscht %}
 <div class="card mb-4 shadow-sm">
     <div class="card-header bg-warning text-dark">
         <h5 class="mb-0">⚙️ Aktionen</h5>
@@ -301,6 +316,16 @@
             <a href="{{ url_for('ersatzteile.bestellung_csv_export', bestellung_id=bestellung.ID) }}" class="btn btn-outline-secondary">
                 <i class="bi bi-filetype-csv"></i> CSV exportieren
             </a>
+            {% if kann_bestellstatus_zuruecksetzen %}
+            <form method="POST"
+                  action="{{ url_for('ersatzteile.bestellung_bestellstatus_zuruecksetzen', bestellung_id=bestellung.ID) }}"
+                  class="d-inline"
+                  onsubmit="return confirm('Bestellstatus auf „Erstellt“ zurücksetzen? Freigabe- und Bestelldaten (inkl. Unterschrift) werden gelöscht.');">
+                <button type="submit" class="btn btn-outline-warning">
+                    <i class="bi bi-arrow-counterclockwise"></i> Bestellstatus zurücksetzen
+                </button>
+            </form>
+            {% endif %}
             {% endif %}
             
             {% if bestellung.Status == 'Bestellt' and kann_buchen %}
@@ -320,18 +345,19 @@
         </div>
     </div>
 </div>
+{% endif %}
 
 <!-- Positionen -->
 <div class="card mb-4 shadow-sm">
     <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
         <h5 class="mb-0">Positionen</h5>
-        {% if bestellung.Status in ['Erstellt', 'Zur Freigabe'] %}
+        {% if bestellung.Status in ['Erstellt', 'Zur Freigabe'] and not bestellung.Gelöscht %}
         <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#addPositionCollapse">
             <i class="bi bi-plus-circle"></i> Position hinzufügen
         </button>
         {% endif %}
     </div>
-    {% if bestellung.Status in ['Erstellt', 'Zur Freigabe'] %}
+    {% if bestellung.Status in ['Erstellt', 'Zur Freigabe'] and not bestellung.Gelöscht %}
     <div class="collapse" id="addPositionCollapse">
         <div class="card-body">
             <form method="POST" action="{{ url_for('ersatzteile.bestellung_position_hinzufuegen', bestellung_id=bestellung.ID) }}">
@@ -473,7 +499,7 @@
                         </td>
                         <td>
                             <div class="d-flex gap-1">
-                                {% if bestellung.Status in ['Erstellt', 'Zur Freigabe'] %}
+                                {% if bestellung.Status in ['Erstellt', 'Zur Freigabe'] and not bestellung.Gelöscht %}
                                 <button class="btn btn-sm btn-outline-primary" onclick="openEditPositionModal({{ p.ID }}, '{{ p.Bestellnummer|replace("'", "\\'") or '' }}', '{{ p.Bezeichnung|replace("'", "\\'") or '' }}', {{ p.Menge }}, '{{ p.Einheit|replace("'", "\\'") or 'Stück' }}', {{ p.Preis or 0 }}, '{{ p.Waehrung or 'EUR' }}', '{{ p.Bemerkung|replace("'", "\\'") or '' }}', {% if p.Link %}'{{ p.Link|replace("'", "\\'") }}'{% else %}''{% endif %}, {{ p.KostenstelleID or 'null' }})">
                                     <i class="bi bi-pencil"></i>
                                 </button>
@@ -484,7 +510,7 @@
                                     </button>
                                 </form>
                                 {% endif %}
-                                {% if bestellung.Status in ['Freigegeben', 'Bestellt'] and not p.ErsatzteilID and p.Bestellnummer and p.Bezeichnung %}
+                                {% if bestellung.Status in ['Freigegeben', 'Bestellt'] and not bestellung.Gelöscht and not p.ErsatzteilID and p.Bestellnummer and p.Bezeichnung %}
                                 <form method="POST" action="{{ url_for('ersatzteile.bestellung_position_artikel_erstellen', bestellung_id=bestellung.ID, position_id=p.ID) }}" 
                                       onsubmit="return confirm('Artikel aus dieser Position erstellen?');" class="d-inline">
                                     <button type="submit" class="btn btn-sm btn-outline-success" title="Artikel erstellen">
@@ -512,10 +538,13 @@
 <div class="card mb-4 shadow-sm">
     <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0">📄 Bestellungs-PDFs</h5>
+        {% if not bestellung.Gelöscht %}
         <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#pdfUploadCollapse">
             <i class="bi bi-plus-circle"></i> PDF hochladen
         </button>
+        {% endif %}
     </div>
+    {% if not bestellung.Gelöscht %}
     <div class="collapse" id="pdfUploadCollapse">
         <div class="card-body">
             {{ datei_upload(
@@ -531,6 +560,7 @@
             ) }}
         </div>
     </div>
+    {% endif %}
     <div class="card-body">
         {{ datei_liste(
             dateien=dateien,
@@ -540,7 +570,8 @@
             is_admin=is_admin,
             datei_anzeigen_route='ersatzteile.bestellung_datei_anzeigen',
             datei_loeschen_route='ersatzteile.datei_loeschen',
-            nur_bilder=False
+            nur_bilder=False,
+            allow_delete=is_admin and not bestellung.Gelöscht
         ) }}
     </div>
 </div>
@@ -551,10 +582,13 @@
 <div class="card mb-4 shadow-sm">
     <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0">📋 Auftragsbestätigungen</h5>
+        {% if not bestellung.Gelöscht %}
         <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#auftragsbestätigungUploadCollapse">
             <i class="bi bi-plus-circle"></i> Auftragsbestätigung hochladen
         </button>
+        {% endif %}
     </div>
+    {% if not bestellung.Gelöscht %}
     <div class="collapse" id="auftragsbestätigungUploadCollapse">
         <div class="card-body">
             {{ datei_upload(
@@ -570,6 +604,7 @@
             ) }}
         </div>
     </div>
+    {% endif %}
     <div class="card-body">
         {{ datei_liste(
             dateien=auftragsbestätigungen,
@@ -579,7 +614,8 @@
             is_admin=is_admin,
             datei_anzeigen_route='ersatzteile.auftragsbestätigung_anzeigen',
             datei_loeschen_route='ersatzteile.datei_loeschen',
-            nur_bilder=False
+            nur_bilder=False,
+            allow_delete=is_admin and not bestellung.Gelöscht
         ) }}
     </div>
 </div>
@@ -590,10 +626,13 @@
 <div class="card mb-4 shadow-sm">
     <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0">📦 Lieferscheine</h5>
+        {% if not bestellung.Gelöscht %}
         <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#lieferscheinUploadCollapse">
             <i class="bi bi-plus-circle"></i> Lieferschein hochladen
         </button>
+        {% endif %}
     </div>
+    {% if not bestellung.Gelöscht %}
     <div class="collapse" id="lieferscheinUploadCollapse">
         <div class="card-body">
             {{ datei_upload(
@@ -609,6 +648,7 @@
             ) }}
         </div>
     </div>
+    {% endif %}
     <div class="card-body">
         {{ datei_liste(
             dateien=lieferscheine,
@@ -618,7 +658,8 @@
             is_admin=is_admin,
             datei_anzeigen_route='ersatzteile.lieferschein_anzeigen',
             datei_loeschen_route='ersatzteile.datei_loeschen',
-            nur_bilder=False
+            nur_bilder=False,
+            allow_delete=is_admin and not bestellung.Gelöscht
         ) }}
     </div>
 </div>
@@ -629,10 +670,13 @@
 <div class="card mb-4 shadow-sm">
     <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0">🧾 Rechnungen</h5>
+        {% if not bestellung.Gelöscht %}
         <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#rechnungUploadCollapse">
             <i class="bi bi-plus-circle"></i> Rechnung hochladen
         </button>
+        {% endif %}
     </div>
+    {% if not bestellung.Gelöscht %}
     <div class="collapse" id="rechnungUploadCollapse">
         <div class="card-body">
             {{ datei_upload(
@@ -648,6 +692,7 @@
             ) }}
         </div>
     </div>
+    {% endif %}
     <div class="card-body">
         {{ datei_liste(
             dateien=rechnungen,
@@ -657,7 +702,8 @@
             is_admin=is_admin,
             datei_anzeigen_route='ersatzteile.rechnung_anzeigen',
             datei_loeschen_route='ersatzteile.datei_loeschen',
-            nur_bilder=False
+            nur_bilder=False,
+            allow_delete=is_admin and not bestellung.Gelöscht
         ) }}
     </div>
 </div>

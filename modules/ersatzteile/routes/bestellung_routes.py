@@ -41,6 +41,7 @@ def bestellung_liste():
             SELECT 
                 b.ID,
                 b.Status,
+                b.Gelöscht,
                 b.ErstelltAm,
                 b.FreigegebenAm,
                 b.BestelltAm,
@@ -61,9 +62,27 @@ def bestellung_liste():
             LEFT JOIN Mitarbeiter m3 ON b.BestelltVonID = m3.ID
             LEFT JOIN Abteilung abt ON b.ErstellerAbteilungID = abt.ID
             LEFT JOIN BestellungPosition bp ON b.ID = bp.BestellungID
-            WHERE b.Gelöscht = 0
+            WHERE 1=1
         '''
         params = []
+
+        filter_geloescht = 'Gelöscht' in status_filter_list
+        status_ohne_geloescht = [s for s in status_filter_list if s != 'Gelöscht']
+
+        if filter_geloescht and not status_ohne_geloescht:
+            query += ' AND b.Gelöscht = 1'
+        elif filter_geloescht and status_ohne_geloescht:
+            placeholders = ','.join(['?'] * len(status_ohne_geloescht))
+            query += f' AND (b.Gelöscht = 1 OR (b.Gelöscht = 0 AND b.Status IN ({placeholders})))'
+            params.extend(status_ohne_geloescht)
+        else:
+            query += ' AND b.Gelöscht = 0'
+            if status_ohne_geloescht:
+                placeholders = ','.join(['?'] * len(status_ohne_geloescht))
+                query += f' AND b.Status IN ({placeholders})'
+                params.extend(status_ohne_geloescht)
+            else:
+                query += " AND b.Status != 'Erledigt' AND b.Status != 'Storniert'"
         
         # Sichtbarkeitsfilter: Nur Bestellungen mit Sichtbarkeit für sichtbare Abteilungen
         if not is_admin and sichtbare_abteilungen:
@@ -79,15 +98,6 @@ def bestellung_liste():
         elif not is_admin:
             # Keine Berechtigung - keine Bestellungen anzeigen
             query += ' AND 1=0'
-        
-        # Status-Filter (mehrere Status möglich)
-        if status_filter_list:
-            placeholders = ','.join(['?'] * len(status_filter_list))
-            query += f' AND b.Status IN ({placeholders})'
-            params.extend(status_filter_list)
-        else:
-            # Standard: Erledigt und Storniert ausschließen
-            query += " AND b.Status != 'Erledigt' AND b.Status != 'Storniert'"
         
         # Lieferant-Filter
         if lieferant_filter:
@@ -257,7 +267,7 @@ def bestellung_detail(bestellung_id):
             LEFT JOIN Mitarbeiter m2 ON b.FreigegebenVonID = m2.ID
             LEFT JOIN Mitarbeiter m3 ON b.BestelltVonID = m3.ID
             LEFT JOIN Abteilung abt ON b.ErstellerAbteilungID = abt.ID
-            WHERE b.ID = ? AND b.Gelöscht = 0
+            WHERE b.ID = ?
         ''', (bestellung_id,)).fetchone()
         
         if not bestellung:
@@ -339,6 +349,12 @@ def bestellung_detail(bestellung_id):
             bestellung['Status'] == 'Zur Freigabe'
             and (is_admin or has_bestellungen_erstellen or ist_ersteller)
         )
+
+        # Bestellstatus zurücksetzen: nur im Status "Bestellt", Freigabe- und Bestelldaten werden entfernt
+        kann_bestellstatus_zuruecksetzen = (
+            bestellung['Status'] == 'Bestellt'
+            and (is_admin or has_bestellungen_erstellen or kann_freigeben or ist_ersteller)
+        )
     
     return render_template(
         'bestellung_detail.html',
@@ -354,6 +370,7 @@ def bestellung_detail(bestellung_id):
         waehrung=waehrung,
         kann_freigabebemerkung_bearbeiten=kann_freigabebemerkung_bearbeiten,
         kann_anfrage_zurueckziehen=kann_anfrage_zurueckziehen,
+        kann_bestellstatus_zuruecksetzen=kann_bestellstatus_zuruecksetzen,
         is_admin=is_admin,
         status_filter_list=status_filter_list,
         lieferant_filter=lieferant_filter,
@@ -979,6 +996,88 @@ def bestellung_als_bestellt(bestellung_id):
         
         flash('Bestellung wurde als bestellt markiert.', 'success')
     
+    return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/bestellstatus-zuruecksetzen', methods=['POST'])
+@login_required
+def bestellung_bestellstatus_zuruecksetzen(bestellung_id):
+    """Status von 'Bestellt' auf 'Erstellt' setzen; Freigabe- und Bestelldaten löschen."""
+    mitarbeiter_id = session.get('user_id')
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
+    has_bestellungen_erstellen = 'bestellungen_erstellen' in session.get('user_berechtigungen', [])
+    has_bestellungen_freigeben = 'bestellungen_freigeben' in session.get('user_berechtigungen', [])
+    kann_freigeben = is_admin or has_bestellungen_freigeben
+
+    try:
+        with get_db_connection() as conn:
+            bestellung = conn.execute(
+                '''
+                SELECT Status, ErstelltVonID
+                FROM Bestellung
+                WHERE ID = ? AND Gelöscht = 0
+                ''',
+                (bestellung_id,),
+            ).fetchone()
+
+            if not bestellung:
+                flash('Bestellung nicht gefunden.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_liste'))
+
+            if bestellung['Status'] != 'Bestellt':
+                flash('Der Bestellstatus kann nur im Status „Bestellt“ zurückgesetzt werden.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+            ist_ersteller = bestellung['ErstelltVonID'] == mitarbeiter_id if bestellung['ErstelltVonID'] else False
+            if not (is_admin or has_bestellungen_erstellen or kann_freigeben or ist_ersteller):
+                flash('Sie haben keine Berechtigung, den Bestellstatus zurückzusetzen.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+            if not is_admin:
+                sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+                sichtbarkeiten = conn.execute(
+                    'SELECT AbteilungID FROM BestellungSichtbarkeit WHERE BestellungID = ?',
+                    (bestellung_id,),
+                ).fetchall()
+                sichtbarkeits_ids = [s['AbteilungID'] for s in sichtbarkeiten]
+                if not any(abt in sichtbare_abteilungen for abt in sichtbarkeits_ids):
+                    flash('Sie haben keine Berechtigung, diese Bestellung zu bearbeiten.', 'danger')
+                    return redirect(url_for('ersatzteile.bestellung_liste'))
+
+            conn.execute(
+                '''
+                UPDATE Bestellung
+                SET Status = 'Erstellt',
+                    FreigegebenAm = NULL,
+                    FreigegebenVonID = NULL,
+                    FreigabeBemerkung = NULL,
+                    Unterschrift = NULL,
+                    BestelltAm = NULL,
+                    BestelltVonID = NULL
+                WHERE ID = ?
+                ''',
+                (bestellung_id,),
+            )
+            conn.execute(
+                '''
+                DELETE FROM Benachrichtigung
+                WHERE Modul = 'bestellwesen'
+                AND (Zusatzdaten LIKE ? OR Zusatzdaten LIKE ?)
+                ''',
+                (f'%"bestellung_id":{bestellung_id}%', f'%"bestellung_id": {bestellung_id}%'),
+            )
+            conn.commit()
+
+        flash(
+            'Bestellstatus wurde auf „Erstellt“ zurückgesetzt. Freigabe- und Bestelldaten wurden entfernt.',
+            'success',
+        )
+    except Exception as e:
+        import traceback
+
+        print(f"Fehler beim Zurücksetzen des Bestellstatus: {traceback.format_exc()}")
+        flash(f'Fehler beim Zurücksetzen: {str(e)}', 'danger')
+
     return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
 
 

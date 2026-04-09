@@ -73,8 +73,12 @@
                                 <input class="form-check-input" type="checkbox" name="status" value="Storniert" id="status_storniert" {% if 'Storniert' in status_filter_list %}checked{% endif %}>
                                 <label class="form-check-label" for="status_storniert">Storniert</label>
                             </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="status" value="Gelöscht" id="status_geloescht" {% if 'Gelöscht' in status_filter_list %}checked{% endif %}>
+                                <label class="form-check-label" for="status_geloescht">Gelöscht</label>
+                            </div>
                         </div>
-                        <small class="text-muted">Wenn keine Status ausgewählt, werden alle außer "Erledigt" und "Storniert" angezeigt.</small>
+                        <small class="text-muted">Wenn keine Status ausgewählt, werden alle außer „Erledigt“ und „Storniert“ angezeigt (ohne gelöschte). Mit „Gelöscht“ erscheinen archivierte Bestellungen; zusätzlich gewählte Status gelten für nicht gelöschte Einträge.</small>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Lieferant</label>
@@ -183,6 +187,9 @@
                         </td>
                         <td>{{ b.LieferantName or '-' }}</td>
                         <td>
+                            {% if b.Gelöscht %}
+                            <span class="badge bg-secondary">Gelöscht</span>
+                            {% endif %}
                             {% if b.Status == 'Erstellt' %}
                             <span class="badge bg-secondary">Erstellt</span>
                             {% elif b.Status == 'Zur Freigabe' %}
@@ -238,7 +245,7 @@
                                     <i class="bi bi-file-earmark-pdf"></i>
                                 </button>
                                 {% endif %}
-                                {% if ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) and b.Status in ['Erstellt', 'Zur Freigabe', 'Freigegeben', 'Bestellt'] %}
+                                {% if ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) and not b.Gelöscht and b.Status in ['Erstellt', 'Zur Freigabe', 'Freigegeben', 'Bestellt'] %}
                                 <button type="button" class="btn btn-sm btn-outline-danger" onclick="loescheBestellung({{ b.ID }})" title="Bestellung löschen">
                                     <i class="bi bi-trash"></i>
                                 </button>
@@ -367,6 +374,9 @@
                     
                     <div class="mb-2">
                         <strong>Status:</strong>
+                        {% if b.Gelöscht %}
+                        <span class="badge bg-secondary">Gelöscht</span>
+                        {% endif %}
                         {% if b.Status == 'Erstellt' %}
                         <span class="badge bg-secondary">Erstellt</span>
                         {% elif b.Status == 'Zur Freigabe' %}
@@ -516,7 +526,7 @@
                                 <i class="bi bi-file-earmark-pdf"></i>
                             </button>
                             {% endif %}
-                            {% if ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) and b.Status in ['Erstellt', 'Zur Freigabe', 'Freigegeben', 'Bestellt'] %}
+                            {% if ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) and not b.Gelöscht and b.Status in ['Erstellt', 'Zur Freigabe', 'Freigegeben', 'Bestellt'] %}
                             <button type="button" class="btn btn-sm btn-outline-danger" onclick="loescheBestellung({{ b.ID }})" title="Bestellung löschen">
                                 <i class="bi bi-trash"></i> Löschen
                             </button>
