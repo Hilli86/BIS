@@ -134,6 +134,7 @@ def init_database():
             print("  [OK] Tabelle Mitarbeiter erstellt")
         else:
             print("  [SKIP] Tabelle Mitarbeiter existiert bereits")
+        create_column_if_not_exists(conn, 'Mitarbeiter', 'StartseiteNachLoginEndpunkt', 'ALTER TABLE Mitarbeiter ADD COLUMN StartseiteNachLoginEndpunkt TEXT NULL')
         step += 1
         
         # ========== 2. Abteilung ==========

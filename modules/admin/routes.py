@@ -8,18 +8,28 @@ from werkzeug.security import generate_password_hash
 import sqlite3
 from . import admin_bp
 from utils import get_db_connection, admin_required
-from utils.zebra_client import send_zpl_to_printer, build_test_label
+from utils.zebra_client import (
+    send_zpl_to_printer,
+    build_test_label,
+    zpl_header_from_dimensions,
+    merge_zpl_header_base_and_extra,
+    zpl_test_label_preview_segments,
+)
+from utils.etikett_druck import FUNKTIONEN_ADMIN
 from utils.helpers import row_to_dict
 from utils.menue_definitions import get_alle_menue_definitionen, get_menue_sichtbarkeit_fuer_mitarbeiter
+from utils.auth_redirect import LOGIN_STARTSEITEN_AUSWAHL, normalisiere_startseite_endpunkt
 from modules.wartungen import services as wartungen_services
 
 
-def ajax_response(message, success=True, status_code=None):
-    """Hilfsfunktion für AJAX/Standard-Responses"""
+def ajax_response(message, success=True, status_code=None, **extra):
+    """Hilfsfunktion für AJAX/Standard-Responses (optional zusätzliche JSON-Felder via **extra)."""
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         if status_code is None:
             status_code = 200 if success else 400
-        return jsonify({'success': success, 'message': message}), status_code
+        payload = {'success': success, 'message': message}
+        payload.update(extra)
+        return jsonify(payload), status_code
     else:
         flash(message, 'success' if success else 'danger')
         return redirect(url_for('admin.dashboard'))
@@ -32,7 +42,8 @@ def dashboard():
     with get_db_connection() as conn:
         mitarbeiter = conn.execute('''
             SELECT m.ID, m.Personalnummer, m.Vorname, m.Nachname, m.Email, m.Handynummer, m.Aktiv,
-                   a.Bezeichnung AS PrimaerAbteilung, m.PrimaerAbteilungID
+                   a.Bezeichnung AS PrimaerAbteilung, m.PrimaerAbteilungID,
+                   m.StartseiteNachLoginEndpunkt
             FROM Mitarbeiter m
             LEFT JOIN Abteilung a ON m.PrimaerAbteilungID = a.ID
             ORDER BY m.Nachname, m.Vorname
@@ -133,25 +144,42 @@ def dashboard():
 
         # Zebra-Drucker und Etikettenformate laden
         zebra_printers = conn.execute('''
-            SELECT id, name, ip_address, description, active
+            SELECT id, name, ip_address, description, ort, active
             FROM zebra_printers
-            ORDER BY name
+            ORDER BY COALESCE(ort, ''), name
         ''').fetchall()
         label_formats = conn.execute('''
-            SELECT id, name, description, width_mm, height_mm, orientation, zpl_header
+            SELECT id, name, description, width_mm, height_mm, orientation, zpl_header, zpl_zusatz
             FROM label_formats
             ORDER BY name
         ''').fetchall()
         
         # Etiketten laden mit zpl_header aus label_formats
         etiketten = conn.execute('''
-            SELECT e.id, e.bezeichnung, e.drucker_id, e.etikettformat_id, e.druckbefehle,
-                   lf.zpl_header, p.ip_address
+            SELECT e.id, e.bezeichnung, e.etikettformat_id, e.druckbefehle,
+                   lf.zpl_header
             FROM Etikett e
             LEFT JOIN label_formats lf ON e.etikettformat_id = lf.id
-            LEFT JOIN zebra_printers p ON e.drucker_id = p.id
             ORDER BY e.bezeichnung
         ''').fetchall()
+
+        druck_konfig_rows = conn.execute('''
+            SELECT k.id, k.funktion_code, k.etikett_id, k.drucker_id, k.prioritaet, k.aktiv,
+                   e.bezeichnung AS etikett_bezeichnung
+            FROM etikett_druck_konfig k
+            JOIN Etikett e ON e.id = k.etikett_id
+            ORDER BY k.funktion_code, k.prioritaet DESC, k.id
+        ''').fetchall()
+        konfig_abt = {}
+        for row in conn.execute(
+            'SELECT konfig_id, abteilung_id FROM etikett_druck_konfig_abteilung'
+        ):
+            konfig_abt.setdefault(row['konfig_id'], []).append(row['abteilung_id'])
+        etikett_druck_konfigen = []
+        for r in druck_konfig_rows:
+            d = dict(r)
+            d['abteilung_ids'] = konfig_abt.get(r['id'], [])
+            etikett_druck_konfigen.append(d)
 
     menue_definitionen = get_alle_menue_definitionen()
 
@@ -177,7 +205,10 @@ def dashboard():
                            berechtigungen=berechtigungen,
                            zebra_printers=zebra_printers,
                            label_formats=label_formats,
-                           etiketten=etiketten)
+                           etiketten=etiketten,
+                           etikett_druck_konfigen=etikett_druck_konfigen,
+                           druck_funktionen=FUNKTIONEN_ADMIN,
+                           login_startseiten_auswahl=LOGIN_STARTSEITEN_AUSWAHL)
 
 
 # ========== Zebra-Drucker Verwaltung ==========
@@ -193,6 +224,7 @@ def zebra_printer_save():
     name = request.form.get('name', '').strip()
     ip_address = request.form.get('ip_address', '').strip()
     description = request.form.get('description', '').strip() or None
+    ort = request.form.get('ort', '').strip() or None
     active = 1 if request.form.get('active') == 'on' else 0
 
     if not name or not ip_address:
@@ -203,14 +235,14 @@ def zebra_printer_save():
             if printer_id:
                 conn.execute('''
                     UPDATE zebra_printers
-                    SET name = ?, ip_address = ?, description = ?, active = ?, updated_at = datetime('now', 'localtime')
+                    SET name = ?, ip_address = ?, description = ?, ort = ?, active = ?, updated_at = datetime('now', 'localtime')
                     WHERE id = ?
-                ''', (name, ip_address, description, active, printer_id))
+                ''', (name, ip_address, description, ort, active, printer_id))
             else:
                 conn.execute('''
-                    INSERT INTO zebra_printers (name, ip_address, description, active, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'))
-                ''', (name, ip_address, description, active))
+                    INSERT INTO zebra_printers (name, ip_address, description, ort, active, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'))
+                ''', (name, ip_address, description, ort, active))
             conn.commit()
         return ajax_response('Zebra-Drucker gespeichert.')
     except Exception as e:
@@ -248,29 +280,57 @@ def zebra_label_save():
     description = request.form.get('description', '').strip() or None
     width_mm = request.form.get('width_mm', type=int)
     height_mm = request.form.get('height_mm', type=int)
-    orientation = request.form.get('orientation', 'portrait').strip() or 'portrait'
-    zpl_header = request.form.get('zpl_header', '').strip()
+    zpl_zusatz = request.form.get('zpl_zusatz', '').strip() or None
+    orientation = 'portrait'
 
-    if not name or not width_mm or not height_mm or not zpl_header:
-        return ajax_response('Bitte Name, Breite, Höhe und ZPL-Header ausfüllen.', success=False)
+    if not name or not width_mm or not height_mm:
+        return ajax_response('Bitte Name, Breite und Höhe ausfüllen.', success=False)
+
+    base = zpl_header_from_dimensions(width_mm, height_mm)
+    zpl_header = merge_zpl_header_base_and_extra(base, zpl_zusatz)
 
     try:
         with get_db_connection() as conn:
             if label_id:
                 conn.execute('''
                     UPDATE label_formats
-                    SET name = ?, description = ?, width_mm = ?, height_mm = ?, orientation = ?, zpl_header = ?, updated_at = datetime('now', 'localtime')
+                    SET name = ?, description = ?, width_mm = ?, height_mm = ?, orientation = ?, zpl_header = ?, zpl_zusatz = ?, updated_at = datetime('now', 'localtime')
                     WHERE id = ?
-                ''', (name, description, width_mm, height_mm, orientation, zpl_header, label_id))
+                ''', (name, description, width_mm, height_mm, orientation, zpl_header, zpl_zusatz, label_id))
             else:
                 conn.execute('''
-                    INSERT INTO label_formats (name, description, width_mm, height_mm, orientation, zpl_header, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'))
-                ''', (name, description, width_mm, height_mm, orientation, zpl_header))
+                    INSERT INTO label_formats (name, description, width_mm, height_mm, orientation, zpl_header, zpl_zusatz, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'))
+                ''', (name, description, width_mm, height_mm, orientation, zpl_header, zpl_zusatz))
             conn.commit()
         return ajax_response('Etikettenformat gespeichert.')
     except Exception as e:
         return ajax_response(f'Fehler beim Speichern des Etikettenformats: {str(e)}', success=False, status_code=500)
+
+
+@admin_bp.route('/zebra/label-format/preview', methods=['POST'])
+@admin_required
+def zebra_label_format_preview():
+    """Vorschau-ZPL für ein Etikettenformat aus Maßen und optionalem ZPL-Zusatz (ohne DB-Zugriff)."""
+    width_mm = request.form.get('width_mm', type=int)
+    height_mm = request.form.get('height_mm', type=int)
+    zpl_zusatz = request.form.get('zpl_zusatz', '').strip() or None
+    label_name = request.form.get('name', '').strip() or None
+    if not width_mm or not height_mm:
+        return ajax_response('Breite und Höhe sind erforderlich.', success=False)
+    try:
+        base = zpl_header_from_dimensions(width_mm, height_mm)
+        header = merge_zpl_header_base_and_extra(base, zpl_zusatz)
+        segs = zpl_test_label_preview_segments(header, label_name)
+        return ajax_response(
+            'OK',
+            zpl=segs['full'],
+            zpl_xa=segs['xa'],
+            zpl_format_teil=segs['format'],
+            zpl_vorschau_teil=segs['demo'],
+        )
+    except Exception as e:
+        return ajax_response(f'Vorschau nicht möglich: {str(e)}', success=False, status_code=500)
 
 
 # ========== Zebra-Testdruck ==========
@@ -339,26 +399,18 @@ def zebra_etikett_save():
     """
     etikett_id = request.form.get('id')
     bezeichnung = request.form.get('bezeichnung', '').strip()
-    drucker_id = request.form.get('drucker_id', type=int)
     etikettformat_id = request.form.get('etikettformat_id', type=int)
     druckbefehle = request.form.get('druckbefehle', '').strip()
 
-    if not bezeichnung or not drucker_id or not etikettformat_id or not druckbefehle:
-        return ajax_response('Bitte alle Felder ausfüllen.', success=False)
+    if not bezeichnung or not etikettformat_id or not druckbefehle:
+        return ajax_response('Bitte Bezeichnung, Format und Druckbefehle ausfüllen.', success=False)
 
     try:
         with get_db_connection() as conn:
-            # Prüfe ob Drucker und Format existieren
-            printer = conn.execute('SELECT id FROM zebra_printers WHERE id = ?', (drucker_id,)).fetchone()
             label_format = conn.execute('SELECT id FROM label_formats WHERE id = ?', (etikettformat_id,)).fetchone()
-            
-            if not printer:
-                return ajax_response('Ausgewählter Drucker nicht gefunden.', success=False)
             if not label_format:
                 return ajax_response('Ausgewähltes Etikettenformat nicht gefunden.', success=False)
-            
-            # Falls keine ID mitkommt, aber bereits ein Etikett mit gleicher Bezeichnung existiert,
-            # interpretieren wir den Aufruf als "Aktualisieren" statt "neu anlegen".
+
             if not etikett_id:
                 existing = conn.execute(
                     'SELECT id FROM Etikett WHERE bezeichnung = ? LIMIT 1',
@@ -366,22 +418,93 @@ def zebra_etikett_save():
                 ).fetchone()
                 if existing:
                     etikett_id = existing['id']
-            
+
             if etikett_id:
                 conn.execute('''
                     UPDATE Etikett
-                    SET bezeichnung = ?, drucker_id = ?, etikettformat_id = ?, druckbefehle = ?, updated_at = datetime('now', 'localtime')
+                    SET bezeichnung = ?, etikettformat_id = ?, druckbefehle = ?, updated_at = datetime('now', 'localtime')
                     WHERE id = ?
-                ''', (bezeichnung, drucker_id, etikettformat_id, druckbefehle, etikett_id))
+                ''', (bezeichnung, etikettformat_id, druckbefehle, etikett_id))
             else:
                 conn.execute('''
-                    INSERT INTO Etikett (bezeichnung, drucker_id, etikettformat_id, druckbefehle, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'))
-                ''', (bezeichnung, drucker_id, etikettformat_id, druckbefehle))
+                    INSERT INTO Etikett (bezeichnung, etikettformat_id, druckbefehle, created_at, updated_at)
+                    VALUES (?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'))
+                ''', (bezeichnung, etikettformat_id, druckbefehle))
             conn.commit()
         return ajax_response('Etikett gespeichert.')
     except Exception as e:
         return ajax_response(f'Fehler beim Speichern des Etiketts: {str(e)}', success=False, status_code=500)
+
+
+@admin_bp.route('/zebra/druck_konfig/save', methods=['POST'])
+@admin_required
+def zebra_druck_konfig_save():
+    """Druckfunktion-Konfiguration anlegen oder aktualisieren."""
+    kid = request.form.get('id', type=int)
+    funktion_code = request.form.get('funktion_code', '').strip()
+    etikett_id = request.form.get('etikett_id', type=int)
+    drucker_raw = request.form.get('drucker_id', '').strip()
+    drucker_id = int(drucker_raw) if drucker_raw else None
+    prioritaet = request.form.get('prioritaet', type=int)
+    if prioritaet is None:
+        prioritaet = 0
+    aktiv = 1 if request.form.get('aktiv') == 'on' else 0
+    abteilung_ids = []
+    for x in request.form.getlist('abteilung_ids'):
+        try:
+            abteilung_ids.append(int(x))
+        except (TypeError, ValueError):
+            pass
+
+    if not funktion_code or not etikett_id:
+        return ajax_response('Funktion und Etikett sind erforderlich.', success=False)
+
+    try:
+        with get_db_connection() as conn:
+            et = conn.execute('SELECT id FROM Etikett WHERE id = ?', (etikett_id,)).fetchone()
+            if not et:
+                return ajax_response('Etikett nicht gefunden.', success=False)
+            if drucker_id is not None:
+                pr = conn.execute('SELECT id FROM zebra_printers WHERE id = ?', (drucker_id,)).fetchone()
+                if not pr:
+                    return ajax_response('Drucker nicht gefunden.', success=False)
+
+            if kid:
+                conn.execute('''
+                    UPDATE etikett_druck_konfig
+                    SET funktion_code = ?, etikett_id = ?, drucker_id = ?, prioritaet = ?, aktiv = ?,
+                        updated_at = datetime('now', 'localtime')
+                    WHERE id = ?
+                ''', (funktion_code, etikett_id, drucker_id, prioritaet, aktiv, kid))
+            else:
+                ins = conn.execute('''
+                    INSERT INTO etikett_druck_konfig (funktion_code, etikett_id, drucker_id, prioritaet, aktiv, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'))
+                ''', (funktion_code, etikett_id, drucker_id, prioritaet, aktiv))
+                kid = ins.lastrowid
+
+            conn.execute('DELETE FROM etikett_druck_konfig_abteilung WHERE konfig_id = ?', (kid,))
+            for aid in abteilung_ids:
+                conn.execute('''
+                    INSERT INTO etikett_druck_konfig_abteilung (konfig_id, abteilung_id) VALUES (?, ?)
+                ''', (kid, aid))
+            conn.commit()
+        return ajax_response('Druckkonfiguration gespeichert.')
+    except Exception as e:
+        return ajax_response(f'Fehler beim Speichern: {str(e)}', success=False, status_code=500)
+
+
+@admin_bp.route('/zebra/druck_konfig/delete/<int:kid>', methods=['POST'])
+@admin_required
+def zebra_druck_konfig_delete(kid):
+    try:
+        with get_db_connection() as conn:
+            conn.execute('DELETE FROM etikett_druck_konfig_abteilung WHERE konfig_id = ?', (kid,))
+            conn.execute('DELETE FROM etikett_druck_konfig WHERE id = ?', (kid,))
+            conn.commit()
+        return ajax_response('Druckkonfiguration gelöscht.')
+    except Exception as e:
+        return ajax_response(f'Fehler beim Löschen: {str(e)}', success=False, status_code=500)
 
 
 @admin_bp.route('/zebra/etiketten/testdruck', methods=['POST'])
@@ -422,6 +545,7 @@ def mitarbeiter_add():
     handynummer = request.form.get('handynummer', '').strip() or None
     aktiv = 1 if request.form.get('aktiv') == 'on' else 0
     passwort = request.form.get('passwort')
+    startseite_ep = normalisiere_startseite_endpunkt(request.form.get('startseite_nach_login'))
     
     if not personalnummer or not vorname or not nachname:
         return ajax_response('Bitte Personalnummer, Vorname und Nachname ausfüllen.', success=False)
@@ -429,11 +553,17 @@ def mitarbeiter_add():
     try:
         with get_db_connection() as conn:
             if passwort:
-                conn.execute('INSERT INTO Mitarbeiter (Personalnummer, Vorname, Nachname, Email, Handynummer, Aktiv, Passwort) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                             (personalnummer, vorname, nachname, email, handynummer, aktiv, generate_password_hash(passwort)))
+                conn.execute(
+                    '''INSERT INTO Mitarbeiter (Personalnummer, Vorname, Nachname, Email, Handynummer, Aktiv, Passwort,
+                       StartseiteNachLoginEndpunkt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                    (personalnummer, vorname, nachname, email, handynummer, aktiv, generate_password_hash(passwort), startseite_ep),
+                )
             else:
-                conn.execute('INSERT INTO Mitarbeiter (Personalnummer, Vorname, Nachname, Email, Handynummer, Aktiv) VALUES (?, ?, ?, ?, ?, ?)',
-                             (personalnummer, vorname, nachname, email, handynummer, aktiv))
+                conn.execute(
+                    '''INSERT INTO Mitarbeiter (Personalnummer, Vorname, Nachname, Email, Handynummer, Aktiv,
+                       StartseiteNachLoginEndpunkt) VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                    (personalnummer, vorname, nachname, email, handynummer, aktiv, startseite_ep),
+                )
             conn.commit()
         return ajax_response('Mitarbeiter erfolgreich angelegt.')
     except Exception as e:
@@ -450,10 +580,14 @@ def mitarbeiter_update(mid):
     handynummer = request.form.get('handynummer', '').strip() or None
     aktiv = 1 if request.form.get('aktiv') == 'on' else 0
     passwort = request.form.get('passwort')
+    startseite_ep = normalisiere_startseite_endpunkt(request.form.get('startseite_nach_login'))
     try:
         with get_db_connection() as conn:
-            conn.execute('UPDATE Mitarbeiter SET Vorname = ?, Nachname = ?, Email = ?, Handynummer = ?, Aktiv = ? WHERE ID = ?', 
-                        (vorname, nachname, email, handynummer, aktiv, mid))
+            conn.execute(
+                '''UPDATE Mitarbeiter SET Vorname = ?, Nachname = ?, Email = ?, Handynummer = ?, Aktiv = ?,
+                   StartseiteNachLoginEndpunkt = ? WHERE ID = ?''',
+                (vorname, nachname, email, handynummer, aktiv, startseite_ep, mid),
+            )
             if passwort:
                 conn.execute('UPDATE Mitarbeiter SET Passwort = ? WHERE ID = ?', (generate_password_hash(passwort), mid))
             conn.commit()

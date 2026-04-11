@@ -19,6 +19,7 @@
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-lieferant">Lieferanten</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-firmendaten">Firmendaten</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-datenbank">Datenbank</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-etikettendrucker">Etikettendrucker</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-etiketten">Etiketten</a></li>
   <li class="nav-item ms-auto"><a class="nav-link" href="{{ url_for('admin.login_logs') }}">Login-Logs</a></li>
   <li class="nav-item"><a class="nav-link" href="{{ url_for('dashboard.dashboard') }}">Zurück zum Dashboard</a></li>
@@ -37,6 +38,15 @@
           <div class="col-md-2"><input type="email" name="email" class="form-control" placeholder="E-Mail"></div>
           <div class="col-md-2"><input type="tel" name="handynummer" class="form-control" placeholder="Handynummer"></div>
           <div class="col-md-2"><input type="password" name="passwort" class="form-control" placeholder="Passwort (optional)"></div>
+          <div class="col-md-3">
+            <label class="form-label small text-muted mb-0">Startseite nach Login</label>
+            <select name="startseite_nach_login" class="form-select form-select-sm" title="Optional: feste Seite für Kiosk-Accounts">
+              <option value="">Standard (Dashboard)</option>
+              {% for ep, label in login_startseiten_auswahl %}
+              <option value="{{ ep }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
           <div class="col-md-1 form-check d-flex align-items-center">
             <input class="form-check-input" type="checkbox" name="aktiv" id="maAktiv" checked>
             <label class="form-check-label ms-1" for="maAktiv">Aktiv</label>
@@ -94,6 +104,15 @@
                       <div class="col-md-6">
                         <label class="form-label fw-bold">Neues Passwort:</label>
                         <input type="password" name="passwort" class="form-control form-control-sm" placeholder="Nur ausfüllen um zu ändern">
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label fw-bold">Startseite nach Login</label>
+                        <select name="startseite_nach_login" class="form-select form-select-sm" title="Optional: feste Seite (z. B. Kiosk); hat Vorrang vor „next“">
+                          <option value="" {% if not m.StartseiteNachLoginEndpunkt %}selected{% endif %}>Standard (Dashboard)</option>
+                          {% for ep, label in login_startseiten_auswahl %}
+                          <option value="{{ ep }}" {% if m.StartseiteNachLoginEndpunkt == ep %}selected{% endif %}>{{ label }}</option>
+                          {% endfor %}
+                        </select>
                       </div>
                       <div class="col-md-6">
                         <label class="form-label fw-bold">Status:</label>
@@ -1027,22 +1046,25 @@
     </div>
   </div>
 
-  <!-- Etiketten -->
-  <div class="tab-pane fade" id="tab-etiketten">
+  <!-- Etikettendrucker -->
+  <div class="tab-pane fade" id="tab-etikettendrucker">
     <div class="row">
       <div class="col-12">
         <div class="card mb-3">
           <div class="card-header">Zebradrucker</div>
           <div class="card-body">
-            <form action="{{ url_for('admin.zebra_printer_save') }}" method="post" class="row g-2 mb-3">
+            <form action="{{ url_for('admin.zebra_printer_save') }}" method="post" class="row g-2 mb-4 border-bottom pb-3" id="zebraDruckerNeuForm">
               <input type="hidden" name="id" value="">
-              <div class="col-md-4">
+              <div class="col-md-3">
                 <input name="name" class="form-control" placeholder="Name" required>
               </div>
-              <div class="col-md-4">
+              <div class="col-md-3">
                 <input name="ip_address" class="form-control" placeholder="IP-Adresse" required>
               </div>
-              <div class="col-md-3">
+              <div class="col-md-2">
+                <input name="ort" class="form-control" placeholder="Ort / Standort">
+              </div>
+              <div class="col-md-2">
                 <input name="description" class="form-control" placeholder="Beschreibung">
               </div>
               <div class="col-md-1 d-flex align-items-center">
@@ -1051,9 +1073,10 @@
                   <label class="form-check-label" for="zebraActiveNew">Aktiv</label>
                 </div>
               </div>
-              <div class="col-12">
-                <button class="btn btn-success btn-sm">Neuen Drucker anlegen</button>
-                <a href="{{ url_for('admin.zebra_test') }}" class="btn btn-outline-primary btn-sm ms-2">Testetikett drucken</a>
+              <div class="col-12 d-flex flex-wrap align-items-center gap-2">
+                <button type="submit" class="btn btn-success btn-sm" id="zebraDruckerSubmitBtn">Drucker anlegen</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="zebraDruckerVerwerfenBtn" onclick="verwerfeZebraDruckerAenderungen()">Änderungen verwerfen</button>
+                <a href="{{ url_for('admin.zebra_test') }}" class="btn btn-outline-primary btn-sm">Testetikett drucken</a>
               </div>
             </form>
 
@@ -1063,6 +1086,7 @@
                   <tr>
                     <th>Name</th>
                     <th>IP-Adresse</th>
+                    <th>Ort</th>
                     <th>Beschreibung</th>
                     <th>Aktiv</th>
                     <th>Aktionen</th>
@@ -1073,6 +1097,7 @@
                   <tr>
                     <td>{{ p.name }}</td>
                     <td>{{ p.ip_address }}</td>
+                    <td>{{ p.ort or '—' }}</td>
                     <td>{{ p.description or '—' }}</td>
                     <td>
                       {% if p.active %}
@@ -1082,29 +1107,15 @@
                       {% endif %}
                     </td>
                     <td>
-                      <form action="{{ url_for('admin.zebra_printer_save') }}" method="post" class="row g-1 mb-1">
-                        <input type="hidden" name="id" value="{{ p.id }}">
-                        <div class="col-md-3">
-                          <input name="name" class="form-control form-control-sm" value="{{ p.name }}">
-                        </div>
-                        <div class="col-md-3">
-                          <input name="ip_address" class="form-control form-control-sm" value="{{ p.ip_address }}">
-                        </div>
-                        <div class="col-md-4">
-                          <input name="description" class="form-control form-control-sm" value="{{ p.description or '' }}">
-                        </div>
-                        <div class="col-md-1 d-flex align-items-center">
-                          <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="active" id="zebraActive{{ p.id }}" {% if p.active %}checked{% endif %}>
-                            <label class="form-check-label" for="zebraActive{{ p.id }}">Aktiv</label>
-                          </div>
-                        </div>
-                        <div class="col-md-1">
-                          <button class="btn btn-sm btn-primary w-100"><i class="bi bi-save"></i></button>
-                        </div>
-                      </form>
+                      <button type="button" class="btn btn-sm btn-outline-primary" onclick="bearbeiteZebraDrucker(this)"
+                        data-pid="{{ p.id }}"
+                        data-name="{{ p.name|e }}"
+                        data-ip="{{ p.ip_address|e }}"
+                        data-ort="{{ (p.ort or '')|e }}"
+                        data-desc="{{ (p.description or '')|e }}"
+                        data-active="{{ 1 if p.active else 0 }}">Bearbeiten</button>
                       <form action="{{ url_for('admin.zebra_printer_toggle', pid=p.id) }}" method="post" class="d-inline">
-                        <button class="btn btn-sm btn-outline-secondary">
+                        <button type="submit" class="btn btn-sm btn-outline-secondary">
                           {% if p.active %}Deaktivieren{% else %}Aktivieren{% endif %}
                         </button>
                       </form>
@@ -1119,12 +1130,147 @@
       </div>
     </div>
 
+    <div class="row mt-2">
+      <div class="col-12">
+        <div class="card mb-3">
+          <div class="card-header">Druckfunktionen</div>
+          <div class="card-body">
+            <p class="text-muted small mb-3">
+              Pro Funktion können mehrere Zeilen existieren (z.&nbsp;B. je Abteilung). Ohne gewählte Abteilungen gilt die Zeile für alle.
+              Ohne Drucker öffnet die Anwendung bei interaktivem Druck ein Auswahl-Dialog; automatische Drucke (z.&nbsp;B. Wareneingang) benötigen einen gesetzten Drucker.
+            </p>
+            <form action="{{ url_for('admin.zebra_druck_konfig_save') }}" method="post" class="row g-2 mb-4 border-bottom pb-3" id="druckKonfigNeuForm">
+              <input type="hidden" name="id" value="">
+              <div class="col-md-3">
+                <select name="funktion_code" class="form-select" required>
+                  <option value="">— Druckfunktion —</option>
+                  {% for code, label in druck_funktionen %}
+                  <option value="{{ code }}">{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-2">
+                <select name="etikett_id" class="form-select" required>
+                  <option value="">— Etikett —</option>
+                  {% for e in etiketten %}
+                  <option value="{{ e.id }}">{{ e.bezeichnung }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-2">
+                <select name="drucker_id" class="form-select">
+                  <option value="">— Kein Standarddrucker —</option>
+                  {% for p in zebra_printers %}
+                    {% if p.active %}
+                    <option value="{{ p.id }}">{{ p.name }}{% if p.ort %} ({{ p.ort }}){% endif %}</option>
+                    {% endif %}
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-2">
+                <input type="number" name="prioritaet" class="form-control" value="0" placeholder="Priorität" title="Höher = bevorzugt bei mehreren Treffern">
+              </div>
+              <div class="col-md-1 d-flex align-items-center">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="aktiv" id="dkAktivNeu" checked>
+                  <label class="form-check-label" for="dkAktivNeu">Aktiv</label>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small mb-0">Abteilungen (keine = alle)</label>
+                <div id="dkAbteilungCheckboxes" class="border rounded p-2 d-flex flex-wrap gap-2" style="max-height:7rem;overflow-y:auto">
+                  {% for a in abteilungen %}
+                  {% if a.Aktiv %}
+                  <div class="form-check form-check-inline mb-0">
+                    <input class="form-check-input" type="checkbox" name="abteilung_ids" value="{{ a.ID }}" id="dkAbt{{ a.ID }}">
+                    <label class="form-check-label small" for="dkAbt{{ a.ID }}">{{ a.Bezeichnung }}</label>
+                  </div>
+                  {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+              <div class="col-12 d-flex flex-wrap align-items-center gap-2">
+                <button type="submit" class="btn btn-success btn-sm" id="druckKonfigSubmitBtn">Konfiguration anlegen</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="druckKonfigVerwerfenBtn" onclick="verwerfeDruckKonfigAenderungen()">Änderungen verwerfen</button>
+              </div>
+            </form>
+
+            <div class="table-responsive">
+              <table class="table table-sm table-striped align-middle">
+                <thead class="table-dark">
+                  <tr>
+                    <th>Funktion</th>
+                    <th>Etikett</th>
+                    <th>Drucker</th>
+                    <th>Priorität</th>
+                    <th>Abteilungen</th>
+                    <th>Aktiv</th>
+                    <th>Aktionen</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for k in etikett_druck_konfigen %}
+                  <tr>
+                    <td>
+                      {% set dkns = namespace(l=k.funktion_code) %}
+                      {% for code, label in druck_funktionen %}
+                        {% if code == k.funktion_code %}{% set dkns.l = label %}{% endif %}
+                      {% endfor %}
+                      {{ dkns.l }}
+                    </td>
+                    <td>{{ k.etikett_bezeichnung }}</td>
+                    <td>
+                      {% if k.drucker_id %}
+                        {% for p in zebra_printers %}
+                          {% if p.id == k.drucker_id %}{{ p.name }}{% if p.ort %} ({{ p.ort }}){% endif %}{% endif %}
+                        {% endfor %}
+                      {% else %}
+                        <span class="text-muted">Modal / Auswahl</span>
+                      {% endif %}
+                    </td>
+                    <td>{{ k.prioritaet }}</td>
+                    <td>
+                      {% if k.abteilung_ids|length == 0 %}
+                        <span class="badge bg-secondary">alle</span>
+                      {% else %}
+                        {% for aid in k.abteilung_ids %}
+                          {% for a in abteilungen %}
+                            {% if a.ID == aid %}<span class="badge bg-info me-1">{{ a.Bezeichnung }}</span>{% endif %}
+                          {% endfor %}
+                        {% endfor %}
+                      {% endif %}
+                    </td>
+                    <td>{% if k.aktiv %}<span class="badge bg-success">ja</span>{% else %}<span class="badge bg-secondary">nein</span>{% endif %}</td>
+                    <td>
+                      <button type="button" class="btn btn-sm btn-outline-primary" onclick="bearbeiteDruckKonfig(this)"
+                        data-kid="{{ k.id }}"
+                        data-funktion="{{ k.funktion_code|e }}"
+                        data-etikett="{{ k.etikett_id }}"
+                        data-drucker="{{ k.drucker_id or '' }}"
+                        data-prio="{{ k.prioritaet }}"
+                        data-aktiv="{{ k.aktiv }}"
+                        data-abt="{{ k.abteilung_ids|join(',') }}">Bearbeiten</button>
+                      <button type="button" class="btn btn-sm btn-outline-danger" onclick="loescheDruckKonfig({{ k.id }})">Löschen</button>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Etiketten -->
+  <div class="tab-pane fade" id="tab-etiketten">
     <div class="row">
       <div class="col-12">
         <div class="card mb-3">
           <div class="card-header">Etikettenformate</div>
           <div class="card-body">
-            <form action="{{ url_for('admin.zebra_label_save') }}" method="post" class="row g-2 mb-3">
+            <form action="{{ url_for('admin.zebra_label_save') }}" method="post" class="row g-2 mb-4 border-bottom pb-3" id="labelFormatNeuForm">
               <input type="hidden" name="id" value="">
               <div class="col-md-4">
                 <input name="name" class="form-control" placeholder="Name (z.B. 30x30 mm)" required>
@@ -1138,17 +1284,19 @@
               <div class="col-md-2">
                 <input type="number" name="height_mm" class="form-control" placeholder="Höhe mm" required>
               </div>
-              <div class="col-md-4">
-                <select name="orientation" class="form-select">
-                  <option value="portrait">Portrait</option>
-                  <option value="landscape">Landscape</option>
-                </select>
-              </div>
-              <div class="col-md-8">
-                <textarea name="zpl_header" class="form-control" rows="2" placeholder="ZPL-Header (^PW, ^LL, ^LS ...)" required></textarea>
+              <div class="col-12">
+                <p class="text-muted small mb-0">
+                  Der ZPL-Grundheader (^PW Druckbreite, ^LL Etikettenlänge im Vorschub) wird aus Breite und Höhe berechnet (203&nbsp;dpi). Breite und Länge entsprechen der physischen Kantenlage des Etiketts.
+                </p>
               </div>
               <div class="col-12">
-                <button class="btn btn-success btn-sm">Neues Etikettenformat anlegen</button>
+                <label class="form-label small mb-0">Optionale weitere ZPL-Befehle</label>
+                <textarea name="zpl_zusatz" class="form-control font-monospace" rows="3" placeholder="z. B. ^MMT oder ^PR4"></textarea>
+                <small class="text-muted">Eigene Zeilen; werden beim Speichern unterhalb von ^PW/^LL an den Header angehängt.</small>
+              </div>
+              <div class="col-12 d-flex flex-wrap align-items-center gap-2">
+                <button type="submit" class="btn btn-success btn-sm" id="labelFormatSubmitBtn">Neues Etikettenformat anlegen</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="labelFormatVerwerfenBtn" onclick="verwerfeLabelFormatAenderungen()">Änderungen verwerfen</button>
               </div>
             </form>
 
@@ -1158,7 +1306,6 @@
                   <tr>
                     <th>Name</th>
                     <th>Maße (mm)</th>
-                    <th>Ausrichtung</th>
                     <th>Aktionen</th>
                   </tr>
                 </thead>
@@ -1167,35 +1314,19 @@
                   <tr>
                     <td>{{ l.name }}</td>
                     <td>{{ l.width_mm }} x {{ l.height_mm }}</td>
-                    <td>{{ l.orientation }}</td>
                     <td>
-                      <form action="{{ url_for('admin.zebra_label_save') }}" method="post" class="row g-1">
-                        <input type="hidden" name="id" value="{{ l.id }}">
-                        <div class="col-md-3">
-                          <input name="name" class="form-control form-control-sm" value="{{ l.name }}">
-                        </div>
-                        <div class="col-md-3">
-                          <input name="description" class="form-control form-control-sm" value="{{ l.description or '' }}">
-                        </div>
-                        <div class="col-md-2">
-                          <input type="number" name="width_mm" class="form-control form-control-sm" value="{{ l.width_mm }}">
-                        </div>
-                        <div class="col-md-2">
-                          <input type="number" name="height_mm" class="form-control form-control-sm" value="{{ l.height_mm }}">
-                        </div>
-                        <div class="col-md-2">
-                          <select name="orientation" class="form-select form-select-sm">
-                            <option value="portrait" {% if l.orientation == 'portrait' %}selected{% endif %}>Portrait</option>
-                            <option value="landscape" {% if l.orientation == 'landscape' %}selected{% endif %}>Landscape</option>
-                          </select>
-                        </div>
-                        <div class="col-md-10 mt-1">
-                          <textarea name="zpl_header" class="form-control form-control-sm" rows="2">{{ l.zpl_header }}</textarea>
-                        </div>
-                        <div class="col-md-2 mt-1">
-                          <button class="btn btn-sm btn-primary w-100"><i class="bi bi-save"></i></button>
-                        </div>
-                      </form>
+                      <button type="button" class="btn btn-sm btn-outline-primary" onclick="bearbeiteLabelFormat(this)"
+                        data-lid="{{ l.id }}"
+                        data-name="{{ l.name|e }}"
+                        data-desc="{{ (l.description or '')|e }}"
+                        data-w="{{ l.width_mm }}"
+                        data-h="{{ l.height_mm }}"
+                        data-zpl-zusatz="{{ (l.zpl_zusatz or '')|e|replace('\n', '&#10;')|replace('\r', '') }}">Bearbeiten</button>
+                      <button type="button" class="btn btn-sm btn-outline-info" onclick="vorschauLabelFormatAusZeile(this)"
+                        data-w="{{ l.width_mm }}"
+                        data-h="{{ l.height_mm }}"
+                        data-zpl-zusatz="{{ (l.zpl_zusatz or '')|e|replace('\n', '&#10;')|replace('\r', '') }}"
+                        data-fmt-name="{{ l.name|e }}">Vorschau</button>
                     </td>
                   </tr>
                   {% endfor %}
@@ -1213,22 +1344,12 @@
         <div class="card mb-3">
           <div class="card-header">Etiketten</div>
           <div class="card-body">
-            <form action="{{ url_for('admin.zebra_etikett_save') }}" method="post" class="row g-2 mb-3" id="etikettForm">
+            <form action="{{ url_for('admin.zebra_etikett_save') }}" method="post" class="row g-2 mb-4 border-bottom pb-3" id="etikettForm">
               <input type="hidden" name="id" value="" id="etikettId">
-              <div class="col-md-3">
+              <div class="col-md-4">
                 <input name="bezeichnung" class="form-control" placeholder="Bezeichnung (z.B. ErsatzteilLabel)" required id="etikettBezeichnung">
               </div>
-              <div class="col-md-3">
-                <select name="drucker_id" class="form-select" required id="etikettDrucker">
-                  <option value="">-- Drucker wählen --</option>
-                  {% for p in zebra_printers %}
-                    {% if p.active %}
-                      <option value="{{ p.id }}">{{ p.name }} ({{ p.ip_address }})</option>
-                    {% endif %}
-                  {% endfor %}
-                </select>
-              </div>
-              <div class="col-md-3">
+              <div class="col-md-4">
                 <select name="etikettformat_id" class="form-select" required id="etikettFormat">
                   <option value="">-- Etikettenformat wählen --</option>
                   {% for l in label_formats %}
@@ -1236,14 +1357,18 @@
                   {% endfor %}
                 </select>
               </div>
-              <div class="col-md-3">
-                <button type="submit" class="btn btn-success btn-sm">Neues Etikett anlegen</button>
+              <div class="col-md-4 d-flex flex-wrap align-items-center gap-2">
+                <button type="submit" class="btn btn-success btn-sm" id="etikettSubmitBtn">Neues Etikett anlegen</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="etikettVerwerfenBtn" onclick="verwerfeEtikettAenderungen()">Änderungen verwerfen</button>
                 <button type="button" class="btn btn-outline-info btn-sm" onclick="vorschauEtikett()">Vorschau</button>
               </div>
               <div class="col-12">
                 <label class="form-label fw-bold">Druckbefehle (ZPL-Template mit Platzhaltern):</label>
-                <textarea name="druckbefehle" class="form-control font-monospace" rows="15" placeholder="ZPL-Template mit Platzhaltern wie {artnr}, {bestellnummer}, {line1}, {line2}, {line3}, {lagerort}, {lagerplatz}, {zpl_header}" required id="etikettDruckbefehle"></textarea>
-                <small class="text-muted">Verfügbare Platzhalter: {artnr}, {bestellnummer}, {line1}, {line2}, {line3}, {lagerort}, {lagerplatz}, {zpl_header}</small>
+                <textarea name="druckbefehle" class="form-control font-monospace" rows="15" placeholder="ZPL (^XA … ^XZ). Platzhalter unten per Drag &amp; Drop einfügen." required id="etikettDruckbefehle"></textarea>
+                <div class="mt-2">
+                  <div class="small text-muted mb-1">Platzhalter in den Editor ziehen (an Cursor-Position bzw. Auswahl):</div>
+                  <div id="etikettPlatzhalterBadges" class="d-flex flex-wrap gap-1 align-items-center"></div>
+                </div>
               </div>
             </form>
 
@@ -1252,7 +1377,6 @@
                 <thead class="table-dark">
                   <tr>
                     <th>Bezeichnung</th>
-                    <th>Drucker</th>
                     <th>Etikettenformat</th>
                     <th>Aktionen</th>
                   </tr>
@@ -1262,11 +1386,6 @@
                   <tr>
                     <td>{{ e.bezeichnung }}</td>
                     <td>
-                      {% for p in zebra_printers %}
-                        {% if p.id == e.drucker_id %}{{ p.name }} ({{ p.ip_address }}){% endif %}
-                      {% endfor %}
-                    </td>
-                    <td>
                       {% for l in label_formats %}
                         {% if l.id == e.etikettformat_id %}{{ l.name }}{% endif %}
                       {% endfor %}
@@ -1275,7 +1394,6 @@
                       <button class="btn btn-sm btn-outline-primary" 
                               data-etikett-id="{{ e.id }}"
                               data-etikett-bezeichnung="{{ e.bezeichnung|e }}"
-                              data-etikett-drucker="{{ e.drucker_id }}"
                               data-etikett-format="{{ e.etikettformat_id }}"
                               data-etikett-druckbefehle="{{ e.druckbefehle|e|replace('\n', '&#10;')|replace('\r', '') }}"
                               onclick="bearbeiteEtikettAusButton(this)">
@@ -1285,20 +1403,16 @@
                               data-etikett-id="{{ e.id }}"
                               data-etikett-druckbefehle="{{ e.druckbefehle|e|replace('\n', '&#10;')|replace('\r', '') }}"
                               data-etikett-zpl-header="{{ e.zpl_header|e|replace('\n', '&#10;')|replace('\r', '') if e.zpl_header else '' }}"
-                              data-etikett-ip-address="{{ e.ip_address|e if e.ip_address else '' }}"
                               onclick="vorschauEtikettAusButton(this)">
                         <i class="bi bi-eye"></i> Vorschau
                       </button>
-                      {% if e.ip_address %}
                       <button class="btn btn-sm btn-outline-success" 
                               data-etikett-id="{{ e.id }}"
                               data-etikett-druckbefehle="{{ e.druckbefehle|e|replace('\n', '&#10;')|replace('\r', '') }}"
                               data-etikett-zpl-header="{{ e.zpl_header|e|replace('\n', '&#10;')|replace('\r', '') if e.zpl_header else '' }}"
-                              data-etikett-ip-address="{{ e.ip_address|e if e.ip_address else '' }}"
                               onclick="druckeEtikettAusButton(this)">
                         <i class="bi bi-printer"></i> Drucken
                       </button>
-                      {% endif %}
                     </td>
                   </tr>
                   {% endfor %}
@@ -1306,6 +1420,31 @@
               </table>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="adminEtikettTestdruckModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Drucker für Testdruck</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label">Aktiver Zebradrucker</label>
+          <select id="adminEtikettTestdruckDrucker" class="form-select">
+            {% for p in zebra_printers %}
+            {% if p.active %}
+            <option value="{{ p.ip_address|e }}">{{ p.name }}{% if p.ort %} — {{ p.ort }}{% endif %} ({{ p.ip_address }})</option>
+            {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+          <button type="button" class="btn btn-primary" id="adminEtikettTestdruckBestaetigen">Drucken</button>
         </div>
       </div>
     </div>
@@ -1667,7 +1806,7 @@ document.addEventListener('DOMContentLoaded', function() {
       
       const form = this;
       const formData = new FormData(form);
-      const submitButton = form.querySelector('button[type="submit"]');
+      const submitButton = document.getElementById('etikettSubmitBtn') || form.querySelector('button[type="submit"]');
       
       if (submitButton) {
         submitButton.disabled = true;
@@ -1713,6 +1852,58 @@ document.addEventListener('DOMContentLoaded', function() {
       
       return false;
     }, true); // capture:true für frühere Ausführung
+  }
+
+  initEtikettPlatzhalterBadgesUndDnD();
+
+  const adminEtikettDruckOk = document.getElementById('adminEtikettTestdruckBestaetigen');
+  if (adminEtikettDruckOk) {
+    adminEtikettDruckOk.addEventListener('click', function() {
+      const ip = document.getElementById('adminEtikettTestdruckDrucker').value;
+      const zpl = _adminEtikettPendingZpl;
+      const button = _adminEtikettPrintButton;
+      if (!zpl || !ip) {
+        showToast('Bitte Drucker wählen.', 'error');
+        return;
+      }
+      const modalEl = document.getElementById('adminEtikettTestdruckModal');
+      const modalInstance = bootstrap.Modal.getInstance(modalEl);
+      if (modalInstance) modalInstance.hide();
+
+      const restoreBtn = () => {
+        if (button) {
+          button.disabled = false;
+          if (button.dataset.origHtml) button.innerHTML = button.dataset.origHtml;
+        }
+      };
+      if (button) {
+        button.disabled = true;
+        button.dataset.origHtml = button.innerHTML;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Druckt...';
+      }
+
+      fetch('{{ url_for("admin.zebra_etikett_testdruck") }}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({ zpl: zpl, ip_address: ip })
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            showToast(data.message || 'Etikett erfolgreich gedruckt.', 'success');
+          } else {
+            showToast(data.message || 'Fehler beim Drucken.', 'error');
+          }
+        })
+        .catch(error => {
+          console.error('Fehler:', error);
+          showToast('Fehler bei der Verbindung zum Server.', 'error');
+        })
+        .finally(restoreBtn);
+    });
   }
   
   // DANACH: Alle anderen Formulare im Admin-Bereich
@@ -1768,11 +1959,98 @@ function showAlert(type, message) {
   }, 3000);
 }
 
+// Etikettenformat (Tab Etiketten)
+function _decodeAdminDataAttr(s) {
+  if (!s) return '';
+  return s.replace(/&#10;/g, '\n').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
+}
+
+function bearbeiteLabelFormat(btn) {
+  const form = document.getElementById('labelFormatNeuForm');
+  if (!form) return;
+  const tabLink = document.querySelector('a[data-bs-toggle="tab"][href="#tab-etiketten"]');
+  if (tabLink) {
+    const t = new bootstrap.Tab(tabLink);
+    t.show();
+  }
+  form.querySelector('input[name="id"]').value = btn.getAttribute('data-lid') || '';
+  form.querySelector('input[name="name"]').value = _decodeAdminDataAttr(btn.getAttribute('data-name') || '');
+  form.querySelector('input[name="description"]').value = _decodeAdminDataAttr(btn.getAttribute('data-desc') || '');
+  form.querySelector('input[name="width_mm"]').value = btn.getAttribute('data-w') || '';
+  form.querySelector('input[name="height_mm"]').value = btn.getAttribute('data-h') || '';
+  const zusatz = btn.getAttribute('data-zpl-zusatz');
+  const tz = form.querySelector('textarea[name="zpl_zusatz"]');
+  if (tz) tz.value = _decodeAdminDataAttr(zusatz || '');
+  const sb = document.getElementById('labelFormatSubmitBtn');
+  if (sb) sb.textContent = 'Etikettenformat aktualisieren';
+  const vb = document.getElementById('labelFormatVerwerfenBtn');
+  if (vb) vb.classList.remove('d-none');
+  form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function verwerfeLabelFormatAenderungen() {
+  const form = document.getElementById('labelFormatNeuForm');
+  if (!form) return;
+  form.querySelector('input[name="id"]').value = '';
+  form.querySelector('input[name="name"]').value = '';
+  form.querySelector('input[name="description"]').value = '';
+  form.querySelector('input[name="width_mm"]').value = '';
+  form.querySelector('input[name="height_mm"]').value = '';
+  const tz = form.querySelector('textarea[name="zpl_zusatz"]');
+  if (tz) tz.value = '';
+  const sb = document.getElementById('labelFormatSubmitBtn');
+  if (sb) sb.textContent = 'Neues Etikettenformat anlegen';
+  const vb = document.getElementById('labelFormatVerwerfenBtn');
+  if (vb) vb.classList.add('d-none');
+}
+
+function vorschauLabelFormatAusZeile(btn) {
+  const w = btn.getAttribute('data-w');
+  const h = btn.getAttribute('data-h');
+  const name = _decodeAdminDataAttr(btn.getAttribute('data-fmt-name') || '');
+  const zplZusatz = _decodeAdminDataAttr(btn.getAttribute('data-zpl-zusatz') || '');
+  if (!w || !h) {
+    showToast('Maße fehlen.', 'error');
+    return;
+  }
+  const fd = new FormData();
+  fd.append('width_mm', w);
+  fd.append('height_mm', h);
+  fd.append('name', name);
+  if (zplZusatz) fd.append('zpl_zusatz', zplZusatz);
+  fetch('{{ url_for("admin.zebra_label_format_preview") }}', {
+    method: 'POST',
+    body: fd,
+    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success && data.zpl) {
+        if ('zpl_format_teil' in data) {
+          zeigeVorschauModal(data.zpl, {
+            xa: data.zpl_xa || '^XA',
+            format: data.zpl_format_teil,
+            demo: data.zpl_vorschau_teil || ''
+          });
+        } else {
+          zeigeVorschauModal(data.zpl);
+        }
+      } else {
+        showToast(data.message || 'Vorschau nicht möglich.', 'error');
+      }
+    })
+    .catch(e => showToast('Fehler: ' + e.message, 'error'));
+}
+
 // Etikett-Funktionen
 function bearbeiteEtikettAusButton(button) {
+  const tabLink = document.querySelector('a[data-bs-toggle="tab"][href="#tab-etiketten"]');
+  if (tabLink) {
+    const t = new bootstrap.Tab(tabLink);
+    t.show();
+  }
   const id = button.getAttribute('data-etikett-id');
   const bezeichnung = button.getAttribute('data-etikett-bezeichnung');
-  const druckerId = button.getAttribute('data-etikett-drucker');
   const formatId = button.getAttribute('data-etikett-format');
   let druckbefehle = button.getAttribute('data-etikett-druckbefehle');
   
@@ -1781,35 +2059,110 @@ function bearbeiteEtikettAusButton(button) {
   
   document.getElementById('etikettId').value = id;
   document.getElementById('etikettBezeichnung').value = bezeichnung;
-  document.getElementById('etikettDrucker').value = druckerId;
   document.getElementById('etikettFormat').value = formatId;
   document.getElementById('etikettDruckbefehle').value = druckbefehle;
   
-  // Formular-Button-Text ändern
-  const submitBtn = document.querySelector('#etikettForm button[type="submit"]');
+  const submitBtn = document.getElementById('etikettSubmitBtn');
   if (submitBtn) {
     submitBtn.textContent = 'Etikett aktualisieren';
   }
+  const vb = document.getElementById('etikettVerwerfenBtn');
+  if (vb) vb.classList.remove('d-none');
   
-  // Zum Formular scrollen
   document.getElementById('etikettForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function bearbeiteEtikett(id, bezeichnung, druckerId, formatId, druckbefehle) {
+function bearbeiteEtikett(id, bezeichnung, formatId, druckbefehle) {
+  const tabLink = document.querySelector('a[data-bs-toggle="tab"][href="#tab-etiketten"]');
+  if (tabLink) {
+    const t = new bootstrap.Tab(tabLink);
+    t.show();
+  }
   document.getElementById('etikettId').value = id;
   document.getElementById('etikettBezeichnung').value = bezeichnung;
-  document.getElementById('etikettDrucker').value = druckerId;
   document.getElementById('etikettFormat').value = formatId;
   document.getElementById('etikettDruckbefehle').value = druckbefehle;
   
-  // Formular-Button-Text ändern
-  const submitBtn = document.querySelector('#etikettForm button[type="submit"]');
+  const submitBtn = document.getElementById('etikettSubmitBtn');
   if (submitBtn) {
     submitBtn.textContent = 'Etikett aktualisieren';
   }
+  const vb = document.getElementById('etikettVerwerfenBtn');
+  if (vb) vb.classList.remove('d-none');
   
-  // Zum Formular scrollen
   document.getElementById('etikettForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function verwerfeEtikettAenderungen() {
+  document.getElementById('etikettId').value = '';
+  document.getElementById('etikettBezeichnung').value = '';
+  document.getElementById('etikettFormat').value = '';
+  document.getElementById('etikettDruckbefehle').value = '';
+  const submitBtn = document.getElementById('etikettSubmitBtn');
+  if (submitBtn) {
+    submitBtn.textContent = 'Neues Etikett anlegen';
+  }
+  const vb = document.getElementById('etikettVerwerfenBtn');
+  if (vb) vb.classList.add('d-none');
+}
+
+const ETIKETT_PLATZHALTER_BADGES = [
+  {
+    label: 'Grundstruktur',
+    klass: 'border-primary border-2 fw-semibold text-primary',
+    insert: '^XA\n{etikettenformat}\n^MMT\n^CI28\n\n^XZ',
+    title: 'Typischer ZPL-Rahmen mit {etikettenformat} — in den Editor ziehen'
+  },
+  { token: '{allgemein_titel}', label: 'Allgemein-Titel' },
+  { token: '{allgemein_info}', label: 'Allgemein-Info' },
+  { token: '{artikelnummer}', label: 'Artikelnummer' },
+  { token: '{artikel_bestellnummer}', label: 'Artikel-Bestellnummer' },
+  { token: '{artikel_beschreibung_1}', label: 'Artikel-Beschreibung 1' },
+  { token: '{artikel_beschreibung_2}', label: 'Artikel-Beschreibung 2' },
+  { token: '{artikel_beschreibung_3}', label: 'Artikel-Beschreibung 3' },
+  { token: '{artikel_lagerort}', label: 'Artikel-Lagerort' },
+  { token: '{artikel_lagerplatz}', label: 'Artikel-Lagerplatz' },
+  { token: '{etikettenformat}', label: 'Etikettenformat', klass: 'border-secondary text-muted' }
+];
+
+function initEtikettPlatzhalterBadgesUndDnD() {
+  const wrap = document.getElementById('etikettPlatzhalterBadges');
+  const ta = document.getElementById('etikettDruckbefehle');
+  if (!wrap || !ta || wrap.dataset.inited === '1') return;
+  wrap.dataset.inited = '1';
+  ETIKETT_PLATZHALTER_BADGES.forEach((p) => {
+    const insertText = p.insert != null ? p.insert : p.token;
+    const b = document.createElement('span');
+    b.className = 'etikett-platzhalter-badge badge bg-light text-dark border user-select-none ' + (p.klass || '');
+    b.style.cursor = 'grab';
+    b.draggable = true;
+    if (p.token) b.setAttribute('data-placeholder', p.token);
+    b.title = p.title || (p.token ? p.token + ' — in den Editor ziehen' : '');
+    b.textContent = p.label;
+    b.addEventListener('dragstart', function(ev) {
+      ev.dataTransfer.setData('text/plain', insertText);
+      ev.dataTransfer.setData('application/x-bis-etikett-ph', insertText);
+      ev.dataTransfer.effectAllowed = 'copy';
+    });
+    wrap.appendChild(b);
+  });
+
+  ta.addEventListener('dragover', function(ev) {
+    ev.preventDefault();
+    ev.dataTransfer.dropEffect = 'copy';
+  });
+  ta.addEventListener('drop', function(ev) {
+    ev.preventDefault();
+    const ph = ev.dataTransfer.getData('application/x-bis-etikett-ph') || ev.dataTransfer.getData('text/plain');
+    if (!ph) return;
+    const start = ta.selectionStart != null ? ta.selectionStart : 0;
+    const end = ta.selectionEnd != null ? ta.selectionEnd : start;
+    const v = ta.value;
+    ta.value = v.slice(0, start) + ph + v.slice(end);
+    const pos = start + ph.length;
+    ta.selectionStart = ta.selectionEnd = pos;
+    ta.focus();
+  });
 }
 
 function vorschauEtikett() {
@@ -1819,24 +2172,24 @@ function vorschauEtikett() {
     return;
   }
   
-  // zpl_header aus dem ausgewählten Format holen
   const formatSelect = document.getElementById('etikettFormat');
   const selectedOption = formatSelect.options[formatSelect.selectedIndex];
   let zpl_header = selectedOption.getAttribute('data-zpl-header') || '';
   
-  // HTML-Entities zurückkonvertieren
   zpl_header = zpl_header.replace(/&#10;/g, '\n').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
   
-  // Dummy-Daten für Vorschau
+  const hdr = zpl_header || '^PW240\n^LL240';
   const dummyData = {
-    artnr: '123',
-    bestellnummer: 'BEST-123',
-    line1: 'Beispiel-Artikel',
-    line2: 'Beschreibung Zeile 2',
-    line3: 'Beschreibung Zeile 3',
-    lagerort: 'Werkstatt',
-    lagerplatz: 'B10-B1',
-    zpl_header: zpl_header || '^PW240\n^LL240\n^LS0'
+    etikettenformat: hdr,
+    artikelnummer: '123',
+    artikel_bestellnummer: 'BEST-123',
+    artikel_beschreibung_1: 'Beispiel-Artikel',
+    artikel_beschreibung_2: 'Beschreibung Zeile 2',
+    artikel_beschreibung_3: 'Beschreibung Zeile 3',
+    artikel_lagerort: 'Werkstatt',
+    artikel_lagerplatz: 'B10-B1',
+    allgemein_titel: 'Test-Titel',
+    allgemein_info: 'Test-Info'
   };
   
   let zpl = template;
@@ -1844,7 +2197,7 @@ function vorschauEtikett() {
     zpl = zpl.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
   }
   
-  zeigeVorschauModal(zpl);
+  zeigeEtikettVorschauMitFarben(zpl, hdr);
 }
 
 function vorschauEtikettAusButton(button) {
@@ -1860,16 +2213,18 @@ function vorschauEtikettAusButton(button) {
 }
 
 function vorschauEtikettMitDaten(id, druckbefehle, zpl_header) {
-  // Dummy-Daten für Vorschau
+  const hdr = zpl_header || '^PW240\n^LL240';
   const dummyData = {
-    artnr: '123',
-    bestellnummer: 'BEST-123',
-    line1: 'Beispiel-Artikel',
-    line2: 'Beschreibung Zeile 2',
-    line3: 'Beschreibung Zeile 3',
-    lagerort: 'Werkstatt',
-    lagerplatz: 'B10-B1',
-    zpl_header: zpl_header || '^PW240\n^LL240\n^LS0'
+    etikettenformat: hdr,
+    artikelnummer: '123',
+    artikel_bestellnummer: 'BEST-123',
+    artikel_beschreibung_1: 'Beispiel-Artikel',
+    artikel_beschreibung_2: 'Beschreibung Zeile 2',
+    artikel_beschreibung_3: 'Beschreibung Zeile 3',
+    artikel_lagerort: 'Werkstatt',
+    artikel_lagerplatz: 'B10-B1',
+    allgemein_titel: 'Test-Titel',
+    allgemein_info: 'Test-Info'
   };
   
   let zpl = druckbefehle;
@@ -1877,86 +2232,170 @@ function vorschauEtikettMitDaten(id, druckbefehle, zpl_header) {
     zpl = zpl.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
   }
   
-  zeigeVorschauModal(zpl);
+  zeigeEtikettVorschauMitFarben(zpl, hdr);
 }
+
+let _adminEtikettPendingZpl = null;
+let _adminEtikettPrintButton = null;
 
 function druckeEtikettAusButton(button) {
   const id = button.getAttribute('data-etikett-id');
   let druckbefehle = button.getAttribute('data-etikett-druckbefehle');
   let zpl_header = button.getAttribute('data-etikett-zpl-header') || '';
-  const ip_address = button.getAttribute('data-etikett-ip-address');
-  
-  if (!ip_address) {
-    alert('Keine Drucker-IP-Adresse gefunden.');
+
+  const sel = document.getElementById('adminEtikettTestdruckDrucker');
+  if (!sel || sel.options.length === 0) {
+    alert('Kein aktiver Zebradrucker vorhanden. Bitte unter Etikettendrucker anlegen.');
     return;
   }
-  
-  // HTML-Entities und Escape-Sequenzen zurückkonvertieren
+
   druckbefehle = druckbefehle.replace(/&#10;/g, '\n').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
   zpl_header = zpl_header.replace(/&#10;/g, '\n').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
-  
-  // Dummy-Daten für Testdruck
+
+  const hdr = zpl_header || '^PW240\n^LL240';
   const dummyData = {
-    artnr: '123',
-    bestellnummer: 'BEST-123',
-    line1: 'Beispiel-Artikel',
-    line2: 'Beschreibung Zeile 2',
-    line3: 'Beschreibung Zeile 3',
-    lagerort: 'Werkstatt',
-    lagerplatz: 'B10-B1',
-    zpl_header: zpl_header || '^PW240\n^LL240\n^LS0'
+    etikettenformat: hdr,
+    artikelnummer: '123',
+    artikel_bestellnummer: 'BEST-123',
+    artikel_beschreibung_1: 'Beispiel-Artikel',
+    artikel_beschreibung_2: 'Beschreibung Zeile 2',
+    artikel_beschreibung_3: 'Beschreibung Zeile 3',
+    artikel_lagerort: 'Werkstatt',
+    artikel_lagerplatz: 'B10-B1',
+    allgemein_titel: 'Test-Titel',
+    allgemein_info: 'Test-Info'
   };
-  
+
   let zpl = druckbefehle;
   for (const [key, value] of Object.entries(dummyData)) {
     zpl = zpl.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
   }
-  
-  // Button während des Drucks deaktivieren
-  button.disabled = true;
-  const originalHtml = button.innerHTML;
-  button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Druckt...';
-  
-  // AJAX-Request zum Drucken
-  fetch('{{ url_for("admin.zebra_etikett_testdruck") }}', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest'
-    },
-    body: JSON.stringify({
-      etikett_id: id,
-      zpl: zpl,
-      ip_address: ip_address
-    })
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      showToast(data.message || 'Etikett erfolgreich gedruckt.', 'success');
-    } else {
-      showToast(data.message || 'Fehler beim Drucken.', 'error');
-    }
-  })
-  .catch(error => {
-    console.error('Fehler:', error);
-    showToast('Fehler bei der Verbindung zum Server.', 'error');
-  })
-  .finally(() => {
-    // Button wieder aktivieren
-    button.disabled = false;
-    button.innerHTML = originalHtml;
-  });
+
+  _adminEtikettPendingZpl = zpl;
+  _adminEtikettPrintButton = button;
+  const modalEl = document.getElementById('adminEtikettTestdruckModal');
+  if (!modalEl) return;
+  const modal = new bootstrap.Modal(modalEl);
+  modal.show();
 }
 
-function zeigeVorschauModal(zpl) {
-  // Modal erstellen oder aktualisieren
+function bearbeiteZebraDrucker(btn) {
+  const form = document.getElementById('zebraDruckerNeuForm');
+  if (!form) return;
+  const tabLink = document.querySelector('a[data-bs-toggle="tab"][href="#tab-etikettendrucker"]');
+  if (tabLink) {
+    const t = new bootstrap.Tab(tabLink);
+    t.show();
+  }
+  form.querySelector('input[name="id"]').value = btn.getAttribute('data-pid') || '';
+  form.querySelector('input[name="name"]').value = btn.getAttribute('data-name') || '';
+  form.querySelector('input[name="ip_address"]').value = btn.getAttribute('data-ip') || '';
+  form.querySelector('input[name="ort"]').value = btn.getAttribute('data-ort') || '';
+  form.querySelector('input[name="description"]').value = btn.getAttribute('data-desc') || '';
+  const aktiv = btn.getAttribute('data-active') === '1';
+  form.querySelector('#zebraActiveNew').checked = aktiv;
+  const sb = document.getElementById('zebraDruckerSubmitBtn');
+  if (sb) sb.textContent = 'Drucker aktualisieren';
+  const vb = document.getElementById('zebraDruckerVerwerfenBtn');
+  if (vb) vb.classList.remove('d-none');
+  form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function verwerfeZebraDruckerAenderungen() {
+  const form = document.getElementById('zebraDruckerNeuForm');
+  if (!form) return;
+  form.querySelector('input[name="id"]').value = '';
+  form.querySelector('input[name="name"]').value = '';
+  form.querySelector('input[name="ip_address"]').value = '';
+  form.querySelector('input[name="ort"]').value = '';
+  form.querySelector('input[name="description"]').value = '';
+  form.querySelector('#zebraActiveNew').checked = true;
+  const sb = document.getElementById('zebraDruckerSubmitBtn');
+  if (sb) sb.textContent = 'Drucker anlegen';
+  const vb = document.getElementById('zebraDruckerVerwerfenBtn');
+  if (vb) vb.classList.add('d-none');
+}
+
+function bearbeiteDruckKonfig(btn) {
+  const form = document.getElementById('druckKonfigNeuForm');
+  if (!form) return;
+  const tabLink = document.querySelector('a[data-bs-toggle="tab"][href="#tab-etikettendrucker"]');
+  if (tabLink) {
+    const t = new bootstrap.Tab(tabLink);
+    t.show();
+  }
+  form.querySelector('input[name="id"]').value = btn.getAttribute('data-kid') || '';
+  form.querySelector('select[name="funktion_code"]').value = btn.getAttribute('data-funktion') || '';
+  form.querySelector('select[name="etikett_id"]').value = btn.getAttribute('data-etikett') || '';
+  const dr = btn.getAttribute('data-drucker');
+  form.querySelector('select[name="drucker_id"]').value = dr ? dr : '';
+  form.querySelector('input[name="prioritaet"]').value = btn.getAttribute('data-prio') || '0';
+  const aktiv = btn.getAttribute('data-aktiv') === '1';
+  form.querySelector('#dkAktivNeu').checked = aktiv;
+  const abt = (btn.getAttribute('data-abt') || '').split(',').filter(Boolean);
+  form.querySelectorAll('#dkAbteilungCheckboxes input[type="checkbox"]').forEach(cb => {
+    cb.checked = abt.includes(cb.value);
+  });
+  const sb = document.getElementById('druckKonfigSubmitBtn');
+  if (sb) sb.textContent = 'Konfiguration aktualisieren';
+  const vb = document.getElementById('druckKonfigVerwerfenBtn');
+  if (vb) vb.classList.remove('d-none');
+  form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function verwerfeDruckKonfigAenderungen() {
+  const form = document.getElementById('druckKonfigNeuForm');
+  if (!form) return;
+  form.querySelector('input[name="id"]').value = '';
+  form.querySelector('select[name="funktion_code"]').value = '';
+  form.querySelector('select[name="etikett_id"]').value = '';
+  form.querySelector('select[name="drucker_id"]').value = '';
+  form.querySelector('input[name="prioritaet"]').value = '0';
+  form.querySelector('#dkAktivNeu').checked = true;
+  form.querySelectorAll('#dkAbteilungCheckboxes input[type="checkbox"]').forEach(cb => {
+    cb.checked = false;
+  });
+  const sb = document.getElementById('druckKonfigSubmitBtn');
+  if (sb) sb.textContent = 'Konfiguration anlegen';
+  const vb = document.getElementById('druckKonfigVerwerfenBtn');
+  if (vb) vb.classList.add('d-none');
+}
+
+function loescheDruckKonfig(kid) {
+  if (!confirm('Konfiguration wirklich löschen?')) return;
+  const url = '{{ url_for("admin.zebra_druck_konfig_delete", kid=999999999) }}'.replace('999999999', String(kid));
+  const fd = new FormData();
+  fetch(url, {
+    method: 'POST',
+    body: fd,
+    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        showToast(data.message, 'success');
+        setTimeout(() => window.location.reload(), 600);
+      } else {
+        showToast(data.message || 'Fehler', 'error');
+      }
+    })
+    .catch(e => showToast('Fehler: ' + e.message, 'error'));
+}
+
+function ensureEtikettVorschauModal() {
   let modal = document.getElementById('etikettVorschauModal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'etikettVorschauModal';
-    modal.className = 'modal fade';
-    modal.innerHTML = `
+  if (modal && document.getElementById('etikettVorschauZplFarbigFormatWrap')) {
+    return modal;
+  }
+  if (modal) {
+    const inst = bootstrap.Modal.getInstance(modal);
+    if (inst) inst.dispose();
+    modal.remove();
+  }
+  modal = document.createElement('div');
+  modal.id = 'etikettVorschauModal';
+  modal.className = 'modal fade';
+  modal.innerHTML = `
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
           <div class="modal-header">
@@ -1964,6 +2403,20 @@ function zeigeVorschauModal(zpl) {
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
+            <div id="etikettVorschauZplFarbig" class="d-none" style="max-height: 500px; overflow-y: auto; font-size: 0.85em;">
+              <div class="mb-3">
+                <span id="etikettVorschauBadgeXa" class="badge bg-secondary mb-1">ZPL-Start</span>
+                <pre id="etikettVorschauZplFarbigXa" class="bg-secondary bg-opacity-10 border rounded p-2 mb-0 text-muted" style="white-space: pre-wrap;"></pre>
+              </div>
+              <div id="etikettVorschauZplFarbigFormatWrap" class="mb-3">
+                <span id="etikettVorschauBadgeFormat" class="badge bg-primary mb-1">Etikettenformat</span>
+                <pre id="etikettVorschauZplFarbigFormat" class="bg-primary bg-opacity-10 border border-primary border-opacity-50 rounded p-2 mb-0" style="white-space: pre-wrap;"></pre>
+              </div>
+              <div>
+                <span id="etikettVorschauBadgeDemo" class="badge bg-warning text-dark mb-1">Für die Vorschau ergänzt</span>
+                <pre id="etikettVorschauZplFarbigDemo" class="bg-warning bg-opacity-10 border border-warning rounded p-2 mb-0" style="white-space: pre-wrap;"></pre>
+              </div>
+            </div>
             <pre id="etikettVorschauZpl" class="bg-light p-3" style="max-height: 500px; overflow-y: auto; font-size: 0.85em;"></pre>
           </div>
           <div class="modal-footer">
@@ -1973,12 +2426,76 @@ function zeigeVorschauModal(zpl) {
         </div>
       </div>
     `;
-    document.body.appendChild(modal);
+  document.body.appendChild(modal);
+  return modal;
+}
+
+function zeigeVorschauModal(zpl, struktur) {
+  const modal = ensureEtikettVorschauModal();
+  const pre = document.getElementById('etikettVorschauZpl');
+  const farbig = document.getElementById('etikettVorschauZplFarbig');
+  const preXa = document.getElementById('etikettVorschauZplFarbigXa');
+  const preFmt = document.getElementById('etikettVorschauZplFarbigFormat');
+  const preDemo = document.getElementById('etikettVorschauZplFarbigDemo');
+  const fmtWrap = document.getElementById('etikettVorschauZplFarbigFormatWrap');
+  const badgeXa = document.getElementById('etikettVorschauBadgeXa');
+  const badgeFmt = document.getElementById('etikettVorschauBadgeFormat');
+  const badgeDemo = document.getElementById('etikettVorschauBadgeDemo');
+  pre.textContent = zpl;
+  if (struktur && preFmt && preDemo && farbig) {
+    if (badgeXa) badgeXa.textContent = struktur.badgeXa != null && struktur.badgeXa !== '' ? struktur.badgeXa : 'ZPL-Start';
+    if (badgeFmt) badgeFmt.textContent = struktur.badgeFormat != null && struktur.badgeFormat !== '' ? struktur.badgeFormat : 'Etikettenformat';
+    if (badgeDemo) badgeDemo.textContent = struktur.badgeDemo != null && struktur.badgeDemo !== '' ? struktur.badgeDemo : 'Für die Vorschau ergänzt';
+    if (preXa) preXa.textContent = struktur.xa || '^XA';
+    const fmtText = struktur.format != null ? struktur.format : '';
+    preFmt.textContent = fmtText;
+    if (fmtWrap) fmtWrap.classList.toggle('d-none', fmtText === '');
+    preDemo.textContent = struktur.demo != null ? struktur.demo : '';
+    farbig.classList.remove('d-none');
+    pre.classList.add('d-none');
+  } else {
+    farbig.classList.add('d-none');
+    pre.classList.remove('d-none');
+    if (fmtWrap) fmtWrap.classList.remove('d-none');
   }
-  
-  document.getElementById('etikettVorschauZpl').textContent = zpl;
   const bsModal = new bootstrap.Modal(modal);
   bsModal.show();
+}
+
+/** Zerlegt Etikett-ZPL nach ^XA, eingefügtem Etikettenformat-Header und Rest (Druckbefehle). */
+function baueEtikettVorschauStruktur(zplFull, resolvedHeader) {
+  const zpl = String(zplFull || '').replace(/\r\n/g, '\n');
+  const hdr = String(resolvedHeader || '').replace(/\r\n/g, '\n');
+  if (!zpl.startsWith('^XA')) {
+    return null;
+  }
+  let pos = 3;
+  while (pos < zpl.length && (zpl[pos] === '\n' || zpl[pos] === '\r')) pos++;
+  if (!hdr) {
+    return { xa: '^XA', format: '', demo: zpl.slice(pos) };
+  }
+  if (zpl.startsWith(hdr, pos)) {
+    const demo = zpl.slice(pos + hdr.length).replace(/^\n+/, '');
+    return { xa: '^XA', format: hdr, demo };
+  }
+  const idx = zpl.indexOf(hdr, pos);
+  if (idx !== -1) {
+    const before = idx > pos ? zpl.slice(pos, idx).replace(/\n+$/, '') : '';
+    const after = zpl.slice(idx + hdr.length).replace(/^\n+/, '');
+    const demo = (before ? before + '\n' : '') + after;
+    return { xa: '^XA', format: hdr, demo };
+  }
+  return null;
+}
+
+function zeigeEtikettVorschauMitFarben(zpl, resolvedHeader) {
+  const strukt = baueEtikettVorschauStruktur(zpl, resolvedHeader);
+  if (strukt) {
+    strukt.badgeDemo = 'Inhalt (Etikett & Beispieldaten)';
+    zeigeVorschauModal(zpl, strukt);
+  } else {
+    zeigeVorschauModal(zpl);
+  }
 }
 
 function kopiereZplVorschau() {

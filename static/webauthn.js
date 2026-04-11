@@ -130,13 +130,22 @@ window.WebAuthnHelper = {
         : null,
     };
 
-    await _fetchJSON('/webauthn/login/verify', {
+    const nextParam =
+      (typeof window !== 'undefined' &&
+        window.location &&
+        new URLSearchParams(window.location.search).get('next')) ||
+      null;
+    if (nextParam) {
+      payload.next = nextParam;
+    }
+
+    const verifyResp = await _fetchJSON('/webauthn/login/verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
 
-    return true;
+    return verifyResp.redirect_url || '/';
   },
 };
 

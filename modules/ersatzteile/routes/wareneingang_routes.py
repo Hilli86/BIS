@@ -250,7 +250,14 @@ def wareneingang_bestellung(bestellung_id):
                 etikett_druck_fehlgeschlagen = []
                 if etikett_drucken and gebuchte_ersatzteile:
                     for item in gebuchte_ersatzteile:
-                        erfolg, nachricht = drucke_ersatzteil_etikett_intern(item['ersatzteil_id'], item['menge'], conn)
+                        ret = drucke_ersatzteil_etikett_intern(
+                            item['ersatzteil_id'],
+                            item['menge'],
+                            conn,
+                            mitarbeiter_id=mitarbeiter_id,
+                            erlaube_druckerwahl_modal=False,
+                        )
+                        erfolg = ret[0]
                         if not erfolg:
                             etikett_druck_fehlgeschlagen.append(item['ersatzteil_id'])
                 

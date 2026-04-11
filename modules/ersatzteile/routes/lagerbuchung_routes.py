@@ -7,7 +7,14 @@ from .. import ersatzteile_bp
 from utils import get_db_connection, login_required, permission_required, get_sichtbare_abteilungen_fuer_mitarbeiter
 from utils.helpers import build_ersatzteil_zugriff_filter
 from utils.zebra_client import send_zpl_to_printer
+from utils.etikett_druck import (
+    FUNKTION_ERSATZTEIL_ETIKETT,
+    FUNKTION_LAGERBEHAELTER_ETIKETT,
+    build_print_resolution,
+    etikett_format_substitution,
+)
 from ..services import create_lagerbuchung, create_inventur_buchung
+from ..services.ersatzteil_services import zpl_ersatzteil_aus_zeile
 from ..utils import hat_ersatzteil_zugriff, validate_thema_ersatzteil_buchung, prepare_thema_ersatzteil_data
 from modules.schichtbuch.services import get_thema_info_fuer_lagerbuchung
 
@@ -696,47 +703,52 @@ def lagerbehaelter_label():
 @login_required
 def lagerbehaelter_label_druck():
     """Druckt ein Lagerbehälter-Label mit manuell eingegebenen Titel und Info"""
+    mitarbeiter_id = session.get('user_id')
     titel = request.json.get('titel', '').strip()
     info = request.json.get('info', '').strip()
-    
+    raw_pid = request.json.get('printer_id')
+    printer_id = None
+    if raw_pid is not None:
+        try:
+            printer_id = int(raw_pid)
+        except (TypeError, ValueError):
+            printer_id = None
+
     if not titel:
         return jsonify({'success': False, 'message': 'Titel ist erforderlich.'}), 400
-    
+
     try:
         with get_db_connection() as conn:
-            # Etikett "LagerbehaelterLabel" aus der DB laden
-            etikett = conn.execute('''
-                SELECT e.*, p.ip_address, lf.zpl_header
-                FROM Etikett e
-                JOIN zebra_printers p ON e.drucker_id = p.id
-                JOIN label_formats lf ON e.etikettformat_id = lf.id
-                WHERE e.bezeichnung = ? AND p.active = 1
-                LIMIT 1
-            ''', ('LagerbehaelterLabel',)).fetchone()
-            
-            if not etikett:
-                return jsonify({'success': False, 'message': 'Etikett "LagerbehaelterLabel" nicht gefunden oder Drucker nicht aktiv.'}), 400
-            
-            # ZPL-Template aus DB laden und Platzhalter ersetzen
+            res = build_print_resolution(
+                conn, FUNKTION_LAGERBEHAELTER_ETIKETT, mitarbeiter_id, printer_id
+            )
+            if not res['ok']:
+                return jsonify({'success': False, 'message': res['error_message']}), 400
+            if res['needs_printer_choice']:
+                return jsonify({
+                    'success': True,
+                    'needs_printer_choice': True,
+                    'printers': res['printers'],
+                    'message': 'Drucker wählen.',
+                })
+
+            etikett = res['etikett']
             zpl_template = etikett['druckbefehle']
             zpl = zpl_template.format(
-                titel=titel,
-                info=info,
-                zpl_header=etikett['zpl_header']
+                allgemein_titel=titel,
+                allgemein_info=info,
+                **etikett_format_substitution(etikett['zpl_header']),
             )
-            
-            # Kompletten ZPL-Befehl in der Konsole ausgeben (für Debugging)
-            print("===== LAGERBEHAELTER LABEL ZPL =====")
+            print('===== LAGERBEHAELTER LABEL ZPL =====')
             print(zpl)
-            print("===== END LAGERBEHAELTER LABEL ZPL =====")
-            
+            print('===== END LAGERBEHAELTER LABEL ZPL =====')
             try:
-                send_zpl_to_printer(etikett['ip_address'], zpl)
+                send_zpl_to_printer(res['printer_ip'], zpl)
             except Exception as e:
                 return jsonify({'success': False, 'message': f'Fehler beim Senden an Drucker: {e}'}), 500
-            
-        return jsonify({'success': True, 'message': f'Lagerbehälter-Label mit Titel \"{titel}\" gedruckt.'})
-        
+
+        return jsonify({'success': True, 'message': f'Lagerbehälter-Label mit Titel "{titel}" gedruckt.'})
+
     except Exception as e:
         return jsonify({'success': False, 'message': f'Fehler beim Drucken: {str(e)}'}), 500
 
@@ -771,20 +783,31 @@ def lagerbehaelter_label_druck_artikel():
     if not ids:
         return jsonify({'success': False, 'message': 'Keine gültigen Artikel-IDs gefunden.'}), 400
 
+    raw_pid = (request.json or {}).get('printer_id')
+    printer_id = None
+    if raw_pid is not None:
+        try:
+            printer_id = int(raw_pid)
+        except (TypeError, ValueError):
+            printer_id = None
+
     try:
         with get_db_connection() as conn:
-            # Etikett "ErsatzteilLabel" aus der DB laden (einmal für alle)
-            etikett = conn.execute('''
-                SELECT e.*, p.ip_address, lf.zpl_header
-                FROM Etikett e
-                JOIN zebra_printers p ON e.drucker_id = p.id
-                JOIN label_formats lf ON e.etikettformat_id = lf.id
-                WHERE e.bezeichnung = ? AND p.active = 1
-                LIMIT 1
-            ''', ('ErsatzteilLabel',)).fetchone()
+            res = build_print_resolution(
+                conn, FUNKTION_ERSATZTEIL_ETIKETT, mitarbeiter_id, printer_id
+            )
+            if not res['ok']:
+                return jsonify({'success': False, 'message': res['error_message']}), 400
+            if res['needs_printer_choice']:
+                return jsonify({
+                    'success': True,
+                    'needs_printer_choice': True,
+                    'printers': res['printers'],
+                    'message': 'Drucker wählen.',
+                })
 
-            if not etikett:
-                return jsonify({'success': False, 'message': 'Etikett \"ErsatzteilLabel\" nicht gefunden oder Drucker nicht aktiv.'}), 400
+            etikett = res['etikett']
+            printer_ip = res['printer_ip']
 
             erfolgreich = 0
             fehlgeschlagen = 0
@@ -811,51 +834,14 @@ def lagerbehaelter_label_druck_artikel():
                     fehler_meldungen.append(f'ID {ersatzteil_id}: Ersatzteil nicht gefunden')
                     continue
 
-                # Daten für Platzhalter vorbereiten
-                artnr = str(et['ID'])
-                bestellnummer = et['Bestellnummer'] or ''
-                bezeichnung = et['Bezeichnung'] or ''
-                lagerort = et['LagerortName'] or ''
-                lagerplatz = et['LagerplatzName'] or ''
+                zpl = zpl_ersatzteil_aus_zeile(et, etikett, 1)
 
-                # Bezeichnung auf 3 Zeilen umbrechen (wie im bestehenden Einzel-Label-Druck)
-                max_len = 28
-                words = (bezeichnung or '').split()
-                lines = ['', '', '']
-                current_line = 0
-
-                for w in words:
-                    sep = '' if len(lines[current_line]) == 0 else ' '
-                    if len(lines[current_line]) + len(sep) + len(w) <= max_len:
-                        lines[current_line] += sep + w
-                    elif current_line < 2:
-                        current_line += 1
-                        lines[current_line] = w
-                    else:
-                        break
-
-                line1, line2, line3 = lines
-
-                # ZPL-Template aus DB laden und Platzhalter ersetzen
-                zpl_template = etikett['druckbefehle']
-                zpl = zpl_template.format(
-                    artnr=artnr,
-                    bestellnummer=bestellnummer,
-                    line1=line1,
-                    line2=line2,
-                    line3=line3,
-                    lagerort=lagerort,
-                    lagerplatz=lagerplatz,
-                    zpl_header=etikett['zpl_header']
-                )
-
-                # ZPL-Befehl für Debugging ausgeben
                 print('===== ERSATZTEIL LABEL ZPL (Batch) =====')
                 print(zpl)
                 print('===== END ERSATZTEIL LABEL ZPL (Batch) =====')
 
                 try:
-                    send_zpl_to_printer(etikett['ip_address'], zpl)
+                    send_zpl_to_printer(printer_ip, zpl)
                     erfolgreich += 1
                 except Exception as e:
                     fehlgeschlagen += 1

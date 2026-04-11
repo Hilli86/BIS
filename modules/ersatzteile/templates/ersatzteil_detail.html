@@ -1101,36 +1101,55 @@ function druckeEtikettMitAnzahl() {
     const modal = bootstrap.Modal.getInstance(document.getElementById('etikettAnzahlModal'));
     modal.hide();
     
-    // Button finden und deaktivieren (falls noch sichtbar)
     const buttons = document.querySelectorAll(`button[onclick*="druckeEtikett(${ersatzteilId}"]`);
-    buttons.forEach(button => {
+    const originalContents = [];
+    buttons.forEach((button, index) => {
+        originalContents[index] = button.innerHTML;
         button.disabled = true;
-        const originalContent = button.innerHTML;
         button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-        
-        fetch(`{{ url_for('ersatzteile.ersatzteil_druck_label', ersatzteil_id=0) }}`.replace('/0', `/${ersatzteilId}`), {
+    });
+
+    const url = `{{ url_for('ersatzteile.ersatzteil_druck_label', ersatzteil_id=0) }}`.replace('/0', `/${ersatzteilId}`);
+
+    const runFetch = (printerId) => {
+        const body = { anzahl: anzahl };
+        if (printerId != null && !isNaN(printerId)) {
+            body.printer_id = printerId;
+        }
+        fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest'
             },
-            body: JSON.stringify({ anzahl: anzahl })
+            body: JSON.stringify(body)
         })
             .then(response => response.json())
             .then(data => {
-                button.disabled = false;
-                button.innerHTML = originalContent;
+                if (data.needs_printer_choice && data.printers && data.printers.length) {
+                    restoreEtikettDruckButtons(buttons, originalContents);
+                    oeffneEtikettDruckerModal(data.printers, (pid) => {
+                        buttons.forEach((button, index) => {
+                            originalContents[index] = button.innerHTML;
+                            button.disabled = true;
+                            button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+                        });
+                        runFetch(pid);
+                    });
+                    return;
+                }
+                restoreEtikettDruckButtons(buttons, originalContents);
                 const toastType = data.success ? 'success' : 'danger';
-                const toastMessage = data.message || 'Unbekannter Fehler beim Drucken.';
-                showToast(toastMessage, toastType);
+                showToast(data.message || 'Unbekannter Fehler beim Drucken.', toastType);
             })
             .catch(error => {
-                button.disabled = false;
-                button.innerHTML = originalContent;
+                restoreEtikettDruckButtons(buttons, originalContents);
                 console.error('Fehler:', error);
                 showToast('Fehler beim Drucken des Etiketts.', 'danger');
             });
-    });
+    };
+
+    runFetch(null);
 }
 
 function oeffneEtikettKontextmenue(ersatzteilId, lagerbestand, event) {
@@ -1257,54 +1276,99 @@ function oeffneEtikettKontextmenue(ersatzteilId, lagerbestand, event) {
 // Flag um zu verhindern, dass der Druck mehrfach ausgeführt wird
 let druckeEtikettInProgress = false;
 
+function restoreEtikettDruckButtons(buttons, originalContents) {
+    buttons.forEach((button, index) => {
+        button.disabled = false;
+        if (originalContents[index] !== undefined) {
+            button.innerHTML = originalContents[index];
+        }
+    });
+}
+
+function oeffneEtikettDruckerModal(printers, onPick) {
+    const sel = document.getElementById('etikettDruckerWahlSelect');
+    const modalEl = document.getElementById('etikettDruckerWahlModal');
+    if (!sel || !modalEl || !printers || !printers.length) {
+        showToast('Kein Drucker verfügbar.', 'danger');
+        return;
+    }
+    sel.innerHTML = '';
+    printers.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        const ort = (p.ort || '').trim();
+        opt.textContent = (ort ? ort + ' — ' : '') + p.name + ' (' + p.ip_address + ')';
+        sel.appendChild(opt);
+    });
+    const ok = document.getElementById('etikettDruckerWahlOk');
+    ok.onclick = function() {
+        const pid = parseInt(sel.value, 10);
+        const inst = bootstrap.Modal.getInstance(modalEl);
+        if (inst) inst.hide();
+        onPick(pid);
+    };
+    new bootstrap.Modal(modalEl).show();
+}
+
 function druckeEtikettDirekt(ersatzteilId, anzahl) {
-    // Verhindere mehrfache Ausführung
     if (druckeEtikettInProgress) {
         return;
     }
     druckeEtikettInProgress = true;
-    
+
     const buttons = document.querySelectorAll(`button[onclick*="druckeEtikett(${ersatzteilId}"]`);
-    
-    // Alle Buttons deaktivieren und Spinner anzeigen
     const originalContents = [];
     buttons.forEach((button, index) => {
         originalContents[index] = button.innerHTML;
         button.disabled = true;
         button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
     });
-    
-    // Nur einmal drucken, nicht für jeden Button
-    fetch(`{{ url_for('ersatzteile.ersatzteil_druck_label', ersatzteil_id=0) }}`.replace('/0', `/${ersatzteilId}`), {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: JSON.stringify({ anzahl: anzahl })
-    })
-        .then(response => response.json())
-        .then(data => {
-            // Alle Buttons wieder aktivieren
-            buttons.forEach((button, index) => {
-                button.disabled = false;
-                button.innerHTML = originalContents[index];
-            });
-            const toastType = data.success ? 'success' : 'danger';
-            const toastMessage = data.message || 'Unbekannter Fehler beim Drucken.';
-            showToast(toastMessage, toastType);
-            druckeEtikettInProgress = false;
+
+    const url = `{{ url_for('ersatzteile.ersatzteil_druck_label', ersatzteil_id=0) }}`.replace('/0', `/${ersatzteilId}`);
+
+    const runFetch = (printerId) => {
+        const body = { anzahl: anzahl };
+        if (printerId != null && !isNaN(printerId)) {
+            body.printer_id = printerId;
+        }
+        return fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify(body)
         })
-        .catch(error => {
-            // Alle Buttons wieder aktivieren
-            buttons.forEach((button, index) => {
-                button.disabled = false;
-                button.innerHTML = originalContents[index];
+            .then(response => response.json())
+            .then(data => {
+                if (data.needs_printer_choice && data.printers && data.printers.length) {
+                    restoreEtikettDruckButtons(buttons, originalContents);
+                    druckeEtikettInProgress = false;
+                    oeffneEtikettDruckerModal(data.printers, (pid) => {
+                        druckeEtikettInProgress = true;
+                        buttons.forEach((button, index) => {
+                            originalContents[index] = button.innerHTML;
+                            button.disabled = true;
+                            button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+                        });
+                        runFetch(pid);
+                    });
+                    return;
+                }
+                restoreEtikettDruckButtons(buttons, originalContents);
+                const toastType = data.success ? 'success' : 'danger';
+                showToast(data.message || 'Unbekannter Fehler beim Drucken.', toastType);
+                druckeEtikettInProgress = false;
+            })
+            .catch(error => {
+                restoreEtikettDruckButtons(buttons, originalContents);
+                console.error('Fehler:', error);
+                showToast('Fehler beim Drucken des Etiketts.', 'danger');
+                druckeEtikettInProgress = false;
             });
-            console.error('Fehler:', error);
-            showToast('Fehler beim Drucken des Etiketts.', 'danger');
-            druckeEtikettInProgress = false;
-        });
+    };
+
+    runFetch(null);
 }
 
 async function ladeAngeboteUndBestellungen(ersatzteilId, event) {
@@ -1609,6 +1673,25 @@ async function verschiebeAusImportErsatzteil(filename, ersatzteilId) {
                 <button type="button" class="btn btn-primary" onclick="druckeEtikettMitAnzahl()">
                     <i class="bi bi-printer"></i> Drucken
                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="etikettDruckerWahlModal" tabindex="-1" aria-labelledby="etikettDruckerWahlModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="etikettDruckerWahlModalLabel">Drucker wählen</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label" for="etikettDruckerWahlSelect">Zebradrucker</label>
+                <select id="etikettDruckerWahlSelect" class="form-select"></select>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-primary" id="etikettDruckerWahlOk">Drucken</button>
             </div>
         </div>
     </div>

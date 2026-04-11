@@ -61,9 +61,9 @@
         btn.disabled = true;
         btn.innerText = 'Bitte bestätigen Sie am Gerät...';
 
-        const success = await WebAuthnHelper.loginWithWebAuthn(personalnummer);
-        if (success) {
-          window.location.href = "{{ url_for('dashboard.dashboard') }}";
+        const redirectUrl = await WebAuthnHelper.loginWithWebAuthn(personalnummer);
+        if (redirectUrl) {
+          window.location.href = redirectUrl;
         }
       } catch (e) {
         console.error(e);

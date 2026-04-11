@@ -163,6 +163,8 @@ def get_required_tables():
         'zebra_printers',
         'label_formats',
         'Etikett',
+        'etikett_druck_konfig',
+        'etikett_druck_konfig_abteilung',
         'WebAuthnCredential',
         'MitarbeiterMenueSichtbarkeit',
         'Wartung',

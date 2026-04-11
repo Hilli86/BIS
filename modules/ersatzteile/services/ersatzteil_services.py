@@ -7,6 +7,7 @@ import re
 from utils import get_sichtbare_abteilungen_fuer_mitarbeiter
 from utils.helpers import build_ersatzteil_zugriff_filter
 from utils.zebra_client import send_zpl_to_printer
+from utils.etikett_druck import FUNKTION_ERSATZTEIL_ETIKETT, build_print_resolution, etikett_format_substitution
 
 
 def build_ersatzteil_liste_query(
@@ -349,15 +350,59 @@ def get_ersatzteil_detail_data(ersatzteil_id, mitarbeiter_id, conn, upload_folde
     }
 
 
-def drucke_ersatzteil_etikett_intern(ersatzteil_id, anzahl, conn, mitarbeiter_id=None):
+def zpl_ersatzteil_aus_zeile(et, etikett_row, anzahl):
+    """Baut ZPL für ein Ersatzteil aus einer Etikett-Zeile (Platzhalter {etikettenformat} aus Etikettenformat)."""
+    artnr = str(et['ID'])
+    bestellnummer = et['Bestellnummer'] or ''
+    bezeichnung = et['Bezeichnung'] or ''
+    lagerort = et['LagerortName'] or ''
+    lagerplatz = et['LagerplatzName'] or ''
+
+    max_len = 28
+    words = (bezeichnung or '').split()
+    lines = ['', '', '']
+    current_line = 0
+    for w in words:
+        sep = '' if len(lines[current_line]) == 0 else ' '
+        if len(lines[current_line]) + len(sep) + len(w) <= max_len:
+            lines[current_line] += sep + w
+        elif current_line < 2:
+            current_line += 1
+            lines[current_line] = w
+        else:
+            break
+    line1, line2, line3 = lines
+
+    zpl_template = etikett_row['druckbefehle']
+    zpl = zpl_template.format(
+        artikelnummer=artnr,
+        artikel_bestellnummer=bestellnummer,
+        artikel_beschreibung_1=line1,
+        artikel_beschreibung_2=line2,
+        artikel_beschreibung_3=line3,
+        artikel_lagerort=lagerort,
+        artikel_lagerplatz=lagerplatz,
+        **etikett_format_substitution(etikett_row['zpl_header']),
+    )
+    zpl = re.sub(r'\^PQ(\d+)', f'^PQ{anzahl}', zpl)
+    return zpl
+
+
+def drucke_ersatzteil_etikett_intern(
+    ersatzteil_id,
+    anzahl,
+    conn,
+    mitarbeiter_id=None,
+    drucker_id_override=None,
+    erlaube_druckerwahl_modal=True,
+):
     """
     Wiederverwendbare Funktion zum Drucken von Ersatzteil-Etiketten.
-    
-    :param ersatzteil_id: ID des Ersatzteils
-    :param anzahl: Anzahl der zu druckenden Etiketten
-    :param conn: Datenbankverbindung
-    :param mitarbeiter_id: Optional: Mitarbeiter-ID für Berechtigungsprüfung (wird aktuell nicht verwendet)
-    :return: (success: bool, message: str)
+
+    :param erlaube_druckerwahl_modal: False z. B. für Wareneingang ohne UI — dann schlägt fehl,
+        wenn keine Drucker-ID in der Konfiguration gesetzt ist.
+    :return: (success: bool, message: str) oder bei Modal-Bedarf:
+        (False, message, meta_dict) mit meta_dict['needs_printer_choice'] und 'printers'.
     """
     # Ersatzteil-Daten laden
     et = conn.execute('''
@@ -370,69 +415,36 @@ def drucke_ersatzteil_etikett_intern(ersatzteil_id, anzahl, conn, mitarbeiter_id
     
     if not et:
         return False, f'Ersatzteil {ersatzteil_id} nicht gefunden.'
-    
-    # Etikett "ErsatzteilLabel" aus der DB laden
-    etikett = conn.execute('''
-        SELECT e.*, p.ip_address, lf.zpl_header
-        FROM Etikett e
-        JOIN zebra_printers p ON e.drucker_id = p.id
-        JOIN label_formats lf ON e.etikettformat_id = lf.id
-        WHERE e.bezeichnung = ? AND p.active = 1
-        LIMIT 1
-    ''', ('ErsatzteilLabel',)).fetchone()
-    
-    if not etikett:
-        return False, 'Etikett "ErsatzteilLabel" nicht gefunden oder Drucker nicht aktiv.'
-    
-    # Daten für Platzhalter vorbereiten
-    artnr = str(et['ID'])
-    bestellnummer = et['Bestellnummer'] or ''
-    bezeichnung = et['Bezeichnung'] or ''
-    lagerort = et['LagerortName'] or ''
-    lagerplatz = et['LagerplatzName'] or ''
-    
-    # Bezeichnung auf 3 Zeilen umbrechen
-    max_len = 28
-    words = (bezeichnung or "").split()
-    lines = ["", "", ""]
-    current_line = 0
-    
-    for w in words:
-        sep = "" if len(lines[current_line]) == 0 else " "
-        if len(lines[current_line]) + len(sep) + len(w) <= max_len:
-            lines[current_line] += sep + w
-        elif current_line < 2:
-            current_line += 1
-            lines[current_line] = w
-        else:
-            break
-    
-    line1, line2, line3 = lines
-    
-    # ZPL-Template aus DB laden und Platzhalter ersetzen
-    zpl_template = etikett['druckbefehle']
-    zpl = zpl_template.format(
-        artnr=artnr,
-        bestellnummer=bestellnummer,
-        line1=line1,
-        line2=line2,
-        line3=line3,
-        lagerort=lagerort,
-        lagerplatz=lagerplatz,
-        zpl_header=etikett['zpl_header']
+
+    res = build_print_resolution(
+        conn, FUNKTION_ERSATZTEIL_ETIKETT, mitarbeiter_id, drucker_id_override
     )
-    
-    # Anzahl im ZPL-Befehl anpassen (^PQ Befehl)
-    zpl = re.sub(r'\^PQ(\d+)', f'^PQ{anzahl}', zpl)
+    if not res['ok']:
+        return False, res['error_message'] or 'Druck nicht möglich.'
+    if res['needs_printer_choice']:
+        if not erlaube_druckerwahl_modal:
+            return (
+                False,
+                'Automatischer Etikettendruck: Bitte im Admin unter Etikettendrucker einen Standarddrucker hinterlegen.',
+            )
+        return False, 'Druckerwahl erforderlich.', {
+            'needs_printer_choice': True,
+            'printers': res['printers'],
+        }
+
+    etikett = res['etikett']
+    printer_ip = res['printer_ip']
+    artnr = str(et['ID'])
+
+    zpl = zpl_ersatzteil_aus_zeile(et, etikett, anzahl)
     
     # Kompletten ZPL-Befehl in der Konsole ausgeben (für Debugging)
     print("===== ERSATZTEIL LABEL ZPL =====")
     print(zpl)
     print("===== END ERSATZTEIL LABEL ZPL =====")
     
-    # An Drucker senden
     try:
-        send_zpl_to_printer(etikett['ip_address'], zpl)
+        send_zpl_to_printer(printer_ip, zpl)
         return True, f'{anzahl} Etikett{"en" if anzahl > 1 else ""} für Artikel {artnr} gedruckt.'
     except Exception as e:
         return False, f'Fehler beim Senden an Drucker: {e}'

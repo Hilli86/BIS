@@ -214,9 +214,15 @@ def ersatzteil_druck_label(ersatzteil_id):
     """Druckt ein 30x30-Etikett für ein Ersatzteil über Zebra."""
     mitarbeiter_id = session.get('user_id')
     
-    # Anzahl aus Request-Body lesen (Standard: 1)
+    # Anzahl aus Request-Body lesen (Standard: 1); optional Drucker (nach Modal)
     data = request.get_json() or {}
     anzahl = data.get('anzahl', 1)
+    printer_id = data.get('printer_id')
+    if printer_id is not None:
+        try:
+            printer_id = int(printer_id)
+        except (TypeError, ValueError):
+            printer_id = None
     
     # Validierung: Anzahl muss zwischen 1 und 100 sein
     try:
@@ -231,14 +237,28 @@ def ersatzteil_druck_label(ersatzteil_id):
         if not hat_ersatzteil_zugriff(mitarbeiter_id, ersatzteil_id, conn):
             return jsonify({'success': False, 'message': 'Keine Berechtigung für dieses Ersatzteil.'}), 403
         
-        # Wiederverwendbare Service-Funktion verwenden
         from ..services import drucke_ersatzteil_etikett_intern
-        success, message = drucke_ersatzteil_etikett_intern(ersatzteil_id, anzahl, conn, mitarbeiter_id)
-        
+        result = drucke_ersatzteil_etikett_intern(
+            ersatzteil_id,
+            anzahl,
+            conn,
+            mitarbeiter_id,
+            drucker_id_override=printer_id,
+        )
+        if len(result) == 3:
+            _ok, message, meta = result
+            if meta.get('needs_printer_choice'):
+                return jsonify({
+                    'success': True,
+                    'needs_printer_choice': True,
+                    'printers': meta['printers'],
+                    'message': message,
+                })
+            return jsonify({'success': False, 'message': message}), 500
+        success, message = result
         if success:
             return jsonify({'success': True, 'message': message})
-        else:
-            return jsonify({'success': False, 'message': message}), 500
+        return jsonify({'success': False, 'message': message}), 500
 
 
 @ersatzteile_bp.route('/<int:ersatzteil_id>')

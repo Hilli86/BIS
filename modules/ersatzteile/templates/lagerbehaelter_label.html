@@ -73,7 +73,67 @@
     </div>
 </div>
 
+<div class="modal fade" id="lagerLabelDruckerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Drucker wählen</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label" for="lagerLabelDruckerSelect">Zebradrucker</label>
+                <select id="lagerLabelDruckerSelect" class="form-select"></select>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-primary" id="lagerLabelDruckerOk">Drucken</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+function lagerLabelToast(message, isSuccess) {
+    const bgClass = isSuccess ? 'bg-success' : 'bg-danger';
+    const icon = isSuccess ? 'bi-check-circle' : 'bi-exclamation-triangle';
+    const toastHtml = `
+        <div class="toast align-items-center text-white ${bgClass} border-0" role="alert" style="position: fixed; top: 20px; right: 20px; z-index: 9999;">
+            <div class="d-flex">
+                <div class="toast-body"><i class="bi ${icon}"></i> ${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>`;
+    document.body.insertAdjacentHTML('beforeend', toastHtml);
+    const toastElement = document.querySelector('.toast:last-child');
+    const toast = new bootstrap.Toast(toastElement, { delay: isSuccess ? 5000 : 7000 });
+    toast.show();
+    toastElement.addEventListener('hidden.bs.toast', () => toastElement.remove());
+}
+
+function oeffneLagerLabelDruckerModal(printers, onPick) {
+    const sel = document.getElementById('lagerLabelDruckerSelect');
+    const modalEl = document.getElementById('lagerLabelDruckerModal');
+    if (!sel || !modalEl || !printers || !printers.length) {
+        lagerLabelToast('Kein Drucker verfügbar.', false);
+        return;
+    }
+    sel.innerHTML = '';
+    printers.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        const ort = (p.ort || '').trim();
+        opt.textContent = (ort ? ort + ' — ' : '') + p.name + ' (' + p.ip_address + ')';
+        sel.appendChild(opt);
+    });
+    document.getElementById('lagerLabelDruckerOk').onclick = function() {
+        const pid = parseInt(sel.value, 10);
+        const inst = bootstrap.Modal.getInstance(modalEl);
+        if (inst) inst.hide();
+        onPick(pid);
+    };
+    new bootstrap.Modal(modalEl).show();
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('labelForm');
     const druckBtn = document.getElementById('druckBtn');
@@ -96,81 +156,53 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // Button deaktivieren während der Verarbeitung
         druckBtn.disabled = true;
         const originalHtml = druckBtn.innerHTML;
         druckBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird gedruckt...';
-        
-        // AJAX-Request zum Drucken
-        fetch('{{ url_for("ersatzteile.lagerbehaelter_label_druck") }}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: JSON.stringify({
-                titel: titel,
-                info: info
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Erfolg: Toast anzeigen
-                const toastHtml = `
-                    <div class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true" style="position: fixed; top: 20px; right: 20px; z-index: 9999;">
-                        <div class="d-flex">
-                            <div class="toast-body">
-                                <i class="bi bi-check-circle"></i> ${data.message || 'Label erfolgreich gedruckt.'}
-                            </div>
-                            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-                        </div>
-                    </div>
-                `;
-                document.body.insertAdjacentHTML('beforeend', toastHtml);
-                const toastElement = document.querySelector('.toast:last-child');
-                const toast = new bootstrap.Toast(toastElement, { delay: 5000 });
-                toast.show();
-                
-                // Toast nach dem Ausblenden entfernen
-                toastElement.addEventListener('hidden.bs.toast', () => {
-                    toastElement.remove();
-                });
-                
-                // Formular zurücksetzen und Fokus auf Titel setzen
-                form.reset();
-                titelInput.focus();
-            } else {
-                // Fehler anzeigen
-                const toastHtml = `
-                    <div class="toast align-items-center text-white bg-danger border-0" role="alert" aria-live="assertive" aria-atomic="true" style="position: fixed; top: 20px; right: 20px; z-index: 9999;">
-                        <div class="d-flex">
-                            <div class="toast-body">
-                                <i class="bi bi-exclamation-triangle"></i> ${data.message || 'Fehler beim Drucken.'}
-                            </div>
-                            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-                        </div>
-                    </div>
-                `;
-                document.body.insertAdjacentHTML('beforeend', toastHtml);
-                const toastElement = document.querySelector('.toast:last-child');
-                const toast = new bootstrap.Toast(toastElement, { delay: 7000 });
-                toast.show();
-                
-                toastElement.addEventListener('hidden.bs.toast', () => {
-                    toastElement.remove();
-                });
+
+        const runDruck = (printerId) => {
+            const body = { titel: titel, info: info };
+            if (printerId != null && !isNaN(printerId)) {
+                body.printer_id = printerId;
             }
-            
-            druckBtn.disabled = false;
-            druckBtn.innerHTML = originalHtml;
-        })
-        .catch(error => {
-            console.error('Fehler:', error);
-            alert('Fehler bei der Verbindung zum Server. Bitte versuchen Sie es erneut.');
-            druckBtn.disabled = false;
-            druckBtn.innerHTML = originalHtml;
-        });
+            fetch('{{ url_for("ersatzteile.lagerbehaelter_label_druck") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify(body)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.needs_printer_choice && data.printers && data.printers.length) {
+                    druckBtn.disabled = false;
+                    druckBtn.innerHTML = originalHtml;
+                    oeffneLagerLabelDruckerModal(data.printers, (pid) => {
+                        druckBtn.disabled = true;
+                        druckBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird gedruckt...';
+                        runDruck(pid);
+                    });
+                    return;
+                }
+                if (data.success) {
+                    lagerLabelToast(data.message || 'Label erfolgreich gedruckt.', true);
+                    form.reset();
+                    titelInput.focus();
+                } else {
+                    lagerLabelToast(data.message || 'Fehler beim Drucken.', false);
+                }
+                druckBtn.disabled = false;
+                druckBtn.innerHTML = originalHtml;
+            })
+            .catch(error => {
+                console.error('Fehler:', error);
+                alert('Fehler bei der Verbindung zum Server. Bitte versuchen Sie es erneut.');
+                druckBtn.disabled = false;
+                druckBtn.innerHTML = originalHtml;
+            });
+        };
+        runDruck(null);
     });
     
     // Enter-Taste im Info-Feld soll auch drucken
@@ -196,57 +228,50 @@ document.addEventListener('DOMContentLoaded', function() {
         const originalHtml = artikelDruckBtn.innerHTML;
         artikelDruckBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird gedruckt...';
 
-        fetch('{{ url_for("ersatzteile.lagerbehaelter_label_druck_artikel") }}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: JSON.stringify({
-                artikel_ids: rawIds
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            const success = !!data.success;
-            const toastType = success ? 'success' : 'danger';
-            const message = data.message || (success ? 'Etiketten erfolgreich gedruckt.' : 'Fehler beim Drucken der Etiketten.');
-
-            const bgClass = toastType === 'success' ? 'bg-success' : 'bg-danger';
-            const icon = toastType === 'success' ? 'bi-check-circle' : 'bi-exclamation-triangle';
-
-            const toastHtml = `
-                <div class="toast align-items-center text-white ${bgClass} border-0" role="alert" aria-live="assertive" aria-atomic="true" style="position: fixed; top: 20px; right: 20px; z-index: 9999;">
-                    <div class="d-flex">
-                        <div class="toast-body">
-                            <i class="bi ${icon}"></i> ${message}
-                        </div>
-                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-                    </div>
-                </div>
-            `;
-            document.body.insertAdjacentHTML('beforeend', toastHtml);
-            const toastElement = document.querySelector('.toast:last-child');
-            const toast = new bootstrap.Toast(toastElement, { delay: 7000 });
-            toast.show();
-
-            toastElement.addEventListener('hidden.bs.toast', () => {
-                toastElement.remove();
-            });
-
-            if (success) {
-                artikelForm.reset();
+        const runArtikel = (printerId) => {
+            const body = { artikel_ids: rawIds };
+            if (printerId != null && !isNaN(printerId)) {
+                body.printer_id = printerId;
             }
-
-            artikelDruckBtn.disabled = false;
-            artikelDruckBtn.innerHTML = originalHtml;
-        })
-        .catch(error => {
-            console.error('Fehler:', error);
-            alert('Fehler bei der Verbindung zum Server. Bitte versuchen Sie es erneut.');
-            artikelDruckBtn.disabled = false;
-            artikelDruckBtn.innerHTML = originalHtml;
-        });
+            fetch('{{ url_for("ersatzteile.lagerbehaelter_label_druck_artikel") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify(body)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.needs_printer_choice && data.printers && data.printers.length) {
+                    artikelDruckBtn.disabled = false;
+                    artikelDruckBtn.innerHTML = originalHtml;
+                    oeffneLagerLabelDruckerModal(data.printers, (pid) => {
+                        artikelDruckBtn.disabled = true;
+                        artikelDruckBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird gedruckt...';
+                        runArtikel(pid);
+                    });
+                    return;
+                }
+                const success = !!data.success;
+                lagerLabelToast(
+                    data.message || (success ? 'Etiketten erfolgreich gedruckt.' : 'Fehler beim Drucken der Etiketten.'),
+                    success
+                );
+                if (success) {
+                    artikelForm.reset();
+                }
+                artikelDruckBtn.disabled = false;
+                artikelDruckBtn.innerHTML = originalHtml;
+            })
+            .catch(error => {
+                console.error('Fehler:', error);
+                alert('Fehler bei der Verbindung zum Server. Bitte versuchen Sie es erneut.');
+                artikelDruckBtn.disabled = false;
+                artikelDruckBtn.innerHTML = originalHtml;
+            });
+        };
+        runArtikel(null);
     });
 });
 </script>

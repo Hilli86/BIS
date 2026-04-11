@@ -47,6 +47,7 @@ def init_database_schema(db_path, verbose=False):
             create_column_if_not_exists(conn, 'Mitarbeiter', 'PrimaerAbteilungID', 'ALTER TABLE Mitarbeiter ADD COLUMN PrimaerAbteilungID INTEGER')
             create_column_if_not_exists(conn, 'Mitarbeiter', 'Email', 'ALTER TABLE Mitarbeiter ADD COLUMN Email TEXT NULL')
             create_column_if_not_exists(conn, 'Mitarbeiter', 'Handynummer', 'ALTER TABLE Mitarbeiter ADD COLUMN Handynummer TEXT NULL')
+            create_column_if_not_exists(conn, 'Mitarbeiter', 'StartseiteNachLoginEndpunkt', 'ALTER TABLE Mitarbeiter ADD COLUMN StartseiteNachLoginEndpunkt TEXT NULL')
         
         # ========== 2. Abteilung ==========
         create_table_if_not_exists(conn, 'Abteilung', '''
@@ -1271,6 +1272,7 @@ def init_database_schema(db_path, verbose=False):
                 name TEXT NOT NULL,
                 ip_address TEXT NOT NULL,
                 description TEXT NULL,
+                ort TEXT NULL,
                 active INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT DEFAULT (datetime('now')),
                 updated_at TEXT DEFAULT (datetime('now'))
@@ -1279,6 +1281,11 @@ def init_database_schema(db_path, verbose=False):
             'CREATE INDEX idx_zebra_printers_active ON zebra_printers(active)',
             'CREATE INDEX idx_zebra_printers_ip ON zebra_printers(ip_address)'
         ])
+        if not created_zebra_printers:
+            create_column_if_not_exists(
+                conn, 'zebra_printers', 'ort',
+                'ALTER TABLE zebra_printers ADD COLUMN ort TEXT NULL'
+            )
 
         # Tabelle für Etikettenformate
         created_label_formats = create_table_if_not_exists(conn, 'label_formats', '''
@@ -1290,12 +1297,18 @@ def init_database_schema(db_path, verbose=False):
                 height_mm INTEGER NOT NULL,
                 orientation TEXT NOT NULL DEFAULT 'portrait',
                 zpl_header TEXT NOT NULL,
+                zpl_zusatz TEXT NULL,
                 created_at TEXT DEFAULT (datetime('now')),
                 updated_at TEXT DEFAULT (datetime('now'))
             )
         ''', [
             'CREATE INDEX idx_label_formats_name ON label_formats(name)'
         ])
+        if not created_label_formats:
+            create_column_if_not_exists(
+                conn, 'label_formats', 'zpl_zusatz',
+                'ALTER TABLE label_formats ADD COLUMN zpl_zusatz TEXT NULL'
+            )
 
         # Seed-Daten nur anlegen, wenn Tabellen gerade neu erstellt wurden oder leer sind
         if created_zebra_printers:
@@ -1309,67 +1322,189 @@ def init_database_schema(db_path, verbose=False):
         if created_label_formats:
             cursor.execute('SELECT COUNT(*) AS count FROM label_formats')
             if cursor.fetchone()['count'] == 0:
-                # 203 dpi -> ca. 8 Dots/mm
-                zpl_30x30 = "^PW240\n^LL240\n^LS0"
-                zpl_40x160 = "^PW320\n^LL1280\n^LS0"
+                # 203 dpi (exakt 203/25.4 Dots/mm), ohne ^LS0
+                zpl_30x30 = "^PW240\n^LL240"
+                zpl_40x160 = "^PW320\n^LL1279"
                 cursor.executemany('''
-                    INSERT INTO label_formats (name, description, width_mm, height_mm, orientation, zpl_header)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO label_formats (name, description, width_mm, height_mm, orientation, zpl_header, zpl_zusatz)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                 ''', [
-                    ('30x30 mm', 'Quadratisches Etikett 30x30 mm', 30, 30, 'portrait', zpl_30x30),
-                    ('40x160 mm', 'Langes Etikett 40x160 mm', 40, 160, 'portrait', zpl_40x160),
+                    ('30x30 mm', 'Quadratisches Etikett 30x30 mm', 30, 30, 'portrait', zpl_30x30, None),
+                    ('40x160 mm', 'Langes Etikett 40x160 mm', 40, 160, 'portrait', zpl_40x160, None),
                 ])
 
-        # ========== 33. Etikett (vorkonfigurierte Etiketten-Templates) ==========
+        # ========== 33. Etikett (vorkonfigurierte Etiketten-Templates, ohne Druckerzuweisung) ==========
         created_etikett = create_table_if_not_exists(conn, 'Etikett', '''
             CREATE TABLE Etikett (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 bezeichnung TEXT NOT NULL,
-                drucker_id INTEGER NOT NULL,
                 etikettformat_id INTEGER NOT NULL,
                 druckbefehle TEXT NOT NULL,
                 created_at TEXT DEFAULT (datetime('now')),
                 updated_at TEXT DEFAULT (datetime('now')),
-                FOREIGN KEY (drucker_id) REFERENCES zebra_printers(id),
                 FOREIGN KEY (etikettformat_id) REFERENCES label_formats(id)
             )
         ''', [
-            'CREATE INDEX idx_etikett_drucker ON Etikett(drucker_id)',
             'CREATE INDEX idx_etikett_format ON Etikett(etikettformat_id)'
+        ])
+
+        # Migration: altes Etikett mit drucker_id → etikett_druck_konfig, dann Spalte entfernen
+        if table_exists(conn, 'Etikett') and column_exists(conn, 'Etikett', 'drucker_id'):
+            create_table_if_not_exists(conn, 'etikett_druck_konfig', '''
+                CREATE TABLE etikett_druck_konfig (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    funktion_code TEXT NOT NULL,
+                    etikett_id INTEGER NOT NULL,
+                    drucker_id INTEGER NULL,
+                    prioritaet INTEGER NOT NULL DEFAULT 0,
+                    aktiv INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT DEFAULT (datetime('now')),
+                    updated_at TEXT DEFAULT (datetime('now', 'localtime')),
+                    FOREIGN KEY (etikett_id) REFERENCES Etikett(id),
+                    FOREIGN KEY (drucker_id) REFERENCES zebra_printers(id)
+                )
+            ''', [
+                'CREATE INDEX idx_edk_funktion ON etikett_druck_konfig(funktion_code)',
+                'CREATE INDEX idx_edk_etikett ON etikett_druck_konfig(etikett_id)',
+                'CREATE INDEX idx_edk_aktiv ON etikett_druck_konfig(aktiv)'
+            ])
+            create_table_if_not_exists(conn, 'etikett_druck_konfig_abteilung', '''
+                CREATE TABLE etikett_druck_konfig_abteilung (
+                    konfig_id INTEGER NOT NULL,
+                    abteilung_id INTEGER NOT NULL,
+                    PRIMARY KEY (konfig_id, abteilung_id),
+                    FOREIGN KEY (konfig_id) REFERENCES etikett_druck_konfig(id) ON DELETE CASCADE,
+                    FOREIGN KEY (abteilung_id) REFERENCES Abteilung(ID)
+                )
+            ''', [
+                'CREATE INDEX idx_edka_abteilung ON etikett_druck_konfig_abteilung(abteilung_id)'
+            ])
+            bezeichnung_zu_funktion = {
+                'ErsatzteilLabel': 'ersatzteil_etikett',
+                'LagerbehaelterLabel': 'lagerbehaelter_etikett',
+            }
+            alt_rows = cursor.execute(
+                'SELECT id, bezeichnung, drucker_id FROM Etikett WHERE drucker_id IS NOT NULL'
+            ).fetchall()
+            for erow in alt_rows:
+                fc = bezeichnung_zu_funktion.get(erow['bezeichnung'])
+                if not fc:
+                    continue
+                exists = cursor.execute(
+                    '''SELECT 1 FROM etikett_druck_konfig
+                       WHERE funktion_code = ? AND etikett_id = ? LIMIT 1''',
+                    (fc, erow['id'])
+                ).fetchone()
+                if exists:
+                    continue
+                cursor.execute('''
+                    INSERT INTO etikett_druck_konfig (funktion_code, etikett_id, drucker_id, prioritaet, aktiv)
+                    VALUES (?, ?, ?, 0, 1)
+                ''', (fc, erow['id'], erow['drucker_id']))
+            try:
+                cursor.execute('DROP INDEX IF EXISTS idx_etikett_drucker')
+            except sqlite3.OperationalError:
+                pass
+            conn.execute('PRAGMA foreign_keys=OFF')
+            cursor.execute('''
+                CREATE TABLE Etikett__new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    bezeichnung TEXT NOT NULL,
+                    etikettformat_id INTEGER NOT NULL,
+                    druckbefehle TEXT NOT NULL,
+                    created_at TEXT DEFAULT (datetime('now')),
+                    updated_at TEXT DEFAULT (datetime('now')),
+                    FOREIGN KEY (etikettformat_id) REFERENCES label_formats(id)
+                )
+            ''')
+            cursor.execute('''
+                INSERT INTO Etikett__new (id, bezeichnung, etikettformat_id, druckbefehle, created_at, updated_at)
+                SELECT id, bezeichnung, etikettformat_id, druckbefehle, created_at, updated_at FROM Etikett
+            ''')
+            cursor.execute('DROP TABLE Etikett')
+            cursor.execute('ALTER TABLE Etikett__new RENAME TO Etikett')
+            conn.execute('PRAGMA foreign_keys=ON')
+            create_index_if_not_exists(conn, 'idx_etikett_format',
+                'CREATE INDEX idx_etikett_format ON Etikett(etikettformat_id)')
+
+        # Konfigurationstabellen (neue Installationen ohne Migration)
+        create_table_if_not_exists(conn, 'etikett_druck_konfig', '''
+            CREATE TABLE etikett_druck_konfig (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                funktion_code TEXT NOT NULL,
+                etikett_id INTEGER NOT NULL,
+                drucker_id INTEGER NULL,
+                prioritaet INTEGER NOT NULL DEFAULT 0,
+                aktiv INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now', 'localtime')),
+                FOREIGN KEY (etikett_id) REFERENCES Etikett(id),
+                FOREIGN KEY (drucker_id) REFERENCES zebra_printers(id)
+            )
+        ''', [
+            'CREATE INDEX idx_edk_funktion ON etikett_druck_konfig(funktion_code)',
+            'CREATE INDEX idx_edk_etikett ON etikett_druck_konfig(etikett_id)',
+            'CREATE INDEX idx_edk_aktiv ON etikett_druck_konfig(aktiv)'
+        ])
+        create_table_if_not_exists(conn, 'etikett_druck_konfig_abteilung', '''
+            CREATE TABLE etikett_druck_konfig_abteilung (
+                konfig_id INTEGER NOT NULL,
+                abteilung_id INTEGER NOT NULL,
+                PRIMARY KEY (konfig_id, abteilung_id),
+                FOREIGN KEY (konfig_id) REFERENCES etikett_druck_konfig(id) ON DELETE CASCADE,
+                FOREIGN KEY (abteilung_id) REFERENCES Abteilung(ID)
+            )
+        ''', [
+            'CREATE INDEX idx_edka_abteilung ON etikett_druck_konfig_abteilung(abteilung_id)'
         ])
 
         # Seed-Daten: Standard-Etikett "ErsatzteilLabel" anlegen
         if created_etikett:
             cursor.execute('SELECT COUNT(*) AS count FROM Etikett')
             if cursor.fetchone()['count'] == 0:
-                # Ersten aktiven Drucker und 30x30-Format holen
-                printer_row = cursor.execute('SELECT id FROM zebra_printers WHERE active = 1 ORDER BY id LIMIT 1').fetchone()
-                label_row = cursor.execute('SELECT id FROM label_formats WHERE name = ? LIMIT 1', ('30x30 mm',)).fetchone()
-                
-                if printer_row and label_row:
-                    # ZPL-Template mit Platzhaltern (aus ersatzteil_routes.py)
+                label_row = cursor.execute(
+                    'SELECT id FROM label_formats WHERE name = ? LIMIT 1', ('30x30 mm',)
+                ).fetchone()
+                if label_row:
                     zpl_template = """^XA
-{zpl_header}
+{etikettenformat}
 ^MMT
 ^CI28
 ^FT10,50^A0N,28,28^FH\\^FDArtNr.^FS
-^FT90,52^A0N,35,35^FB51,1,0,R^FH\\^FD{artnr}^FS
-^FT10,80^A0N,22,17^FH\\^FD{line1}^FS
-^FT10,105^A0N,22,17^FH\\^FD{line2}^FS
-^FT10,130^A0N,22,17^FH\\^FD{line3}^FS
+^FT90,52^A0N,35,35^FB51,1,0,R^FH\\^FD{artikelnummer}^FS
+^FT10,80^A0N,22,17^FH\\^FD{artikel_beschreibung_1}^FS
+^FT10,105^A0N,22,17^FH\\^FD{artikel_beschreibung_2}^FS
+^FT10,130^A0N,22,17^FH\\^FD{artikel_beschreibung_3}^FS
 ^FT128,151^A0N,16,16^FH\\^FDLagerort:^FS
-^FT128,176^A0N,22,20^FH\\^FD{lagerort}^FS
+^FT128,176^A0N,22,20^FH\\^FD{artikel_lagerort}^FS
 ^FT128,221^A0N,16,16^FH\\^FDLagerplatz^FS
-^FT118,246^A0N,22,20^FH\\^FD{lagerplatz}^FS
+^FT118,246^A0N,22,20^FH\\^FD{artikel_lagerplatz}^FS
 ^FT10,261^BQN,2,5
-^FH\\^FDLA,{artnr}^FS
+^FH\\^FDLA,{artikelnummer}^FS
 ^PQ1,0,1,Y
 ^XZ"""
-                    
                     cursor.execute('''
-                        INSERT INTO Etikett (bezeichnung, drucker_id, etikettformat_id, druckbefehle)
-                        VALUES (?, ?, ?, ?)
-                    ''', ('ErsatzteilLabel', printer_row['id'], label_row['id'], zpl_template))
+                        INSERT INTO Etikett (bezeichnung, etikettformat_id, druckbefehle)
+                        VALUES (?, ?, ?)
+                    ''', ('ErsatzteilLabel', label_row['id'], zpl_template))
+
+        # Standard-Druckkonfiguration für neue Installation (Ersatzteil-Etikett → erster aktiver Drucker)
+        cursor.execute(
+            'SELECT COUNT(*) AS c FROM etikett_druck_konfig WHERE funktion_code = ?',
+            ('ersatzteil_etikett',)
+        )
+        if cursor.fetchone()['c'] == 0:
+            et_row = cursor.execute(
+                "SELECT id FROM Etikett WHERE bezeichnung = 'ErsatzteilLabel' LIMIT 1"
+            ).fetchone()
+            pr_row = cursor.execute(
+                'SELECT id FROM zebra_printers WHERE active = 1 ORDER BY id LIMIT 1'
+            ).fetchone()
+            if et_row and pr_row:
+                cursor.execute('''
+                    INSERT INTO etikett_druck_konfig (funktion_code, etikett_id, drucker_id, prioritaet, aktiv)
+                    VALUES ('ersatzteil_etikett', ?, ?, 0, 1)
+                ''', (et_row['id'], pr_row['id']))
 
         # ========== 34. WebAuthnCredential (biometrische Anmeldung / Passkeys) ==========
         # Speichert pro Mitarbeiter registrierte WebAuthn-Credentials (z.B. Windows Hello, FaceID)

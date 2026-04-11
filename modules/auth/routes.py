@@ -9,7 +9,8 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import datetime, timedelta
 from . import auth_bp
 from utils import get_db_connection
-from utils.decorators import is_safe_url, login_required
+from utils.decorators import login_required
+from utils.auth_redirect import resolve_post_login_redirect_url
 from utils.webauthn import (
     get_fido2_server,
     store_state,
@@ -131,12 +132,11 @@ def login():
                         g.login_session_lifetime_to_restore = current_app.config['PERMANENT_SESSION_LIFETIME']
                         current_app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
                     
-                    # Weiterleitung zur ursprünglichen URL (next-Parameter) oder zum Dashboard
-                    next_page = request.args.get('next')
-                    if next_page and is_safe_url(next_page):
-                        response = make_response(redirect(next_page))
-                    else:
-                        response = make_response(redirect(url_for('dashboard.dashboard')))
+                    start_ep = None
+                    if 'StartseiteNachLoginEndpunkt' in user.keys():
+                        start_ep = user['StartseiteNachLoginEndpunkt']
+                    ziel = resolve_post_login_redirect_url(start_ep, request.args.get('next'))
+                    response = make_response(redirect(ziel))
                     
                     # Cookie für "Zugangsdaten merken" setzen oder löschen
                     if remember_me_checkbox:
@@ -677,6 +677,20 @@ def webauthn_login_verify():
 
             session["user_berechtigungen"] = [b["Schluessel"] for b in berechtigungen]
 
+            from utils.menue_definitions import get_menue_sichtbarkeit_fuer_mitarbeiter
+
+            session["user_menue_sichtbarkeit"] = get_menue_sichtbarkeit_fuer_mitarbeiter(
+                user["ID"], conn
+            )
+
+            start_ep = (
+                user["StartseiteNachLoginEndpunkt"]
+                if "StartseiteNachLoginEndpunkt" in user.keys()
+                else None
+            )
+            next_param = data.get("next")
+            redirect_url = resolve_post_login_redirect_url(start_ep, next_param)
+
         # Session dauerhaft speichern (30 Tage bei WebAuthn – biometrische Anmeldung auf vertrauenswürdigem Gerät)
         session.permanent = True
         old_lifetime = current_app.config["PERMANENT_SESSION_LIFETIME"]
@@ -686,8 +700,7 @@ def webauthn_login_verify():
         # Vorherige Flash-Messages (z.B. "Abgemeldet", "Bitte zuerst anmelden") entfernen
         session.pop("_flashes", None)
 
-        # Aufrufende Seite entscheidet über Redirect
-        return jsonify({"success": True})
+        return jsonify({"success": True, "redirect_url": redirect_url})
     except Exception as e:
         print(f"WebAuthn Login Fehler: {e}")
         traceback.print_exc()
