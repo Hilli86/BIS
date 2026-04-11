@@ -372,11 +372,6 @@ def zebra_test():
 
             zpl = build_test_label(label['zpl_header'], label['name'])
 
-            # Kompletten ZPL-Befehl in der Konsole ausgeben (für Debugging)
-            print("===== ZEBRA TEST ZPL =====")
-            print(zpl)
-            print("===== END ZEBRA TEST ZPL =====")
-
             try:
                 send_zpl_to_printer(printer['ip_address'], zpl)
                 flash(f"Testetikett '{label['name']}' an Drucker '{printer['name']}' gesendet.", 'success')

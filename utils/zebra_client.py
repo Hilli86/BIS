@@ -44,6 +44,12 @@ def send_zpl_to_printer(printer_ip: str, zpl: str, port: int = 9100, timeout: fl
     if not zpl:
         raise ValueError("zpl darf nicht leer sein")
 
+    # Debug: jeder Druckbefehl in der Server-Konsole (Flask/Werkzeug)
+    print("===== BIS ZPL-Druck (Debug) =====")
+    print(f"Ziel: {printer_ip}:{port}")
+    print(zpl)
+    print("===== Ende ZPL =====")
+
     data = zpl.encode("utf-8")
     with socket.create_connection((printer_ip, port), timeout=timeout) as sock:
         sock.sendall(data)

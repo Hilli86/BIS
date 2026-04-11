@@ -437,12 +437,7 @@ def drucke_ersatzteil_etikett_intern(
     artnr = str(et['ID'])
 
     zpl = zpl_ersatzteil_aus_zeile(et, etikett, anzahl)
-    
-    # Kompletten ZPL-Befehl in der Konsole ausgeben (für Debugging)
-    print("===== ERSATZTEIL LABEL ZPL =====")
-    print(zpl)
-    print("===== END ERSATZTEIL LABEL ZPL =====")
-    
+
     try:
         send_zpl_to_printer(printer_ip, zpl)
         return True, f'{anzahl} Etikett{"en" if anzahl > 1 else ""} für Artikel {artnr} gedruckt.'

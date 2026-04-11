@@ -739,9 +739,6 @@ def lagerbehaelter_label_druck():
                 allgemein_info=info,
                 **etikett_format_substitution(etikett['zpl_header']),
             )
-            print('===== LAGERBEHAELTER LABEL ZPL =====')
-            print(zpl)
-            print('===== END LAGERBEHAELTER LABEL ZPL =====')
             try:
                 send_zpl_to_printer(res['printer_ip'], zpl)
             except Exception as e:
@@ -835,10 +832,6 @@ def lagerbehaelter_label_druck_artikel():
                     continue
 
                 zpl = zpl_ersatzteil_aus_zeile(et, etikett, 1)
-
-                print('===== ERSATZTEIL LABEL ZPL (Batch) =====')
-                print(zpl)
-                print('===== END ERSATZTEIL LABEL ZPL (Batch) =====')
 
                 try:
                     send_zpl_to_printer(printer_ip, zpl)
