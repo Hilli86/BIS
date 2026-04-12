@@ -4,7 +4,7 @@ Lagerbuchungs-Routen - Verwaltung von Lagerbuchungen
 
 from flask import render_template, request, redirect, url_for, session, flash, jsonify
 from .. import ersatzteile_bp
-from utils import get_db_connection, login_required, permission_required, get_sichtbare_abteilungen_fuer_mitarbeiter
+from utils import get_db_connection, login_required, permission_required, admin_required, get_sichtbare_abteilungen_fuer_mitarbeiter
 from utils.helpers import build_ersatzteil_zugriff_filter
 from utils.zebra_client import send_zpl_to_printer
 from utils.etikett_druck import (
@@ -67,12 +67,16 @@ def lagerbuchungen_liste():
                 e.Bezeichnung AS ErsatzteilBezeichnung,
                 m.Vorname || ' ' || m.Nachname AS VerwendetVon,
                 k.Bezeichnung AS Kostenstelle,
-                t.ID AS ThemaID
+                l.ThemaID AS BuchungThemaID,
+                t.ID AS ThemaID,
+                l.WartungsdurchfuehrungID AS BuchungWartungsdurchfuehrungID,
+                wd.ID AS WartungsdurchfuehrungID
             FROM Lagerbuchung l
             JOIN Ersatzteil e ON l.ErsatzteilID = e.ID
             LEFT JOIN Mitarbeiter m ON l.VerwendetVonID = m.ID
             LEFT JOIN Kostenstelle k ON l.KostenstelleID = k.ID
             LEFT JOIN SchichtbuchThema t ON l.ThemaID = t.ID
+            LEFT JOIN Wartungsdurchfuehrung wd ON l.WartungsdurchfuehrungID = wd.ID
             WHERE e.Gelöscht = 0
         '''
         params = []
@@ -154,8 +158,145 @@ def lagerbuchungen_liste():
         datum_von=datum_von,
         datum_bis=datum_bis,
         limit_aktiv=limit_aktiv,
-        limit_wert=limit_wert
+        limit_wert=limit_wert,
+        is_admin=is_admin,
     )
+
+
+@ersatzteile_bp.route('/lagerbuchungen/admin-thema', methods=['POST'])
+@login_required
+@admin_required
+def lagerbuchung_admin_thema():
+    """Thema-ID einer bestehenden Lagerbuchung setzen oder entfernen (nur Admin)."""
+    lagerbuchung_id = request.form.get('lagerbuchung_id', type=int)
+    if not lagerbuchung_id:
+        flash('Ungültige Lagerbuchung.', 'danger')
+        return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+
+    entfernen = request.form.get('thema_entfernen') == '1'
+    thema_id = None
+    if not entfernen:
+        thema_id_raw = request.form.get('thema_id', '').strip()
+        if thema_id_raw:
+            try:
+                thema_id = int(thema_id_raw)
+            except ValueError:
+                flash('Ungültige Thema-ID.', 'danger')
+                return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+            if thema_id < 1:
+                flash('Ungültige Thema-ID.', 'danger')
+                return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+
+    try:
+        with get_db_connection() as conn:
+            row = conn.execute(
+                '''
+                SELECT l.ID, l.ThemaID
+                FROM Lagerbuchung l
+                JOIN Ersatzteil e ON l.ErsatzteilID = e.ID
+                WHERE l.ID = ? AND e.Gelöscht = 0
+                ''',
+                (lagerbuchung_id,),
+            ).fetchone()
+            if not row:
+                flash('Lagerbuchung nicht gefunden.', 'danger')
+                return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+
+            if entfernen or thema_id is None:
+                conn.execute('UPDATE Lagerbuchung SET ThemaID = NULL WHERE ID = ?', (lagerbuchung_id,))
+                conn.commit()
+                flash('Thema-Verknüpfung wurde entfernt.', 'success')
+                return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+
+            thema = conn.execute(
+                'SELECT ID FROM SchichtbuchThema WHERE ID = ? AND Gelöscht = 0',
+                (thema_id,),
+            ).fetchone()
+            if not thema:
+                flash(f'Thema-ID {thema_id} wurde nicht gefunden oder ist nicht aktiv.', 'danger')
+                return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+
+            conn.execute('UPDATE Lagerbuchung SET ThemaID = ? WHERE ID = ?', (thema_id, lagerbuchung_id))
+            conn.commit()
+            flash(f'Thema-ID wurde auf {thema_id} gesetzt.', 'success')
+    except Exception as e:
+        flash(f'Fehler beim Speichern: {str(e)}', 'danger')
+
+    return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+
+
+@ersatzteile_bp.route('/lagerbuchungen/admin-wartung', methods=['POST'])
+@login_required
+@admin_required
+def lagerbuchung_admin_wartung():
+    """Wartungsdurchführung-ID einer bestehenden Lagerbuchung setzen oder entfernen (nur Admin)."""
+    lagerbuchung_id = request.form.get('lagerbuchung_id', type=int)
+    if not lagerbuchung_id:
+        flash('Ungültige Lagerbuchung.', 'danger')
+        return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+
+    entfernen = request.form.get('wartung_entfernen') == '1'
+    wartungsdurchfuehrung_id = None
+    if not entfernen:
+        wid_raw = request.form.get('wartungsdurchfuehrung_id', '').strip()
+        if wid_raw:
+            try:
+                wartungsdurchfuehrung_id = int(wid_raw)
+            except ValueError:
+                flash('Ungültige Wartungsdurchführung-ID.', 'danger')
+                return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+            if wartungsdurchfuehrung_id < 1:
+                flash('Ungültige Wartungsdurchführung-ID.', 'danger')
+                return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+
+    try:
+        with get_db_connection() as conn:
+            row = conn.execute(
+                '''
+                SELECT l.ID, l.WartungsdurchfuehrungID
+                FROM Lagerbuchung l
+                JOIN Ersatzteil e ON l.ErsatzteilID = e.ID
+                WHERE l.ID = ? AND e.Gelöscht = 0
+                ''',
+                (lagerbuchung_id,),
+            ).fetchone()
+            if not row:
+                flash('Lagerbuchung nicht gefunden.', 'danger')
+                return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+
+            if entfernen or wartungsdurchfuehrung_id is None:
+                conn.execute(
+                    'UPDATE Lagerbuchung SET WartungsdurchfuehrungID = NULL WHERE ID = ?',
+                    (lagerbuchung_id,),
+                )
+                conn.commit()
+                flash('Wartungs-Verknüpfung wurde entfernt.', 'success')
+                return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+
+            wd = conn.execute(
+                'SELECT ID FROM Wartungsdurchfuehrung WHERE ID = ?',
+                (wartungsdurchfuehrung_id,),
+            ).fetchone()
+            if not wd:
+                flash(
+                    f'Wartungsdurchführung-ID {wartungsdurchfuehrung_id} wurde nicht gefunden.',
+                    'danger',
+                )
+                return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
+
+            conn.execute(
+                'UPDATE Lagerbuchung SET WartungsdurchfuehrungID = ? WHERE ID = ?',
+                (wartungsdurchfuehrung_id, lagerbuchung_id),
+            )
+            conn.commit()
+            flash(
+                f'Wartungsdurchführung-ID wurde auf {wartungsdurchfuehrung_id} gesetzt.',
+                'success',
+            )
+    except Exception as e:
+        flash(f'Fehler beim Speichern: {str(e)}', 'danger')
+
+    return redirect(url_for('ersatzteile.lagerbuchungen_liste'))
 
 
 @ersatzteile_bp.route('/lagerbuchungen/schnellbuchung', methods=['POST'])

@@ -153,9 +153,13 @@
                         <th>Preis</th>
                         <th>Kostenstelle</th>
                         <th>Thema</th>
+                        <th>Wartung</th>
                         <th>Grund</th>
                         <th>Von</th>
                         <th>Bemerkung</th>
+                        {% if is_admin %}
+                        <th class="text-end text-nowrap">Aktion</th>
+                        {% endif %}
                     </tr>
                 </thead>
                 <tbody>
@@ -194,8 +198,21 @@
                             <a href="{{ url_for('schichtbuch.thema_detail', thema_id=lb.ThemaID) }}" class="text-decoration-none">
                                 Thema #{{ lb.ThemaID }}
                             </a>
+                            {% elif is_admin and lb.BuchungThemaID %}
+                            <span class="text-warning" title="Thema in der Datenbank gespeichert, aber nicht aktiv oder gelöscht">#{{ lb.BuchungThemaID }}</span>
                             {% else %}
-                            -
+                            –
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if lb.WartungsdurchfuehrungID %}
+                            <a href="{{ url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=lb.WartungsdurchfuehrungID) }}" class="text-decoration-none">
+                                Wartung #{{ lb.WartungsdurchfuehrungID }}
+                            </a>
+                            {% elif is_admin and lb.BuchungWartungsdurchfuehrungID %}
+                            <span class="text-warning" title="ID in der Datenbank gespeichert, aber keine passende Wartungsdurchführung">#{{ lb.BuchungWartungsdurchfuehrungID }}</span>
+                            {% else %}
+                            –
                             {% endif %}
                         </td>
                         <td>
@@ -207,6 +224,22 @@
                         </td>
                         <td>{{ lb.VerwendetVon or '-' }}</td>
                         <td>{{ lb.Bemerkung or '-' }}</td>
+                        {% if is_admin %}
+                        <td class="text-end text-nowrap">
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        title="Thema-ID bearbeiten"
+                                        onclick="oeffneAdminThemaModal({{ lb.ID }}, {{ lb.BuchungThemaID | tojson }})">
+                                    <i class="bi bi-journal-bookmark"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        title="Wartungsdurchführung-ID bearbeiten"
+                                        onclick="oeffneAdminWartungModal({{ lb.ID }}, {{ lb.BuchungWartungsdurchfuehrungID | tojson }})">
+                                    <i class="bi bi-wrench"></i>
+                                </button>
+                            </div>
+                        </td>
+                        {% endif %}
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -247,10 +280,35 @@
                     <div class="small mb-1">
                         {% if lb.ThemaID %}
                         <strong>Thema:</strong> <a href="{{ url_for('schichtbuch.thema_detail', thema_id=lb.ThemaID) }}" class="text-decoration-none">#{{ lb.ThemaID }}</a>
+                        {% elif is_admin and lb.BuchungThemaID %}
+                        <strong>Thema:</strong> <span class="text-warning">#{{ lb.BuchungThemaID }}</span>
                         {% else %}
                         <strong>Thema:</strong> –
                         {% endif %}
                     </div>
+                    <div class="small mb-1">
+                        {% if lb.WartungsdurchfuehrungID %}
+                        <strong>Wartung:</strong> <a href="{{ url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=lb.WartungsdurchfuehrungID) }}" class="text-decoration-none">#{{ lb.WartungsdurchfuehrungID }}</a>
+                        {% elif is_admin and lb.BuchungWartungsdurchfuehrungID %}
+                        <strong>Wartung:</strong> <span class="text-warning">#{{ lb.BuchungWartungsdurchfuehrungID }}</span>
+                        {% else %}
+                        <strong>Wartung:</strong> –
+                        {% endif %}
+                    </div>
+                    {% if is_admin %}
+                    <div class="mt-2 d-flex flex-wrap gap-2" onclick="event.stopPropagation();">
+                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                title="Thema-ID bearbeiten"
+                                onclick="event.stopPropagation(); oeffneAdminThemaModal({{ lb.ID }}, {{ lb.BuchungThemaID | tojson }})">
+                            <i class="bi bi-journal-bookmark"></i> Thema-ID
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                title="Wartungsdurchführung-ID bearbeiten"
+                                onclick="event.stopPropagation(); oeffneAdminWartungModal({{ lb.ID }}, {{ lb.BuchungWartungsdurchfuehrungID | tojson }})">
+                            <i class="bi bi-wrench"></i> Wartung-ID
+                        </button>
+                    </div>
+                    {% endif %}
                     <div class="small mb-1">
                         <strong>Grund:</strong>
                         {% if lb.BestellungID %}
@@ -274,10 +332,111 @@
         {% endif %}
     </div>
 </div>
+
+{% if is_admin %}
+<div class="modal fade" id="modalAdminThema" tabindex="-1" aria-labelledby="modalAdminThemaLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{{ url_for('ersatzteile.lagerbuchung_admin_thema') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalAdminThemaLabel"><i class="bi bi-journal-bookmark"></i> Thema-ID (Lagerbuchung)</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="lagerbuchung_id" id="modalAdminThemaLbId" value="">
+                    <p class="small text-muted mb-2">Lagerbuchung <strong id="modalAdminThemaLbIdAnzeige">–</strong></p>
+                    <p class="mb-3">Aktuell in der Buchung: <strong id="modalAdminThemaCurrent">–</strong></p>
+                    <label for="modalAdminThemaInput" class="form-label">Neue Thema-ID</label>
+                    <input type="number" class="form-control" name="thema_id" id="modalAdminThemaInput" min="1" placeholder="Leer lassen und „Speichern“ = Thema entfernen">
+                    <small class="text-muted d-block mt-2">Nur aktive Schichtbuch-Themen (nicht gelöscht) sind erlaubt.</small>
+                </div>
+                <div class="modal-footer flex-wrap gap-2">
+                    <button type="submit" name="thema_entfernen" value="1" class="btn btn-outline-danger">
+                        Thema entfernen
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary">Speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalAdminWartung" tabindex="-1" aria-labelledby="modalAdminWartungLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{{ url_for('ersatzteile.lagerbuchung_admin_wartung') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalAdminWartungLabel"><i class="bi bi-wrench"></i> Wartungsdurchführung-ID (Lagerbuchung)</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="lagerbuchung_id" id="modalAdminWartungLbId" value="">
+                    <p class="small text-muted mb-2">Lagerbuchung <strong id="modalAdminWartungLbIdAnzeige">–</strong></p>
+                    <p class="mb-3">Aktuell in der Buchung: <strong id="modalAdminWartungCurrent">–</strong></p>
+                    <label for="modalAdminWartungInput" class="form-label">Neue Wartungsdurchführung-ID</label>
+                    <input type="number" class="form-control" name="wartungsdurchfuehrung_id" id="modalAdminWartungInput" min="1" placeholder="Leer lassen und „Speichern“ = Verknüpfung entfernen">
+                    <small class="text-muted d-block mt-2">Die ID muss in der Tabelle „Wartungsdurchführung“ existieren.</small>
+                </div>
+                <div class="modal-footer flex-wrap gap-2">
+                    <button type="submit" name="wartung_entfernen" value="1" class="btn btn-outline-danger">
+                        Verknüpfung entfernen
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary">Speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script>
+{% if is_admin %}
+function oeffneAdminThemaModal(lagerbuchungId, buchungThemaId) {
+    const idInput = document.getElementById('modalAdminThemaLbId');
+    const idAnzeige = document.getElementById('modalAdminThemaLbIdAnzeige');
+    const currentEl = document.getElementById('modalAdminThemaCurrent');
+    const themaInput = document.getElementById('modalAdminThemaInput');
+    if (!idInput || !themaInput) return;
+    idInput.value = String(lagerbuchungId);
+    if (idAnzeige) idAnzeige.textContent = '#' + lagerbuchungId;
+    const tid = buchungThemaId === null || buchungThemaId === undefined ? null : Number(buchungThemaId);
+    if (currentEl) {
+        currentEl.textContent = tid != null && !Number.isNaN(tid) ? ('Thema #' + tid) : '– (keines)';
+    }
+    themaInput.value = (tid != null && !Number.isNaN(tid)) ? String(tid) : '';
+    const modalEl = document.getElementById('modalAdminThema');
+    if (modalEl && typeof bootstrap !== 'undefined') {
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+        setTimeout(function() { themaInput.focus(); themaInput.select(); }, 400);
+    }
+}
+
+function oeffneAdminWartungModal(lagerbuchungId, buchungWartungId) {
+    const idInput = document.getElementById('modalAdminWartungLbId');
+    const idAnzeige = document.getElementById('modalAdminWartungLbIdAnzeige');
+    const currentEl = document.getElementById('modalAdminWartungCurrent');
+    const widInput = document.getElementById('modalAdminWartungInput');
+    if (!idInput || !widInput) return;
+    idInput.value = String(lagerbuchungId);
+    if (idAnzeige) idAnzeige.textContent = '#' + lagerbuchungId;
+    const wid = buchungWartungId === null || buchungWartungId === undefined ? null : Number(buchungWartungId);
+    if (currentEl) {
+        currentEl.textContent = wid != null && !Number.isNaN(wid) ? ('Wartung #' + wid) : '– (keine)';
+    }
+    widInput.value = (wid != null && !Number.isNaN(wid)) ? String(wid) : '';
+    const modalEl = document.getElementById('modalAdminWartung');
+    if (modalEl && typeof bootstrap !== 'undefined') {
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+        setTimeout(function() { widInput.focus(); widInput.select(); }, 400);
+    }
+}
+{% endif %}
 // Dynamische Anpassung des Mengenfelds je nach Buchungstyp
 document.addEventListener('DOMContentLoaded', function() {
     const buchungstypSelect = document.getElementById('buchungstyp');
