@@ -5,10 +5,36 @@ Routes für Produktionsfunktionen
 
 import os
 import re
-from flask import render_template, send_from_directory, current_app, abort, request, flash, redirect, url_for, session
+from datetime import datetime
+
+from flask import (
+    abort,
+    current_app,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+    session,
+    url_for,
+)
+
 from . import produktion_bp
-from utils.decorators import login_required, guest_allowed, permission_required
-from utils.file_handling import save_uploaded_file, create_upload_folder, originale_loeschen_aus_formular, loesche_import_kopie_nach_upload
+from utils.database import get_db_connection
+from utils.decorators import guest_allowed, login_required, permission_required
+from utils.etikett_druck import (
+    FUNKTION_PRODUKTION_ETIKETT,
+    build_print_resolution,
+    zpl_produktion_etikett,
+)
+from utils.file_handling import (
+    create_upload_folder,
+    loesche_import_kopie_nach_upload,
+    originale_loeschen_aus_formular,
+    save_uploaded_file,
+)
+from utils.zebra_client import send_zpl_to_printer
 
 
 def get_artikeleinstellungen_struktur():
@@ -89,6 +115,82 @@ def get_artikeleinstellungen_struktur():
     return struktur
 
 
+@produktion_bp.route('/etiketten-drucken')
+@login_required
+def etiketten_drucken():
+    """Freitext-Produktion-Etikett (Produkt, Datum/Zeit, Stück)."""
+    jetzt = datetime.now().replace(second=0, microsecond=0)
+    datum_zeit_iso = jetzt.strftime('%Y-%m-%dT%H:%M')
+    return render_template(
+        'etiketten_drucken.html',
+        datum_zeit_iso=datum_zeit_iso,
+    )
+
+
+@produktion_bp.route('/etiketten-drucken/druck', methods=['POST'])
+@login_required
+def etiketten_drucken_druck():
+    """Druckt Produktion-Etikett gemäß Admin-Konfiguration ``produktion_etikett``."""
+    mitarbeiter_id = session.get('user_id')
+    data = request.get_json(silent=True) or {}
+    produkt = (data.get('produkt') or '').strip()
+    datum_text = (data.get('datum') or '').strip()
+    if not datum_text:
+        datum_text = datetime.now().strftime('%d.%m.%Y %H:%M')
+
+    raw_stueck = data.get('stueck')
+    try:
+        anzahl = int(raw_stueck)
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'message': 'Stück muss eine ganze Zahl sein.'}), 400
+    if anzahl < 1 or anzahl > 9999:
+        return jsonify({'success': False, 'message': 'Stück muss zwischen 1 und 9999 liegen.'}), 400
+
+    if not produkt:
+        return jsonify({'success': False, 'message': 'Produkt ist erforderlich.'}), 400
+
+    raw_pid = data.get('printer_id')
+    printer_id = None
+    if raw_pid is not None:
+        try:
+            printer_id = int(raw_pid)
+        except (TypeError, ValueError):
+            printer_id = None
+
+    stueck_text = str(anzahl)
+
+    try:
+        with get_db_connection() as conn:
+            res = build_print_resolution(
+                conn, FUNKTION_PRODUKTION_ETIKETT, mitarbeiter_id, printer_id
+            )
+            if not res['ok']:
+                return jsonify({'success': False, 'message': res['error_message']}), 400
+            if res['needs_printer_choice']:
+                return jsonify({
+                    'success': True,
+                    'needs_printer_choice': True,
+                    'printers': res['printers'],
+                    'message': 'Drucker wählen.',
+                })
+
+            etikett = res['etikett']
+            zpl = zpl_produktion_etikett(
+                etikett, produkt, datum_text, stueck_text, anzahl
+            )
+            try:
+                send_zpl_to_printer(res['printer_ip'], zpl)
+            except Exception as e:
+                return jsonify({'success': False, 'message': f'Fehler beim Senden an Drucker: {e}'}), 500
+
+        return jsonify({
+            'success': True,
+            'message': f'{anzahl} Produktion-Etikett(en) gedruckt.',
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Fehler beim Drucken: {e}'}), 500
+
+
 @produktion_bp.route('/etikettierung')
 @guest_allowed  # Muss ZUERST stehen, damit Attribut gesetzt wird
 @login_required  # Prüft dann das Attribut
@@ -97,7 +199,7 @@ def etikettierung():
     struktur = get_artikeleinstellungen_struktur()
     user_berechtigungen = session.get('user_berechtigungen', [])
     kann_foto_aendern = 'foto_artikeleinstellungen_aendern' in user_berechtigungen or 'admin' in user_berechtigungen
-    return render_template('produktion/etikettierung.html', struktur=struktur, kann_foto_aendern=kann_foto_aendern)
+    return render_template('etikettierung.html', struktur=struktur, kann_foto_aendern=kann_foto_aendern)
 
 
 @produktion_bp.route('/etikettierung/foto/upload', methods=['POST'])

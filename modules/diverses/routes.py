@@ -34,14 +34,14 @@ DRUCKER_LISTE = [
 @login_required
 def dokumente_erfassen():
     """Dokumente mit Kamera erfassen, zuschneiden und im Import-Ordner speichern."""
-    return render_template('diverses/dokumente_erfassen.html')
+    return render_template('dokumente_erfassen.html')
 
 
 @diverses_bp.route('/zebra-drucker')
 @permission_required('zebra_drucker_produktion')
 def zebra_drucker():
     """Zebra-Drucker Seite"""
-    return render_template('diverses/zebra_drucker.html', drucker_liste=DRUCKER_LISTE)
+    return render_template('zebra_drucker.html', drucker_liste=DRUCKER_LISTE)
 
 
 @diverses_bp.route('/zebra-drucker/kalibrieren', methods=['POST'])

@@ -887,11 +887,18 @@
     {% endif %}
     {% endif %}
 
-    {% if menue_sichtbar('produktion_etikettierung') %}
+    {% if menue_sichtbar('produktion_etikettierung') or menue_sichtbar('produktion_etiketten_drucken') %}
     <h6>Produktion</h6>
+    {% if menue_sichtbar('produktion_etikettierung') %}
     <a href="{{ url_for('produktion.etikettierung') }}" class="{% if request.endpoint == 'produktion.etikettierung' %}active{% endif %}">
       🏷️ Etikettierung
     </a>
+    {% endif %}
+    {% if menue_sichtbar('produktion_etiketten_drucken') %}
+    <a href="{{ url_for('produktion.etiketten_drucken') }}" class="{% if request.endpoint == 'produktion.etiketten_drucken' %}active{% endif %}">
+      🖨️ Etiketten drucken
+    </a>
+    {% endif %}
     {% endif %}
   </div>
   {% endif %}

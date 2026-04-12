@@ -4,7 +4,7 @@
 <h1 class="mb-4">Etiketten drucken</h1>
 
 <div class="card shadow-sm mb-4">
-    <div class="card-header bg-warning text-dark">
+    <div class="card-header bg-secondary text-white">
         <h5 class="mb-0">Label Lagerbehälter drucken</h5>
     </div>
     <div class="card-body">
@@ -122,7 +122,7 @@ function oeffneLagerLabelDruckerModal(printers, onPick) {
         const opt = document.createElement('option');
         opt.value = p.id;
         const ort = (p.ort || '').trim();
-        opt.textContent = (ort ? ort + ' — ' : '') + p.name + ' (' + p.ip_address + ')';
+        opt.textContent = (ort ? ort + ' - ' : '') + p.name + ' (' + p.ip_address + ')';
         sel.appendChild(opt);
     });
     document.getElementById('lagerLabelDruckerOk').onclick = function() {

@@ -9,6 +9,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import datetime, timedelta
 from . import auth_bp
 from utils import get_db_connection
+from utils.helpers import get_client_ip
 from utils.decorators import login_required
 from utils.auth_redirect import resolve_post_login_redirect_url
 from utils.webauthn import (
@@ -34,10 +35,7 @@ def _restore_session_lifetime_after_login(exc=None):
 def _log_login_attempt(conn, personalnummer, mitarbeiter_id, erfolgreich, request, fehlermeldung):
     """Hilfsfunktion zum Loggen von Login-Versuchen"""
     try:
-        ip_adresse = request.environ.get('HTTP_X_FORWARDED_FOR', request.environ.get('REMOTE_ADDR', ''))
-        if ip_adresse and ',' in ip_adresse:
-            # Bei mehreren IPs (Proxy) die erste nehmen
-            ip_adresse = ip_adresse.split(',')[0].strip()
+        ip_adresse = get_client_ip(request)
         
         user_agent = request.headers.get('User-Agent', '')[:500]  # Begrenzen auf 500 Zeichen
         

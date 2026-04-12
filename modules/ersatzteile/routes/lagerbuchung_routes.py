@@ -696,7 +696,7 @@ def inventurliste_buchung_batch():
 @login_required
 def lagerbehaelter_label():
     """Seite zum Drucken von Lagerbehälter-Labels"""
-    return render_template('lagerbehaelter_label.html')
+    return render_template('ersatzteil_label_drucken.html')
 
 
 @ersatzteile_bp.route('/lagerbehaelter_label/druck', methods=['POST'])

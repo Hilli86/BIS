@@ -5,7 +5,9 @@ Verschiedene Funktionen und Tools
 
 from flask import Blueprint
 
-diverses_bp = Blueprint('diverses', __name__, url_prefix='/diverses')
+diverses_bp = Blueprint(
+    'diverses', __name__, url_prefix='/diverses', template_folder='templates'
+)
 
 from . import routes
 

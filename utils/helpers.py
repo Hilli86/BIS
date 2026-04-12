@@ -155,3 +155,20 @@ def format_schichtbuch_datum(s):
             continue
     return s
 
+
+def get_client_ip(request):
+    """
+    Öffentliche Client-IP hinter einem Reverse-Proxy (z. B. nginx).
+
+    Erwartet gesetzte Proxy-Header (z. B. X-Forwarded-For / X-Real-IP); sonst
+    fällt die Funktion auf remote_addr zurück (nach ProxyFix in app.py ggf.
+    bereits aus X-Forwarded-* abgeleitet).
+    """
+    xff = (request.headers.get('X-Forwarded-For') or '').strip()
+    if xff:
+        return xff.split(',')[0].strip() or ''
+    xri = (request.headers.get('X-Real-IP') or '').strip()
+    if xri:
+        return xri
+    return getattr(request, 'remote_addr', None) or ''
+

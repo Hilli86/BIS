@@ -4,13 +4,20 @@ Zentrale Aufloesung von Etiketten-Druckkonfiguration (Abteilung, Prioritaet, opt
 """
 from __future__ import annotations
 
+import re
+
 FUNKTION_ERSATZTEIL_ETIKETT = 'ersatzteil_etikett'
 FUNKTION_LAGERBEHAELTER_ETIKETT = 'lagerbehaelter_etikett'
+FUNKTION_PRODUKTION_ETIKETT = 'produktion_etikett'
 
 # Anzeige im Admin (Schluessel stabil, Label deutsch)
 FUNKTIONEN_ADMIN = (
     (FUNKTION_ERSATZTEIL_ETIKETT, 'Ersatzteil-Etikett (Liste, Detail, Wareneingang, Batch)'),
     (FUNKTION_LAGERBEHAELTER_ETIKETT, 'Lagerbehaelter-Etikett'),
+    (
+        FUNKTION_PRODUKTION_ETIKETT,
+        'Produktion-Etikett (Platzhalter: {produktion_produkt}, {produktion_datum}, {produktion_stueck}; Kopien: ^PQ)',
+    ),
 )
 
 
@@ -18,6 +25,23 @@ def etikett_format_substitution(zpl_header_db):
     """Platzhalter-Wert für ``{etikettenformat}`` aus der DB-Spalte label_formats.zpl_header (str.format)."""
     h = zpl_header_db if zpl_header_db is not None else ''
     return {'etikettenformat': h}
+
+
+def zpl_produktion_etikett(etikett_row, produkt, datum_text, stueck_text, anzahl_kopien):
+    """
+    ZPL aus Etikett-Zeile; ``druckbefehle`` nutzt str.format mit:
+    ``produktion_produkt``, ``produktion_datum``, ``produktion_stueck``, ``etikettenformat``.
+    Anzahl gedruckter Etiketten wie bei Ersatzteil über ``^PQ`` (Regex-Ersetzung).
+    """
+    zpl_template = etikett_row['druckbefehle']
+    zpl = zpl_template.format(
+        produktion_produkt=produkt,
+        produktion_datum=datum_text,
+        produktion_stueck=stueck_text,
+        **etikett_format_substitution(etikett_row['zpl_header']),
+    )
+    zpl = re.sub(r'\^PQ(\d+)', f'^PQ{anzahl_kopien}', zpl)
+    return zpl
 
 
 def get_mitarbeiter_abteilung_ids(conn, mitarbeiter_id):

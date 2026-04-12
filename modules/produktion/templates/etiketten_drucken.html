@@ -1,0 +1,213 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<h1 class="mb-4">Etiketten drucken</h1>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-header bg-secondary text-white">
+    <h5 class="mb-0">Produktion-Etikett</h5>
+  </div>
+  <div class="card-body">
+    <!--<p class="text-muted small mb-3">
+      Im Admin unter Etikettendrucker die Funktion <strong>Produktion-Etikett</strong> zuweisen.
+      ZPL-Vorlage mit Platzhaltern <code>{produktion_produkt}</code>, <code>{produktion_datum}</code>, <code>{produktion_stueck}</code>
+      und <code>{etikettenformat}</code>; Kopien &uuml;ber <code>^PQ</code> (wird aus &bdquo;St&uuml;ck&ldquo; gesetzt).
+    </p>-->
+    <form id="produktionEtikettForm" class="row row-cols-1 g-3" data-datum-default="{{ datum_zeit_iso }}">
+      <div class="col-12">
+        <label for="produkt" class="form-label fw-bold">Produkt <span class="text-danger">*</span></label>
+        <input type="text" class="form-control" id="produkt" name="produkt" required autofocus
+                placeholder="z. B. Artikelbezeichnung">
+      </div>
+      <div class="col-12">
+        <label for="datum_zeit" class="form-label fw-bold">Datum / Uhrzeit</label>
+        <input type="datetime-local" class="form-control" id="datum_zeit" name="datum_zeit"
+                value="{{ datum_zeit_iso }}">
+        <small class="text-muted">Kalender und Uhrzeit &uuml;ber die Browser-Eingabe w&auml;hlen (Anzeige auf dem Etikett: TT.MM.JJJJ HH:MM).</small>
+      </div>
+      <div class="col-12">
+        <label for="stueck" class="form-label fw-bold">St&uuml;ck <span class="text-danger">*</span></label>
+        <input type="text" class="form-control" id="stueck" name="stueck" value="1" required
+                inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" enterkeyhint="done">
+        <small class="text-muted">Nur Ziffern (1&ndash;9999)</small>
+      </div>
+      <div class="col-12 d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary btn-lg" id="produktionDruckBtn">
+          <i class="bi bi-printer"></i> Produktion-Etikett drucken
+        </button>
+        <button type="button" class="btn btn-secondary btn-lg" id="produktionResetBtn">
+          <i class="bi bi-arrow-clockwise"></i> Zur&uuml;cksetzen
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal fade" id="produktionEtikettDruckerModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Drucker w&auml;hlen</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schlie&szlig;en"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label" for="produktionEtikettDruckerSelect">Zebradrucker</label>
+        <select id="produktionEtikettDruckerSelect" class="form-select"></select>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+        <button type="button" class="btn btn-primary" id="produktionEtikettDruckerOk">Drucken</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function datetimeLocalZuDeutsch(iso) {
+    if (!iso || typeof iso !== 'string') return '';
+    const t = iso.indexOf('T');
+    if (t < 0) return '';
+    const ymd = iso.slice(0, t).split('-');
+    const hm = iso.slice(t + 1).split(':');
+    if (ymd.length !== 3 || hm.length < 2) return '';
+    const [y, m, d] = ymd;
+    const hh = (hm[0] || '00').padStart(2, '0');
+    const mm = (hm[1] || '00').replace(/\D.*/, '').slice(0, 2).padStart(2, '0');
+    return d.padStart(2, '0') + '.' + m.padStart(2, '0') + '.' + y + ' ' + hh + ':' + mm;
+}
+
+function produktionEtikettToast(message, isSuccess) {
+    const bgClass = isSuccess ? 'bg-success' : 'bg-danger';
+    const icon = isSuccess ? 'bi-check-circle' : 'bi-exclamation-triangle';
+    const toastHtml = `
+        <div class="toast align-items-center text-white ${bgClass} border-0" role="alert" style="position: fixed; top: 20px; right: 20px; z-index: 9999;">
+            <div class="d-flex">
+                <div class="toast-body"><i class="bi ${icon}"></i> ${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>`;
+    document.body.insertAdjacentHTML('beforeend', toastHtml);
+    const toastElement = document.querySelector('.toast:last-child');
+    const toast = new bootstrap.Toast(toastElement, { delay: isSuccess ? 5000 : 7000 });
+    toast.show();
+    toastElement.addEventListener('hidden.bs.toast', () => toastElement.remove());
+}
+
+function oeffneProduktionEtikettDruckerModal(printers, onPick) {
+    const sel = document.getElementById('produktionEtikettDruckerSelect');
+    const modalEl = document.getElementById('produktionEtikettDruckerModal');
+    if (!sel || !modalEl || !printers || !printers.length) {
+        produktionEtikettToast('Kein Drucker verf\u00fcgbar.', false);
+        return;
+    }
+    sel.innerHTML = '';
+    printers.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        const ort = (p.ort || '').trim();
+        opt.textContent = (ort ? ort + ' \u2014 ' : '') + p.name + ' (' + p.ip_address + ')';
+        sel.appendChild(opt);
+    });
+    document.getElementById('produktionEtikettDruckerOk').onclick = function() {
+        const pid = parseInt(sel.value, 10);
+        const inst = bootstrap.Modal.getInstance(modalEl);
+        if (inst) inst.hide();
+        onPick(pid);
+    };
+    new bootstrap.Modal(modalEl).show();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('produktionEtikettForm');
+    const btn = document.getElementById('produktionDruckBtn');
+    const resetBtn = document.getElementById('produktionResetBtn');
+
+    resetBtn.addEventListener('click', function() {
+        form.reset();
+        const def = form.getAttribute('data-datum-default') || '';
+        document.getElementById('datum_zeit').value = def;
+        document.getElementById('stueck').value = '1';
+        document.getElementById('produkt').focus();
+    });
+
+    const stueckEl = document.getElementById('stueck');
+    stueckEl.addEventListener('input', function() {
+        const z = this.value.replace(/\D/g, '').slice(0, 4);
+        if (this.value !== z) this.value = z;
+    });
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const produkt = document.getElementById('produkt').value.trim();
+        const datumIso = document.getElementById('datum_zeit').value;
+        const datumDe = datetimeLocalZuDeutsch(datumIso);
+        const stueckRaw = document.getElementById('stueck').value;
+        const stueck = parseInt(stueckRaw, 10);
+
+        if (!produkt) {
+            alert('Bitte Produkt eingeben.');
+            document.getElementById('produkt').focus();
+            return;
+        }
+        if (!datumDe) {
+            alert('Bitte Datum und Uhrzeit w\u00e4hlen.');
+            document.getElementById('datum_zeit').focus();
+            return;
+        }
+        if (isNaN(stueck) || stueck < 1 || stueck > 9999) {
+            alert('St\u00fcck muss eine Zahl zwischen 1 und 9999 sein.');
+            document.getElementById('stueck').focus();
+            return;
+        }
+
+        btn.disabled = true;
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird gedruckt...';
+
+        const runDruck = (printerId) => {
+            const body = { produkt: produkt, datum: datumDe, stueck: stueck };
+            if (printerId != null && !isNaN(printerId)) {
+                body.printer_id = printerId;
+            }
+            fetch('{{ url_for("produktion.etiketten_drucken_druck") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify(body)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.needs_printer_choice && data.printers && data.printers.length) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHtml;
+                    oeffneProduktionEtikettDruckerModal(data.printers, (pid) => {
+                        btn.disabled = true;
+                        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird gedruckt...';
+                        runDruck(pid);
+                    });
+                    return;
+                }
+                if (data.success) {
+                    produktionEtikettToast(data.message || 'Etikett gedruckt.', true);
+                    document.getElementById('produkt').value = '';
+                    document.getElementById('produkt').focus();
+                } else {
+                    produktionEtikettToast(data.message || 'Fehler beim Drucken.', false);
+                }
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Fehler bei der Verbindung zum Server.');
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            });
+        };
+        runDruck(null);
+    });
+});
+</script>
+{% endblock %}

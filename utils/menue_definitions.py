@@ -37,6 +37,7 @@ MENUE_DEFINITIONEN = [
     {'schluessel': 'diverses_zebra', 'bezeichnung': 'Zebra-Drucker', 'gruppe': 'Diverses', 'berechtigung': ['zebra_drucker_produktion']},
     {'schluessel': 'diverses_dokumente', 'bezeichnung': 'Dokumente erfassen', 'gruppe': 'Diverses', 'berechtigung': None},
     {'schluessel': 'produktion_etikettierung', 'bezeichnung': 'Etikettierung', 'gruppe': 'Produktion', 'berechtigung': None},
+    {'schluessel': 'produktion_etiketten_drucken', 'bezeichnung': 'Etiketten drucken', 'gruppe': 'Produktion', 'berechtigung': None},
 ]
 
 
