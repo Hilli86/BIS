@@ -12,7 +12,9 @@ Anleitung, um das Betriebsinformationssystem (BIS) in einem Docker-Container unt
 6. [Konfiguration (Umgebungsvariablen)](#6-konfiguration-umgebungsvariablen)
 7. [Daten persistent speichern (Windows-Ordner)](#7-daten-persistent-speichern-windows-ordner)
 8. [Alltägliche Befehle](#8-alltägliche-befehle)
-9. [Troubleshooting](#9-troubleshooting)
+9. [App von GitHub aktualisieren](#9-app-von-github-aktualisieren)
+10. [Optional: HTTPS (selbstsigniert) und Cloudflare Tunnel](#10-optional-https-selbstsigniert-und-cloudflare-tunnel)
+11. [Troubleshooting](#11-troubleshooting)
 
 ---
 
@@ -204,6 +206,7 @@ Datenbank und Upload-Ordner liegen dann unter `C:\BIS-Daten` (im Container als `
 | Logs anzeigen       | `docker compose logs -f bis` |
 | Status prüfen       | `docker compose ps` |
 | Neu bauen + starten | `docker compose up -d --build` |
+| App-Code von GitHub holen | siehe [Abschnitt 9](#9-app-von-github-aktualisieren) |
 | In Container shell  | `docker compose exec bis bash` |
 
 ### Beispiel: Logs live verfolgen
@@ -225,7 +228,156 @@ docker compose exec bis bash
 
 ---
 
-## 9. Troubleshooting
+## 9. App von GitHub aktualisieren
+
+Der Anwendungscode wird beim **Image-Build** in den Container übernommen (`COPY` im `Dockerfile`), nicht als Live-Ordner vom Windows-Host eingebunden. Nach einem Update des Repositories auf der Festplatte müssen Sie das Image deshalb **neu bauen** und den Container **neu starten**.
+
+**Datenbank und Uploads** liegen im Docker-Volume `bis-data` und bleiben bei diesem Vorgang in der Regel **erhalten** (siehe auch [Abschnitt 7](#7-daten-persistent-speichern-windows-ordner)).
+
+### Voraussetzung
+
+- **Git für Windows** ist installiert ([Download](https://git-scm.com/download/win)) und das Projekt wurde mit `git clone` aus GitHub geholt (nicht nur als ZIP entpackt).
+
+### Schritte (PowerShell)
+
+1. In den **Projektordner** wechseln (gleicher Ordner wie bei [Abschnitt 3](#3-projekt-vorbereiten), dort wo `docker-compose.yml` liegt):
+
+   ```powershell
+   cd C:\Projekte\BIS\BIS
+   ```
+
+   *(Pfad an Ihren Klon anpassen.)*
+
+2. **Optional:** Prüfen, ob lokale Änderungen im Weg sind:
+
+   ```powershell
+   git status
+   ```
+
+   Wenn Dateien geändert sind, entweder committen, verwerfen oder mit `git stash` beiseite legen, sonst kann `git pull` abbrechen oder Konflikte melden.
+
+3. **Neuesten Stand von GitHub holen** (Standard-Branch ist meist `main`):
+
+   ```powershell
+   git pull origin main
+   ```
+
+   Ist der Upstream-Branch bereits eingerichtet, reicht oft:
+
+   ```powershell
+   git pull
+   ```
+
+4. **Image neu bauen und Container aktualisieren:**
+
+   ```powershell
+   docker compose up -d --build
+   ```
+
+   Damit wird das Image mit dem aktuellen Code neu gebaut; der laufende `bis`-Container wird durch die neue Version ersetzt.
+
+5. **Prüfen:** Browser wie gewohnt aufrufen (z. B. **http://localhost:5000**), bei Bedarf Logs ansehen: `docker compose logs -f bis`.
+
+### Kurzfassung
+
+```powershell
+cd C:\Projekte\BIS\BIS
+git pull
+docker compose up -d --build
+```
+
+---
+
+## 10. Optional: HTTPS (selbstsigniert) und Cloudflare Tunnel
+
+BIS im Docker-Container spricht standardmäßig nur **HTTP** auf Port **5000** (`http://localhost:5000`). Für **HTTPS im Browser** oder **Zugriff aus dem Internet ohne Router-Freigabe** gibt es zwei gängige Wege:
+
+| Variante | Typisch für | Kurzbeschreibung |
+|----------|-------------|------------------|
+| **Selbstsigniertes SSL** | Intranet, feste IP/Hostname im LAN | **Nginx für Windows** terminiert HTTPS und leitet an `http://127.0.0.1:5000` weiter (BIS bleibt im Container). |
+| **Cloudflare Tunnel** | Öffentliche Domain, kein Port an der Firewall | **cloudflared** auf Windows verbindet Ihre Domain mit dem lokalen BIS (meist `http://localhost:5000`). SSL endet bei Cloudflare. |
+
+In beiden Fällen sollten Sie in `docker-compose.yml` bzw. `.env` **`WEBAUTHN_ORIGIN`** und **`WEBAUTHN_RP_ID`** auf die URL setzen, die Nutzer im Browser öffnen (Schema `https://`, ohne Pfad; `WEBAUTHN_RP_ID` ist der Hostname **ohne** Port). Anschließend Container neu starten: `docker compose up -d`. Details zu den Variablen: `config.py`, `env_example.txt`.
+
+---
+
+### 10.1 Variante A: Selbstsigniertes SSL mit Nginx (Windows)
+
+Der Container ändert sich dabei nicht: Nginx übernimmt TLS und spricht mit BIS nur per HTTP auf dem Host-Port.
+
+1. **Nginx für Windows** installieren und Ordner für Zertifikate anlegen (Schritte und Pfade wie in [WINDOWS_DEPLOYMENT_GUIDE.md](WINDOWS_DEPLOYMENT_GUIDE.md), Abschnitte **5** und **6**). Zielverzeichnis für Zertifikat und Key z. B. `C:\nginx\conf\ssl\bis\`.
+
+2. **Zertifikat erzeugen** (Hostname oder Intranet-IP; das Skript setzt die SANs passend zu IP oder DNS):
+   - Im **Projektordner** (Git-Klon), z. B.:
+
+     ```powershell
+     cd C:\Projekte\BIS\BIS
+     .\scripts\create_self_signed_cert_windows.ps1 -ServerName "192.168.1.100"
+     # oder: .\scripts\create_self_signed_cert_windows.ps1 -ServerName "bis-pc.local"
+     ```
+
+   - Das Skript legt **`bis.crt`** und **`bis.key`** unter **`C:\nginx\conf\ssl\bis`** ab (Ordner wird angelegt). OpenSSL muss installiert und im `PATH` sein; Alternativen: [WINDOWS_DEPLOYMENT_GUIDE.md](WINDOWS_DEPLOYMENT_GUIDE.md) Abschnitt **6**.
+
+3. **Nginx-`server`-Block für BIS (Docker):** Statt Waitress auf Port 8000 leiten Sie auf den **Docker-Host-Port** von BIS weiter (**5000**, sofern Sie `ports: "5000:5000"` in `docker-compose.yml` nutzen). Statische Dateien und Uploads kommen aus dem Container; Sie müssen **nicht** die `alias`-Pfade aus der Waitress-Anleitung (`C:/BIS/static`, …) übernehmen, wenn alles über den Proxy läuft.
+
+   Beispiel **HTTPS → BIS im Docker** (Pfade und `server_name` anpassen):
+
+   ```nginx
+   server {
+       listen 443 ssl http2;
+       server_name 192.168.1.100;
+
+       ssl_certificate     C:/nginx/conf/ssl/bis/bis.crt;
+       ssl_certificate_key C:/nginx/conf/ssl/bis/bis.key;
+
+       client_max_body_size 20M;
+
+       location / {
+           proxy_pass http://127.0.0.1:5000;
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto https;
+       }
+   }
+   ```
+
+4. Konfiguration testen (`nginx.exe -t`), Nginx starten. Im Browser: `https://<Ihr-Hostname-oder-IP>` – beim ersten Mal Warnung wegen selbstsigniertem Zertifikat bestätigen.
+
+5. **`docker-compose.yml`** (oder `.env`): `WEBAUTHN_ORIGIN` und `WEBAUTHN_RP_ID` auf genau diese HTTPS-URL bzw. den Hostnamen setzen, dann `docker compose up -d`.
+
+Hintergrund und Linux-Beispiele: [SSL_SELFSIGNED_SETUP.md](SSL_SELFSIGNED_SETUP.md). Ausführliche Windows-Waitress-Variante (andere Ports, statische Pfade): [WINDOWS_DEPLOYMENT_GUIDE.md](WINDOWS_DEPLOYMENT_GUIDE.md).
+
+---
+
+### 10.2 Variante B: Cloudflare Tunnel
+
+Damit erreichen Sie BIS über eine **eigene Domain** mit gültigem Zertifikat von Cloudflare, **ohne** Portweiterleitung am Router. Voraussetzung: Domain in Cloudflare, `cloudflared` auf dem Windows-PC.
+
+1. **BIS per Docker** wie gewohnt starten (`docker compose up -d`), prüfen: `http://localhost:5000`.
+
+2. **cloudflared** installieren, anmelden, Tunnel anlegen – Schritt für Schritt: [CLOUDFLARE_TUNNEL_SETUP.md](CLOUDFLARE_TUNNEL_SETUP.md) (Abschnitte **5**–**7**, ggf. **8** für SSL-Modus „Full“).
+
+3. **Origin auf Docker anbinden:** In der Tunnel-`config.yml` unter `ingress` muss der Dienst auf **HTTP** zeigen, unter dem BIS auf **diesem PC** erreichbar ist – typisch:
+
+   ```yaml
+   ingress:
+     - hostname: ihre-domain.de
+       service: http://localhost:5000
+     - service: http_status:404
+   ```
+
+   Wenn Sie in `docker-compose.yml` einen **anderen Host-Port** nutzen (z. B. `8080:5000`), hier `http://localhost:8080` eintragen.
+
+   Die vollständige Anleitung im Repo zeigt teils **Nginx auf 443** (`https://localhost:443`) – das ist die Variante mit lokalem HTTPS vor dem Tunnel. Für **nur Docker + HTTP lokal** reicht die direkte Weiterleitung zu `http://localhost:5000` wie oben.
+
+4. Nach Einrichtung: **`WEBAUTHN_ORIGIN`** = öffentliche Basis-URL (z. B. `https://ihre-domain.de`), **`WEBAUTHN_RP_ID`** = Hostname ohne Schema (z. B. `ihre-domain.de`). Container neu starten.
+
+5. Tunnel testen und optional als **Windows-Dienst** laufen lassen (siehe gleiche Doku).
+
+---
+
+## 11. Troubleshooting
 
 ### „Docker läuft nicht“ / „Cannot connect to the Docker daemon“
 
@@ -297,6 +449,10 @@ docker compose up -d --build
 start http://localhost:5000
 
 # Login (Standard nach Erststart): 99999 / a
+
+# Nach Code-Update von GitHub (im Projektordner)
+git pull
+docker compose up -d --build
 ```
 
 Nach dem ersten Start können Sie BIS wie gewohnt im Browser unter **http://localhost:5000** nutzen.
