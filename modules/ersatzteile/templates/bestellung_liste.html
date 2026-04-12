@@ -1,22 +1,6 @@
 {% extends "layout/base.html" %}
 
 {% block content %}
-<style>
-  /* Volle Breite: Spalten nutzen den verfügbaren Platz (kein „kurzes“ Tabellenlayout) */
-  .table-responsive.table-bestellungen-wrap .table-bestellungen-liste {
-    width: 100%;
-    min-width: 100%;
-    table-layout: fixed;
-  }
-  .table-bestellungen-liste th,
-  .table-bestellungen-liste td {
-    vertical-align: middle;
-  }
-  .table-bestellungen-liste td {
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-  }
-</style>
 <h1 class="mb-4">Bestellungen</h1>
 
 {% if 'admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', []) %}
@@ -138,24 +122,24 @@
 {% if bestellungen %}
 <div class="card shadow-sm d-none d-md-block">
     <div class="card-body">
-        <div class="table-responsive table-bestellungen-wrap">
-            <table class="table table-hover table-bestellungen-liste">
+        <div class="table-responsive">
+            <table class="table table-hover">
                 <thead>
                     <tr>
-                        <th style="width: 3.25rem;">Nr.</th>
-                        <th style="width: 6rem;">Priorität</th>
+                        <th>Nr.</th>
+                        <th class="text-center">Priorität</th>
                         <th>Lieferant</th>
                         <th>Status</th>
-                        <th style="width: 6.5rem;">Positionen</th>
-                        <th style="width: 9rem;">Gesamtbetrag</th>
-                        <th style="width: 7rem;">Erstellt am</th>
-                        <th style="width: 7rem;">Lieferdatum</th>
-                        <th style="width: 7rem;" class="column-freigegeben-am" style="display: none;">Freigegeben am</th>
-                        <th style="width: 7rem;" class="column-freigegeben-von" style="display: none;">Freigegeben von</th>
-                        <th style="width: 7rem;" class="column-bestellt-am" style="display: none;">Bestellt am</th>
-                        <th style="width: 7rem;" class="column-bestellt-von" style="display: none;">Bestellt von</th>
-                        <th style="width: 10rem;">Abteilung</th>
-                        <th class="text-end text-nowrap" style="width: 7.5rem;">
+                        <th class="text-center">Positionen</th>
+                        <th>Gesamtbetrag</th>
+                        <th>Erstellt am</th>
+                        <th>Lieferdatum</th>
+                        <th class="column-freigegeben-am" style="display: none;">Freigegeben am</th>
+                        <th class="column-freigegeben-von" style="display: none;">Freigegeben von</th>
+                        <th class="column-bestellt-am" style="display: none;">Bestellt am</th>
+                        <th class="column-bestellt-von" style="display: none;">Bestellt von</th>
+                        <th>Abteilung</th>
+                        <th class="text-end text-nowrap">
                             <div class="d-flex align-items-center justify-content-end gap-1">
                                 <span>Aktionen</span>
                                 <button type="button" class="btn btn-sm btn-outline-secondary flex-shrink-0" data-bs-toggle="modal" data-bs-target="#spaltenModal" title="Spalten anzeigen/ausblenden" onclick="event.stopPropagation();">
@@ -217,7 +201,7 @@
                             <span class="badge bg-secondary">{{ b.Status }}</span>
                             {% endif %}
                         </td>
-                        <td class="text-center" onclick="event.stopPropagation();">
+                        <td class="text-center text-nowrap" onclick="event.stopPropagation();">
                             {% if b.PositionenAnzahl and b.PositionenAnzahl > 0 %}
                             <button class="btn btn-sm btn-outline-info" onclick="event.stopPropagation(); togglePositionen({{ b.ID }})" title="Positionen anzeigen/ausblenden">
                                 <i class="bi bi-list-ul"></i> {{ b.PositionenAnzahl }}
@@ -226,15 +210,15 @@
                             <span class="text-muted">0</span>
                             {% endif %}
                         </td>
-                        <td>{{ "%.2f"|format(b.Gesamtbetrag) }} EUR</td>
-                        <td style="white-space: nowrap;">{{ b.ErstelltAm[:10] if b.ErstelltAm else '-' }}</td>
-                        <td style="white-space: nowrap;" class="{% if b.LieferdatumKritisch %}text-danger fw-semibold{% endif %}">{{ b.Lieferdatum[:10] if b.Lieferdatum else '-' }}</td>
+                        <td class="text-nowrap">{{ "%.2f"|format(b.Gesamtbetrag) }} EUR</td>
+                        <td class="text-nowrap">{{ b.ErstelltAm[:10] if b.ErstelltAm else '-' }}</td>
+                        <td class="text-nowrap {% if b.LieferdatumKritisch %}text-danger fw-semibold{% endif %}">{{ b.Lieferdatum[:10] if b.Lieferdatum else '-' }}</td>
                         <td class="column-freigegeben-am" style="display: none;">{{ b.FreigegebenAm[:16] if b.FreigegebenAm else '-' }}</td>
                         <td class="column-freigegeben-von" style="display: none;">{{ b.FreigegebenVon or '-' }}</td>
                         <td class="column-bestellt-am" style="display: none;">{{ b.BestelltAm[:16] if b.BestelltAm else '-' }}</td>
                         <td class="column-bestellt-von" style="display: none;">{{ b.BestelltVon or '-' }}</td>
                         <td>{{ b.Abteilung or '-' }}</td>
-                        <td class="text-end" onclick="event.stopPropagation();" style="white-space: nowrap;">
+                        <td class="text-end text-nowrap" onclick="event.stopPropagation();">
                             <div class="d-flex flex-nowrap gap-1 justify-content-end">
                                 {% if b.Status in ['Freigegeben', 'Bestellt'] %}
                                 <button type="button" class="btn btn-sm btn-outline-primary" onclick="exportBestellungPDF({{ b.ID }})" title="Als PDF exportieren">
@@ -342,9 +326,9 @@
 </div>
 
 <div class="d-md-none">
-            {% for b in bestellungen %}
-            <div class="card mb-3 shadow-sm" style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.bestellung_detail', bestellung_id=b.ID) }}{% if status_filter_list or lieferant_filter or abteilung_filter or prioritaet_filter_list %}?{% endif %}{% for status in status_filter_list %}status={{ status|urlencode }}{% if not loop.last %}&{% endif %}{% endfor %}{% if status_filter_list and (lieferant_filter or abteilung_filter or prioritaet_filter_list) %}&{% endif %}{% if lieferant_filter %}lieferant={{ lieferant_filter|urlencode }}{% endif %}{% if lieferant_filter and (abteilung_filter or prioritaet_filter_list) %}&{% endif %}{% if abteilung_filter %}abteilung={{ abteilung_filter|urlencode }}{% endif %}{% if abteilung_filter and prioritaet_filter_list %}&{% endif %}{% for prioritaet in prioritaet_filter_list %}prioritaet={{ prioritaet|urlencode }}{% if not loop.last %}&{% endif %}{% endfor %}';">
-                <div class="card-body">
+    {% for b in bestellungen %}
+    <div class="card mb-3 shadow-sm" style="cursor: pointer;" onclick="window.location.href='{{ url_for('ersatzteile.bestellung_detail', bestellung_id=b.ID) }}{% if status_filter_list or lieferant_filter or abteilung_filter or prioritaet_filter_list %}?{% endif %}{% for status in status_filter_list %}status={{ status|urlencode }}{% if not loop.last %}&{% endif %}{% endfor %}{% if status_filter_list and (lieferant_filter or abteilung_filter or prioritaet_filter_list) %}&{% endif %}{% if lieferant_filter %}lieferant={{ lieferant_filter|urlencode }}{% endif %}{% if lieferant_filter and (abteilung_filter or prioritaet_filter_list) %}&{% endif %}{% if abteilung_filter %}abteilung={{ abteilung_filter|urlencode }}{% endif %}{% if abteilung_filter and prioritaet_filter_list %}&{% endif %}{% for prioritaet in prioritaet_filter_list %}prioritaet={{ prioritaet|urlencode }}{% if not loop.last %}&{% endif %}{% endfor %}';">
+        <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                         <div>
                             <div class="mb-1">
@@ -537,9 +521,9 @@
                             {% endif %}
                         </div>
                     </div>
-                </div>
-            </div>
-            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
 </div>
 {% else %}
 <div class="card shadow-sm d-none d-md-block">
