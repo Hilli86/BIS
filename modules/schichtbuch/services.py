@@ -218,6 +218,20 @@ def get_bemerkungen_fuer_themen(thema_ids, conn):
     return bemerk_dict
 
 
+def thema_ids_mit_lagerbuchungen(thema_ids, conn):
+    """
+    Liefert die Teilmenge von thema_ids, zu denen mindestens eine Lagerbuchung existiert.
+    """
+    if not thema_ids:
+        return set()
+    placeholders = ','.join(['?'] * len(thema_ids))
+    rows = conn.execute(
+        f'SELECT DISTINCT ThemaID FROM Lagerbuchung WHERE ThemaID IN ({placeholders})',
+        tuple(thema_ids),
+    ).fetchall()
+    return {r['ThemaID'] for r in rows if r['ThemaID'] is not None}
+
+
 def check_thema_berechtigung(thema_id, mitarbeiter_id, conn):
     """
     Prüft ob ein Mitarbeiter Berechtigung hat, ein Thema zu sehen

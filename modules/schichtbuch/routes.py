@@ -13,7 +13,13 @@ from utils.helpers import build_sichtbarkeits_filter_query, row_to_dict
 from utils.reports import generate_thema_pdf
 from . import services
 from . import aufgabenliste_services
-from modules.ersatzteile.services import get_dateien_fuer_bereich, speichere_datei, get_datei_typ_aus_dateiname, loesche_datei
+from modules.ersatzteile.services import (
+    get_dateien_fuer_bereich,
+    speichere_datei,
+    get_datei_typ_aus_dateiname,
+    loesche_datei,
+    rueckbuche_lager_fuer_geloeschtes_thema,
+)
 from utils.file_handling import save_uploaded_file, create_upload_folder, originale_loeschen_aus_formular, loesche_import_kopie_nach_upload
 
 
@@ -70,6 +76,7 @@ def themaliste():
 
         # Bemerkungen für die aktuell angezeigten Themen laden
         thema_ids = [t['ID'] for t in themen] if themen else []
+        themen_mit_lagerbuchungen = services.thema_ids_mit_lagerbuchungen(thema_ids, conn)
         bemerk_dict = services.get_bemerkungen_fuer_themen(thema_ids, conn)
         
         # Werte für Dropdowns holen
@@ -87,9 +94,14 @@ def themaliste():
             gewerke_liste = conn.execute('SELECT ID, Bezeichnung FROM Gewerke WHERE Aktiv = 1 ORDER BY Bezeichnung').fetchall()
         taetigkeiten_liste = conn.execute('SELECT ID, Bezeichnung FROM Taetigkeit WHERE Aktiv = 1 ORDER BY Sortierung ASC').fetchall()
 
+    perms = session.get('user_berechtigungen', [])
+    kann_artikel_rueckbuchen = 'admin' in perms or 'artikel_buchen' in perms
+
     return render_template(
         'sbThemaListe.html',
         themen=themen,
+        themen_mit_lagerbuchungen=themen_mit_lagerbuchungen,
+        kann_artikel_rueckbuchen=kann_artikel_rueckbuchen,
         bemerk_dict=bemerk_dict,
         status_liste=status_liste,
         bereich_liste=bereich_liste,
@@ -143,11 +155,18 @@ def themaliste_load_more():
 
         # Bemerkungen für diese Themen laden
         thema_ids = [t['ID'] for t in themen] if themen else []
+        themen_mit_lagerbuchungen = services.thema_ids_mit_lagerbuchungen(thema_ids, conn)
         bemerk_dict = services.get_bemerkungen_fuer_themen(thema_ids, conn)
 
     # Als JSON zurückgeben
+    themen_out = []
+    for t in themen:
+        d = dict(t)
+        d['HatVerbuchteErsatzteile'] = 1 if t['ID'] in themen_mit_lagerbuchungen else 0
+        themen_out.append(d)
+
     return jsonify({
-        'themen': [dict(t) for t in themen],
+        'themen': themen_out,
         'bemerk_dict': {k: [dict(b) for b in v] for k, v in bemerk_dict.items()}
     })
 
@@ -512,10 +531,14 @@ def thema_detail(thema_id):
         is_admin = 'admin' in session.get('user_berechtigungen', [])
         detail_data = services.get_thema_detail_data(thema_id, mitarbeiter_id, conn, is_admin=is_admin)
 
-    previous_page = request.args.get('next') or url_for('index')
+    previous_page = request.args.get('next') or url_for('schichtbuch.themaliste')
     
     # Dateianzahl ermitteln
     datei_anzahl = get_datei_anzahl(thema_id)
+
+    perms = session.get('user_berechtigungen', [])
+    kann_artikel_rueckbuchen = 'admin' in perms or 'artikel_buchen' in perms
+    thema_hat_lagerbuchungen = bool(detail_data['thema_lagerbuchungen'])
 
     return render_template(
         'sbThemaDetail.html',
@@ -530,7 +553,9 @@ def thema_detail(thema_id):
         ersatzteil_verknuepfungen=detail_data['thema_lagerbuchungen'],
         verfuegbare_ersatzteile=detail_data['verfuegbare_ersatzteile'],
         kostenstellen=detail_data['kostenstellen'],
-        is_admin=is_admin
+        is_admin=is_admin,
+        thema_hat_lagerbuchungen=thema_hat_lagerbuchungen,
+        kann_artikel_rueckbuchen=kann_artikel_rueckbuchen,
     )
 
 
@@ -575,12 +600,54 @@ def edit_bemerkung(bemerkung_id):
 @schichtbuch_bp.route('/delete_thema/<int:thema_id>', methods=['POST'])
 @login_required
 def delete_thema(thema_id):
-    """Thema löschen (Soft-Delete)"""
-    with get_db_connection() as conn:
-        conn.execute('UPDATE SchichtbuchThema SET Gelöscht = 1 WHERE ID = ?', (thema_id,))
-        conn.commit()
-    flash(f'Thema #{thema_id} wurde gelöscht.', 'info')
+    """Thema löschen (Soft-Delete), optional Lager-Gegenbuchungen."""
+    mitarbeiter_id = session.get('user_id')
+    perms = session.get('user_berechtigungen', [])
+    kann_rueckbuchen = 'admin' in perms or 'artikel_buchen' in perms
+    rueckbuchen_gewuenscht = request.form.get('rueckbuchen_ersatzteile') == '1'
+
     next_url = request.referrer or url_for('schichtbuch.themaliste')
+    rueckbuchungs_hinweis = None
+
+    try:
+        with get_db_connection() as conn:
+            if not services.check_thema_berechtigung(thema_id, mitarbeiter_id, conn):
+                flash('Sie haben keine Berechtigung, dieses Thema zu löschen.', 'danger')
+                return redirect(next_url)
+
+            thema_row = conn.execute(
+                'SELECT ID FROM SchichtbuchThema WHERE ID = ? AND Gelöscht = 0',
+                (thema_id,),
+            ).fetchone()
+            if not thema_row:
+                flash('Thema wurde nicht gefunden oder ist bereits gelöscht.', 'warning')
+                return redirect(next_url)
+
+            if rueckbuchen_gewuenscht:
+                if not kann_rueckbuchen:
+                    flash(
+                        'Keine Berechtigung zum Zurückbuchen von Artikeln. Thema wird ohne Lagerkorrektur gelöscht.',
+                        'warning',
+                    )
+                else:
+                    ok_lb, msg_lb = rueckbuche_lager_fuer_geloeschtes_thema(
+                        thema_id, mitarbeiter_id, conn
+                    )
+                    if not ok_lb:
+                        flash(msg_lb, 'danger')
+                        return redirect(next_url)
+                    rueckbuchungs_hinweis = msg_lb
+
+            conn.execute('UPDATE SchichtbuchThema SET Gelöscht = 1 WHERE ID = ?', (thema_id,))
+            conn.commit()
+    except Exception as e:
+        flash(f'Fehler beim Löschen: {e}', 'danger')
+        return redirect(next_url)
+
+    if rueckbuchungs_hinweis:
+        flash(f'{rueckbuchungs_hinweis} Thema #{thema_id} wurde gelöscht.', 'success')
+    else:
+        flash(f'Thema #{thema_id} wurde gelöscht.', 'info')
     return redirect(next_url)
 
 

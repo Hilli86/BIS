@@ -14,6 +14,12 @@
 {% block content %}
     <h1 class="mb-4">Thema #{{ thema.ID }}</h1>
 
+    <div class="mb-3">
+        <a href="{{ previous_page }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Zurück zur Liste
+        </a>
+    </div>
+
     <div class="card mb-4 shadow-sm">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0">📋 Thema-Details</h5>
@@ -39,6 +45,14 @@
                         title="QR-Code anzeigen">
                     <i class="bi bi-qr-code"></i> <span class="d-none d-sm-inline">QR-Code</span>
                 </button>
+                <form action="{{ url_for('schichtbuch.delete_thema', thema_id=thema.ID) }}" method="post" class="d-inline m-0"
+                      data-has-lagerbuchungen="{{ '1' if thema_hat_lagerbuchungen else '0' }}"
+                      data-kann-rueckbuchen="{{ '1' if kann_artikel_rueckbuchen else '0' }}"
+                      onsubmit="return confirmThemaLoeschen(this);">
+                    <button type="submit" class="btn btn-sm btn-light text-danger" title="Thema löschen">
+                        <i class="bi bi-trash"></i> <span class="d-none d-sm-inline">Löschen</span>
+                    </button>
+                </form>
             </div>
         </div>
         <div class="card-body">
@@ -506,6 +520,30 @@
 
 {% block scripts %}
 <script>
+function confirmThemaLoeschen(form) {
+  var has = form.getAttribute('data-has-lagerbuchungen') === '1';
+  var kannRueck = form.getAttribute('data-kann-rueckbuchen') === '1';
+  if (!has) {
+    return confirm('Thema wirklich löschen?');
+  }
+  if (!kannRueck) {
+    return confirm(
+      'Thema wirklich löschen?\n\nZu diesem Thema bestehen Lagerbuchungen (verbuchte Ersatzteile). Ohne Berechtigung „Artikel buchen“ kann der Lagerbestand hier nicht automatisch zurückgebucht werden.'
+    );
+  }
+  if (!confirm('Thema wirklich löschen?')) {
+    return false;
+  }
+  var rueck = confirm(
+    'Zu diesem Thema bestehen Lagerbuchungen (verbuchte Ersatzteile). Sollen die Artikel zum Lager zurückgebucht werden?\n\nOK = Ja, zurückbuchen\nAbbrechen = Nein, Thema löschen ohne Lagerkorrektur'
+  );
+  var inp = document.createElement('input');
+  inp.type = 'hidden';
+  inp.name = 'rueckbuchen_ersatzteile';
+  inp.value = rueck ? '1' : '0';
+  form.appendChild(inp);
+  return true;
+}
 document.addEventListener('click', (e) => {
     const editBtn = e.target.closest('.btn-edit');
     if (!editBtn) return;

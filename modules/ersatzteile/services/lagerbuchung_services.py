@@ -153,3 +153,90 @@ def create_inventur_buchung(ersatzteil_id, neuer_bestand, mitarbeiter_id, conn, 
     
     return True, f'Inventur-Buchung erfolgreich durchgeführt. Neuer Bestand: {neuer_bestand}'
 
+
+def rueckbuche_lager_fuer_geloeschtes_thema(thema_id, mitarbeiter_id, conn):
+    """
+    Erstellt Gegenbuchungen für alle Lagerbuchungen mit diesem Thema (vor Soft-Delete).
+    Ausgang wird mit Eingang, Eingang mit Ausgang ausgeglichen. Inventur-Zeilen werden übersprungen.
+
+    Returns:
+        Tuple (success: bool, message: str)
+    """
+    rows = conn.execute(
+        '''
+        SELECT ID, ErsatzteilID, Typ, Menge, KostenstelleID, Preis, Waehrung
+        FROM Lagerbuchung
+        WHERE ThemaID = ?
+        ORDER BY ID ASC
+        ''',
+        (thema_id,),
+    ).fetchall()
+
+    if not rows:
+        return True, None
+
+    skipped_inventur = 0
+    gegengebucht = 0
+    for row in rows:
+        typ = row['Typ']
+        et_id = row['ErsatzteilID']
+        menge = row['Menge']
+        ks_id = row['KostenstelleID']
+        preis = row['Preis']
+        waehrung = row['Waehrung']
+        buchung_ref = row['ID']
+        grund = f'Rückbuchung nach Löschen von Thema #{thema_id}'
+        bem = f'Gegenbuchung zu Lagerbuchung #{buchung_ref}'
+
+        if typ == 'Ausgang':
+            ok, msg, _ = create_lagerbuchung(
+                ersatzteil_id=et_id,
+                typ='Eingang',
+                menge=menge,
+                grund=grund,
+                mitarbeiter_id=mitarbeiter_id,
+                conn=conn,
+                thema_id=None,
+                kostenstelle_id=ks_id,
+                bemerkung=bem,
+                preis=preis,
+                waehrung=waehrung,
+            )
+            if not ok:
+                return False, msg
+            gegengebucht += 1
+        elif typ == 'Eingang':
+            ok, msg, _ = create_lagerbuchung(
+                ersatzteil_id=et_id,
+                typ='Ausgang',
+                menge=menge,
+                grund=grund,
+                mitarbeiter_id=mitarbeiter_id,
+                conn=conn,
+                thema_id=None,
+                kostenstelle_id=ks_id,
+                bemerkung=bem,
+                preis=preis,
+                waehrung=waehrung,
+            )
+            if not ok:
+                return False, msg
+            gegengebucht += 1
+        else:
+            skipped_inventur += 1
+
+    if gegengebucht == 0:
+        if skipped_inventur:
+            return (
+                True,
+                'Es liegen nur Inventur-Buchungen zu diesem Thema vor; der Lagerbestand wurde nicht geändert.',
+            )
+        return True, None
+
+    parts = ['Ersatzteile wurden zum Lager zurückgebucht.']
+    if skipped_inventur:
+        parts.append(
+            f'Hinweis: {skipped_inventur} Buchung(en) vom Typ Inventur wurden nicht automatisch angepasst.'
+        )
+    return True, ' '.join(parts)
+

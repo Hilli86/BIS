@@ -224,6 +224,33 @@
 
 {% block content %}
 <h1 class="mb-4">Themenliste</h1>
+<script>
+function confirmThemaLoeschen(form) {
+  var has = form.getAttribute('data-has-lagerbuchungen') === '1';
+  var kannRueck = form.getAttribute('data-kann-rueckbuchen') === '1';
+  if (!has) {
+    return confirm('Thema wirklich löschen?');
+  }
+  if (!kannRueck) {
+    return confirm(
+      'Thema wirklich löschen?\n\nZu diesem Thema bestehen Lagerbuchungen (verbuchte Ersatzteile). Ohne Berechtigung „Artikel buchen“ kann der Lagerbestand hier nicht automatisch zurückgebucht werden.'
+    );
+  }
+  if (!confirm('Thema wirklich löschen?')) {
+    return false;
+  }
+  var rueck = confirm(
+    'Zu diesem Thema bestehen Lagerbuchungen (verbuchte Ersatzteile). Sollen die Artikel zum Lager zurückgebucht werden?\n\nOK = Ja, zurückbuchen\nAbbrechen = Nein, Thema löschen ohne Lagerkorrektur'
+  );
+  var inp = document.createElement('input');
+  inp.type = 'hidden';
+  inp.name = 'rueckbuchen_ersatzteile';
+  inp.value = rueck ? '1' : '0';
+  form.appendChild(inp);
+  return true;
+}
+window.SB_KANN_RUECKBUCHEN = '{{ "1" if kann_artikel_rueckbuchen else "0" }}';
+</script>
 
 <!-- Schnellsuche + Filter (Muster wie Ersatzteilliste, Klassen .bis-list-*); mobil: Neu → Suche → Filterbuttons -->
 <form method="get" id="filterForm">
@@ -375,8 +402,11 @@
                   title="Aufgabenlisten">
             <i class="bi bi-list-task"></i>
           </button>
-          <form action="{{ url_for('schichtbuch.delete_thema', thema_id=thema.ID) }}" method="post" class="d-contents m-0 p-0">
-            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Thema wirklich löschen?');"
+          <form action="{{ url_for('schichtbuch.delete_thema', thema_id=thema.ID) }}" method="post" class="d-contents m-0 p-0"
+                data-has-lagerbuchungen="{{ '1' if thema.ID in themen_mit_lagerbuchungen else '0' }}"
+                data-kann-rueckbuchen="{{ '1' if kann_artikel_rueckbuchen else '0' }}"
+                onsubmit="return confirmThemaLoeschen(this);">
+            <button type="submit" class="btn btn-sm btn-outline-danger"
                     title="Thema löschen">
                 <i class="bi bi-trash"></i>
             </button>
@@ -563,8 +593,11 @@
                                         title="Aufgabenlisten">
                                     <i class="bi bi-list-task"></i> <span class="d-none d-sm-inline">Listen</span>
                                 </button>
-                                <form action="{{ url_for('schichtbuch.delete_thema', thema_id=thema.ID) }}" method="post" class="m-0 p-0 flex-fill">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger w-100" onclick="return confirm('Thema wirklich löschen?');"
+                                <form action="{{ url_for('schichtbuch.delete_thema', thema_id=thema.ID) }}" method="post" class="m-0 p-0 flex-fill"
+                                      data-has-lagerbuchungen="{{ '1' if thema.ID in themen_mit_lagerbuchungen else '0' }}"
+                                      data-kann-rueckbuchen="{{ '1' if kann_artikel_rueckbuchen else '0' }}"
+                                      onsubmit="return confirmThemaLoeschen(this);">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger w-100"
                                             title="Thema löschen">
                                         <i class="bi bi-trash"></i>
                                     </button>
@@ -1094,8 +1127,11 @@ async function loadMoreThemen() {
                             title="Aufgabenlisten">
                       <i class="bi bi-list-task"></i> <span class="d-none d-sm-inline">Listen</span>
                     </button>
-                    <form action="/schichtbuch/delete_thema/${thema.ID}" method="post" class="m-0 p-0 flex-fill">
-                      <button type="submit" class="btn btn-sm btn-outline-danger w-100" onclick="return confirm('Thema wirklich löschen?');"
+                    <form action="/schichtbuch/delete_thema/${thema.ID}" method="post" class="m-0 p-0 flex-fill"
+                          data-has-lagerbuchungen="${thema.HatVerbuchteErsatzteile ? '1' : '0'}"
+                          data-kann-rueckbuchen="${window.SB_KANN_RUECKBUCHEN || '0'}"
+                          onsubmit="return confirmThemaLoeschen(this);">
+                      <button type="submit" class="btn btn-sm btn-outline-danger w-100"
                               title="Thema löschen">
                         <i class="bi bi-trash"></i>
                       </button>
@@ -1188,8 +1224,11 @@ async function loadMoreThemen() {
                         title="Aufgabenlisten">
                   <i class="bi bi-list-task"></i>
                 </button>
-                <form action="/schichtbuch/delete_thema/${thema.ID}" method="post" class="d-contents m-0 p-0">
-                  <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Thema wirklich löschen?');"
+                <form action="/schichtbuch/delete_thema/${thema.ID}" method="post" class="d-contents m-0 p-0"
+                      data-has-lagerbuchungen="${thema.HatVerbuchteErsatzteile ? '1' : '0'}"
+                      data-kann-rueckbuchen="${window.SB_KANN_RUECKBUCHEN || '0'}"
+                      onsubmit="return confirmThemaLoeschen(this);">
+                  <button type="submit" class="btn btn-sm btn-outline-danger"
                           title="Thema löschen">
                     <i class="bi bi-trash"></i>
                   </button>

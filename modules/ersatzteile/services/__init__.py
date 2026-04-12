@@ -12,7 +12,8 @@ from .ersatzteil_services import (
 from .lagerbuchung_services import (
     validate_lagerbuchung,
     create_lagerbuchung,
-    create_inventur_buchung
+    create_inventur_buchung,
+    rueckbuche_lager_fuer_geloeschtes_thema,
 )
 from .datei_services import (
     get_dateien_fuer_bereich,
@@ -30,6 +31,7 @@ __all__ = [
     'validate_lagerbuchung',
     'create_lagerbuchung',
     'create_inventur_buchung',
+    'rueckbuche_lager_fuer_geloeschtes_thema',
     'get_dateien_fuer_bereich',
     'speichere_datei',
     'loesche_datei',
