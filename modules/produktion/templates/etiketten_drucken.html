@@ -18,13 +18,20 @@
           data-datum-tag-default="{{ datum_tag_iso }}"
           data-zu-verwenden-default="{{ zu_verwenden_tag_iso }}">
       <div class="col-12">
+        <label for="produktionEtikettVorlage" class="form-label fw-bold">Vorlage</label>
+        <select class="form-select" id="produktionEtikettVorlage" name="produktion_etikett_vorlage" autocomplete="off" autofocus>
+          <option value="">— Keine Vorlage —</option>
+        </select>
+        <small class="text-muted">&Uuml;bernimmt Artikelnummer und Produkt (danach beliebig &auml;nderbar).</small>
+      </div>
+      <div class="col-12">
         <label for="artikelnummer" class="form-label fw-bold">Artikelnummer</label>
         <input type="text" class="form-control" id="artikelnummer" name="artikelnummer"
                 placeholder="optional" autocomplete="off">
       </div>
       <div class="col-12">
         <label for="produkt" class="form-label fw-bold">Produkt <span class="text-danger">*</span></label>
-        <input type="text" class="form-control" id="produkt" name="produkt" required autofocus
+        <input type="text" class="form-control" id="produkt" name="produkt" required
                 placeholder="z. B. Artikelbezeichnung">
       </div>
       <div class="col-12">
@@ -77,6 +84,29 @@
 </div>
 
 <script>
+/**
+ * Vorlagen nur im Code gepflegt (später z. B. aus der Datenbank).
+ * data-artikelnummer / data-produkt je Option; value="" = keine Übernahme.
+ */
+const PRODUKTION_ETIKETT_VORLAGEN = [
+    { value: 'test1', artikelnummer: 'P50050001', produkt: 'Maier Bachforelle', label: 'Test: Bachforelle' },
+    { value: 'test2', artikelnummer: 'P50140010', produkt: 'Maier Saibling amk', label: 'Test: Saibling' },
+    { value: 'test3', artikelnummer: 'P50250000', produkt: 'BIO Wolfsbarsch', label: 'Test: Wolfsbarsch' },
+];
+
+function wendeProduktionEtikettVorlageAn() {
+    const sel = document.getElementById('produktionEtikettVorlage');
+    const artEl = document.getElementById('artikelnummer');
+    const prodEl = document.getElementById('produkt');
+    if (!sel || !artEl || !prodEl) return;
+    const v = sel.value;
+    if (!v) return;
+    const eintrag = PRODUKTION_ETIKETT_VORLAGEN.find(function(x) { return x.value === v; });
+    if (!eintrag) return;
+    artEl.value = eintrag.artikelnummer;
+    prodEl.value = eintrag.produkt;
+}
+
 /** ISO-Datum YYYY-MM-DD → TT.MM.JJJJ */
 function datumIsoZuDeutsch(iso) {
     if (!iso || typeof iso !== 'string') return '';
@@ -132,6 +162,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('produktionEtikettForm');
     const btn = document.getElementById('produktionDruckBtn');
     const resetBtn = document.getElementById('produktionResetBtn');
+    const vorlageSel = document.getElementById('produktionEtikettVorlage');
+    PRODUKTION_ETIKETT_VORLAGEN.forEach(function(v) {
+        const opt = document.createElement('option');
+        opt.value = v.value;
+        opt.textContent = v.label;
+        vorlageSel.appendChild(opt);
+    });
+
+    vorlageSel.addEventListener('change', function() {
+        wendeProduktionEtikettVorlageAn();
+    });
 
     resetBtn.addEventListener('click', function() {
         form.reset();
@@ -141,7 +182,9 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('zu_verwenden_tag').value = defZu;
         document.getElementById('stueck').value = '1';
         document.getElementById('artikelnummer').value = '';
-        document.getElementById('produkt').focus();
+        document.getElementById('produkt').value = '';
+        vorlageSel.value = '';
+        vorlageSel.focus();
     });
 
     const stueckEl = document.getElementById('stueck');
@@ -221,8 +264,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 if (data.success) {
                     produktionEtikettToast(data.message || 'Etikett gedruckt.', true);
-                    document.getElementById('produkt').value = '';
-                    document.getElementById('produkt').focus();
                 } else {
                     produktionEtikettToast(data.message || 'Fehler beim Drucken.', false);
                 }
