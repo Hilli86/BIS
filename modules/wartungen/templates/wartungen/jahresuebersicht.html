@@ -133,16 +133,14 @@
             <td class="text-start small align-middle">
               {% for pm in row.aktive_plaene_meta %}
               <div class="text-nowrap{% if not loop.first %} mt-1 pt-1 border-top border-light{% endif %}">
-                {% if pm.IntervallAnzahl == 0 %}
-                  <span class="text-muted">–</span>
-                {% elif kann_protokollieren and pm.PlanID %}
+                {% if kann_protokollieren and pm.PlanID %}
                   {% if pm.NaechsteFaelligkeit %}
                   <a href="{{ url_for('wartungen.durchfuehrung_neu', plan_id=pm.PlanID, **jahresuebersicht_protokoll_query) }}" class="text-decoration-none text-reset d-inline-block" title="Wartung protokollieren">
                     {% set fbc = pm.NaechsteFaelligkeit|wartung_faelligkeit_badge_class %}
                     {% if fbc %}<span class="badge {{ fbc }}">{{ pm.NaechsteFaelligkeit }}</span>{% else %}{{ pm.NaechsteFaelligkeit }}{% endif %}
                   </a>
                   {% else %}
-                  <a href="{{ url_for('wartungen.durchfuehrung_neu', plan_id=pm.PlanID, **jahresuebersicht_protokoll_query) }}" class="btn btn-sm btn-outline-primary py-0 px-2 text-nowrap" title="Wartung protokollieren (kein Solltermin gesetzt)">
+                  <a href="{{ url_for('wartungen.durchfuehrung_neu', plan_id=pm.PlanID, **jahresuebersicht_protokoll_query) }}" class="btn btn-sm btn-outline-primary py-0 px-2 text-nowrap" title="{% if pm.IntervallAnzahl == 0 %}Wartung protokollieren (ohne Intervall){% else %}Wartung protokollieren (kein Solltermin gesetzt){% endif %}">
                     <i class="bi bi-journal-plus"></i> Protokoll
                   </a>
                   {% endif %}
