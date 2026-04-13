@@ -2,27 +2,46 @@
 """
 Post-login redirect: optional per-employee start page (allowlist).
 Order: fixed start page > next query param > dashboard.
+
+Nur bekannte Flask-Endpunkte sind erlaubt (kein freies URL-Feld), damit gespeicherte
+Werte nicht zu beliebigen Zielen führen. Die Auswahl entspricht den Hauptseiten
+aus Sidebar/Menü (siehe utils.menue_definitions).
 """
 
 from flask import url_for
 
 from utils.decorators import is_safe_url
 
-# Allowed Flask endpoint names (blueprint.view)
-ERLAUBTE_LOGIN_STARTSEITEN = frozenset({
-    'dashboard.dashboard',
-    'produktion.etikettierung',
-    'ersatzteile.lagerbehaelter_label',
-    'diverses.zebra_drucker',
-})
-
-# Admin dropdown: (endpoint, label)
+# Admin-Dropdown: (endpoint, Anzeigename) — Reihenfolge wie im Menü
 LOGIN_STARTSEITEN_AUSWAHL = [
     ('dashboard.dashboard', 'Dashboard'),
-    ('produktion.etikettierung', 'Produktion: Etikettierung'),
+    ('admin.dashboard', 'Adminbereich'),
+    ('schichtbuch.themaliste', 'Schichtbuch: Themenliste'),
+    ('schichtbuch.aufgabenlisten_liste', 'Schichtbuch: Aufgabenlisten'),
+    ('ersatzteile.angebotsanfrage_liste', 'Bestellwesen: Angebotsanfragen'),
+    ('ersatzteile.bestellung_liste', 'Bestellwesen: Bestellungen'),
+    ('ersatzteile.auswertungen', 'Bestellwesen: Auswertungen'),
+    ('ersatzteile.wareneingang', 'Bestellwesen: Wareneingang buchen'),
+    ('ersatzteile.suche_artikel', 'Ersatzteile: Suche Artikel'),
+    ('ersatzteile.ersatzteil_liste', 'Ersatzteile: Artikelliste'),
+    ('ersatzteile.inventurliste', 'Ersatzteile: Inventurliste'),
+    ('ersatzteile.lieferanten_liste', 'Ersatzteile: Lieferanten'),
+    ('ersatzteile.lagerbuchungen_liste', 'Ersatzteile: Lagerbuchungen'),
     ('ersatzteile.lagerbehaelter_label', 'Ersatzteile: Etiketten drucken'),
+    ('wartungen.wartung_liste', 'Wartungen: Wartungen'),
+    ('wartungen.plaene_uebersicht', 'Wartungen: Wartungspläne'),
+    ('wartungen.jahresuebersicht', 'Wartungen: Jahresübersicht'),
+    ('wartungen.durchfuehrungen_chronologisch', 'Wartungen: Protokolle'),
+    ('wartungen.durchfuehrung_mehrere', 'Wartungen: Mehrere protokollieren'),
+    ('diverses.dokumente_erfassen', 'Diverses: Dokumente erfassen'),
     ('diverses.zebra_drucker', 'Diverses: Zebra-Drucker'),
+    ('produktion.etikettierung', 'Produktion: Etikettierung'),
+    ('produktion.etiketten_drucken', 'Produktion: Etiketten drucken'),
+    ('search.search', 'Globale Suche'),
+    ('auth.profil', 'Mein Profil'),
 ]
+
+ERLAUBTE_LOGIN_STARTSEITEN = frozenset(ep for ep, _ in LOGIN_STARTSEITEN_AUSWAHL)
 
 
 def normalisiere_startseite_endpunkt(wert):
