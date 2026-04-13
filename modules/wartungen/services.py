@@ -107,6 +107,11 @@ def aktualisiere_naechste_faelligkeit_nach_durchfuehrung(conn, plan_id, durchgef
     plan = get_plan(conn, plan_id)
     if not plan or not plan['Aktiv']:
         return None
+    try:
+        if int(plan['IntervallAnzahl']) == 0:
+            return None
+    except (TypeError, ValueError, KeyError, IndexError):
+        pass
     df_basis = _datum_aus_durchgefuehrt_am(durchgefuehrt_am)
     if df_basis is None:
         return None
@@ -613,9 +618,13 @@ def create_wartungsplan(conn, wartung_id, einheit, anzahl, naechste, hat_festes_
         anzahl = int(anzahl)
     except (TypeError, ValueError):
         raise ValueError('Intervall-Anzahl ungültig.') from None
-    if anzahl < 1:
-        raise ValueError('Intervall-Anzahl muss mindestens 1 sein.')
-    na = (naechste or '').strip() or None
+    if anzahl < 0:
+        raise ValueError('Intervall-Anzahl darf nicht negativ sein.')
+    if anzahl == 0:
+        na = None
+        hat_festes_intervall = False
+    else:
+        na = (naechste or '').strip() or None
     cur = conn.execute(
         '''INSERT INTO Wartungsplan
            (WartungID, IntervallEinheit, IntervallAnzahl, NaechsteFaelligkeit, HatFestesIntervall)
@@ -632,9 +641,13 @@ def update_wartungsplan(conn, plan_id, einheit, anzahl, naechste, aktiv, hat_fes
         anzahl = int(anzahl)
     except (TypeError, ValueError):
         raise ValueError('Intervall-Anzahl ungültig.') from None
-    if anzahl < 1:
-        raise ValueError('Intervall-Anzahl muss mindestens 1 sein.')
-    na = (naechste or '').strip() or None
+    if anzahl < 0:
+        raise ValueError('Intervall-Anzahl darf nicht negativ sein.')
+    if anzahl == 0:
+        na = None
+        hat_festes_intervall = False
+    else:
+        na = (naechste or '').strip() or None
     conn.execute(
         '''UPDATE Wartungsplan SET IntervallEinheit = ?, IntervallAnzahl = ?,
            NaechsteFaelligkeit = ?, HatFestesIntervall = ?, Aktiv = ? WHERE ID = ?''',
@@ -773,11 +786,16 @@ def list_plaene_sichtbar(
     else:
         order_sql = 'ORDER BY b.Bezeichnung, w.Bezeichnung, p.ID'
 
+    letzte_df_sql = (
+        '(SELECT MAX(d.DurchgefuehrtAm) FROM Wartungsdurchfuehrung d '
+        'WHERE d.WartungsplanID = p.ID) AS LetzteDurchfuehrung'
+    )
     if is_admin:
         return conn.execute(f'''
             SELECT p.ID, p.IntervallEinheit, p.IntervallAnzahl, p.NaechsteFaelligkeit, p.Aktiv,
                    w.ID AS WartungID,
-                   w.Bezeichnung AS WartungBez, g.Bezeichnung AS Gewerk, b.Bezeichnung AS Bereich
+                   w.Bezeichnung AS WartungBez, g.Bezeichnung AS Gewerk, b.Bezeichnung AS Bereich,
+                   {letzte_df_sql}
             FROM Wartungsplan p
             JOIN Wartung w ON p.WartungID = w.ID
             JOIN Gewerke g ON w.GewerkID = g.ID
@@ -792,7 +810,8 @@ def list_plaene_sichtbar(
     return conn.execute(f'''
         SELECT p.ID, p.IntervallEinheit, p.IntervallAnzahl, p.NaechsteFaelligkeit, p.Aktiv,
                w.ID AS WartungID,
-               w.Bezeichnung AS WartungBez, g.Bezeichnung AS Gewerk, b.Bezeichnung AS Bereich
+               w.Bezeichnung AS WartungBez, g.Bezeichnung AS Gewerk, b.Bezeichnung AS Bereich,
+               {letzte_df_sql}
         FROM Wartungsplan p
         JOIN Wartung w ON p.WartungID = w.ID
         JOIN Gewerke g ON w.GewerkID = g.ID
@@ -858,15 +877,23 @@ def map_wartung_aktive_plaene_metadaten(
 
 def plaene_options_fuer_select(conn, mitarbeiter_id, is_admin):
     rows = list_plaene_sichtbar(conn, mitarbeiter_id, is_admin)
-    return [
-        {
+    out = []
+    for r in rows:
+        if not r['Aktiv']:
+            continue
+        try:
+            ia = int(r['IntervallAnzahl'])
+        except (TypeError, ValueError):
+            ia = 1
+        if ia == 0:
+            intervall_txt = 'ohne Intervall'
+        else:
+            intervall_txt = f"alle {ia} {r['IntervallEinheit']}(e)"
+        out.append({
             'id': r['ID'],
-            'label': f"{r['Bereich']} / {r['Gewerk']} – {r['WartungBez']} "
-            f"(alle {r['IntervallAnzahl']} {r['IntervallEinheit']}(e))",
-        }
-        for r in rows
-        if r['Aktiv']
-    ]
+            'label': f"{r['Bereich']} / {r['Gewerk']} – {r['WartungBez']} ({intervall_txt})",
+        })
+    return out
 
 
 def validate_teilnehmer(mitarbeiter_ids, fremdfirma_zeilen):

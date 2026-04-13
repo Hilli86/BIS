@@ -21,7 +21,7 @@
           <label class="form-label">Intervall</label>
           <div class="row g-2">
             <div class="col-4">
-              <input type="number" name="intervall_anzahl" class="form-control" min="1" value="{{ plan.IntervallAnzahl if plan else 1 }}" required>
+              <input type="number" name="intervall_anzahl" class="form-control" min="0" value="{{ plan.IntervallAnzahl if plan else 1 }}" required>
             </div>
             <div class="col-8">
               <select name="intervall_einheit" class="form-select" required>
@@ -30,6 +30,9 @@
                 {% endfor %}
               </select>
             </div>
+          </div>
+          <div class="form-text">
+            <strong>0</strong> = ohne nächste Fälligkeit; nach einer Durchführung wird kein neuer Termin berechnet. Felder „Nächste Fälligkeit“ und „festes Intervall“ gelten dann nicht.
           </div>
         </div>
         <div class="mb-3">

@@ -103,7 +103,7 @@
             <td>{{ x.Bereich }}</td>
             <td>{{ x.Gewerk }}</td>
             <td class="text-break"><strong>{{ x.WartungBez }}</strong></td>
-            <td>Alle {{ x.IntervallAnzahl }} {{ x.IntervallEinheit }}(e)</td>
+            <td>{% if x.IntervallAnzahl == 0 %}Ohne Intervall{% else %}Alle {{ x.IntervallAnzahl }} {{ x.IntervallEinheit }}(e){% endif %}</td>
             <td class="text-center text-nowrap">
               {% if x.DateiAnzahl and x.DateiAnzahl > 0 %}
               <span class="badge bg-secondary" title="{{ x.DateiAnzahl }} Datei(en)"><i class="bi bi-paperclip"></i> {{ x.DateiAnzahl }}</span>

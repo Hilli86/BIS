@@ -63,8 +63,9 @@
             <th>Wartung</th>
             <th>Intervall</th>
             <th>Nächste Fälligkeit</th>
+            <th class="text-nowrap">Letzte Durchführung</th>
             <th>Aktiv</th>
-            <th style="min-width: 5rem;">Aktionen</th>
+            <th style="min-width: 8rem;">Aktionen</th>
           </tr>
         </thead>
         <tbody>
@@ -73,16 +74,28 @@
             <td>{{ p.Bereich }}</td>
             <td>{{ p.Gewerk }}</td>
             <td><strong>{{ p.WartungBez }}</strong></td>
-            <td>{{ p.IntervallAnzahl }} {{ p.IntervallEinheit }}(e)</td>
+            <td>{% if p.IntervallAnzahl == 0 %}Ohne Intervall{% else %}{{ p.IntervallAnzahl }} {{ p.IntervallEinheit }}(e){% endif %}</td>
+            {% if p.IntervallAnzahl == 0 %}
+            <td class="text-nowrap"><span class="text-muted">–</span></td>
+            {% else %}
             {% set ftd = p.NaechsteFaelligkeit|wartung_faelligkeit_td_class %}
             <td class="text-nowrap{% if ftd %} {{ ftd }}{% endif %}">{{ p.NaechsteFaelligkeit or '–' }}</td>
+            {% endif %}
+            <td class="text-nowrap">{% if p.LetzteDurchfuehrung %}{{ p.LetzteDurchfuehrung[:16] }}{% else %}<span class="text-muted">–</span>{% endif %}</td>
             <td>{% if p.Aktiv %}<span class="badge bg-success">Ja</span>{% else %}<span class="badge bg-secondary">Nein</span>{% endif %}</td>
-            <td onclick="event.stopPropagation();">
-              {% if kann_protokollieren %}
-              <a href="{{ url_for('wartungen.durchfuehrung_neu', plan_id=p.ID, herkunft='plaene_uebersicht', plan_order=plan_order, bereich_id=bereich_id, gewerk_id=gewerk_id) }}" class="btn btn-sm btn-outline-success text-nowrap" title="Durchführung eintragen">
-                <i class="bi bi-clipboard-check"></i> Durchführung eintragen
-              </a>
-              {% endif %}
+            <td class="text-nowrap" onclick="event.stopPropagation();">
+              <div class="d-inline-flex gap-1 flex-wrap">
+                {% if kann_plan %}
+                <a href="{{ url_for('wartungen.plan_bearbeiten', plan_id=p.ID) }}" class="btn btn-sm btn-outline-secondary" title="Plan bearbeiten">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                {% endif %}
+                {% if kann_protokollieren %}
+                <a href="{{ url_for('wartungen.durchfuehrung_neu', plan_id=p.ID, herkunft='plaene_uebersicht', plan_order=plan_order, bereich_id=bereich_id, gewerk_id=gewerk_id) }}" class="btn btn-sm btn-outline-success text-nowrap" title="Durchführung eintragen">
+                  <i class="bi bi-journal-plus"></i>
+                </a>
+                {% endif %}
+              </div>
             </td>
           </tr>
           {% endfor %}
@@ -101,20 +114,32 @@
             </div>
             {% if p.Aktiv %}<span class="badge bg-success">Aktiv</span>{% else %}<span class="badge bg-secondary">Inaktiv</span>{% endif %}
           </div>
-          <div class="small mb-1"><strong>Intervall:</strong> {{ p.IntervallAnzahl }} {{ p.IntervallEinheit }}(e)</div>
+          <div class="small mb-1"><strong>Intervall:</strong> {% if p.IntervallAnzahl == 0 %}Ohne Intervall{% else %}{{ p.IntervallAnzahl }} {{ p.IntervallEinheit }}(e){% endif %}</div>
           <div class="small mb-2"><strong>Nächste Fälligkeit:</strong>
-            {% if p.NaechsteFaelligkeit %}
+            {% if p.IntervallAnzahl == 0 %}
+              <span class="text-muted">–</span>
+            {% elif p.NaechsteFaelligkeit %}
               {% set fbc = p.NaechsteFaelligkeit|wartung_faelligkeit_badge_class %}
               {% if fbc %}<span class="badge {{ fbc }}">{{ p.NaechsteFaelligkeit }}</span>{% else %}{{ p.NaechsteFaelligkeit }}{% endif %}
             {% else %}
               <span class="text-muted">–</span>
             {% endif %}
           </div>
-          {% if kann_protokollieren %}
-          <div onclick="event.stopPropagation();">
-            <a href="{{ url_for('wartungen.durchfuehrung_neu', plan_id=p.ID, herkunft='plaene_uebersicht', plan_order=plan_order, bereich_id=bereich_id, gewerk_id=gewerk_id) }}" class="btn btn-sm btn-outline-success">
-              <i class="bi bi-clipboard-check"></i> Durchführung eintragen
+          <div class="small mb-2"><strong>Letzte Durchführung:</strong>
+            {% if p.LetzteDurchfuehrung %}{{ p.LetzteDurchfuehrung[:16] }}{% else %}<span class="text-muted">–</span>{% endif %}
+          </div>
+          {% if kann_plan or kann_protokollieren %}
+          <div class="d-flex flex-wrap gap-1" onclick="event.stopPropagation();">
+            {% if kann_plan %}
+            <a href="{{ url_for('wartungen.plan_bearbeiten', plan_id=p.ID) }}" class="btn btn-sm btn-outline-secondary" title="Plan bearbeiten">
+              <i class="bi bi-pencil"></i> Plan bearbeiten
             </a>
+            {% endif %}
+            {% if kann_protokollieren %}
+            <a href="{{ url_for('wartungen.durchfuehrung_neu', plan_id=p.ID, herkunft='plaene_uebersicht', plan_order=plan_order, bereich_id=bereich_id, gewerk_id=gewerk_id) }}" class="btn btn-sm btn-outline-success">
+              <i class="bi bi-journal-plus"></i> Durchführung
+            </a>
+            {% endif %}
           </div>
           {% endif %}
         </div>

@@ -684,6 +684,7 @@ def plaene_uebersicht():
         gewerk_id=gewerk_id,
         plan_order=plan_order,
         kann_protokollieren=kann_wartung_protokollieren(),
+        kann_plan=kann_wartungsplan_pflegen(),
     )
 
 
@@ -807,11 +808,19 @@ def _jahresmatrix_grouped(wartungen, drows):
             items = by_cell.get((w['ID'], m), [])
             payload = []
             for it in items:
+                try:
+                    _ia = int(it['IntervallAnzahl'])
+                except (TypeError, ValueError):
+                    _ia = -1
+                if _ia == 0:
+                    _intervall_txt = 'Ohne Intervall'
+                else:
+                    _intervall_txt = f"{it['IntervallAnzahl']} {it['IntervallEinheit']}(e)"
                 payload.append({
                     'id': it['ID'],
                     'datum_anzeige': _format_durchfuehrung_datum_anzeige(it['DurchgefuehrtAm']),
                     'bemerkung_kurz': ((it['Bemerkung'] or '').strip()[:200]),
-                    'intervall': f"{it['IntervallAnzahl']} {it['IntervallEinheit']}(e)",
+                    'intervall': _intervall_txt,
                     'detail_url': url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=it['ID']),
                 })
             cells.append(payload)

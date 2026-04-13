@@ -128,7 +128,11 @@
         <tbody>
           {% for p in plaene %}
           <tr id="wartung-plan-row-{{ p.ID }}" class="{% if highlight_plan_id is not none and p.ID == highlight_plan_id %}table-info{% endif %}" style="cursor: pointer;" onclick="window.location.href='{{ url_for('wartungen.wartung_detail', wartung_id=wartung.ID, plan_id=p.ID) }}';">
-            <td>Alle {{ p.IntervallAnzahl }} {{ p.IntervallEinheit }}(e)</td>
+            <td>{% if p.IntervallAnzahl == 0 %}Ohne Intervall{% else %}Alle {{ p.IntervallAnzahl }} {{ p.IntervallEinheit }}(e){% endif %}</td>
+            {% if p.IntervallAnzahl == 0 %}
+            <td class="text-nowrap"><span class="text-muted">–</span></td>
+            <td><span class="text-muted">–</span></td>
+            {% else %}
             {% set ftd = p.NaechsteFaelligkeit|wartung_faelligkeit_td_class %}
             <td class="text-nowrap{% if ftd %} {{ ftd }}{% endif %}">{{ p.NaechsteFaelligkeit or '–' }}</td>
             <td>
@@ -138,6 +142,7 @@
               <span class="badge text-bg-light text-dark border" title="Nächster Termin von der Durchführung">Durchführung</span>
               {% endif %}
             </td>
+            {% endif %}
             <td>{% if p.Aktiv %}<span class="badge bg-success">Ja</span>{% else %}<span class="badge bg-secondary">Nein</span>{% endif %}</td>
             <td class="text-nowrap" onclick="event.stopPropagation();">
               <div class="d-inline-flex gap-1 flex-wrap">
@@ -191,7 +196,7 @@
           <tr style="cursor: pointer;" onclick="window.location.href='{{ url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=x.ID) }}';">
             <td class="text-muted text-nowrap">{{ x.ID }}</td>
             <td style="white-space: nowrap;">{% if x.DurchgefuehrtAm %}{{ x.DurchgefuehrtAm[:16] }}{% else %}–{% endif %}</td>
-            <td>Alle {{ x.IntervallAnzahl }} {{ x.IntervallEinheit }}(e)</td>
+            <td>{% if x.IntervallAnzahl == 0 %}Ohne Intervall{% else %}Alle {{ x.IntervallAnzahl }} {{ x.IntervallEinheit }}(e){% endif %}</td>
             <td class="text-center text-nowrap">
               {% if x.DateiAnzahl and x.DateiAnzahl > 0 %}
               <span class="badge bg-secondary" title="{{ x.DateiAnzahl }} Datei(en)"><i class="bi bi-paperclip"></i> {{ x.DateiAnzahl }}</span>
