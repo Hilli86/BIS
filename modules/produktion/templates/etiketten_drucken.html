@@ -10,23 +10,37 @@
   <div class="card-body">
     <!--<p class="text-muted small mb-3">
       Im Admin unter Etikettendrucker die Funktion <strong>Produktion-Etikett</strong> zuweisen.
-      ZPL-Vorlage mit Platzhaltern <code>{produktion_produkt}</code>, <code>{produktion_datum}</code>, <code>{produktion_stueck}</code>
+      ZPL-Vorlage mit Platzhaltern u. a. <code>{produktion_artikelnummer}</code>, <code>{produktion_produkt}</code>,
+      <code>{produktion_datum}</code>, <code>{produktion_zu_verwenden_am}</code>, <code>{produktion_stueck}</code>
       und <code>{etikettenformat}</code>; Kopien &uuml;ber <code>^PQ</code> (wird aus &bdquo;St&uuml;ck&ldquo; gesetzt).
     </p>-->
-    <form id="produktionEtikettForm" class="row row-cols-1 g-3" data-datum-default="{{ datum_zeit_iso }}">
+    <form id="produktionEtikettForm" class="row row-cols-1 g-3"
+          data-datum-tag-default="{{ datum_tag_iso }}"
+          data-zu-verwenden-default="{{ zu_verwenden_tag_iso }}">
+      <div class="col-12">
+        <label for="artikelnummer" class="form-label fw-bold">Artikelnummer</label>
+        <input type="text" class="form-control" id="artikelnummer" name="artikelnummer"
+                placeholder="optional" autocomplete="off">
+      </div>
       <div class="col-12">
         <label for="produkt" class="form-label fw-bold">Produkt <span class="text-danger">*</span></label>
         <input type="text" class="form-control" id="produkt" name="produkt" required autofocus
                 placeholder="z. B. Artikelbezeichnung">
       </div>
       <div class="col-12">
-        <label for="datum_zeit" class="form-label fw-bold">Datum / Uhrzeit</label>
-        <input type="datetime-local" class="form-control" id="datum_zeit" name="datum_zeit"
-                value="{{ datum_zeit_iso }}">
-        <small class="text-muted">Kalender und Uhrzeit &uuml;ber die Browser-Eingabe w&auml;hlen (Anzeige auf dem Etikett: TT.MM.JJJJ HH:MM).</small>
+        <label for="datum_tag" class="form-label fw-bold">Datum</label>
+        <input type="date" class="form-control" id="datum_tag" name="datum_tag"
+                value="{{ datum_tag_iso }}">
+        <small class="text-muted">Anzeige auf dem Etikett: TT.MM.JJJJ (ohne Uhrzeit).</small>
       </div>
       <div class="col-12">
-        <label for="stueck" class="form-label fw-bold">St&uuml;ck <span class="text-danger">*</span></label>
+        <label for="zu_verwenden_tag" class="form-label fw-bold">Zu verwenden am</label>
+        <input type="date" class="form-control" id="zu_verwenden_tag" name="zu_verwenden_tag"
+                value="{{ zu_verwenden_tag_iso }}">
+        <small class="text-muted">Standard: morgen; Anzeige auf dem Etikett: TT.MM.JJJJ (ohne Uhrzeit).</small>
+      </div>
+      <div class="col-12">
+        <label for="stueck" class="form-label fw-bold">Etikettenanzahl <span class="text-danger">*</span></label>
         <input type="text" class="form-control" id="stueck" name="stueck" value="1" required
                 inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" enterkeyhint="done">
         <small class="text-muted">Nur Ziffern (1&ndash;9999)</small>
@@ -63,17 +77,14 @@
 </div>
 
 <script>
-function datetimeLocalZuDeutsch(iso) {
+/** ISO-Datum YYYY-MM-DD → TT.MM.JJJJ */
+function datumIsoZuDeutsch(iso) {
     if (!iso || typeof iso !== 'string') return '';
-    const t = iso.indexOf('T');
-    if (t < 0) return '';
-    const ymd = iso.slice(0, t).split('-');
-    const hm = iso.slice(t + 1).split(':');
-    if (ymd.length !== 3 || hm.length < 2) return '';
+    const ymd = iso.split('-');
+    if (ymd.length !== 3) return '';
     const [y, m, d] = ymd;
-    const hh = (hm[0] || '00').padStart(2, '0');
-    const mm = (hm[1] || '00').replace(/\D.*/, '').slice(0, 2).padStart(2, '0');
-    return d.padStart(2, '0') + '.' + m.padStart(2, '0') + '.' + y + ' ' + hh + ':' + mm;
+    if (!y || !m || !d) return '';
+    return d.padStart(2, '0') + '.' + m.padStart(2, '0') + '.' + y;
 }
 
 function produktionEtikettToast(message, isSuccess) {
@@ -124,9 +135,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     resetBtn.addEventListener('click', function() {
         form.reset();
-        const def = form.getAttribute('data-datum-default') || '';
-        document.getElementById('datum_zeit').value = def;
+        const defDatum = form.getAttribute('data-datum-tag-default') || '';
+        const defZu = form.getAttribute('data-zu-verwenden-default') || '';
+        document.getElementById('datum_tag').value = defDatum;
+        document.getElementById('zu_verwenden_tag').value = defZu;
         document.getElementById('stueck').value = '1';
+        document.getElementById('artikelnummer').value = '';
         document.getElementById('produkt').focus();
     });
 
@@ -138,9 +152,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     form.addEventListener('submit', function(e) {
         e.preventDefault();
+        const artikelnummer = document.getElementById('artikelnummer').value.trim();
         const produkt = document.getElementById('produkt').value.trim();
-        const datumIso = document.getElementById('datum_zeit').value;
-        const datumDe = datetimeLocalZuDeutsch(datumIso);
+        const datumIso = document.getElementById('datum_tag').value;
+        const datumDe = datumIsoZuDeutsch(datumIso);
+        const zuIso = document.getElementById('zu_verwenden_tag').value;
+        const zuDe = datumIsoZuDeutsch(zuIso);
         const stueckRaw = document.getElementById('stueck').value;
         const stueck = parseInt(stueckRaw, 10);
 
@@ -150,8 +167,13 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         if (!datumDe) {
-            alert('Bitte Datum und Uhrzeit w\u00e4hlen.');
-            document.getElementById('datum_zeit').focus();
+            alert('Bitte Datum w\u00e4hlen.');
+            document.getElementById('datum_tag').focus();
+            return;
+        }
+        if (!zuDe) {
+            alert('Bitte \u00abZu verwenden am\u00bb w\u00e4hlen.');
+            document.getElementById('zu_verwenden_tag').focus();
             return;
         }
         if (isNaN(stueck) || stueck < 1 || stueck > 9999) {
@@ -165,7 +187,15 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Wird gedruckt...';
 
         const runDruck = (printerId) => {
-            const body = { produkt: produkt, datum: datumDe, stueck: stueck };
+            const body = {
+                produkt: produkt,
+                datum: datumDe,
+                zu_verwenden_am: zuDe,
+                stueck: stueck
+            };
+            if (artikelnummer) {
+                body.artikelnummer = artikelnummer;
+            }
             if (printerId != null && !isNaN(printerId)) {
                 body.printer_id = printerId;
             }

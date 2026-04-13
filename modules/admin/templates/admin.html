@@ -2115,8 +2115,10 @@ const ETIKETT_PLATZHALTER_BADGES = [
   },
   { token: '{allgemein_titel}', label: 'Allgemein-Titel' },
   { token: '{allgemein_info}', label: 'Allgemein-Info' },
+  { token: '{produktion_artikelnummer}', label: 'Produktion Artikelnummer' },
   { token: '{produktion_produkt}', label: 'Produktion Produkt' },
   { token: '{produktion_datum}', label: 'Produktion Datum' },
+  { token: '{produktion_zu_verwenden_am}', label: 'Produktion zu verwenden am' },
   { token: '{produktion_stueck}', label: 'Produktion Stück' },
   { token: '{artikelnummer}', label: 'Artikelnummer' },
   { token: '{artikel_bestellnummer}', label: 'Artikel-Bestellnummer' },
@@ -2193,8 +2195,10 @@ function vorschauEtikett() {
     artikel_lagerplatz: 'B10-B1',
     allgemein_titel: 'Test-Titel',
     allgemein_info: 'Test-Info',
+    produktion_artikelnummer: '4711',
     produktion_produkt: 'Beispielprodukt',
-    produktion_datum: '11.04.2026 14:30',
+    produktion_datum: '11.04.2026',
+    produktion_zu_verwenden_am: '12.04.2026',
     produktion_stueck: '5'
   };
   
@@ -2231,8 +2235,10 @@ function vorschauEtikettMitDaten(id, druckbefehle, zpl_header) {
     artikel_lagerplatz: 'B10-B1',
     allgemein_titel: 'Test-Titel',
     allgemein_info: 'Test-Info',
+    produktion_artikelnummer: '4711',
     produktion_produkt: 'Beispielprodukt',
-    produktion_datum: '11.04.2026 14:30',
+    produktion_datum: '11.04.2026',
+    produktion_zu_verwenden_am: '12.04.2026',
     produktion_stueck: '5'
   };
   
@@ -2273,8 +2279,10 @@ function druckeEtikettAusButton(button) {
     artikel_lagerplatz: 'B10-B1',
     allgemein_titel: 'Test-Titel',
     allgemein_info: 'Test-Info',
+    produktion_artikelnummer: '4711',
     produktion_produkt: 'Beispielprodukt',
-    produktion_datum: '11.04.2026 14:30',
+    produktion_datum: '11.04.2026',
+    produktion_zu_verwenden_am: '12.04.2026',
     produktion_stueck: '5'
   };
 

@@ -5,7 +5,7 @@ Routes für Produktionsfunktionen
 
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import (
     abort,
@@ -118,12 +118,15 @@ def get_artikeleinstellungen_struktur():
 @produktion_bp.route('/etiketten-drucken')
 @login_required
 def etiketten_drucken():
-    """Freitext-Produktion-Etikett (Produkt, Datum/Zeit, Stück)."""
-    jetzt = datetime.now().replace(second=0, microsecond=0)
-    datum_zeit_iso = jetzt.strftime('%Y-%m-%dT%H:%M')
+    """Freitext-Produktion-Etikett (optional Artikelnummer, Produkt, Datum, zu verwenden am, Stück)."""
+    heute = datetime.now().date()
+    morgen = heute + timedelta(days=1)
+    datum_tag_iso = heute.strftime('%Y-%m-%d')
+    zu_verwenden_tag_iso = morgen.strftime('%Y-%m-%d')
     return render_template(
         'etiketten_drucken.html',
-        datum_zeit_iso=datum_zeit_iso,
+        datum_tag_iso=datum_tag_iso,
+        zu_verwenden_tag_iso=zu_verwenden_tag_iso,
     )
 
 
@@ -134,9 +137,13 @@ def etiketten_drucken_druck():
     mitarbeiter_id = session.get('user_id')
     data = request.get_json(silent=True) or {}
     produkt = (data.get('produkt') or '').strip()
+    artikelnummer = (data.get('artikelnummer') or '').strip()
     datum_text = (data.get('datum') or '').strip()
     if not datum_text:
-        datum_text = datetime.now().strftime('%d.%m.%Y %H:%M')
+        datum_text = datetime.now().strftime('%d.%m.%Y')
+    zu_verwenden_text = (data.get('zu_verwenden_am') or '').strip()
+    if not zu_verwenden_text:
+        zu_verwenden_text = (datetime.now().date() + timedelta(days=1)).strftime('%d.%m.%Y')
 
     raw_stueck = data.get('stueck')
     try:
@@ -176,7 +183,13 @@ def etiketten_drucken_druck():
 
             etikett = res['etikett']
             zpl = zpl_produktion_etikett(
-                etikett, produkt, datum_text, stueck_text, anzahl
+                etikett,
+                produkt,
+                datum_text,
+                stueck_text,
+                anzahl,
+                artikelnummer=artikelnummer,
+                zu_verwenden_am_text=zu_verwenden_text,
             )
             try:
                 send_zpl_to_printer(res['printer_ip'], zpl)
