@@ -388,7 +388,7 @@
                 </div>
             </div>
             <div class="col-md-2">
-                <label class="form-label small">Menge:</label>
+                <label class="form-label small ersatzteil-menge-label">Menge:</label>
                 <input type="number" name="ersatzteil_menge[]" class="form-control form-control-sm ersatzteil-menge-input" value="1" min="1" required>
             </div>
             <div class="col-md-3">
@@ -466,6 +466,13 @@
         }
     }
     
+    function updateErsatzteilMengeLabel(row, einheit) {
+        const lab = row.querySelector('.ersatzteil-menge-label');
+        if (!lab) return;
+        const u = String(einheit != null ? einheit : '').trim();
+        lab.textContent = u ? ('Menge (' + u + '):') : 'Menge:';
+    }
+
     // 🔸 Menge validieren (wenn Bestand < Menge, dann Feld markieren)
     function validateMenge(row) {
         const mengeInput = row.querySelector('.ersatzteil-menge-input');
@@ -495,8 +502,9 @@
         
         if (!ersatzteilId) {
             infoDisplay.textContent = 'Bitte Ersatzteil-ID eingeben';
-            infoDisplay.className = 'text-muted';
+            infoDisplay.className = 'ersatzteil-info-display text-muted';
             row.setAttribute('data-ersatzteil-bestand', '');
+            updateErsatzteilMengeLabel(row, '');
             validateMenge(row);
             return;
         }
@@ -514,16 +522,18 @@
                     const einheit = data.einheit || '';
                     
                     infoDisplay.innerHTML = `<strong>${bestellnummer}</strong> - ${bezeichnung}`;
-                    infoDisplay.className = 'text-muted';
+                    infoDisplay.className = 'ersatzteil-info-display text-muted';
                     row.setAttribute('data-ersatzteil-bestand', bestand);
                     input.classList.remove('is-invalid');
+                    updateErsatzteilMengeLabel(row, einheit);
                     
                     // Validierung der Menge
                     validateMenge(row);
                 } else {
                     infoDisplay.textContent = 'Ersatzteil nicht gefunden';
-                    infoDisplay.className = 'text-danger';
+                    infoDisplay.className = 'ersatzteil-info-display text-danger';
                     row.setAttribute('data-ersatzteil-bestand', '');
+                    updateErsatzteilMengeLabel(row, '');
                     input.classList.add('is-invalid');
                     validateMenge(row);
                     alert(data.message || 'Ersatzteil nicht gefunden.');
@@ -532,8 +542,9 @@
             .catch(error => {
                 input.disabled = false;
                 infoDisplay.textContent = 'Fehler beim Laden';
-                infoDisplay.className = 'text-danger';
+                infoDisplay.className = 'ersatzteil-info-display text-danger';
                 row.setAttribute('data-ersatzteil-bestand', '');
+                updateErsatzteilMengeLabel(row, '');
                 console.error('Fehler:', error);
                 alert('Fehler beim Laden der Ersatzteil-Daten.');
             });
@@ -568,18 +579,21 @@
                     const bestellnummer = data.bestellnummer || 'Keine Bestellnummer';
                     const bezeichnung = data.bezeichnung || 'Keine Bezeichnung';
                     const bestand = data.bestand || 0;
+                    const einheit = data.einheit || '';
                     
                     infoDisplay.innerHTML = `<strong>${bestellnummer}</strong> - ${bezeichnung}`;
-                    infoDisplay.className = 'text-muted';
+                    infoDisplay.className = 'ersatzteil-info-display text-muted';
                     row.setAttribute('data-ersatzteil-bestand', bestand);
                     ersatzteilInput.classList.remove('is-invalid');
+                    updateErsatzteilMengeLabel(row, einheit);
                     
                     // Validierung der Menge
                     validateMenge(row);
                 } else {
                     infoDisplay.textContent = 'Ersatzteil nicht gefunden';
-                    infoDisplay.className = 'text-danger';
+                    infoDisplay.className = 'ersatzteil-info-display text-danger';
                     row.setAttribute('data-ersatzteil-bestand', '');
+                    updateErsatzteilMengeLabel(row, '');
                     ersatzteilInput.classList.add('is-invalid');
                     validateMenge(row);
                     alert(data.message || 'Ersatzteil nicht gefunden.');
@@ -590,8 +604,9 @@
                 button.innerHTML = '<i class="bi bi-arrow-right"></i>';
                 ersatzteilInput.disabled = false;
                 infoDisplay.textContent = 'Fehler beim Laden';
-                infoDisplay.className = 'text-danger';
+                infoDisplay.className = 'ersatzteil-info-display text-danger';
                 row.setAttribute('data-ersatzteil-bestand', '');
+                updateErsatzteilMengeLabel(row, '');
                 console.error('Fehler:', error);
                 alert('Fehler beim Laden der Ersatzteil-Daten.');
             });
@@ -670,8 +685,9 @@
             const bestand = ersatzteil.bestand || 0;
             const bestellnummerEscaped = (ersatzteil.bestellnummer || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
             const bezeichnungEscaped = (ersatzteil.bezeichnung || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            const einheitEscaped = (ersatzteil.einheit || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
             html += `
-                <a href="#" class="list-group-item list-group-item-action" onclick="selectErsatzteilThema(${ersatzteil.id}, '${bestellnummerEscaped}', '${bezeichnungEscaped}', ${bestand}, event)">
+                <a href="#" class="list-group-item list-group-item-action" onclick="selectErsatzteilThema(${ersatzteil.id}, '${bestellnummerEscaped}', '${bezeichnungEscaped}', ${bestand}, '${einheitEscaped}', event)">
                     <div class="d-flex w-100 justify-content-between">
                         <h6 class="mb-1">${ersatzteil.bestellnummer || 'Keine Bestellnummer'}</h6>
                         <small>${bestandText}</small>
@@ -712,7 +728,7 @@
     }
     
     // 🔸 Ersatzteil aus Modal auswählen
-    function selectErsatzteilThema(id, bestellnummer, bezeichnung, bestand, event) {
+    function selectErsatzteilThema(id, bestellnummer, bezeichnung, bestand, einheit, event) {
         event.preventDefault();
         
         const modal = bootstrap.Modal.getInstance(document.getElementById('ersatzteilModalThema'));
@@ -734,7 +750,7 @@
             if (ersatzteilInput) ersatzteilInput.value = id;
             if (infoDisplay) {
                 infoDisplay.innerHTML = `<strong>${bestellnummer || 'Keine Bestellnummer'}</strong> - ${bezeichnung || 'Keine Bezeichnung'}`;
-                infoDisplay.className = 'text-muted';
+                infoDisplay.className = 'ersatzteil-info-display text-muted';
             }
             
             // Bestand speichern
@@ -742,6 +758,7 @@
             
             // Validierung entfernen und Menge validieren
             if (ersatzteilInput) ersatzteilInput.classList.remove('is-invalid');
+            updateErsatzteilMengeLabel(targetRow, einheit);
             validateMenge(targetRow);
         }
         

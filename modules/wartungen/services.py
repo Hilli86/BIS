@@ -977,12 +977,14 @@ def list_durchfuehrungen_fuer_wartung(conn, wartung_id):
 def get_durchfuehrung_detail(conn, durchfuehrung_id):
     d = conn.execute('''
         SELECT d.*, p.WartungID, p.ID AS PlanID, p.IntervallEinheit, p.IntervallAnzahl,
-               w.Bezeichnung AS WartungBez, g.Bezeichnung AS Gewerk, b.Bezeichnung AS Bereich
+               w.Bezeichnung AS WartungBez, g.Bezeichnung AS Gewerk, b.Bezeichnung AS Bereich,
+               mp.Vorname || ' ' || mp.Nachname AS ProtokolliertVonName
         FROM Wartungsdurchfuehrung d
         JOIN Wartungsplan p ON d.WartungsplanID = p.ID
         JOIN Wartung w ON p.WartungID = w.ID
         JOIN Gewerke g ON w.GewerkID = g.ID
         JOIN Bereich b ON g.BereichID = b.ID
+        LEFT JOIN Mitarbeiter mp ON d.ProtokolliertVonID = mp.ID
         WHERE d.ID = ?
     ''', (durchfuehrung_id,)).fetchone()
     if not d:

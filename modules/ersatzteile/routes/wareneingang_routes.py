@@ -68,7 +68,7 @@ def wareneingang():
         sichtbare_abteilungen = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
         is_admin = 'admin' in session.get('user_berechtigungen', [])
         
-        # Nur Bestellungen mit Status "Bestellt" oder "Teilweise erhalten"
+        # Nur nicht gelöschte Bestellungen mit Status "Bestellt" oder "Teilweise erhalten"
         query = '''
             SELECT 
                 b.ID,
@@ -79,7 +79,8 @@ def wareneingang():
             FROM Bestellung b
             LEFT JOIN Lieferant l ON b.LieferantID = l.ID
             LEFT JOIN Abteilung abt ON b.ErstellerAbteilungID = abt.ID
-            WHERE b.Status IN ('Bestellt', 'Teilweise erhalten')
+            WHERE b.Gelöscht = 0
+              AND b.Status IN ('Bestellt', 'Teilweise erhalten')
         '''
         params = []
         
@@ -117,7 +118,8 @@ def wareneingang_bestellung(bestellung_id):
             SELECT b.*, l.Name AS LieferantName
             FROM Bestellung b
             LEFT JOIN Lieferant l ON b.LieferantID = l.ID
-            WHERE b.ID = ? AND b.Status IN ('Bestellt', 'Teilweise erhalten')
+            WHERE b.ID = ? AND b.Gelöscht = 0
+              AND b.Status IN ('Bestellt', 'Teilweise erhalten')
         ''', (bestellung_id,)).fetchone()
         
         if not bestellung:

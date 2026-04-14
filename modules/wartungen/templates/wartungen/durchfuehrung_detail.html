@@ -28,6 +28,14 @@
           <td class="text-nowrap">{% if d.DurchgefuehrtAm %}{{ d.DurchgefuehrtAm[:16] }}{% else %}–{% endif %}</td>
         </tr>
         <tr>
+          <td class="text-muted"><strong>Protokolliert von</strong></td>
+          <td>{{ (d.ProtokolliertVonName or '') | trim or '–' }}</td>
+        </tr>
+        <tr>
+          <td class="text-muted"><strong>Erstellt am</strong></td>
+          <td class="text-nowrap">{% if d.ErstelltAm %}{{ d.ErstelltAm[:16] }}{% else %}–{% endif %}</td>
+        </tr>
+        <tr>
           <td class="text-muted align-top"><strong>Bemerkung</strong></td>
           <td class="text-break">{{ d.Bemerkung or '–' }}</td>
         </tr>

@@ -1,17 +1,23 @@
-{# Artikel-Positionen: Lookup per ID, Modal mit allen sichtbaren Ersatzteilen, Lager-Ausgang beim Speichern #}
+{# Ersatzteile: gleiche Karten-/Zeilenoptik wie Mitarbeiter/Fremdfirmen (card-header bg-warning, Zeilen border rounded) #}
+<style>
+  .wd-artikel-row .wd-artikel-meta-gap {
+    min-height: 3rem;
+    margin-top: 0.25rem;
+  }
+</style>
 <div class="card mb-4 shadow-sm">
   <div class="card-header bg-warning text-dark">
-    <h5 class="mb-0">Artikel <span class="fw-normal small">(optional, Lager-Ausgang)</span></h5>
+    <h5 class="mb-0"><i class="bi bi-box-seam"></i> Ersatzteile <span class="fw-normal small">(optional, Lager-Ausgang)</span></h5>
   </div>
   <div class="card-body">
-    <p class="text-muted small mb-3">Ersatzteil-ID eingeben und Pfeil klicken, oder ohne ID den Pfeil nutzen – es öffnet sich die Suche über alle für Sie sichtbaren Artikel. Nur Zeilen mit gültiger Artikel-ID werden verbucht.</p>
+    <p class="text-muted small mb-2">Ersatzteil-ID eingeben und Pfeil klicken, oder ohne ID den Pfeil nutzen – es öffnet sich die Auswahl. Nur Zeilen mit gültiger Artikel-ID werden verbucht.</p>
     <div id="wd-artikel-positionen-container"></div>
-    <div id="wd-artikel-empty-msg" class="alert alert-info">
-      <i class="bi bi-info-circle"></i> Optional: Position hinzufügen, um Material aus dem Lager zu buchen.
+    <div id="wd-artikel-empty-msg" class="alert alert-info mb-0">
+      <i class="bi bi-info-circle"></i> Keine Ersatzteile hinzugefügt. Klicken Sie auf „Ersatzteil hinzufügen“, um Material aus dem Lager zu buchen.
     </div>
     <div class="mt-3">
       <button type="button" class="btn btn-success" onclick="wdArtikelAddPosition()">
-        <i class="bi bi-plus-circle"></i> Position hinzufügen
+        <i class="bi bi-plus-circle"></i> Ersatzteil hinzufügen
       </button>
     </div>
   </div>
@@ -19,6 +25,29 @@
 
 <script>
 const WD_KOSTENSTELLEN = {{ (kostenstellen or [])|tojson|safe }};
+
+function wdArtikelValidateMenge(row) {
+  const mengeInput = row.querySelector('.wd-artikel-menge-input');
+  const bestandStr = row.getAttribute('data-ersatzteil-bestand');
+  if (!mengeInput || !bestandStr || bestandStr === '') {
+    mengeInput?.classList.remove('is-invalid', 'border-warning');
+    return;
+  }
+  const bestand = parseInt(bestandStr, 10) || 0;
+  const menge = parseInt(mengeInput.value, 10) || 0;
+  if (menge > 0 && bestand < menge) {
+    mengeInput.classList.add('is-invalid', 'border-warning');
+  } else {
+    mengeInput.classList.remove('is-invalid', 'border-warning');
+  }
+}
+
+function wdArtikelSetMengeLabel(wrap, einheit) {
+  const lab = wrap.querySelector('.wd-artikel-menge-label');
+  if (!lab) return;
+  const u = String(einheit != null ? einheit : '').trim();
+  lab.textContent = u ? ('Menge (' + u + ')') : 'Menge';
+}
 
 function wdArtikelAddPosition() {
   const container = document.getElementById('wd-artikel-positionen-container');
@@ -29,73 +58,71 @@ function wdArtikelAddPosition() {
       kostenstelleOptions += '<option value="' + k.ID + '">' + (k.Bezeichnung || '') + '</option>';
     });
   }
-  const positionRow = document.createElement('div');
-  positionRow.className = 'wd-artikel-position-row position-row mb-3 p-3 border rounded';
-  positionRow.setAttribute('data-row-id', 'wd-row-' + Date.now());
-  positionRow.innerHTML = `
-    <div class="row g-3">
-      <div class="col-md-2">
-        <label class="form-label">ErsatzteilID</label>
-        <div class="input-group">
-          <input type="number" name="ersatzteil_id[]" class="form-control ersatzteil-id-input" placeholder="Optional">
-          <button type="button" class="btn btn-outline-secondary btn-lookup" onclick="wdArtikelLookup(this)">
-            <i class="bi bi-arrow-right"></i>
-          </button>
-        </div>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Bestellnummer</label>
-        <input type="text" name="wd_bestellnummer[]" class="form-control bestellnummer-display" placeholder="Auswahl/Lookup">
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Bezeichnung</label>
-        <input type="text" name="wd_bezeichnung[]" class="form-control bezeichnung-display" placeholder="Auswahl/Lookup">
-      </div>
-      <div class="col-md-1">
-        <label class="form-label">Menge</label>
-        <input type="number" name="ersatzteil_menge[]" class="form-control" value="1" min="1" required>
-      </div>
-      <div class="col-md-1">
-        <label class="form-label">Einheit</label>
-        <input type="text" name="wd_einheit[]" class="form-control einheit-display" value="Stück" placeholder="Stück">
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Preis</label>
-        <input type="number" name="wd_preis[]" class="form-control" step="0.01" min="0" placeholder="0.00">
-      </div>
-      <div class="col-md-1">
-        <label class="form-label">Währung</label>
-        <select name="wd_waehrung[]" class="form-select">
-          <option value="EUR">EUR</option>
-          <option value="USD">USD</option>
-          <option value="CHF">CHF</option>
-        </select>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Bemerkung</label>
-        <input type="text" name="ersatzteil_bemerkung[]" class="form-control" placeholder="Optional">
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Kostenstelle</label>
-        <select name="ersatzteil_kostenstelle[]" class="form-select">${kostenstelleOptions}</select>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Link</label>
-        <input type="url" name="wd_link[]" class="form-control link-display" placeholder="Optional">
-      </div>
-      <div class="col-md-1">
-        <label class="form-label">&nbsp;</label>
-        <button type="button" class="btn btn-danger w-100" onclick="wdArtikelRemoveRow(this)">
-          <i class="bi bi-trash"></i>
+  const wrap = document.createElement('div');
+  wrap.className = 'wd-artikel-row mb-3 p-3 border rounded';
+  wrap.setAttribute('data-row-id', 'wd-row-' + Date.now());
+  wrap.setAttribute('data-ersatzteil-bestand', '');
+  const inner = document.createElement('div');
+  inner.className = 'row g-3 align-items-start';
+  inner.innerHTML = `
+    <div class="col-12 col-md-6 col-lg-3">
+      <label class="form-label">Ersatzteil-ID</label>
+      <div class="input-group">
+        <input type="number" name="ersatzteil_id[]" class="form-control wd-artikel-id-input" placeholder="ID" min="1">
+        <button type="button" class="btn btn-outline-secondary btn-lookup" onclick="wdArtikelLookup(this)" title="Auswahl / laden">
+          <i class="bi bi-arrow-right"></i>
         </button>
       </div>
+      <div class="mt-1">
+        <small class="text-muted"><span class="wd-artikel-info-display">Bitte Ersatzteil-ID eingeben</span></small>
+      </div>
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+      <label class="form-label wd-artikel-menge-label">Menge</label>
+      <input type="number" name="ersatzteil_menge[]" class="form-control wd-artikel-menge-input" value="1" min="1" required>
+      <div class="wd-artikel-meta-gap" aria-hidden="true"></div>
+    </div>
+    <div class="col-6 col-md-3 col-lg-3">
+      <label class="form-label">Kostenstelle</label>
+      <select name="ersatzteil_kostenstelle[]" class="form-select">${kostenstelleOptions}</select>
+      <div class="wd-artikel-meta-gap" aria-hidden="true"></div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-3">
+      <label class="form-label">Bemerkung</label>
+      <input type="text" name="ersatzteil_bemerkung[]" class="form-control" placeholder="Optional…">
+      <div class="wd-artikel-meta-gap" aria-hidden="true"></div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-1">
+      <label class="form-label">&nbsp;</label>
+      <button type="button" class="btn btn-danger w-100" onclick="wdArtikelRemoveRow(this)" title="Zeile entfernen">
+        <i class="bi bi-trash"></i>
+      </button>
+      <div class="wd-artikel-meta-gap flex-grow-0" aria-hidden="true"></div>
     </div>`;
-  container.appendChild(positionRow);
+  wrap.appendChild(inner);
+  container.appendChild(wrap);
   emptyMessage.style.display = 'none';
+
+  const ersatzteilInput = wrap.querySelector('.wd-artikel-id-input');
+  ersatzteilInput.addEventListener('blur', function () {
+    if (this.value.trim()) wdArtikelLookupFromInput(this);
+  });
+  ersatzteilInput.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.keyCode !== 13) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const btn = wrap.querySelector('.btn-lookup');
+    if (btn) wdArtikelLookup(btn);
+  });
+  const mengeInput = wrap.querySelector('.wd-artikel-menge-input');
+  if (mengeInput) {
+    mengeInput.addEventListener('input', function () { wdArtikelValidateMenge(wrap); });
+    mengeInput.addEventListener('change', function () { wdArtikelValidateMenge(wrap); });
+  }
 }
 
 function wdArtikelRemoveRow(button) {
-  const row = button.closest('.wd-artikel-position-row');
+  const row = button.closest('.wd-artikel-row');
   row.remove();
   const container = document.getElementById('wd-artikel-positionen-container');
   if (container.children.length === 0) {
@@ -103,13 +130,57 @@ function wdArtikelRemoveRow(button) {
   }
 }
 
+function wdArtikelLookupFromInput(input) {
+  const row = input.closest('.wd-artikel-row');
+  const infoDisplay = row.querySelector('.wd-artikel-info-display');
+  const ersatzteilId = input.value.trim();
+  if (!ersatzteilId) {
+    infoDisplay.textContent = 'Bitte Ersatzteil-ID eingeben';
+    infoDisplay.className = 'wd-artikel-info-display text-muted';
+    row.setAttribute('data-ersatzteil-bestand', '');
+    wdArtikelSetMengeLabel(row, '');
+    wdArtikelValidateMenge(row);
+    return;
+  }
+  input.disabled = true;
+  fetch(`{{ url_for('ersatzteile.api_ersatzteil_info', ersatzteil_id=0) }}`.replace('/0', '/' + ersatzteilId))
+    .then(function (response) { return response.json(); })
+    .then(function (data) {
+      input.disabled = false;
+      if (data.success) {
+        const bestellnummer = data.bestellnummer || 'Keine Bestellnummer';
+        const bezeichnung = data.bezeichnung || 'Keine Bezeichnung';
+        const bestand = data.bestand || 0;
+        infoDisplay.innerHTML = '<strong>' + bestellnummer + '</strong> - ' + bezeichnung;
+        infoDisplay.className = 'wd-artikel-info-display text-muted';
+        row.setAttribute('data-ersatzteil-bestand', bestand);
+        input.classList.remove('is-invalid');
+        wdArtikelSetMengeLabel(row, data.einheit);
+        wdArtikelValidateMenge(row);
+      } else {
+        infoDisplay.textContent = 'Ersatzteil nicht gefunden';
+        infoDisplay.className = 'wd-artikel-info-display text-danger';
+        row.setAttribute('data-ersatzteil-bestand', '');
+        wdArtikelSetMengeLabel(row, '');
+        input.classList.add('is-invalid');
+        wdArtikelValidateMenge(row);
+        alert(data.message || 'Ersatzteil nicht gefunden.');
+      }
+    })
+    .catch(function () {
+      input.disabled = false;
+      infoDisplay.textContent = 'Fehler beim Laden';
+      infoDisplay.className = 'wd-artikel-info-display text-danger';
+      row.setAttribute('data-ersatzteil-bestand', '');
+      wdArtikelSetMengeLabel(row, '');
+      alert('Fehler beim Laden der Ersatzteil-Daten.');
+    });
+}
+
 function wdArtikelLookup(button) {
-  const row = button.closest('.wd-artikel-position-row');
-  const ersatzteilInput = row.querySelector('.ersatzteil-id-input');
-  const bestellnummerDisplay = row.querySelector('.bestellnummer-display');
-  const bezeichnungDisplay = row.querySelector('.bezeichnung-display');
-  const einheitDisplay = row.querySelector('.einheit-display');
-  const linkDisplay = row.querySelector('.link-display');
+  const row = button.closest('.wd-artikel-row');
+  const ersatzteilInput = row.querySelector('.wd-artikel-id-input');
+  const infoDisplay = row.querySelector('.wd-artikel-info-display');
   const ersatzteilId = ersatzteilInput.value.trim();
   if (!ersatzteilId) {
     wdArtikelOpenModal(row);
@@ -117,35 +188,41 @@ function wdArtikelLookup(button) {
   }
   button.disabled = true;
   button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  ersatzteilInput.disabled = true;
   fetch(`{{ url_for('ersatzteile.api_ersatzteil_info', ersatzteil_id=0) }}`.replace('/0', '/' + ersatzteilId))
     .then(function (response) { return response.json(); })
     .then(function (data) {
       button.disabled = false;
       button.innerHTML = '<i class="bi bi-arrow-right"></i>';
+      ersatzteilInput.disabled = false;
       if (data.success) {
-        bestellnummerDisplay.value = data.bestellnummer;
-        bezeichnungDisplay.value = data.bezeichnung;
-        if (einheitDisplay && data.einheit) einheitDisplay.value = data.einheit;
-        if (linkDisplay && data.link) linkDisplay.value = data.link;
-        const preisInput = row.querySelector('input[name="wd_preis[]"]');
-        const waehrungSelect = row.querySelector('select[name="wd_waehrung[]"]');
-        if (preisInput && data.preis) preisInput.value = data.preis;
-        if (waehrungSelect && data.waehrung) waehrungSelect.value = data.waehrung;
-        bestellnummerDisplay.classList.remove('is-invalid');
-        bezeichnungDisplay.classList.remove('is-invalid');
+        const bestellnummer = data.bestellnummer || 'Keine Bestellnummer';
+        const bezeichnung = data.bezeichnung || 'Keine Bezeichnung';
+        const bestand = data.bestand || 0;
+        infoDisplay.innerHTML = '<strong>' + bestellnummer + '</strong> - ' + bezeichnung;
+        infoDisplay.className = 'wd-artikel-info-display text-muted';
+        row.setAttribute('data-ersatzteil-bestand', bestand);
         ersatzteilInput.classList.remove('is-invalid');
+        wdArtikelSetMengeLabel(row, data.einheit);
+        wdArtikelValidateMenge(row);
       } else {
-        bestellnummerDisplay.value = '';
-        bezeichnungDisplay.value = '';
-        bestellnummerDisplay.classList.add('is-invalid');
-        bezeichnungDisplay.classList.add('is-invalid');
+        infoDisplay.textContent = 'Ersatzteil nicht gefunden';
+        infoDisplay.className = 'wd-artikel-info-display text-danger';
+        row.setAttribute('data-ersatzteil-bestand', '');
+        wdArtikelSetMengeLabel(row, '');
         ersatzteilInput.classList.add('is-invalid');
+        wdArtikelValidateMenge(row);
         alert(data.message || 'Ersatzteil nicht gefunden.');
       }
     })
     .catch(function () {
       button.disabled = false;
       button.innerHTML = '<i class="bi bi-arrow-right"></i>';
+      ersatzteilInput.disabled = false;
+      infoDisplay.textContent = 'Fehler beim Laden';
+      infoDisplay.className = 'wd-artikel-info-display text-danger';
+      row.setAttribute('data-ersatzteil-bestand', '');
+      wdArtikelSetMengeLabel(row, '');
       alert('Fehler beim Laden der Ersatzteil-Daten.');
     });
 }
@@ -187,13 +264,13 @@ function wdArtikelRenderList(ersatzteile) {
   let html = '<div class="list-group">';
   ersatzteile.forEach(function (ersatzteil) {
     const bestandText = (ersatzteil.bestand || 0) + ' ' + (ersatzteil.einheit || '');
-    const preisValue = (ersatzteil.preis != null && ersatzteil.preis !== undefined) ? ersatzteil.preis : 'null';
-    const waehrungValue = (ersatzteil.waehrung || 'EUR').replace(/'/g, "\\'");
+    const bestand = ersatzteil.bestand || 0;
     const bestellnummerEscaped = (ersatzteil.bestellnummer || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
     const bezeichnungEscaped = (ersatzteil.bezeichnung || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-    html += '<a href="#" class="list-group-item list-group-item-action" onclick="wdArtikelSelect(' + ersatzteil.id + ', \'' + bestellnummerEscaped + '\', \'' + bezeichnungEscaped + '\', ' + preisValue + ', \'' + waehrungValue + '\', event)">';
-    html += '<div class="d-flex w-100 justify-content-between"><h6 class="mb-1">' + (ersatzteil.bestellnummer || '—') + '</h6><small>' + bestandText.trim() + '</small></div>';
-    html += '<p class="mb-1">' + (ersatzteil.bezeichnung || '') + '</p><small>ID: ' + ersatzteil.id + '</small></a>';
+    const einheitEscaped = (ersatzteil.einheit || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    html += '<a href="#" class="list-group-item list-group-item-action" onclick="wdArtikelSelect(' + ersatzteil.id + ', \'' + bestellnummerEscaped + '\', \'' + bezeichnungEscaped + '\', ' + bestand + ', \'' + einheitEscaped + '\', event)">';
+    html += '<div class="d-flex w-100 justify-content-between"><h6 class="mb-1">' + (ersatzteil.bestellnummer || 'Keine Bestellnummer') + '</h6><small>' + bestandText.trim() + '</small></div>';
+    html += '<p class="mb-1">' + (ersatzteil.bezeichnung || 'Keine Bezeichnung') + '</p><small>ID: ' + ersatzteil.id + '</small></a>';
   });
   html += '</div>';
   modalBody.innerHTML = html;
@@ -214,7 +291,7 @@ function wdArtikelFilterList(searchTerm) {
   wdArtikelRenderList(filtered);
 }
 
-function wdArtikelSelect(id, bestellnummer, bezeichnung, preis, waehrung, event) {
+function wdArtikelSelect(id, bestellnummer, bezeichnung, bestand, einheit, event) {
   if (event) {
     event.preventDefault();
     event.stopPropagation();
@@ -222,52 +299,25 @@ function wdArtikelSelect(id, bestellnummer, bezeichnung, preis, waehrung, event)
   const modalEl = document.getElementById('wdErsatzteilModal');
   const modal = bootstrap.Modal.getInstance(modalEl);
   const targetRowId = modalEl.getAttribute('data-target-row-id');
-  let targetRow = targetRowId ? document.querySelector('[data-row-id="' + targetRowId + '"]') : document.querySelector('.wd-artikel-position-row');
+  let targetRow = targetRowId ? document.querySelector('[data-row-id="' + targetRowId + '"]') : document.querySelector('.wd-artikel-row');
   if (!targetRow) {
     if (modal) modal.hide();
     return;
   }
-  const ersatzteilInput = targetRow.querySelector('.ersatzteil-id-input');
-  const bestellnummerDisplay = targetRow.querySelector('.bestellnummer-display');
-  const bezeichnungDisplay = targetRow.querySelector('.bezeichnung-display');
-  const einheitDisplay = targetRow.querySelector('.einheit-display');
-  const linkDisplay = targetRow.querySelector('.link-display');
-  const preisInput = targetRow.querySelector('input[name="wd_preis[]"]');
-  const waehrungSelect = targetRow.querySelector('select[name="wd_waehrung[]"]');
+  const ersatzteilInput = targetRow.querySelector('.wd-artikel-id-input');
+  const infoDisplay = targetRow.querySelector('.wd-artikel-info-display');
   if (ersatzteilInput) ersatzteilInput.value = id || '';
-  if (bestellnummerDisplay) bestellnummerDisplay.value = bestellnummer || '';
-  if (bezeichnungDisplay) bezeichnungDisplay.value = bezeichnung || '';
-  if (preisInput && preis !== null && preis !== undefined && preis !== 'null') preisInput.value = preis;
-  if (waehrungSelect && waehrung) waehrungSelect.value = waehrung;
-  if ((einheitDisplay || linkDisplay) && id) {
-    fetch(`{{ url_for('ersatzteile.api_ersatzteil_info', ersatzteil_id=0) }}`.replace('/0', '/' + id))
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        if (data.success) {
-          if (einheitDisplay && data.einheit) einheitDisplay.value = data.einheit;
-          if (linkDisplay && data.link) linkDisplay.value = data.link;
-        }
-      })
-      .catch(function () {});
+  if (infoDisplay) {
+    infoDisplay.innerHTML = '<strong>' + (bestellnummer || 'Keine Bestellnummer') + '</strong> - ' + (bezeichnung || 'Keine Bezeichnung');
+    infoDisplay.className = 'wd-artikel-info-display text-muted';
   }
-  if (bestellnummerDisplay) bestellnummerDisplay.classList.remove('is-invalid');
-  if (bezeichnungDisplay) bezeichnungDisplay.classList.remove('is-invalid');
+  targetRow.setAttribute('data-ersatzteil-bestand', bestand || 0);
   if (ersatzteilInput) ersatzteilInput.classList.remove('is-invalid');
+  wdArtikelSetMengeLabel(targetRow, einheit);
+  wdArtikelValidateMenge(targetRow);
   if (modal) modal.hide();
 }
 
-document.addEventListener('DOMContentLoaded', function () {
-  const pc = document.getElementById('wd-artikel-positionen-container');
-  if (pc) {
-    pc.addEventListener('keypress', function (e) {
-      if (e.target.classList.contains('ersatzteil-id-input') && e.key === 'Enter') {
-        e.preventDefault();
-        const btn = e.target.closest('.wd-artikel-position-row').querySelector('.btn-lookup');
-        if (btn) wdArtikelLookup(btn);
-      }
-    });
-  }
-});
 </script>
 
 <div class="modal fade" id="wdErsatzteilModal" tabindex="-1" aria-labelledby="wdErsatzteilModalLabel" aria-hidden="true">

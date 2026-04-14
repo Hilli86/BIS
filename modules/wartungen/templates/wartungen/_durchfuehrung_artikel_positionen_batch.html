@@ -1,17 +1,23 @@
-{# Mehrfach-Protokoll: wie Einzel-Formular, erste Spalte = Ziel-Wartungsplan #}
+{# Mehrfach: gleiche Kartenoptik wie übrige Durchführungs-Blöcke #}
+<style>
+  .wd-artikel-batch-row .wd-artikel-batch-meta-gap {
+    min-height: 3rem;
+    margin-top: 0.25rem;
+  }
+</style>
 <div class="card mb-4 shadow-sm">
   <div class="card-header bg-warning text-dark">
-    <h5 class="mb-0">Artikel <span class="fw-normal small">(optional, Lager-Ausgang)</span></h5>
+    <h5 class="mb-0"><i class="bi bi-box-seam"></i> Ersatzteile <span class="fw-normal small">(optional, Lager-Ausgang)</span></h5>
   </div>
   <div class="card-body">
-    <p class="text-muted small mb-3">Pro Zeile zuerst den <strong>Wartungsplan</strong> wählen: Es erscheinen nur die Pläne, die Sie oben unter „Wartungspläne“ ausgewählt haben. Änderungen dort aktualisieren die Auswahl. Ersatzteil wie bei einzelner Durchführung.</p>
+    <p class="text-muted small mb-2">Pro Zeile zuerst den <strong>Wartungsplan</strong> wählen (nur Pläne aus der Liste oben). Ersatzteil wie bei einzelner Durchführung: ID und Pfeil oder Pfeil ohne ID für die Auswahl.</p>
     <div id="wd-artikel-batch-container"></div>
-    <div id="wd-artikel-batch-empty-msg" class="alert alert-info">
-      <i class="bi bi-info-circle"></i> Optional: Position hinzufügen, um Material einem Plan zuzuordnen.
+    <div id="wd-artikel-batch-empty-msg" class="alert alert-info mb-0">
+      <i class="bi bi-info-circle"></i> Keine Ersatzteile hinzugefügt. Optional „Ersatzteil hinzufügen“ für Material zu einem Plan.
     </div>
     <div class="mt-3">
       <button type="button" class="btn btn-success" onclick="wdBatchArtikelAddPosition()">
-        <i class="bi bi-plus-circle"></i> Position hinzufügen
+        <i class="bi bi-plus-circle"></i> Ersatzteil hinzufügen
       </button>
     </div>
   </div>
