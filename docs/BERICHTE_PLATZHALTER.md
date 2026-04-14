@@ -243,6 +243,13 @@ Diese Dokumentation listet alle verfügbaren Platzhalter für die Word-Vorlagen 
 **Bedingung:**
 - `{{hat_ersatzteile}}` - Boolean, ob Ersatzteile vorhanden sind
 
+### Fotos (Thema-Anhänge)
+
+Bilder aus dem Schichtbuch-Themen-Upload (`SCHICHTBUCH_UPLOAD_FOLDER` / `<Thema-ID>`) werden **nach dem Rendern der Vorlage** automatisch angehängt: etwas Abstand (`space_before`), Überschrift „Fotos zum Thema“, darunter jede Bilddatei (max. Breite ca. 140 mm) mit Dateiname als Bildunterschrift — **ohne** erzwungenen Seitenumbruch, damit keine leere Seite entsteht.
+
+- **Einbezogene Dateitypen:** u. a. `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.bmp`, `.tif`, `.tiff` (sortiert nach Dateiname, ohne Groß-/Kleinschreibung der Sortierung zu vermischen, wird lexikographisch mit `key=str.lower` sortiert).
+- **Keine Platzhalter** in `thema_template.docx` nötig; PDF/DOCX-Export bindet die Dateien im Code ein (nicht Teil des Jinja-Kontexts oben). Dabei wird direkt `DocxTemplate.docx` angesprochen, **nicht** `get_docx()` – letzteres würde nach `render()` die Vorlage erneut laden und die Platzhalter-Ersetzung verwerfen.
+
 ### Firmendaten
 
 | Platzhalter | Beschreibung | Format |

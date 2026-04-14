@@ -9,6 +9,7 @@ import sys
 from io import BytesIO
 from flask import current_app
 from docxtpl import DocxTemplate
+from docx.shared import Mm, Pt
 from utils.firmendaten import get_firmendaten
 from utils.helpers import safe_get, format_schichtbuch_datum
 from .pdf_export import convert_docx_to_pdf
@@ -18,6 +19,89 @@ try:
     DOCX2PDF_AVAILABLE = True
 except ImportError:
     DOCX2PDF_AVAILABLE = False
+
+# Gleiche Bildtypen wie in modules/schichtbuch/services.get_thema_dateien_liste (+ gängige RAW-Viewer-Fälle)
+_THEMA_BILD_ENDUNGEN = {
+    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tif', '.tiff',
+}
+
+
+def _webp_als_temp_png(abs_path):
+    """WebP für python-docx nach PNG konvertieren; Aufrufer löscht die Temp-Datei."""
+    from PIL import Image
+
+    im = Image.open(abs_path)
+    if im.mode in ('RGBA', 'LA'):
+        hintergrund = Image.new('RGB', im.size, (255, 255, 255))
+        alpha = im.split()[-1] if im.mode == 'RGBA' else None
+        hintergrund.paste(im, mask=alpha)
+        im = hintergrund
+    elif im.mode != 'RGB':
+        im = im.convert('RGB')
+    tmp = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+    tmp_name = tmp.name
+    tmp.close()
+    im.save(tmp_name, 'PNG')
+    return tmp_name
+
+
+def _thema_bilddateien_sortiert(thema_id, upload_ordner):
+    """Liste (Anzeigename, absoluter Pfad) der Bilder im Thema-Upload, sortiert nach Dateiname."""
+    if not upload_ordner:
+        return []
+    thema_ordner = os.path.join(upload_ordner, str(thema_id))
+    if not os.path.isdir(thema_ordner):
+        return []
+    bilder = []
+    for name in sorted(os.listdir(thema_ordner), key=str.lower):
+        pfad = os.path.join(thema_ordner, name)
+        if not os.path.isfile(pfad):
+            continue
+        ext = os.path.splitext(name)[1].lower()
+        if ext in _THEMA_BILD_ENDUNGEN:
+            bilder.append((name, os.path.abspath(pfad)))
+    return bilder
+
+
+def _fotos_an_dokument_anhaengen(doc_tpl, bilder, foto_breite_mm=140):
+    """
+    Nach docxtpl.render(): Bilder aus dem Thema-Ordner anhängen (keine Template-Platzhalter nötig).
+    """
+    if not bilder:
+        return
+    # Nicht get_docx() nutzen: docxtpl lädt bei is_rendered==True die Vorlage neu und verwirft render().
+    dokument = doc_tpl.docx
+    if dokument is None:
+        return
+    # Kein add_page_break(): erzeugt oft eine leere Seite (Vorlage/PDF-Konvertierung).
+    titel = dokument.add_paragraph()
+    titel.paragraph_format.space_before = Pt(18)
+    titel_run = titel.add_run('Fotos zum Thema')
+    titel_run.bold = True
+    breite = Mm(foto_breite_mm)
+    for dateiname, abs_pfad in bilder:
+        einbinden_pfad = abs_pfad
+        temp_png = None
+        if os.path.splitext(abs_pfad)[1].lower() == '.webp':
+            try:
+                temp_png = _webp_als_temp_png(abs_pfad)
+                einbinden_pfad = temp_png
+            except Exception:
+                einbinden_pfad = abs_pfad
+                temp_png = None
+        try:
+            grafik_absatz = dokument.add_paragraph()
+            grafik_absatz.add_run().add_picture(einbinden_pfad, width=breite)
+            bildunterschrift = dokument.add_paragraph(dateiname)
+            bildunterschrift.paragraph_format.space_after = Pt(10)
+        except Exception:
+            pass
+        finally:
+            if temp_png and os.path.isfile(temp_png):
+                try:
+                    os.unlink(temp_png)
+                except OSError:
+                    pass
 
 
 def generate_thema_pdf(thema_id, conn):
@@ -244,6 +328,10 @@ def generate_thema_pdf(thema_id, conn):
     
     # Template rendern
     doc.render(context)
+
+    upload_ordner = current_app.config.get('SCHICHTBUCH_UPLOAD_FOLDER')
+    thema_bilder = _thema_bilddateien_sortiert(thema_id, upload_ordner)
+    _fotos_an_dokument_anhaengen(doc, thema_bilder)
     
     # Als PDF konvertieren oder DOCX zurückgeben
     if DOCX2PDF_AVAILABLE:
