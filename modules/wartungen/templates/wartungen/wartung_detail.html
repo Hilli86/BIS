@@ -40,6 +40,22 @@
               <td class="text-break">{{ wartung.Beschreibung or '–' }}</td>
             </tr>
             <tr>
+              <td class="text-muted align-top"><strong>Doku (SharePoint)</strong></td>
+              <td class="text-break min-w-0">
+                {% if wartung.DokuSharepointOrdnerUrl %}
+                  {% if doku_link_href %}
+                    <a href="{{ doku_link_href }}" target="_blank" rel="noopener noreferrer" class="link-primary text-break">{{ wartung.DokuSharepointOrdnerUrl }}</a>
+                    <span class="text-muted small ms-1">(öffnet in neuem Tab)</span>
+                  {% else %}
+                    <span class="text-break">{{ wartung.DokuSharepointOrdnerUrl }}</span>
+                    <div class="form-text text-muted small mb-0">Kein gültiger http(s)-Link – bitte im Bearbeiten-Formular mit https:// eintragen.</div>
+                  {% endif %}
+                {% else %}
+                  –
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
               <td class="text-muted"><strong>Aktiv</strong></td>
               <td>
                 {% if wartung.Aktiv %}<span class="badge bg-success">Ja</span>{% else %}<span class="badge bg-secondary">Nein</span>{% endif %}

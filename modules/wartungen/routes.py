@@ -7,6 +7,7 @@ from datetime import datetime
 from flask import (
     current_app,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -394,12 +395,15 @@ def wartung_neu():
             gewerk_id = request.form.get('gewerk_id', type=int)
             bez = request.form.get('bezeichnung', '')
             besch = request.form.get('beschreibung', '')
+            doku_url = request.form.get('doku_sharepoint_ordner_url', '')
             sab = request.form.getlist('sichtbare_abteilungen')
             if not gewerk_id or not bez.strip():
                 flash('Gewerk und Bezeichnung sind Pflichtfelder.', 'danger')
             else:
                 try:
-                    wid = services.create_wartung(conn, gewerk_id, bez, besch, mitarbeiter_id, sab)
+                    wid = services.create_wartung(
+                        conn, gewerk_id, bez, besch, mitarbeiter_id, sab, doku_url=doku_url,
+                    )
                     # Datei-Uploads
                     upload_files = request.files.getlist('dateien')
                     if upload_files:
@@ -462,10 +466,12 @@ def wartung_detail(wartung_id):
         plaene = services.list_plaene_fuer_wartung(conn, wartung_id)
         durchfuehrungen = services.list_durchfuehrungen_fuer_wartung(conn, wartung_id)
         abt_rows = services.get_wartung_abteilungen(conn, wartung_id)
+        doku_link_href = services.wartung_doku_url_fuer_link(w['DokuSharepointOrdnerUrl'])
     sichtbar_labels = ', '.join(a['Bezeichnung'] for a in abt_rows) or '–'
     return render_template(
         'wartungen/wartung_detail.html',
         wartung=w,
+        doku_link_href=doku_link_href,
         dateien=dateien,
         plaene=plaene,
         durchfuehrungen=durchfuehrungen,
@@ -620,12 +626,15 @@ def wartung_bearbeiten(wartung_id):
             gewerk_id = request.form.get('gewerk_id', type=int)
             bez = request.form.get('bezeichnung', '')
             besch = request.form.get('beschreibung', '')
+            doku_url = request.form.get('doku_sharepoint_ordner_url', '')
             aktiv = request.form.get('aktiv') == '1'
             sab = request.form.getlist('sichtbare_abteilungen')
             if not gewerk_id or not bez.strip():
                 flash('Gewerk und Bezeichnung sind Pflichtfelder.', 'danger')
             else:
-                services.update_wartung(conn, wartung_id, gewerk_id, bez, besch, aktiv, sab)
+                services.update_wartung(
+                    conn, wartung_id, gewerk_id, bez, besch, aktiv, sab, doku_url=doku_url,
+                )
                 conn.commit()
                 flash('Gespeichert.', 'success')
                 return redirect(url_for('wartungen.wartung_detail', wartung_id=wartung_id))
@@ -1082,53 +1091,72 @@ def durchfuehrung_neu(plan_id):
                 if err:
                     flash(err, 'danger')
                 else:
-                    try:
-                        dfid, naechste_plan = services.insert_wartungsdurchfuehrung(
-                            conn, plan_id, dt, request.form.get('bemerkung', ''), teil, mitarbeiter_id,
+                    angebot_id_raw = (request.form.get('angebotsanfrage_id') or '').strip()
+                    angebot_id = int(angebot_id_raw) if angebot_id_raw.isdigit() else None
+                    kosten_betrag = services.parse_angebots_kosten_betrag(
+                        request.form.get('angebots_kosten_betrag'),
+                    )
+                    kosten_waehrung = services.normalisiere_angebots_waehrung(
+                        request.form.get('angebots_kosten_waehrung'),
+                    )
+                    angebot_err = None
+                    if angebot_id is not None:
+                        _, angebot_err = services.angebotsanfrage_fuer_wartungsprotokoll_pruefen(
+                            conn, angebot_id, mitarbeiter_id, adm,
                         )
-                        sb_files = [f for f in request.files.getlist('file') if f and f.filename]
-                        sb_besch = request.form.get('servicebericht_beschreibung', '')
-                        sb_typ = request.form.get('servicebericht_typ', '')
-                        n_sb, sb_errs = _save_serviceberichte_files(
-                            conn, dfid, mitarbeiter_id, sb_files, sb_besch, sb_typ,
-                        )
-                        eids = request.form.getlist('ersatzteil_id[]')
-                        mengen = request.form.getlist('ersatzteil_menge[]')
-                        bems = request.form.getlist('ersatzteil_bemerkung[]')
-                        ks = request.form.getlist('ersatzteil_kostenstelle[]')
-                        n_lb = services.process_ersatzteile_fuer_wartungsdurchfuehrung(
-                            dfid, eids, mengen, bems, mitarbeiter_id, conn,
-                            is_admin=adm, ersatzteil_kostenstellen=ks,
-                        )
-                        conn.commit()
-                        for e in sb_errs:
-                            flash(e, 'warning')
-                        msg = 'Durchführung protokolliert.'
-                        if n_sb:
-                            msg += f' {n_sb} Servicebericht(e) gespeichert.'
-                        if n_lb:
-                            msg += f' {n_lb} Lagerbuchung(en) ausgeführt.'
-                        if naechste_plan:
-                            try:
-                                d_fmt = datetime.strptime(naechste_plan, '%Y-%m-%d').strftime('%d.%m.%Y')
-                            except ValueError:
-                                d_fmt = naechste_plan
-                            msg += f' Nächste Fälligkeit des Plans auf {d_fmt} gesetzt.'
-                        flash(msg, 'success')
-                        if (
-                            speichern_aktion == 'jahresuebersicht'
-                            and kontext.get('herkunft') == PROTOKOLL_HERKUNFT_JAHRESUEBERSICHT
-                        ):
-                            return redirect(_url_jahresuebersicht_mit_protokoll_kontext(kontext))
-                        if (
-                            speichern_aktion == 'plaene_uebersicht'
-                            and kontext.get('herkunft') == PROTOKOLL_HERKUNFT_PLAENE_UEBERSICHT
-                        ):
-                            return redirect(_url_plaene_uebersicht_mit_protokoll_kontext(kontext))
-                        return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=dfid))
-                    except Exception as e:
-                        conn.rollback()
-                        flash(f'Fehler: {e}', 'danger')
+                    if angebot_err:
+                        flash(angebot_err, 'danger')
+                    else:
+                        try:
+                            dfid, naechste_plan = services.insert_wartungsdurchfuehrung(
+                                conn, plan_id, dt, request.form.get('bemerkung', ''), teil, mitarbeiter_id,
+                            )
+                            services.update_wartungsdurchfuehrung_angebot_kosten(
+                                conn, dfid, angebot_id, kosten_betrag, kosten_waehrung,
+                            )
+                            sb_files = [f for f in request.files.getlist('file') if f and f.filename]
+                            sb_besch = request.form.get('servicebericht_beschreibung', '')
+                            sb_typ = request.form.get('servicebericht_typ', '')
+                            n_sb, sb_errs = _save_serviceberichte_files(
+                                conn, dfid, mitarbeiter_id, sb_files, sb_besch, sb_typ,
+                            )
+                            eids = request.form.getlist('ersatzteil_id[]')
+                            mengen = request.form.getlist('ersatzteil_menge[]')
+                            bems = request.form.getlist('ersatzteil_bemerkung[]')
+                            ks = request.form.getlist('ersatzteil_kostenstelle[]')
+                            n_lb = services.process_ersatzteile_fuer_wartungsdurchfuehrung(
+                                dfid, eids, mengen, bems, mitarbeiter_id, conn,
+                                is_admin=adm, ersatzteil_kostenstellen=ks,
+                            )
+                            conn.commit()
+                            for e in sb_errs:
+                                flash(e, 'warning')
+                            msg = 'Durchführung protokolliert.'
+                            if n_sb:
+                                msg += f' {n_sb} Servicebericht(e) gespeichert.'
+                            if n_lb:
+                                msg += f' {n_lb} Lagerbuchung(en) ausgeführt.'
+                            if naechste_plan:
+                                try:
+                                    d_fmt = datetime.strptime(naechste_plan, '%Y-%m-%d').strftime('%d.%m.%Y')
+                                except ValueError:
+                                    d_fmt = naechste_plan
+                                msg += f' Nächste Fälligkeit des Plans auf {d_fmt} gesetzt.'
+                            flash(msg, 'success')
+                            if (
+                                speichern_aktion == 'jahresuebersicht'
+                                and kontext.get('herkunft') == PROTOKOLL_HERKUNFT_JAHRESUEBERSICHT
+                            ):
+                                return redirect(_url_jahresuebersicht_mit_protokoll_kontext(kontext))
+                            if (
+                                speichern_aktion == 'plaene_uebersicht'
+                                and kontext.get('herkunft') == PROTOKOLL_HERKUNFT_PLAENE_UEBERSICHT
+                            ):
+                                return redirect(_url_plaene_uebersicht_mit_protokoll_kontext(kontext))
+                            return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=dfid))
+                        except Exception as e:
+                            conn.rollback()
+                            flash(f'Fehler: {e}', 'danger')
     return render_template(
         'wartungen/durchfuehrung_form.html',
         plan=p,
@@ -1153,6 +1181,17 @@ def durchfuehrung_mehrere():
         return redirect(url_for('wartungen.plaene_uebersicht'))
     mitarbeiter_id = session.get('user_id')
     adm = is_admin()
+    kontext = (
+        _parse_protokoll_kontext_form(request.form)
+        if request.method == 'POST'
+        else _parse_protokoll_kontext_args(request.args)
+    )
+    zurueck_jahres_url = None
+    zurueck_plaene_url = None
+    if kontext.get('herkunft') == PROTOKOLL_HERKUNFT_JAHRESUEBERSICHT:
+        zurueck_jahres_url = _url_jahresuebersicht_mit_protokoll_kontext(kontext)
+    if kontext.get('herkunft') == PROTOKOLL_HERKUNFT_PLAENE_UEBERSICHT:
+        zurueck_plaene_url = _url_plaene_uebersicht_mit_protokoll_kontext(kontext)
     with get_db_connection() as conn:
         plan_optionen = services.plaene_options_fuer_select(conn, mitarbeiter_id, adm)
         vorausgewaehlte_plan_ids = []
@@ -1177,6 +1216,7 @@ def durchfuehrung_mehrere():
             'SELECT ID, Bezeichnung FROM Kostenstelle WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung',
         ).fetchall()
         if request.method == 'POST':
+            speichern_aktion = (request.form.get('speichern_aktion') or '').strip()
             dt = _parse_datetime_local(request.form.get('durchgefuehrt_am'))
             if not dt:
                 flash('Datum/Zeit ist erforderlich.', 'danger')
@@ -1265,6 +1305,38 @@ def durchfuehrung_mehrere():
                                     if n_lb_total:
                                         msg_batch += f' {n_lb_total} Lagerbuchung(en) ausgeführt.'
                                     flash(msg_batch, 'success')
+                                    if (
+                                        speichern_aktion == 'jahresuebersicht'
+                                        and kontext.get('herkunft') == PROTOKOLL_HERKUNFT_JAHRESUEBERSICHT
+                                    ):
+                                        return redirect(
+                                            _url_jahresuebersicht_mit_protokoll_kontext(kontext),
+                                        )
+                                    if (
+                                        speichern_aktion == 'plaene_uebersicht'
+                                        and kontext.get('herkunft') == PROTOKOLL_HERKUNFT_PLAENE_UEBERSICHT
+                                    ):
+                                        return redirect(
+                                            _url_plaene_uebersicht_mit_protokoll_kontext(kontext),
+                                        )
+                                    if speichern_aktion == 'detail' and plan_to_dfid:
+                                        last_pid = pairs[-1][0]
+                                        last_dfid = plan_to_dfid.get(last_pid)
+                                        if last_dfid:
+                                            return redirect(
+                                                url_for(
+                                                    'wartungen.durchfuehrung_detail',
+                                                    durchfuehrung_id=last_dfid,
+                                                ),
+                                            )
+                                    if kontext.get('herkunft') == PROTOKOLL_HERKUNFT_JAHRESUEBERSICHT:
+                                        return redirect(
+                                            _url_jahresuebersicht_mit_protokoll_kontext(kontext),
+                                        )
+                                    if kontext.get('herkunft') == PROTOKOLL_HERKUNFT_PLAENE_UEBERSICHT:
+                                        return redirect(
+                                            _url_plaene_uebersicht_mit_protokoll_kontext(kontext),
+                                        )
                                     return redirect(url_for('wartungen.plaene_uebersicht'))
                                 except Exception as e:
                                     flash(f'Fehler: {e}', 'danger')
@@ -1277,9 +1349,9 @@ def durchfuehrung_mehrere():
         batch=True,
         plan_optionen=plan_optionen,
         vorausgewaehlte_plan_ids=vorausgewaehlte_plan_ids,
-        protokoll_kontext=None,
-        zurueck_jahres_url=None,
-        zurueck_plaene_url=None,
+        protokoll_kontext=kontext,
+        zurueck_jahres_url=zurueck_jahres_url,
+        zurueck_plaene_url=zurueck_plaene_url,
         kostenstellen=kostenstellen,
         durchgefuehrt_am_value=_prefill_durchgefuehrt_am_datetime_local(),
     )
@@ -1316,6 +1388,82 @@ def durchfuehrung_ersatzteil_verknuepfen(durchfuehrung_id):
             flash(msg, 'success')
         else:
             flash(msg, 'danger')
+    return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=durchfuehrung_id))
+
+
+@wartungen_bp.route('/api/angebotsanfrage/<int:angebotsanfrage_id>')
+@login_required
+def api_angebotsanfrage_wartung(angebotsanfrage_id):
+    if not kann_wartung_protokollieren():
+        return jsonify(success=False, message='Keine Berechtigung.'), 403
+    mitarbeiter_id = session.get('user_id')
+    adm = is_admin()
+    with get_db_connection() as conn:
+        payload, err = services.get_angebotsanfrage_api_payload(
+            conn, angebotsanfrage_id, mitarbeiter_id, adm,
+        )
+    if err:
+        return jsonify(success=False, message=err), 400
+    return jsonify(success=True, **payload)
+
+
+@wartungen_bp.route('/api/angebotsanfragen-abgeschlossen')
+@login_required
+def api_angebotsanfragen_abgeschlossen_wartung():
+    if not kann_wartung_protokollieren():
+        return jsonify(success=False, message='Keine Berechtigung.', angebote=[]), 403
+    mitarbeiter_id = session.get('user_id')
+    adm = is_admin()
+    with get_db_connection() as conn:
+        rows = services.list_abgeschlossene_angebotsanfragen_sichtbar(conn, mitarbeiter_id, adm)
+    angebote = []
+    for r in rows:
+        angebote.append({
+            'id': r['ID'],
+            'lieferant_name': r['LieferantName'] or '',
+            'positionen_anzahl': r['PositionenAnzahl'],
+            'datum_anzeige': (r['AngebotErhaltenAm'] or r['ErstelltAm'] or '')[:16],
+        })
+    return jsonify(success=True, angebote=angebote)
+
+
+@wartungen_bp.route('/durchfuehrung/<int:durchfuehrung_id>/angebot-kosten', methods=['POST'])
+@login_required
+def durchfuehrung_angebot_kosten_speichern(durchfuehrung_id):
+    if not kann_wartung_protokollieren():
+        flash('Keine Berechtigung.', 'danger')
+        return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=durchfuehrung_id))
+    mitarbeiter_id = session.get('user_id')
+    adm = is_admin()
+    angebot_id_raw = (request.form.get('angebotsanfrage_id') or '').strip()
+    angebot_id = int(angebot_id_raw) if angebot_id_raw.isdigit() else None
+    kosten_betrag = services.parse_angebots_kosten_betrag(
+        request.form.get('angebots_kosten_betrag'),
+    )
+    kosten_waehrung = services.normalisiere_angebots_waehrung(
+        request.form.get('angebots_kosten_waehrung'),
+    )
+    with get_db_connection() as conn:
+        if not hat_wartungsdurchfuehrung_zugriff(mitarbeiter_id, durchfuehrung_id, conn):
+            flash('Kein Zugriff.', 'danger')
+            return redirect(url_for('wartungen.wartung_liste'))
+        angebot_err = None
+        if angebot_id is not None:
+            _, angebot_err = services.angebotsanfrage_fuer_wartungsprotokoll_pruefen(
+                conn, angebot_id, mitarbeiter_id, adm,
+            )
+        if angebot_err:
+            flash(angebot_err, 'danger')
+        else:
+            try:
+                services.update_wartungsdurchfuehrung_angebot_kosten(
+                    conn, durchfuehrung_id, angebot_id, kosten_betrag, kosten_waehrung,
+                )
+                conn.commit()
+                flash('Wartungsangebot und Kosten gespeichert.', 'success')
+            except Exception as e:
+                conn.rollback()
+                flash(f'Fehler: {e}', 'danger')
     return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=durchfuehrung_id))
 
 

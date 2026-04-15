@@ -1,0 +1,217 @@
+{# Eingebettet in durchfuehrung_form (Einzelprotokoll), vor Serviceberichte #}
+<style>
+  .wd-ang-offer-card .input-group .form-control,
+  .wd-ang-offer-card .input-group .btn {
+    min-height: calc(1.5em + 0.75rem + 2px);
+  }
+  .wd-ang-offer-card .form-select {
+    min-height: calc(1.5em + 0.75rem + 2px);
+  }
+  .wd-ang-offer-card .wd-ang-meta-line {
+    min-height: 2.6rem;
+    line-height: 1.35;
+    word-break: break-word;
+  }
+</style>
+<div class="card mb-4 shadow-sm wd-ang-offer-card">
+  <div class="card-header bg-warning text-dark">
+    <h5 class="mb-0"><i class="bi bi-receipt"></i> Wartungsangebot und Kosten <span class="fw-normal small">(optional)</span></h5>
+  </div>
+  <div class="card-body">
+    <p class="text-muted small mb-3">Angebotsanfrage-ID eingeben und Pfeil klicken, oder ohne ID den Pfeil nutzen &ndash; es &ouml;ffnet sich die Auswahl abgeschlossener Angebote (neueste zuerst). Kosten und W&auml;hrung werden aus dem Angebot &uuml;bernommen und k&ouml;nnen angepasst werden.</p>
+    <div class="row g-3 align-items-start">
+      <div class="col-12 col-md-4 col-lg-3 d-flex flex-column">
+        <label class="form-label mb-1" for="wd-ang-neu-id">Angebots-ID</label>
+        <div class="input-group">
+          <input type="number" class="form-control" id="wd-ang-neu-id" name="angebotsanfrage_id" placeholder="ID" min="1" autocomplete="off">
+          <button type="button" class="btn btn-outline-secondary px-3" id="wd-ang-neu-lookup" title="Auswahl / laden">
+            <i class="bi bi-arrow-right"></i>
+          </button>
+        </div>
+        <div class="small text-muted mt-1 wd-ang-meta-line" aria-live="polite"><span id="wd-ang-neu-info"></span></div>
+      </div>
+      <div class="col-6 col-md-3 col-lg-2 d-flex flex-column">
+        <label class="form-label mb-1" for="wd-ang-neu-kosten">Kosten (Betrag)</label>
+        <input type="text" class="form-control" id="wd-ang-neu-kosten" name="angebots_kosten_betrag" placeholder="z. B. 1234,50" inputmode="decimal" autocomplete="off">
+        <div class="small text-muted mt-1 wd-ang-meta-line" aria-hidden="true">&nbsp;</div>
+      </div>
+      <div class="col-6 col-md-3 col-lg-2 d-flex flex-column">
+        <label class="form-label mb-1" for="wd-ang-neu-waehrung">W&auml;hrung</label>
+        <select class="form-select" id="wd-ang-neu-waehrung" name="angebots_kosten_waehrung">
+          <option value="EUR">EUR</option>
+          <option value="USD">USD</option>
+          <option value="CHF">CHF</option>
+          <option value="GBP">GBP</option>
+        </select>
+        <div class="small text-muted mt-1 wd-ang-meta-line" aria-hidden="true">&nbsp;</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="wdAngebotModalNeu" tabindex="-1" aria-labelledby="wdAngebotModalNeuLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="wdAngebotModalNeuLabel">Abgeschlossene Angebotsanfrage w&auml;hlen</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schlie&szlig;en"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <input type="text" class="form-control" id="wd-ang-neu-search" placeholder="Suchen nach ID, Lieferant oder Datum &hellip;" autocomplete="off">
+        </div>
+        <div id="wd-ang-neu-list">
+          <div class="text-center p-4"><div class="spinner-border spinner-border-sm" role="status"></div></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schlie&szlig;en</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const apiBase = {{ url_for('wartungen.api_angebotsanfrage_wartung', angebotsanfrage_id=0)|tojson }}.replace(/\/0$/, '');
+  const listUrl = {{ url_for('wartungen.api_angebotsanfragen_abgeschlossen_wartung')|tojson }};
+  const idInput = document.getElementById('wd-ang-neu-id');
+  const kostenInput = document.getElementById('wd-ang-neu-kosten');
+  const waehrSel = document.getElementById('wd-ang-neu-waehrung');
+  const infoEl = document.getElementById('wd-ang-neu-info');
+  const btnLookup = document.getElementById('wd-ang-neu-lookup');
+  const modalEl = document.getElementById('wdAngebotModalNeu');
+  const listEl = document.getElementById('wd-ang-neu-list');
+  const searchEl = document.getElementById('wd-ang-neu-search');
+  if (!idInput || !btnLookup || !modalEl) return;
+
+  let angebotListe = [];
+  var sep = '\u00b7';
+
+  function escapeHtml(s) {
+    if (s == null || s === '') return '';
+    var el = document.createElement('div');
+    el.textContent = s;
+    return el.innerHTML;
+  }
+
+  function applyAngebotPayload(data) {
+    if (!data || !data.success) return;
+    idInput.value = String(data.id);
+    if (data.gesamt_betrag != null && Number(data.gesamt_betrag) > 0) {
+      kostenInput.value = String(data.gesamt_betrag).replace('.', ',');
+    }
+    if (data.waehrung && waehrSel) {
+      waehrSel.value = data.waehrung;
+    }
+    var mix = data.mixed_waehrung ? ' <span class="text-warning">(gemischte W&auml;hrungen in Positionen)</span>' : '';
+    infoEl.innerHTML = '<strong>#' + escapeHtml(String(data.id)) + '</strong> ' + sep + ' ' +
+      escapeHtml(data.lieferant_name || '') + mix;
+  }
+
+  function fetchAngebotById(rawId) {
+    var id = parseInt(String(rawId || '').trim(), 10);
+    if (!id) return;
+    btnLookup.disabled = true;
+    btnLookup.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    fetch(apiBase + '/' + id)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        btnLookup.disabled = false;
+        btnLookup.innerHTML = '<i class="bi bi-arrow-right"></i>';
+        if (data.success) {
+          applyAngebotPayload(data);
+          idInput.classList.remove('is-invalid');
+        } else {
+          infoEl.textContent = '';
+          idInput.classList.add('is-invalid');
+          alert(data.message || 'Angebotsanfrage nicht gefunden oder nicht erlaubt.');
+        }
+      })
+      .catch(function () {
+        btnLookup.disabled = false;
+        btnLookup.innerHTML = '<i class="bi bi-arrow-right"></i>';
+        alert('Fehler beim Laden.');
+      });
+  }
+
+  function renderListe(filter) {
+    var term = (filter || '').toLowerCase().trim();
+    var rows = angebotListe;
+    if (term) {
+      rows = angebotListe.filter(function (a) {
+        var idStr = String(a.id);
+        var lie = (a.lieferant_name || '').toLowerCase();
+        var dt = (a.datum_anzeige || '').toLowerCase();
+        return idStr.includes(term) || lie.includes(term) || dt.includes(term);
+      });
+    }
+    if (!rows.length) {
+      listEl.innerHTML = '<p class="text-muted mb-0">Keine Eintr&auml;ge.</p>';
+      return;
+    }
+    var html = '<div class="list-group">';
+    rows.forEach(function (a) {
+      html += '<button type="button" class="list-group-item list-group-item-action text-start wd-ang-neu-pick" data-id="' + a.id + '">';
+      html += '<div class="d-flex w-100 justify-content-between align-items-center gap-2">';
+      html += '<span><strong>#' + escapeHtml(String(a.id)) + '</strong> ' + sep + ' ' + escapeHtml(a.lieferant_name || '') + '</span>';
+      html += '<small class="text-muted text-nowrap">' + escapeHtml(a.datum_anzeige || '') + '</small>';
+      html += '</div>';
+      html += '<small class="text-muted">' + (a.positionen_anzahl || 0) + ' Position(en)</small>';
+      html += '</button>';
+    });
+    html += '</div>';
+    listEl.innerHTML = html;
+    listEl.querySelectorAll('.wd-ang-neu-pick').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var pid = btn.getAttribute('data-id');
+        fetchAngebotById(pid);
+        var m = bootstrap.Modal.getInstance(modalEl);
+        if (m) m.hide();
+      });
+    });
+  }
+
+  function openModalNeu() {
+    listEl.innerHTML = '<div class="text-center p-4"><div class="spinner-border spinner-border-sm"></div></div>';
+    if (searchEl) searchEl.value = '';
+    var modal = new bootstrap.Modal(modalEl);
+    modal.show();
+    fetch(listUrl)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.success || !data.angebote) {
+          listEl.innerHTML = '<p class="text-danger mb-0">Konnte die Liste nicht laden.</p>';
+          angebotListe = [];
+          return;
+        }
+        angebotListe = data.angebote;
+        renderListe('');
+      })
+      .catch(function () {
+        listEl.innerHTML = '<p class="text-danger mb-0">Fehler beim Laden.</p>';
+      });
+  }
+
+  btnLookup.addEventListener('click', function () {
+    var v = (idInput.value || '').trim();
+    if (!v) {
+      openModalNeu();
+      return;
+    }
+    fetchAngebotById(v);
+  });
+
+  idInput.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.keyCode !== 13) return;
+    e.preventDefault();
+    btnLookup.click();
+  });
+
+  if (searchEl) {
+    searchEl.addEventListener('input', function () {
+      renderListe(searchEl.value);
+    });
+  }
+})();
+</script>

@@ -2,6 +2,7 @@
 
 import calendar
 from datetime import date, datetime, timedelta
+from urllib.parse import urlparse
 
 from utils.abteilungen import (
     get_mitarbeiter_abteilungen,
@@ -9,6 +10,28 @@ from utils.abteilungen import (
 )
 
 INTERVALL_EINHEITEN = ('Tag', 'Woche', 'Monat')
+
+
+def normalisiere_wartung_doku_url(raw):
+    """Freitext-URL aus Formular: trimmen, leer → None."""
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    return s or None
+
+
+def wartung_doku_url_fuer_link(raw):
+    """Nur http(s) für klickbare Links (XSS über javascript: vermeiden)."""
+    s = normalisiere_wartung_doku_url(raw)
+    if not s:
+        return None
+    try:
+        scheme = (urlparse(s).scheme or '').lower()
+    except ValueError:
+        return None
+    if scheme in ('http', 'https'):
+        return s
+    return None
 
 
 def _add_months(d: date, months: int) -> date:
@@ -574,23 +597,33 @@ def set_wartung_abteilungen(conn, wartung_id, abteilung_ids):
             continue
 
 
-def create_wartung(conn, gewerk_id, bezeichnung, beschreibung, mitarbeiter_id, abteilung_ids):
+def create_wartung(conn, gewerk_id, bezeichnung, beschreibung, mitarbeiter_id, abteilung_ids, doku_url=None):
+    doku = normalisiere_wartung_doku_url(doku_url)
     cur = conn.execute(
-        '''INSERT INTO Wartung (GewerkID, Bezeichnung, Beschreibung, ErstelltVonID)
-           VALUES (?, ?, ?, ?)''',
-        (gewerk_id, bezeichnung.strip(), (beschreibung or '').strip() or None, mitarbeiter_id),
+        '''INSERT INTO Wartung (GewerkID, Bezeichnung, Beschreibung, DokuSharepointOrdnerUrl, ErstelltVonID)
+           VALUES (?, ?, ?, ?, ?)''',
+        (gewerk_id, bezeichnung.strip(), (beschreibung or '').strip() or None, doku, mitarbeiter_id),
     )
     wid = cur.lastrowid
     set_wartung_abteilungen(conn, wid, abteilung_ids)
     return wid
 
 
-def update_wartung(conn, wartung_id, gewerk_id, bezeichnung, beschreibung, aktiv, abteilung_ids):
+def update_wartung(conn, wartung_id, gewerk_id, bezeichnung, beschreibung, aktiv, abteilung_ids, doku_url=None):
+    doku = normalisiere_wartung_doku_url(doku_url)
     conn.execute(
-        '''UPDATE Wartung SET GewerkID = ?, Bezeichnung = ?, Beschreibung = ?, Aktiv = ?,
+        '''UPDATE Wartung SET GewerkID = ?, Bezeichnung = ?, Beschreibung = ?,
+           DokuSharepointOrdnerUrl = ?, Aktiv = ?,
            GeaendertAm = datetime('now', 'localtime')
            WHERE ID = ?''',
-        (gewerk_id, bezeichnung.strip(), (beschreibung or '').strip() or None, 1 if aktiv else 0, wartung_id),
+        (
+            gewerk_id,
+            bezeichnung.strip(),
+            (beschreibung or '').strip() or None,
+            doku,
+            1 if aktiv else 0,
+            wartung_id,
+        ),
     )
     set_wartung_abteilungen(conn, wartung_id, abteilung_ids)
 
@@ -978,7 +1011,10 @@ def get_durchfuehrung_detail(conn, durchfuehrung_id):
     d = conn.execute('''
         SELECT d.*, p.WartungID, p.ID AS PlanID, p.IntervallEinheit, p.IntervallAnzahl,
                w.Bezeichnung AS WartungBez, g.Bezeichnung AS Gewerk, b.Bezeichnung AS Bereich,
-               mp.Vorname || ' ' || mp.Nachname AS ProtokolliertVonName
+               mp.Vorname || ' ' || mp.Nachname AS ProtokolliertVonName,
+               (SELECT l2.Name FROM Angebotsanfrage aq
+                LEFT JOIN Lieferant l2 ON aq.LieferantID = l2.ID
+                WHERE aq.ID = d.AngebotsanfrageID) AS AngebotLieferantName
         FROM Wartungsdurchfuehrung d
         JOIN Wartungsplan p ON d.WartungsplanID = p.ID
         JOIN Wartung w ON p.WartungID = w.ID
@@ -1209,3 +1245,145 @@ def update_fremdfirma(conn, fid, firmenname, adresse, taetigkeitsbereich, aktiv)
 
 def get_fremdfirma(conn, fid):
     return conn.execute('SELECT * FROM Fremdfirma WHERE ID = ?', (fid,)).fetchone()
+
+
+ANGEBOT_WAEHRUNG_WHITELIST = frozenset({'EUR', 'USD', 'CHF', 'GBP'})
+
+
+def parse_angebots_kosten_betrag(raw):
+    """Dezimalzahl aus Formular (Komma oder Punkt). None bei leer/ungültig."""
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    s = s.replace(',', '.')
+    try:
+        v = float(s)
+    except ValueError:
+        return None
+    if v < 0:
+        return None
+    return round(v, 2)
+
+
+def normalisiere_angebots_waehrung(raw):
+    w = (raw or 'EUR').strip().upper()
+    if w not in ANGEBOT_WAEHRUNG_WHITELIST:
+        return 'EUR'
+    return w
+
+
+def angebotsanfrage_fuer_wartungsprotokoll_pruefen(conn, anfrage_id, mitarbeiter_id, is_admin):
+    """Nur sichtbare Angebote mit Status Abgeschlossen. (dict|None, fehlermeldung|None)."""
+    row = conn.execute(
+        '''
+        SELECT a.ID, a.Status, a.ErstellerAbteilungID, a.AngebotErhaltenAm, a.ErstelltAm,
+               l.Name AS LieferantName
+        FROM Angebotsanfrage a
+        LEFT JOIN Lieferant l ON a.LieferantID = l.ID
+        WHERE a.ID = ?
+        ''',
+        (anfrage_id,),
+    ).fetchone()
+    if not row:
+        return None, 'Angebotsanfrage nicht gefunden.'
+    if (row['Status'] or '').strip() != 'Abgeschlossen':
+        return None, 'Nur abgeschlossene Angebotsanfragen können verknüpft werden.'
+    if not is_admin:
+        sichtbare = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+        eab = row['ErstellerAbteilungID']
+        if not sichtbare or eab not in sichtbare:
+            return None, 'Keine Berechtigung für diese Angebotsanfrage.'
+    return dict(row), None
+
+
+def berechne_angebots_gesamtkosten(conn, anfrage_id):
+    """Summe Menge*Angebotspreis und Währung (bei Gemischt: erste Währung, mixed=True)."""
+    summe_row = conn.execute(
+        '''
+        SELECT COALESCE(SUM(Menge * COALESCE(Angebotspreis, 0)), 0) AS summe
+        FROM AngebotsanfragePosition
+        WHERE AngebotsanfrageID = ? AND Angebotspreis IS NOT NULL
+        ''',
+        (anfrage_id,),
+    ).fetchone()
+    summe = float(summe_row['summe'] or 0)
+    dist = conn.execute(
+        '''
+        SELECT DISTINCT TRIM(COALESCE(Angebotswaehrung, '')) AS w
+        FROM AngebotsanfragePosition
+        WHERE AngebotsanfrageID = ? AND Angebotspreis IS NOT NULL
+          AND TRIM(COALESCE(Angebotswaehrung, '')) != ''
+        ''',
+        (anfrage_id,),
+    ).fetchall()
+    currencies = [r['w'].upper() for r in dist if r['w']]
+    uniq = list(dict.fromkeys(currencies))
+    mixed = len(uniq) > 1
+    if len(uniq) == 1:
+        w = uniq[0] if uniq[0] in ANGEBOT_WAEHRUNG_WHITELIST else 'EUR'
+    elif uniq:
+        w = uniq[0] if uniq[0] in ANGEBOT_WAEHRUNG_WHITELIST else 'EUR'
+    else:
+        w = 'EUR'
+    return round(summe, 2), w, mixed
+
+
+def list_abgeschlossene_angebotsanfragen_sichtbar(conn, mitarbeiter_id, is_admin, limit=200):
+    """Für Auswahl-Modal: neueste zuerst."""
+    q = '''
+        SELECT
+            a.ID,
+            a.ErstelltAm,
+            a.AngebotErhaltenAm,
+            l.Name AS LieferantName,
+            (SELECT COUNT(*) FROM AngebotsanfragePosition p WHERE p.AngebotsanfrageID = a.ID) AS PositionenAnzahl
+        FROM Angebotsanfrage a
+        LEFT JOIN Lieferant l ON a.LieferantID = l.ID
+        WHERE a.Status = 'Abgeschlossen'
+    '''
+    params = []
+    if not is_admin:
+        sichtbare = get_sichtbare_abteilungen_fuer_mitarbeiter(mitarbeiter_id, conn)
+        if not sichtbare:
+            return []
+        ph = ','.join(['?'] * len(sichtbare))
+        q += f' AND a.ErstellerAbteilungID IN ({ph})'
+        params.extend(sichtbare)
+    q += '''
+        ORDER BY datetime(COALESCE(a.AngebotErhaltenAm, a.ErstelltAm)) DESC, a.ID DESC
+        LIMIT ?
+    '''
+    params.append(limit)
+    return conn.execute(q, params).fetchall()
+
+
+def update_wartungsdurchfuehrung_angebot_kosten(
+    conn, durchfuehrung_id, angebotsanfrage_id, kosten_betrag, kosten_waehrung,
+):
+    conn.execute(
+        '''
+        UPDATE Wartungsdurchfuehrung
+        SET AngebotsanfrageID = ?,
+            AngebotsKostenBetrag = ?,
+            AngebotsKostenWaehrung = ?
+        WHERE ID = ?
+        ''',
+        (angebotsanfrage_id, kosten_betrag, kosten_waehrung, durchfuehrung_id),
+    )
+
+
+def get_angebotsanfrage_api_payload(conn, anfrage_id, mitarbeiter_id, is_admin):
+    """JSON-Daten für Angebots-Laden (nach Prüfung)."""
+    row, err = angebotsanfrage_fuer_wartungsprotokoll_pruefen(conn, anfrage_id, mitarbeiter_id, is_admin)
+    if err:
+        return None, err
+    summe, waehrung, mixed = berechne_angebots_gesamtkosten(conn, anfrage_id)
+    return {
+        'id': row['ID'],
+        'lieferant_name': row['LieferantName'] or '',
+        'gesamt_betrag': summe,
+        'waehrung': waehrung,
+        'mixed_waehrung': mixed,
+    }, None

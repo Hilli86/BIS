@@ -530,6 +530,12 @@ def thema_detail(thema_id):
     with get_db_connection() as conn:
         is_admin = 'admin' in session.get('user_berechtigungen', [])
         detail_data = services.get_thema_detail_data(thema_id, mitarbeiter_id, conn, is_admin=is_admin)
+        perms_for_gewerk = session.get('user_berechtigungen', [])
+        darf_thema_gewerk_aendern = is_admin or 'darf_Thema_Gewerk_ändern' in perms_for_gewerk
+        bereiche_gewerk_edit = None
+        gewerke_gewerk_edit = None
+        if darf_thema_gewerk_aendern:
+            bereiche_gewerk_edit, gewerke_gewerk_edit = services.get_bereiche_gewerke_fuer_gewerk_select(conn)
 
     previous_page = request.args.get('next') or url_for('schichtbuch.themaliste')
     
@@ -556,7 +562,68 @@ def thema_detail(thema_id):
         is_admin=is_admin,
         thema_hat_lagerbuchungen=thema_hat_lagerbuchungen,
         kann_artikel_rueckbuchen=kann_artikel_rueckbuchen,
+        darf_thema_gewerk_aendern=darf_thema_gewerk_aendern,
+        bereiche_gewerk_edit=bereiche_gewerk_edit,
+        gewerke_gewerk_edit=gewerke_gewerk_edit,
     )
+
+
+@schichtbuch_bp.route('/thema/<int:thema_id>/gewerk', methods=['POST'])
+@login_required
+def thema_gewerk_aendern(thema_id):
+    """Gewerk eines Themas ändern (Berechtigung darf_Thema_Gewerk_ändern oder Admin)."""
+    mitarbeiter_id = session.get('user_id')
+    perms = session.get('user_berechtigungen', [])
+    is_admin = 'admin' in perms
+    if not is_admin and 'darf_Thema_Gewerk_ändern' not in perms:
+        flash('Sie haben keine Berechtigung, das Gewerk zu ändern.', 'danger')
+        return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
+
+    gewerk_id_raw = (request.form.get('gewerk_id') or '').strip()
+    if not gewerk_id_raw:
+        flash('Bitte ein Gewerk auswählen.', 'warning')
+        return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
+    try:
+        gewerk_id = int(gewerk_id_raw)
+    except ValueError:
+        flash('Ungültige Gewerk-Auswahl.', 'warning')
+        return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
+
+    next_url = request.form.get('next') or url_for('schichtbuch.thema_detail', thema_id=thema_id)
+
+    with get_db_connection() as conn:
+        if not services.check_thema_berechtigung(thema_id, mitarbeiter_id, conn):
+            flash('Sie haben keine Berechtigung für dieses Thema.', 'danger')
+            return redirect(url_for('schichtbuch.themaliste'))
+
+        thema_row = conn.execute(
+            'SELECT ID FROM SchichtbuchThema WHERE ID = ? AND Gelöscht = 0',
+            (thema_id,),
+        ).fetchone()
+        if not thema_row:
+            flash('Thema wurde nicht gefunden.', 'warning')
+            return redirect(url_for('schichtbuch.themaliste'))
+
+        g_row = conn.execute(
+            '''
+            SELECT G.ID FROM Gewerke G
+            JOIN Bereich B ON G.BereichID = B.ID
+            WHERE G.ID = ? AND G.Aktiv = 1 AND B.Aktiv = 1
+            ''',
+            (gewerk_id,),
+        ).fetchone()
+        if not g_row:
+            flash('Das gewählte Gewerk ist ungültig oder nicht aktiv.', 'warning')
+            return redirect(next_url)
+
+        conn.execute(
+            'UPDATE SchichtbuchThema SET GewerkID = ? WHERE ID = ? AND Gelöscht = 0',
+            (gewerk_id, thema_id),
+        )
+        conn.commit()
+
+    flash('Gewerk wurde gespeichert.', 'success')
+    return redirect(next_url)
 
 
 @schichtbuch_bp.route('/edit_bemerkung/<int:bemerkung_id>', methods=['POST'])

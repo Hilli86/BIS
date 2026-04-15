@@ -1,0 +1,249 @@
+{% set ang_id = d.AngebotsanfrageID if d.AngebotsanfrageID else none %}
+{% set ang_betrag = d.AngebotsKostenBetrag if d.AngebotsKostenBetrag is not none else none %}
+{% set ang_waehrung = d.AngebotsKostenWaehrung or 'EUR' %}
+{% set ang_lief = d.AngebotLieferantName or none %}
+
+<style>
+  .wd-ang-offer-card .input-group .form-control,
+  .wd-ang-offer-card .input-group .btn {
+    min-height: calc(1.5em + 0.75rem + 2px);
+  }
+  .wd-ang-offer-card .form-select {
+    min-height: calc(1.5em + 0.75rem + 2px);
+  }
+  .wd-ang-offer-card .wd-ang-meta-line {
+    min-height: 2.6rem;
+    line-height: 1.35;
+    word-break: break-word;
+  }
+</style>
+<div class="card mb-4 shadow-sm wd-ang-offer-card">
+  <div class="card-header bg-warning text-dark">
+    <h5 class="mb-0"><i class="bi bi-receipt"></i> Wartungsangebot und Kosten</h5>
+  </div>
+  <div class="card-body">
+    {% if not kann_protokollieren %}
+      {% if ang_id or ang_betrag is not none %}
+      <table class="table table-sm table-borderless mb-0">
+        <tbody>
+          {% if ang_id %}
+          <tr>
+            <td class="text-muted" style="width:11rem;">Angebotsanfrage</td>
+            <td>
+              <a href="{{ url_for('ersatzteile.angebotsanfrage_detail', angebotsanfrage_id=ang_id) }}" class="text-decoration-none">#{{ ang_id }}</a>
+              {% if ang_lief %}<span class="text-muted"> &middot; {{ ang_lief }}</span>{% endif %}
+            </td>
+          </tr>
+          {% endif %}
+          {% if ang_betrag is not none %}
+          <tr>
+            <td class="text-muted">Kosten</td>
+            <td><strong>{{ "%.2f"|format(ang_betrag) }}</strong> {{ ang_waehrung or 'EUR' }}</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="text-muted mb-0 small">Keine Angaben.</p>
+      {% endif %}
+    {% else %}
+    <p class="text-muted small mb-3">Angebotsanfrage-ID eingeben und Pfeil klicken, oder ohne ID den Pfeil nutzen. Nur abgeschlossene Angebote, die für Ihr Konto sichtbar sind.</p>
+    <form method="post" action="{{ url_for('wartungen.durchfuehrung_angebot_kosten_speichern', durchfuehrung_id=d.ID) }}" id="wdAngDetailForm">
+      <div class="row g-3 align-items-start">
+        <div class="col-12 col-md-4 col-lg-3 d-flex flex-column">
+          <label class="form-label mb-1" for="wd-ang-dt-id">Angebots-ID</label>
+          <div class="input-group">
+            <input type="number" class="form-control" id="wd-ang-dt-id" name="angebotsanfrage_id" placeholder="ID" min="1" value="{{ ang_id or '' }}" autocomplete="off">
+            <button type="button" class="btn btn-outline-secondary px-3" id="wd-ang-dt-lookup" title="Auswahl / laden">
+              <i class="bi bi-arrow-right"></i>
+            </button>
+          </div>
+          <div class="small text-muted mt-1 wd-ang-meta-line" aria-live="polite"><span id="wd-ang-dt-info">{% if ang_id %}Verknüpft mit <a href="{{ url_for('ersatzteile.angebotsanfrage_detail', angebotsanfrage_id=ang_id) }}">#{{ ang_id }}</a>{% if ang_lief %} &middot; {{ ang_lief }}{% endif %}{% endif %}</span></div>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2 d-flex flex-column">
+          <label class="form-label mb-1" for="wd-ang-dt-kosten">Kosten (Betrag)</label>
+          <input type="text" class="form-control" id="wd-ang-dt-kosten" name="angebots_kosten_betrag" value="{% if ang_betrag is not none %}{{ '%.2f'|format(ang_betrag) }}{% endif %}" placeholder="z. B. 1234,50" inputmode="decimal" autocomplete="off">
+          <div class="small text-muted mt-1 wd-ang-meta-line" aria-hidden="true">&nbsp;</div>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2 d-flex flex-column">
+          <label class="form-label mb-1" for="wd-ang-dt-waehrung">Währung</label>
+          <select class="form-select" id="wd-ang-dt-waehrung" name="angebots_kosten_waehrung">
+            <option value="EUR" {% if (ang_waehrung or 'EUR') == 'EUR' %}selected{% endif %}>EUR</option>
+            <option value="USD" {% if ang_waehrung == 'USD' %}selected{% endif %}>USD</option>
+            <option value="CHF" {% if ang_waehrung == 'CHF' %}selected{% endif %}>CHF</option>
+            <option value="GBP" {% if ang_waehrung == 'GBP' %}selected{% endif %}>GBP</option>
+          </select>
+          <div class="small text-muted mt-1 wd-ang-meta-line" aria-hidden="true">&nbsp;</div>
+        </div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-check-lg"></i> Speichern
+          </button>
+          <span class="text-muted small ms-2">Leere Angebots-ID entfernt die Verknüpfung; Kosten können separat gepflegt werden.</span>
+        </div>
+      </div>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if kann_protokollieren %}
+<div class="modal fade" id="wdAngebotModalDt" tabindex="-1" aria-labelledby="wdAngebotModalDtLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="wdAngebotModalDtLabel">Abgeschlossene Angebotsanfrage w�hlen</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schlie�en"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <input type="text" class="form-control" id="wd-ang-dt-search" placeholder="Suchen nach ID, Lieferant oder Datum" autocomplete="off">
+        </div>
+        <div id="wd-ang-dt-list">
+          <div class="text-center p-4"><div class="spinner-border spinner-border-sm" role="status"></div></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schlie�en</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const apiBase = {{ url_for('wartungen.api_angebotsanfrage_wartung', angebotsanfrage_id=0)|tojson }}.replace(/\/0$/, '');
+  const listUrl = {{ url_for('wartungen.api_angebotsanfragen_abgeschlossen_wartung')|tojson }};
+  const idInput = document.getElementById('wd-ang-dt-id');
+  const kostenInput = document.getElementById('wd-ang-dt-kosten');
+  const waehrSel = document.getElementById('wd-ang-dt-waehrung');
+  const infoEl = document.getElementById('wd-ang-dt-info');
+  const btnLookup = document.getElementById('wd-ang-dt-lookup');
+  const modalEl = document.getElementById('wdAngebotModalDt');
+  const listEl = document.getElementById('wd-ang-dt-list');
+  const searchEl = document.getElementById('wd-ang-dt-search');
+  if (!idInput || !btnLookup || !modalEl) return;
+
+  let angebotListe = [];
+  var sep = '\u00b7';
+
+  function escapeHtml(s) {
+    if (s == null || s === '') return '';
+    var el = document.createElement('div');
+    el.textContent = s;
+    return el.innerHTML;
+  }
+
+  function renderListe(filter) {
+    var term = (filter || '').toLowerCase().trim();
+    var rows = angebotListe;
+    if (term) {
+      rows = angebotListe.filter(function (a) {
+        var idStr = String(a.id);
+        var lie = (a.lieferant_name || '').toLowerCase();
+        var dt = (a.datum_anzeige || '').toLowerCase();
+        return idStr.includes(term) || lie.includes(term) || dt.includes(term);
+      });
+    }
+    if (!rows.length) {
+      listEl.innerHTML = '<p class="text-muted mb-0">Keine Eintr\u00e4ge.</p>';
+      return;
+    }
+    var html = '<div class="list-group">';
+    rows.forEach(function (a) {
+      html += '<button type="button" class="list-group-item list-group-item-action text-start wd-ang-dt-pick" data-id="' + a.id + '">';
+      html += '<div class="d-flex w-100 justify-content-between align-items-center gap-2">';
+      html += '<span><strong>#' + escapeHtml(String(a.id)) + '</strong> ' + sep + ' ' + escapeHtml(a.lieferant_name || '') + '</span>';
+      html += '<small class="text-muted text-nowrap">' + escapeHtml(a.datum_anzeige || '') + '</small>';
+      html += '</div>';
+      html += '<small class="text-muted">' + (a.positionen_anzahl || 0) + ' Position(en)</small>';
+      html += '</button>';
+    });
+    html += '</div>';
+    listEl.innerHTML = html;
+    listEl.querySelectorAll('.wd-ang-dt-pick').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        fetchAngebotById(btn.getAttribute('data-id'));
+        var m = bootstrap.Modal.getInstance(modalEl);
+        if (m) m.hide();
+      });
+    });
+  }
+
+  function applyAngebotPayload(data) {
+    if (!data || !data.success) return;
+    idInput.value = String(data.id);
+    if (data.gesamt_betrag != null && Number(data.gesamt_betrag) > 0) {
+      kostenInput.value = String(data.gesamt_betrag).replace('.', ',');
+    }
+    if (data.waehrung && waehrSel) waehrSel.value = data.waehrung;
+    var mix = data.mixed_waehrung ? ' <span class="text-warning">(gemischte W\u00e4hrungen)</span>' : '';
+    infoEl.innerHTML = 'Verkn\u00fcpft mit <strong>#' + escapeHtml(String(data.id)) + '</strong> ' + sep + ' ' +
+      escapeHtml(data.lieferant_name || '') + mix;
+  }
+
+  function fetchAngebotById(rawId) {
+    var id = parseInt(String(rawId || '').trim(), 10);
+    if (!id) return;
+    btnLookup.disabled = true;
+    btnLookup.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    fetch(apiBase + '/' + id)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        btnLookup.disabled = false;
+        btnLookup.innerHTML = '<i class="bi bi-arrow-right"></i>';
+        if (data.success) {
+          applyAngebotPayload(data);
+          idInput.classList.remove('is-invalid');
+        } else {
+          infoEl.textContent = '';
+          idInput.classList.add('is-invalid');
+          alert(data.message || 'Angebotsanfrage nicht gefunden oder nicht erlaubt.');
+        }
+      })
+      .catch(function () {
+        btnLookup.disabled = false;
+        btnLookup.innerHTML = '<i class="bi bi-arrow-right"></i>';
+        alert('Fehler beim Laden.');
+      });
+  }
+
+  btnLookup.addEventListener('click', function () {
+    var v = (idInput.value || '').trim();
+    if (!v) {
+      listEl.innerHTML = '<div class="text-center p-4"><div class="spinner-border spinner-border-sm"></div></div>';
+      if (searchEl) searchEl.value = '';
+      new bootstrap.Modal(modalEl).show();
+      fetch(listUrl)
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data.success || !data.angebote) {
+            listEl.innerHTML = '<p class="text-danger mb-0">Konnte die Liste nicht laden.</p>';
+            angebotListe = [];
+            return;
+          }
+          angebotListe = data.angebote;
+          renderListe('');
+        })
+        .catch(function () {
+          listEl.innerHTML = '<p class="text-danger mb-0">Fehler beim Laden.</p>';
+        });
+      return;
+    }
+    fetchAngebotById(v);
+  });
+
+  if (searchEl) {
+    searchEl.addEventListener('input', function () {
+      renderListe(searchEl.value);
+    });
+  }
+
+  idInput.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.keyCode !== 13) return;
+    e.preventDefault();
+    btnLookup.click();
+  });
+})();
+</script>
+{% endif %}

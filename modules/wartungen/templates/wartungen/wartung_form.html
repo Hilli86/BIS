@@ -33,6 +33,14 @@
     <textarea name="beschreibung" class="form-control" rows="4" {% if wartung and not kann_edit %}readonly{% endif %}>{{ wartung.Beschreibung if wartung else '' }}</textarea>
   </div>
   <div class="mb-3">
+    <label class="form-label" for="doku_sharepoint_ordner_url">Doku (Link zum SharePoint-Ordner)</label>
+    <input type="url" name="doku_sharepoint_ordner_url" id="doku_sharepoint_ordner_url" class="form-control"
+           placeholder="https://…"
+           value="{{ wartung.DokuSharepointOrdnerUrl if wartung and wartung.DokuSharepointOrdnerUrl else '' }}"
+           {% if wartung and not kann_edit %}readonly{% endif %}>
+    <div class="form-text">Optional. Vollständige Adresse mit https://</div>
+  </div>
+  <div class="mb-3">
     <label class="form-label">Sichtbar für Abteilungen</label>
     <select name="sichtbare_abteilungen" class="form-select" multiple size="8" {% if wartung and not kann_edit %}disabled{% endif %}>
       {% for a in abteilungen %}

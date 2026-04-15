@@ -706,6 +706,7 @@ def init_database_schema(db_path, verbose=False):
                 GewerkID INTEGER NOT NULL,
                 Bezeichnung TEXT NOT NULL,
                 Beschreibung TEXT,
+                DokuSharepointOrdnerUrl TEXT,
                 ErstelltVonID INTEGER NOT NULL,
                 ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
                 GeaendertAm DATETIME,
@@ -718,6 +719,11 @@ def init_database_schema(db_path, verbose=False):
             'CREATE INDEX idx_wartung_erstellt_von ON Wartung(ErstelltVonID)',
             'CREATE INDEX idx_wartung_aktiv ON Wartung(Aktiv)'
         ])
+        if create_column_if_not_exists(
+            conn, 'Wartung', 'DokuSharepointOrdnerUrl',
+            'ALTER TABLE Wartung ADD COLUMN DokuSharepointOrdnerUrl TEXT',
+        ):
+            print("[INFO] Spalte 'DokuSharepointOrdnerUrl' zu 'Wartung' hinzugefügt")
         
         create_table_if_not_exists(conn, 'WartungAbteilungZugriff', '''
             CREATE TABLE WartungAbteilungZugriff (
@@ -821,6 +827,26 @@ def init_database_schema(db_path, verbose=False):
             'CREATE INDEX idx_wartungsdurchfuehrung_plan ON Wartungsdurchfuehrung(WartungsplanID)',
             'CREATE INDEX idx_wartungsdurchfuehrung_datum ON Wartungsdurchfuehrung(DurchgefuehrtAm)'
         ])
+        if table_exists(conn, 'Wartungsdurchfuehrung'):
+            if create_column_if_not_exists(
+                conn, 'Wartungsdurchfuehrung', 'AngebotsanfrageID',
+                'ALTER TABLE Wartungsdurchfuehrung ADD COLUMN AngebotsanfrageID INTEGER NULL',
+            ):
+                print("[INFO] Spalte 'AngebotsanfrageID' zu 'Wartungsdurchfuehrung' hinzugefügt")
+            create_index_if_not_exists(
+                conn, 'idx_wartungsdurchfuehrung_angebot',
+                'CREATE INDEX idx_wartungsdurchfuehrung_angebot ON Wartungsdurchfuehrung(AngebotsanfrageID)',
+            )
+            if create_column_if_not_exists(
+                conn, 'Wartungsdurchfuehrung', 'AngebotsKostenBetrag',
+                'ALTER TABLE Wartungsdurchfuehrung ADD COLUMN AngebotsKostenBetrag REAL NULL',
+            ):
+                print("[INFO] Spalte 'AngebotsKostenBetrag' zu 'Wartungsdurchfuehrung' hinzugefügt")
+            if create_column_if_not_exists(
+                conn, 'Wartungsdurchfuehrung', 'AngebotsKostenWaehrung',
+                'ALTER TABLE Wartungsdurchfuehrung ADD COLUMN AngebotsKostenWaehrung TEXT NULL',
+            ):
+                print("[INFO] Spalte 'AngebotsKostenWaehrung' zu 'Wartungsdurchfuehrung' hinzugefügt")
         
         create_table_if_not_exists(conn, 'WartungsdurchfuehrungMitarbeiter', '''
             CREATE TABLE WartungsdurchfuehrungMitarbeiter (
@@ -1189,6 +1215,11 @@ def init_database_schema(db_path, verbose=False):
             INSERT OR IGNORE INTO Berechtigung (Schluessel, Bezeichnung, Beschreibung, Aktiv)
             VALUES ('darf_aufgabenliste_themen_verwalten', 'Darf Aufgabenliste-Themen verwalten',
                     'Erlaubt Zuordnung und Entfernen von Themen in Aufgabenlisten (nicht Stammdaten der Liste)', 1)
+        ''')
+        conn.execute('''
+            INSERT OR IGNORE INTO Berechtigung (Schluessel, Bezeichnung, Beschreibung, Aktiv)
+            VALUES ('darf_Thema_Gewerk_ändern', 'Schichtbuch: Gewerk am Thema ändern',
+                    'Erlaubt das nachträgliche Ändern des zugewiesenen Gewerks auf der Thema-Detailseite', 1)
         ''')
         
         # ========== 31. MitarbeiterBerechtigung ==========

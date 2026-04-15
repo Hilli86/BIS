@@ -414,6 +414,15 @@
       batchBtn.addEventListener('click', function () {
         var base = {{ url_for('wartungen.durchfuehrung_mehrere')|tojson }};
         var params = new URLSearchParams();
+        var protokollQ = {{ jahresuebersicht_protokoll_query|tojson }};
+        if (protokollQ && typeof protokollQ === 'object') {
+          Object.keys(protokollQ).forEach(function (k) {
+            var v = protokollQ[k];
+            if (v !== null && v !== undefined && v !== '') {
+              params.append(k, String(v));
+            }
+          });
+        }
         document.querySelectorAll('.js-jahres-matrix-wartung-cb:checked').forEach(function (cb) {
           var raw = cb.getAttribute('data-plan-ids');
           var ids = [];

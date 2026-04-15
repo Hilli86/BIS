@@ -75,49 +75,6 @@
   </div>
 </div>
 
-<div class="card shadow-sm mb-4">
-  <div class="card-header bg-success text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-    <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Serviceberichte</h5>
-    {% if kann_protokollieren %}
-    <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#wdServiceberichtUploadCollapse" aria-expanded="false" aria-controls="wdServiceberichtUploadCollapse">
-      <i class="bi bi-plus-circle"></i> Datei hochladen
-    </button>
-    {% endif %}
-  </div>
-  {% if kann_protokollieren %}
-  <div class="collapse" id="wdServiceberichtUploadCollapse">
-    <div class="card-body bg-light border-bottom">
-      {{ datei_upload(
-        bereich_typ='Wartungsdurchfuehrung',
-        bereich_id=d.ID,
-        erlaubte_dateitypen=['Bild', 'Dokument', 'PDF'],
-        upload_route='wartungen.durchfuehrung_servicebericht_upload',
-        import_route=None,
-        accept_attr='image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt',
-        upload_tab_id='wd-sb-upload-tab',
-        import_tab_id='wd-sb-import-tab',
-        import_function='ladeImportDateienWartungsdurchfuehrung(' ~ d.ID ~ ')',
-        show_typ_feld=True
-      ) }}
-    </div>
-  </div>
-  {% endif %}
-  <div class="card-body">
-    {{ datei_liste(
-      dateien=serviceberichte,
-      bereich_typ='Wartungsdurchfuehrung',
-      bereich_id=d.ID,
-      erlaubte_dateitypen=['Bild', 'Dokument', 'PDF'],
-      is_admin=False,
-      allow_delete=kann_protokollieren,
-      datei_loeschen_durchfuehrung_id=d.ID,
-      datei_anzeigen_route='wartungen.durchfuehrung_datei',
-      datei_loeschen_route='wartungen.durchfuehrung_servicebericht_loeschen',
-      nur_bilder=False
-    ) }}
-  </div>
-</div>
-
 <div class="card mb-4 shadow-sm">
   <div class="card-header bg-warning text-dark">
     <h5 class="mb-0">Verwendete Ersatzteile</h5>
@@ -185,6 +142,51 @@
       <i class="bi bi-info-circle"></i> Keine Lagerbuchungen zu dieser Durchführung.
     </div>
     {% endif %}
+  </div>
+</div>
+
+{% include 'wartungen/_durchfuehrung_angebot_kosten_detail_block.html' %}
+
+<div class="card shadow-sm mb-4">
+  <div class="card-header bg-success text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Serviceberichte</h5>
+    {% if kann_protokollieren %}
+    <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#wdServiceberichtUploadCollapse" aria-expanded="false" aria-controls="wdServiceberichtUploadCollapse">
+      <i class="bi bi-plus-circle"></i> Datei hochladen
+    </button>
+    {% endif %}
+  </div>
+  {% if kann_protokollieren %}
+  <div class="collapse" id="wdServiceberichtUploadCollapse">
+    <div class="card-body bg-light border-bottom">
+      {{ datei_upload(
+        bereich_typ='Wartungsdurchfuehrung',
+        bereich_id=d.ID,
+        erlaubte_dateitypen=['Bild', 'Dokument', 'PDF'],
+        upload_route='wartungen.durchfuehrung_servicebericht_upload',
+        import_route=None,
+        accept_attr='image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt',
+        upload_tab_id='wd-sb-upload-tab',
+        import_tab_id='wd-sb-import-tab',
+        import_function='ladeImportDateienWartungsdurchfuehrung(' ~ d.ID ~ ')',
+        show_typ_feld=True
+      ) }}
+    </div>
+  </div>
+  {% endif %}
+  <div class="card-body">
+    {{ datei_liste(
+      dateien=serviceberichte,
+      bereich_typ='Wartungsdurchfuehrung',
+      bereich_id=d.ID,
+      erlaubte_dateitypen=['Bild', 'Dokument', 'PDF'],
+      is_admin=False,
+      allow_delete=kann_protokollieren,
+      datei_loeschen_durchfuehrung_id=d.ID,
+      datei_anzeigen_route='wartungen.durchfuehrung_datei',
+      datei_loeschen_route='wartungen.durchfuehrung_servicebericht_loeschen',
+      nur_bilder=False
+    ) }}
   </div>
 </div>
 

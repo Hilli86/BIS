@@ -347,7 +347,9 @@ def get_thema_detail_data(thema_id, mitarbeiter_id, conn, is_admin=False):
     # Thema-Infos
     thema = conn.execute('''
         SELECT 
-            t.ID, 
+            t.ID,
+            t.GewerkID,
+            b.ID AS BereichID,
             g.Bezeichnung AS Gewerk,
             b.Bezeichnung AS Bereich,
             s.Bezeichnung AS Status, 
@@ -793,6 +795,21 @@ def get_thema_erstellung_form_data(mitarbeiter_id, conn):
         'kostenstellen': kostenstellen,
         'aufgabenlisten': aufgabenlisten,
     }
+
+
+def get_bereiche_gewerke_fuer_gewerk_select(conn):
+    """Aktive Bereiche und Gewerke (mit BereichID) für Gewerk-Dropdowns."""
+    gewerke = conn.execute('''
+        SELECT G.ID, G.Bezeichnung, B.ID AS BereichID
+        FROM Gewerke G
+        JOIN Bereich B ON G.BereichID = B.ID
+        WHERE G.Aktiv = 1 AND B.Aktiv = 1
+        ORDER BY B.Bezeichnung, G.Bezeichnung
+    ''').fetchall()
+    bereiche = conn.execute(
+        'SELECT ID, Bezeichnung FROM Bereich WHERE Aktiv = 1 ORDER BY Bezeichnung'
+    ).fetchall()
+    return bereiche, gewerke
 
 
 def get_thema_sichtbarkeit_data(thema_id, mitarbeiter_id, conn):
