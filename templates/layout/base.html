@@ -168,13 +168,17 @@
     }
 
     .main-content {
+      --bis-main-pad-x: 1.5rem;
+      --bis-main-pad-below-header: 1.5rem;
       padding: 1.5rem;
-      padding-top: calc(56px + 1.5rem); /* Header-Höhe + Padding */
+      padding-top: calc(56px + var(--bis-main-pad-below-header)); /* Header-Höhe + Abstand */
       transition: margin-left 0.3s ease-in-out;
     }
 
     .main-content.with-sidebar {
       margin-left: 260px;
+      /* Abstand Sidebar–Inhalt (260 − 240); für Toolbar-Bleed berechnet */
+      --bis-sidebar-to-content-gap: calc(260px - 240px);
     }
 
     /* Wenn Sidebar ausgeblendet, kein Margin */
@@ -210,7 +214,26 @@
     /* --- Seitenkopf: Breadcrumb / Navigationsverlauf --- */
     .bis-page-toolbar {
       border-bottom: 1px solid var(--bis-card-border);
-      background-color: rgba(255, 255, 255, 0.72);
+      background-color: var(--bis-body-bg);
+    }
+    /* Volle Breite der Hauptspalte, bündig an Sidebar-Kante und rechtem Fensterrand */
+    .bis-page-toolbar-bleed {
+      margin-left: calc(-1 * var(--bis-main-pad-x));
+      margin-right: calc(-1 * var(--bis-main-pad-x));
+      margin-bottom: 1rem;
+      padding: 0.35rem var(--bis-main-pad-x);
+    }
+    /* Gutter zwischen Sidebar und Hauptspalte nur auf Desktop (mobil: kein seitlicher Margin) */
+    @media (min-width: 787px) {
+      .main-content.with-sidebar:not(.sidebar-collapsed) .bis-page-toolbar-bleed {
+        margin-left: calc(-1 * var(--bis-main-pad-x) - var(--bis-sidebar-to-content-gap));
+        /* Innenabstand + Gutter: erste Breadcrumb-Kante wie H1 / Tabellen (Hauptinhalt-Flucht) */
+        padding-left: calc(var(--bis-main-pad-x) + var(--bis-sidebar-to-content-gap));
+      }
+    }
+    /* Nur wenn nichts darüber steht (z. B. keine Flash-Meldung): bündig unter die Kopfleiste */
+    .main-content > .bis-page-toolbar-bleed:first-child {
+      margin-top: calc(-1 * var(--bis-main-pad-below-header));
     }
     .bis-page-toolbar .breadcrumb {
       --bs-breadcrumb-divider-color: var(--bis-shell-muted);
@@ -594,6 +617,7 @@
 
       .main-content {
         margin-left: 0 !important;
+        --bis-main-pad-x: 1rem;
         padding-top: calc(56px + 1rem) !important; /* Header-Höhe + Padding */
         padding-left: 1rem;
         padding-right: 1rem;
@@ -940,8 +964,15 @@
 
     {% block page_header %}{% endblock %}
     {% if (session.user_id or session.get('is_guest')) and bis_nav_breadcrumbs %}
-    <div class="container-fluid bis-page-toolbar px-3 py-2">
-      <div class="d-flex flex-wrap align-items-center gap-2 justify-content-between">
+    <div class="bis-page-toolbar bis-page-toolbar-bleed">
+      <div class="d-flex flex-wrap align-items-center gap-3">
+        {% if bis_nav_previous_url and bis_nav_previous_url != bis_nav_current_path %}
+        <div class="flex-shrink-0">
+          <a href="{{ bis_nav_previous_url }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Zurück
+          </a>
+        </div>
+        {% endif %}
         <nav aria-label="Navigation" class="flex-grow-1 min-w-0">
           <ol class="breadcrumb mb-0 small">
             {% for c in bis_nav_breadcrumbs %}
@@ -955,13 +986,6 @@
             {% endfor %}
           </ol>
         </nav>
-        {% if bis_nav_previous_url and bis_nav_previous_url != bis_nav_current_path %}
-        <div class="flex-shrink-0">
-          <a href="{{ bis_nav_previous_url }}" class="btn btn-sm btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Zurück
-          </a>
-        </div>
-        {% endif %}
       </div>
     </div>
     {% endif %}

@@ -1,7 +1,62 @@
 {% extends "layout/base.html" %}
 
 {% block content %}
-<h1 class="mb-4">{{ detail.liste.Bezeichnung }}</h1>
+<style>
+  @media (max-width: 767.98px) {
+    .aufgabenliste-themen-responsive {
+      overflow-x: visible;
+    }
+    #aufgabenlisteThemenTable {
+      display: block;
+    }
+    #aufgabenlisteThemenTable thead {
+      display: none;
+    }
+    #aufgabenlisteThemenTable tbody {
+      display: block;
+    }
+    #aufgabenlisteThemenTable tbody tr {
+      display: block;
+      margin-bottom: 1rem;
+      border: 1px solid var(--bs-border-color);
+      border-radius: var(--bs-border-radius);
+      background: var(--bs-body-bg);
+      box-shadow: var(--bs-box-shadow-sm);
+    }
+    #aufgabenlisteThemenTable tbody tr:last-child {
+      margin-bottom: 0;
+    }
+    #aufgabenlisteThemenTable tbody td {
+      display: block;
+      border: 0;
+      border-bottom: 1px solid var(--bs-border-color-translucent);
+      padding: 0.5rem 0.75rem;
+    }
+    #aufgabenlisteThemenTable tbody td:last-child {
+      border-bottom: 0;
+    }
+    #aufgabenlisteThemenTable tbody td[data-label]::before {
+      content: attr(data-label);
+      display: block;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      color: var(--bs-secondary-color);
+      margin-bottom: 0.25rem;
+    }
+    #aufgabenlisteThemenTable tbody td.text-end {
+      text-align: start !important;
+    }
+    #aufgabenlisteThemenTable tbody td .btn {
+      width: 100%;
+    }
+  }
+  @media (min-width: 576px) {
+    #btnSaveOrder.aufgabenliste-btn-reihenfolge { width: auto !important; }
+  }
+</style>
+<h1 class="mb-4 text-break">{{ detail.liste.Bezeichnung }}</h1>
 
 <div class="mb-3">
   <a href="{{ url_for('schichtbuch.aufgabenlisten_liste') }}" class="btn btn-secondary">
@@ -10,24 +65,21 @@
 </div>
 
 <div class="card mb-4 shadow-sm">
-  <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div class="card-header bg-primary text-white d-flex flex-column flex-lg-row justify-content-lg-between align-items-lg-center gap-2">
     <h5 class="mb-0">Informationen</h5>
-    <div class="d-flex flex-wrap gap-2 align-items-center justify-content-end">
+    <div class="d-flex flex-row flex-nowrap gap-2 align-items-center justify-content-lg-end">
       {% if darf_stamm %}
-      <a href="{{ url_for('schichtbuch.aufgabenliste_bearbeiten', liste_id=detail.liste.ID) }}" class="btn btn-sm btn-light">
-        <i class="bi bi-pencil"></i> <span class="d-none d-sm-inline">Stammdaten / Sichtbarkeit</span><span class="d-sm-none">Bearbeiten</span>
+      <a href="{{ url_for('schichtbuch.aufgabenliste_bearbeiten', liste_id=detail.liste.ID) }}"
+         class="btn btn-sm btn-light"
+         title="Stammdaten und Sichtbarkeit bearbeiten"
+         aria-label="Stammdaten und Sichtbarkeit bearbeiten">
+        <i class="bi bi-pencil" aria-hidden="true"></i>
       </a>
-      <form method="POST" action="{{ url_for('schichtbuch.aufgabenliste_duplizieren', liste_id=detail.liste.ID) }}" class="m-0">
-        <input type="hidden" name="mit_themen" value="0">
-        <button type="submit" class="btn btn-sm btn-light">Duplizieren (ohne Themen)</button>
-      </form>
-      <form method="POST" action="{{ url_for('schichtbuch.aufgabenliste_duplizieren', liste_id=detail.liste.ID) }}" class="m-0" onsubmit="return confirm('Liste mit allen Themen kopieren?');">
-        <input type="hidden" name="mit_themen" value="1">
-        <button type="submit" class="btn btn-sm btn-light">Duplizieren (mit Themen)</button>
-      </form>
-      <form method="POST" action="{{ url_for('schichtbuch.aufgabenliste_archivieren', liste_id=detail.liste.ID) }}" class="m-0"
+      <form method="POST" action="{{ url_for('schichtbuch.aufgabenliste_archivieren', liste_id=detail.liste.ID) }}" class="m-0 d-inline"
             onsubmit="return confirm('Liste archivieren? Sie erscheint nicht mehr in der &Uuml;bersicht (Aktiv = 0).');">
-        <button type="submit" class="btn btn-sm btn-light"><i class="bi bi-archive"></i> <span class="d-none d-sm-inline">Archivieren</span><span class="d-sm-none">Archiv</span></button>
+        <button type="submit" class="btn btn-sm btn-light" title="Liste archivieren" aria-label="Liste archivieren">
+          <i class="bi bi-archive" aria-hidden="true"></i>
+        </button>
       </form>
       {% endif %}
     </div>
@@ -92,7 +144,7 @@
           {% endfor %}
         </div>
       </div>
-      <div class="col-12">
+      <div class="col-12 d-flex flex-column flex-sm-row flex-wrap gap-2">
         <button type="submit" class="btn btn-primary">Filtern</button>
         <a href="{{ url_for('schichtbuch.aufgabenliste_detail', liste_id=detail.liste.ID) }}" class="btn btn-secondary">Zur&uuml;cksetzen</a>
       </div>
@@ -102,23 +154,24 @@
 </div>
 
 {% if darf_themen and themen|length > 1 %}
-<p class="text-muted small mb-2">Zeilen per Ziehen sortieren, dann speichern.</p>
+<p class="text-muted small mb-2 d-none d-md-block">Zeilen per Ziehen sortieren, dann speichern.</p>
+<p class="text-muted small mb-2 d-md-none">Reihenfolge per Ziehen anpassen (auf dem Smartphone ggf. quer halten), dann speichern.</p>
 {% endif %}
 
 {% if darf_themen and themen %}
 <div class="mb-3">
-  <button type="button" class="btn btn-secondary btn-sm" id="btnSaveOrder">Reihenfolge speichern</button>
+  <button type="button" class="btn btn-secondary btn-sm w-100 aufgabenliste-btn-reihenfolge" id="btnSaveOrder">Reihenfolge speichern</button>
 </div>
 {% endif %}
 
 {% if themen %}
 <div class="card shadow-sm mb-4">
   <div class="card-body p-0">
-    <div class="table-responsive">
+    <div class="table-responsive aufgabenliste-themen-responsive">
       <table class="table table-hover align-middle mb-0" id="aufgabenlisteThemenTable">
         <thead class="table-light">
           <tr>
-            {% if darf_themen %}<th style="width:2rem;"></th>{% endif %}
+            {% if darf_themen %}<th style="width:2rem;" aria-label="Sortierung"></th>{% endif %}
             <th>ID</th>
             <th>Bereich</th>
             <th>Gewerk</th>
@@ -126,35 +179,35 @@
             <th>Zuletzt</th>
             <th>Letzte Bemerkung</th>
             <th>Zugeordnet</th>
-            <th></th>
+            {% if darf_themen %}<th class="text-end text-nowrap">Aktion</th>{% endif %}
           </tr>
         </thead>
         <tbody id="sortableThemenBody">
           {% for t in themen %}
           <tr data-thema-id="{{ t.ID }}" {% if darf_themen %}draggable="true" class="drag-row"{% endif %}>
             {% if darf_themen %}
-            <td class="text-muted user-select-none" title="Ziehen">&#9776;</td>
+            <td class="text-muted user-select-none" title="Ziehen" data-label="Sortierung">&#9776;</td>
             {% endif %}
-            <td><a href="{{ url_for('schichtbuch.thema_detail', thema_id=t.ID) }}">{{ t.ID }}</a></td>
-            <td>{{ t.Bereich }}</td>
-            <td>{{ t.Gewerk }}</td>
-            <td><span class="badge" style="background-color: {{ t.Farbe or '#6c757d' }}">{{ t.Status }}</span></td>
-            <td class="text-nowrap small">{{ t.LetzteBemerkungDatum|schichtbuch_datum if t.LetzteBemerkungDatum else '-' }}</td>
-            <td class="small text-break">{{ (t.LetzteBemerkungText or '')[:120] }}{% if t.LetzteBemerkungText and t.LetzteBemerkungText|length > 120 %}...{% endif %}</td>
-            <td class="small text-muted">
+            <td data-label="ID"><a href="{{ url_for('schichtbuch.thema_detail', thema_id=t.ID) }}">{{ t.ID }}</a></td>
+            <td data-label="Bereich">{{ t.Bereich }}</td>
+            <td data-label="Gewerk">{{ t.Gewerk }}</td>
+            <td data-label="Status"><span class="badge" style="background-color: {{ t.Farbe or '#6c757d' }}">{{ t.Status }}</span></td>
+            <td class="text-nowrap small" data-label="Zuletzt">{{ t.LetzteBemerkungDatum|schichtbuch_datum if t.LetzteBemerkungDatum else '-' }}</td>
+            <td class="small text-break" data-label="Letzte Bemerkung">{{ (t.LetzteBemerkungText or '')[:120] }}{% if t.LetzteBemerkungText and t.LetzteBemerkungText|length > 120 %}...{% endif %}</td>
+            <td class="small text-muted" data-label="Zugeordnet">
               {{ t.HinzugefuegtAm|schichtbuch_datum if t.HinzugefuegtAm else '-' }}
               {% if t.HinzugefuegtVonNachname %}
               <br>{{ t.HinzugefuegtVonVorname }} {{ t.HinzugefuegtVonNachname }}
               {% endif %}
             </td>
-            <td class="text-end">
-              {% if darf_themen %}
+            {% if darf_themen %}
+            <td class="text-end" data-label="Aktion">
               <form method="POST" action="{{ url_for('schichtbuch.aufgabenliste_thema_entfernen', liste_id=detail.liste.ID, thema_id=t.ID) }}"
-                    class="d-inline" onsubmit="return confirm('Thema von dieser Liste entfernen?');">
+                    class="m-0 w-100" onsubmit="return confirm('Thema von dieser Liste entfernen?');">
                 <button type="submit" class="btn btn-sm btn-outline-danger">Entfernen</button>
               </form>
-              {% endif %}
             </td>
+            {% endif %}
           </tr>
           {% endfor %}
         </tbody>
@@ -192,7 +245,7 @@
 </div>
 
 <div class="modal fade" id="themaPickerModalAufgabenliste" tabindex="-1" aria-labelledby="themaPickerModalAufgabenlisteLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down modal-lg">
     <div class="modal-content">
       <div class="modal-header bg-warning text-dark">
         <h5 class="modal-title" id="themaPickerModalAufgabenlisteLabel">

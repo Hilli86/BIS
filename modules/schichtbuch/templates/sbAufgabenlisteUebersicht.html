@@ -15,6 +15,13 @@
     word-wrap: break-word;
     overflow-wrap: break-word;
   }
+  .aufgabenliste-m-card {
+    cursor: pointer;
+  }
+  .aufgabenliste-m-card:focus-visible {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+  }
 </style>
 <h1 class="mb-4">Aufgabenlisten</h1>
 
@@ -25,7 +32,7 @@
 </div>
 
 {% if listen %}
-<div class="card shadow-sm">
+<div class="card shadow-sm d-none d-md-block">
   <div class="card-body">
     <div class="table-responsive table-aufgabenlisten-wrap">
       <table class="table table-hover table-aufgabenlisten-liste mb-0">
@@ -61,6 +68,32 @@
       </table>
     </div>
   </div>
+</div>
+
+<div class="d-md-none">
+  {% for l in listen %}
+  {% set detail_url = url_for('schichtbuch.aufgabenliste_detail', liste_id=l.ID) %}
+  {% set von_m = ((l.Vorname or '') ~ ' ' ~ (l.Nachname or ''))|trim %}
+  <div class="card shadow-sm mb-3 aufgabenliste-m-card position-relative"
+       role="button" tabindex="0"
+       onclick="window.location.href='{{ detail_url }}'"
+       onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.location.href='{{ detail_url }}';}">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+        <h2 class="h6 mb-0 text-break pe-2">{{ l.Bezeichnung }}</h2>
+        {% if l.IstOffen %}
+        <span class="badge bg-info flex-shrink-0">Offen</span>
+        {% else %}
+        <span class="badge bg-secondary flex-shrink-0">Erledigt</span>
+        {% endif %}
+      </div>
+      <p class="text-muted small mb-0">
+        <span class="text-nowrap">{% if l.ErstelltAm %}{{ l.ErstelltAm|schichtbuch_datum }}{% else %}-{% endif %}</span>
+        {% if von_m %}<span class="d-block mt-1">{{ von_m }}</span>{% endif %}
+      </p>
+    </div>
+  </div>
+  {% endfor %}
 </div>
 {% else %}
 <div class="alert alert-info">Für Sie sind keine Aufgabenlisten sichtbar.</div>
