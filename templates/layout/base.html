@@ -207,6 +207,25 @@
       color: var(--bis-shell-muted);
     }
 
+    /* --- Seitenkopf: Breadcrumb / Navigationsverlauf --- */
+    .bis-page-toolbar {
+      border-bottom: 1px solid var(--bis-card-border);
+      background-color: rgba(255, 255, 255, 0.72);
+    }
+    .bis-page-toolbar .breadcrumb {
+      --bs-breadcrumb-divider-color: var(--bis-shell-muted);
+    }
+    .bis-page-toolbar .breadcrumb-item a {
+      color: var(--bs-link-color);
+      text-decoration: none;
+    }
+    .bis-page-toolbar .breadcrumb-item a:hover {
+      text-decoration: underline;
+    }
+    .bis-page-toolbar .breadcrumb-item.active {
+      color: var(--bs-body-color);
+    }
+
     /* --- Mobile Header-Leiste --- */
     .mobile-header {
       display: flex;
@@ -918,6 +937,34 @@
         </div>
       {% endif %}
     {% endwith %}
+
+    {% block page_header %}{% endblock %}
+    {% if (session.user_id or session.get('is_guest')) and bis_nav_breadcrumbs %}
+    <div class="container-fluid bis-page-toolbar px-3 py-2">
+      <div class="d-flex flex-wrap align-items-center gap-2 justify-content-between">
+        <nav aria-label="Navigation" class="flex-grow-1 min-w-0">
+          <ol class="breadcrumb mb-0 small">
+            {% for c in bis_nav_breadcrumbs %}
+            <li class="breadcrumb-item{% if c.active %} active{% endif %}"{% if c.active %} aria-current="page"{% endif %}>
+              {% if c.href and not c.active %}
+              <a href="{{ c.href }}" title="{{ c.href }}">{{ c.label }}</a>
+              {% else %}
+              {{ c.label }}
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ol>
+        </nav>
+        {% if bis_nav_previous_url and bis_nav_previous_url != bis_nav_current_path %}
+        <div class="flex-shrink-0">
+          <a href="{{ bis_nav_previous_url }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Zurück
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
     
     {% block content %}
     {% endblock %}

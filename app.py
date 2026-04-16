@@ -7,6 +7,8 @@ Hauptdatei - nur Initialisierung und Blueprint-Registrierung
 
 from flask import Flask, render_template, session, redirect, url_for, request, send_from_directory
 from werkzeug.middleware.proxy_fix import ProxyFix
+
+from utils.navigation_history import navigation_history_context, record_navigation_after_request
 import click
 import os
 from config import config, DEV_SECRET_KEY_FALLBACK
@@ -107,6 +109,18 @@ def _ensure_menue_sichtbarkeit():
     if session.get('user_id') and not session.get('is_guest'):
         from utils.menue_definitions import get_menue_sichtbarkeit_fuer_mitarbeiter
         session['user_menue_sichtbarkeit'] = get_menue_sichtbarkeit_fuer_mitarbeiter(session['user_id'])
+
+
+@app.after_request
+def _bis_record_navigation_history(response):
+    """HTML-GET-Seiten in den Navigationsverlauf (Session) übernehmen."""
+    record_navigation_after_request(response)
+    return response
+
+
+@app.context_processor
+def _bis_navigation_history_context():
+    return navigation_history_context()
 
 
 @app.template_global('menue_sichtbar')
