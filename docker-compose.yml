@@ -16,7 +16,7 @@ services:
       # WEBAUTHN_ORIGIN: http://localhost:5000
     volumes:
       # Persistente Daten (Datenbank + Uploads)
-      bis-data:/data
+      - bis-data:/data
     restart: unless-stopped
 
 volumes:
