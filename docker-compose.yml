@@ -9,11 +9,17 @@ services:
       - "5000:5000"
     environment:
       FLASK_ENV: production
-      SECRET_KEY: ${SECRET_KEY:-bitte-in-.env-oder-umgebung-aendern}
+      # SECRET_KEY MUSS von aussen gesetzt werden (docker-compose bricht sonst ab).
+      # Erzeugen z. B. mit:  python -c "import secrets; print(secrets.token_urlsafe(48))"
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY muss als Umgebungsvariable gesetzt sein}
       DATABASE_URL: /data/database_main.db
       UPLOAD_BASE_FOLDER: /data/Daten
-      # Optional: WEBAUTHN_ORIGIN anpassen, wenn Sie über Hostname/IP zugreifen
-      # WEBAUTHN_ORIGIN: http://localhost:5000
+      SESSION_COOKIE_SECURE: "true"
+      REMEMBER_COOKIE_SECURE: "true"
+      # Optional: WEBAUTHN_ORIGIN/RP_ID/RP_NAME anpassen, wenn ueber Hostname/IP zugegriffen wird
+      # WEBAUTHN_ORIGIN: https://bis.example.com
+      # WEBAUTHN_RP_ID: bis.example.com
+      # WEBAUTHN_RP_NAME: BIS
     volumes:
       # Persistente Daten (Datenbank + Uploads)
       - bis-data:/data

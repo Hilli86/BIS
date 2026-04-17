@@ -64,19 +64,43 @@ cp env_example.txt .env
 - Pfad kann über `DATABASE_URL` in `.env` geändert werden.
 
 7. **Anwendung starten:**
+
+Lokale Entwicklung (Flask-Dev-Server):
 ```bash
-python app.py
+flask --app app run
 ```
+- Debug-Modus optional über `FLASK_DEBUG=True` aktivieren (siehe unten).
+- Host/Port lassen sich per `--host 0.0.0.0 --port 5000` setzen oder über
+  die Umgebungsvariablen `BIS_DEV_HOST`/`BIS_DEV_PORT` beim direkten
+  `python app.py`-Start.
 
-Die Anwendung ist dann unter `http://localhost:5000` erreichbar.
+Produktion (Gunicorn hinter Reverse-Proxy, z. B. nginx):
+```bash
+gunicorn --workers 3 --bind 127.0.0.1:8000 app:app
+```
+- `python app.py` bzw. Debug-Modus sind **nicht** für den produktiven
+  Betrieb gedacht.
+- Siehe `deployment/bis.service` und `Dockerfile` für fertige Setups.
 
-## 🔐 Standard-Login
+Die Anwendung ist dann unter `http://localhost:5000` (Dev) bzw. der vom
+Reverse-Proxy bereitgestellten URL erreichbar.
 
-Bei einer **neuen Datenbank** wird automatisch ein Admin-Benutzer erstellt:
+## 🔐 Initial-Admin
+
+Bei einer **leeren Datenbank** (kein Mitarbeiter vorhanden) wird einmalig
+ein Admin-Benutzer angelegt:
 
 - **Personalnummer:** 99999
-- **Passwort:** a
+- **Passwort:** wird zufällig erzeugt und **einmalig** beim Start in die
+  Anwendungslogs geschrieben (Logger `bis.init`, Level `WARNING`).
 - **Name:** BIS-Admin
+- **Wechsel-Zwang:** Beim ersten Login wird der Admin zur Passwort-Änderung
+  geführt (`PasswortWechselErforderlich = 1`), ein Weiterarbeiten ist erst
+  nach dem Setzen eines neuen Passworts möglich.
+
+Wenn bereits Mitarbeiter existieren, wird **kein** zusätzlicher Admin
+automatisch angelegt. Admin-Rechte können nachträglich über die
+Admin-Seite vergeben werden.
 
 
 ## ⚙️ Konfiguration
@@ -238,34 +262,38 @@ BIS/
 - Windows (PowerShell):
 ```powershell
 $env:FLASK_DEBUG="True"
-python app.py
+flask --app app run
 ```
 - Windows (CMD):
 ```cmd
 set FLASK_DEBUG=True
-python app.py
+flask --app app run
 ```
 - Linux/Mac:
 ```bash
 export FLASK_DEBUG=True
-python app.py
+flask --app app run
 ```
+
+Hinweis: Debug-Modus ist **ausschließlich** für die lokale Entwicklung
+bestimmt. In Produktion (`FLASK_ENV=production`) darf er nicht aktiviert
+werden.
 
 ### SQL-Tracing aktivieren
 - Windows (PowerShell):
 ```powershell
 $env:SQL_TRACING="True"
-python app.py
+flask --app app run
 ```
 - Windows (CMD):
 ```cmd
 set SQL_TRACING=True
-python app.py
+flask --app app run
 ```
 - Linux/Mac:
 ```bash
 export SQL_TRACING=True
-python app.py
+flask --app app run
 ```
 
 ## 📝 Changelog

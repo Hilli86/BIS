@@ -115,6 +115,7 @@
                               <div class="mt-4 p-3 bg-light rounded">
                                 <h6 class="mb-2">bizerba.jpg</h6>
                                 <form method="POST" action="{{ url_for('produktion.etikettierung_foto_upload') }}" enctype="multipart/form-data" class="d-flex flex-wrap align-items-end gap-2">
+                                  {{ csrf_field() }}
                                   <input type="hidden" name="linie" value="{{ linie }}">
                                   <input type="hidden" name="artikel" value="{{ artikel }}">
                                   <input type="file" name="file" class="form-control form-control-sm" style="max-width: 220px;" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp" required>

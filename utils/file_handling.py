@@ -91,22 +91,60 @@ def get_file_list(folder_path, include_size=True):
     return dateien
 
 
+_SAFE_CONTENT_TYPES = {
+    'pdf': {'application/pdf'},
+    'png': {'image/png'},
+    'jpg': {'image/jpeg'},
+    'jpeg': {'image/jpeg'},
+    'gif': {'image/gif'},
+    'webp': {'image/webp'},
+    'txt': {'text/plain', 'application/octet-stream'},
+    'doc': {'application/msword', 'application/octet-stream'},
+    'docx': {
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/octet-stream',
+    },
+    'xls': {'application/vnd.ms-excel', 'application/octet-stream'},
+    'xlsx': {
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/octet-stream',
+    },
+}
+
+
+def _content_type_erlaubt(filename, content_type):
+    if not content_type:
+        return True
+    ext = os.path.splitext(filename)[1].lstrip('.').lower()
+    erlaubte = _SAFE_CONTENT_TYPES.get(ext)
+    if not erlaubte:
+        return True
+    return str(content_type).lower().split(';', 1)[0].strip() in erlaubte
+
+
 def save_uploaded_file(file, target_folder, allowed_extensions=None, create_unique_name=True, override_filename=None):
     """
-    Speichert eine hochgeladene Datei
-    
+    Speichert eine hochgeladene Datei.
+
     Args:
-        file: Werkzeug FileStorage-Objekt
-        target_folder: Zielordner für die Datei
-        allowed_extensions: Erlaubte Dateiendungen (optional)
-        create_unique_name: Ob bei Existenz ein eindeutiger Name erstellt werden soll
-        override_filename: Optionaler Dateiname (z. B. aus Formularfeld), sonst file.filename
-        
+        file: Werkzeug FileStorage-Objekt.
+        target_folder: Zielordner fuer die Datei.
+        allowed_extensions: Erlaubte Dateiendungen. MUSS angegeben werden;
+            `None` faellt auf `ALLOWED_EXTENSIONS` aus der Config zurueck.
+        create_unique_name: Bei Existenz einen eindeutigen Namen erzeugen.
+        override_filename: Optionaler Dateiname (z. B. aus Formularfeld),
+            sonst `file.filename`.
+
     Returns:
-        Tuple (success: bool, filename: str oder None, error_message: str oder None)
+        Tuple (success, filename_or_None, error_message_or_None)
     """
     if not file:
         return False, None, "Keine Datei ausgewählt"
+
+    if allowed_extensions is None:
+        allowed_extensions = current_app.config.get('ALLOWED_EXTENSIONS', set())
+    if not allowed_extensions:
+        return False, None, "Keine erlaubten Dateitypen konfiguriert"
 
     name_for_validation = None
     if override_filename is not None and str(override_filename).strip():
@@ -117,9 +155,16 @@ def save_uploaded_file(file, target_folder, allowed_extensions=None, create_uniq
     if not name_for_validation:
         return False, None, "Keine Datei ausgewählt"
 
-    # Validierung (an gewünschtem Dateinamen, nicht nur an Blob-Namen)
-    if allowed_extensions and not validate_file_extension(name_for_validation, allowed_extensions):
-        return False, None, f"Dateityp nicht erlaubt. Erlaubt: {', '.join(allowed_extensions)}"
+    if not validate_file_extension(name_for_validation, allowed_extensions):
+        return False, None, (
+            'Dateityp nicht erlaubt. Erlaubt: ' + ', '.join(sorted(allowed_extensions))
+        )
+
+    content_type = getattr(file, 'mimetype', None) or getattr(file, 'content_type', None)
+    if not _content_type_erlaubt(name_for_validation, content_type):
+        return False, None, (
+            f'Dateiinhalt ({content_type}) passt nicht zur Dateiendung.'
+        )
     
     # Ordner erstellen
     if not create_upload_folder(target_folder):
@@ -173,29 +218,38 @@ def speichere_in_import_ordner(file_storage, allowed_extensions=None, create_uni
     )
 
 
-def move_file_safe(source_path, target_path, create_unique_name=True):
+def move_file_safe(source_path, target_path, create_unique_name=True, allowed_base=None):
     """
     Verschiebt eine Datei sicher (mit Pfad-Validierung)
-    
+
     Args:
         source_path: Quellpfad
         target_path: Zielpfad
         create_unique_name: Ob bei Existenz ein eindeutiger Name erstellt werden soll
-        
+        allowed_base: Optionaler Basispfad. Wenn gesetzt, muss sowohl die
+            Quell- als auch die Zielpfade innerhalb liegen (Path-Traversal-
+            Schutz).
+
     Returns:
         Tuple (success: bool, final_filename: str oder None, error_message: str oder None)
     """
     import shutil
-    
-    # Sicherheitsprüfung: Quelle muss existieren
+
     if not os.path.exists(source_path):
         return False, None, f"Quelldatei nicht gefunden: {source_path}"
-    
-    # Sicherheitsprüfung: Pfad-Traversal verhindern
-    source_abs = os.path.abspath(source_path)
-    target_abs = os.path.abspath(target_path)
-    
-    # Zielordner erstellen
+
+    if allowed_base:
+        base_real = os.path.realpath(allowed_base)
+        src_real = os.path.realpath(source_path)
+        tgt_real = os.path.realpath(target_path)
+        try:
+            if os.path.normcase(os.path.commonpath([base_real, src_real])) != os.path.normcase(base_real):
+                return False, None, 'Quelle außerhalb des erlaubten Basisordners.'
+            if os.path.normcase(os.path.commonpath([base_real, tgt_real])) != os.path.normcase(base_real):
+                return False, None, 'Ziel außerhalb des erlaubten Basisordners.'
+        except ValueError:
+            return False, None, 'Pfadvergleich nicht möglich.'
+
     target_dir = os.path.dirname(target_path)
     if not create_upload_folder(target_dir):
         return False, None, "Fehler beim Erstellen des Zielordners"

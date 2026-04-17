@@ -8,6 +8,8 @@ In-Memory-Store gehalten und über eine ID in der Flask-Session referenziert.
 
 import base64
 import os
+import pickle
+import time
 import uuid
 from typing import Any, Dict, List, Tuple
 
@@ -24,7 +26,34 @@ from fido2.webauthn import (
 )
 
 
-_STATE_STORE: Dict[str, Any] = {}
+# Default-TTL fuer State-Eintraege (WebAuthn-Challenge-Lebensdauer).
+_STATE_TTL_SECONDS = 5 * 60
+
+
+def _state_conn():
+    from utils import get_db_connection
+    return get_db_connection()
+
+
+def _ensure_state_table(conn) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS WebAuthnState (
+            state_id TEXT PRIMARY KEY,
+            payload BLOB NOT NULL,
+            created_at INTEGER NOT NULL,
+            expires_at INTEGER NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS IX_WebAuthnState_expires ON WebAuthnState(expires_at)"
+    )
+
+
+def _cleanup_expired(conn) -> None:
+    now = int(time.time())
+    conn.execute('DELETE FROM WebAuthnState WHERE expires_at < ?', (now,))
 
 
 def _b64url_encode(data: Any) -> str:
@@ -44,23 +73,63 @@ def _b64url_decode(data: str) -> bytes:
 
 def get_fido2_server() -> Fido2Server:
     """Erzeugt eine Fido2Server-Instanz basierend auf der Flask-Konfiguration."""
+    rp_id = current_app.config.get("WEBAUTHN_RP_ID")
+    origin = current_app.config.get("WEBAUTHN_ORIGIN")
+    if not rp_id or not origin:
+        raise RuntimeError(
+            "WEBAUTHN_RP_ID und WEBAUTHN_ORIGIN muessen gesetzt sein, "
+            "bevor FIDO2/WebAuthn genutzt werden kann."
+        )
     rp = PublicKeyCredentialRpEntity(
-        id=current_app.config["WEBAUTHN_RP_ID"],
-        name=current_app.config["WEBAUTHN_RP_NAME"],
+        id=rp_id,
+        name=current_app.config.get("WEBAUTHN_RP_NAME", "BIS"),
     )
     return Fido2Server(rp)
 
 
-def store_state(state: Any) -> str:
-    """Speichert den von Fido2Server zurückgegebenen State im Prozessspeicher."""
+def store_state(state: Any, ttl_seconds: int = _STATE_TTL_SECONDS) -> str:
+    """Speichert den von Fido2Server zurueckgegebenen State persistent mit TTL.
+
+    Der State wird in der SQLite-DB unter einer zufaelligen state_id abgelegt
+    (pickle-serialisiert). Abgelaufene Eintraege werden bei Zugriff bereinigt.
+    """
     state_id = str(uuid.uuid4())
-    _STATE_STORE[state_id] = state
+    payload = pickle.dumps(state)
+    now = int(time.time())
+    expires = now + max(60, int(ttl_seconds))
+    with _state_conn() as conn:
+        _ensure_state_table(conn)
+        _cleanup_expired(conn)
+        conn.execute(
+            'INSERT INTO WebAuthnState (state_id, payload, created_at, expires_at) VALUES (?, ?, ?, ?)',
+            (state_id, payload, now, expires),
+        )
+        conn.commit()
     return state_id
 
 
 def pop_state(state_id: str) -> Any:
-    """Liest einen gespeicherten State und entfernt ihn aus dem Store."""
-    return _STATE_STORE.pop(state_id, None)
+    """Liest einen gespeicherten State (nur wenn nicht abgelaufen) und entfernt ihn."""
+    if not state_id:
+        return None
+    now = int(time.time())
+    with _state_conn() as conn:
+        _ensure_state_table(conn)
+        _cleanup_expired(conn)
+        row = conn.execute(
+            'SELECT payload, expires_at FROM WebAuthnState WHERE state_id = ?',
+            (state_id,),
+        ).fetchone()
+        if not row:
+            return None
+        conn.execute('DELETE FROM WebAuthnState WHERE state_id = ?', (state_id,))
+        conn.commit()
+    if row['expires_at'] < now:
+        return None
+    try:
+        return pickle.loads(row['payload'])
+    except Exception:
+        return None
 
 
 def build_user_entity(user_row) -> PublicKeyCredentialUserEntity:

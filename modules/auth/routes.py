@@ -11,6 +11,8 @@ from . import auth_bp
 from utils import get_db_connection
 from utils.helpers import get_client_ip
 from utils.decorators import login_required
+from utils.rate_limit import limiter, login_ratelimit_key
+from utils.security import validate_passwort_policy
 from utils.auth_redirect import resolve_post_login_redirect_url
 from utils.webauthn import (
     get_fido2_server,
@@ -52,6 +54,7 @@ def _log_login_attempt(conn, personalnummer, mitarbeiter_id, erfolgreich, reques
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
+@limiter.limit('10/minute;50/hour', methods=['POST'], key_func=login_ratelimit_key)
 def login():
     """Login-Seite"""
     # Personalnummer aus Cookie oder URL-Parameter oder Formular
@@ -77,7 +80,8 @@ def login():
                 if not user:
                     # Fehlgeschlagene Anmeldung loggen
                     _log_login_attempt(conn, personalnummer, None, False, request, 'Benutzer nicht gefunden oder inaktiv')
-                    flash('Kein Benutzer mit dieser Personalnummer gefunden oder Benutzer inaktiv.', 'danger')
+                    # Einheitliche Fehlermeldung (keine User-Enumeration)
+                    flash('Ungültige Personalnummer oder Passwort.', 'danger')
                     return render_template('login.html', personalnummer=personalnummer, remember_me=remember_me_checkbox)
 
                 if user and check_password_hash(user['Passwort'], passwort):
@@ -130,21 +134,46 @@ def login():
                         g.login_session_lifetime_to_restore = current_app.config['PERMANENT_SESSION_LIFETIME']
                         current_app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
                     
-                    start_ep = None
-                    if 'StartseiteNachLoginEndpunkt' in user.keys():
-                        start_ep = user['StartseiteNachLoginEndpunkt']
-                    ziel = resolve_post_login_redirect_url(start_ep, request.args.get('next'))
-                    response = make_response(redirect(ziel))
+                    # Wenn Passwortwechsel erzwungen ist (z.B. Initial-Admin),
+                    # direkt zur Passwort-Ändern-Seite leiten.
+                    passwort_wechsel_noetig = False
+                    try:
+                        if 'PasswortWechselErforderlich' in user.keys():
+                            passwort_wechsel_noetig = bool(user['PasswortWechselErforderlich'])
+                    except Exception:
+                        passwort_wechsel_noetig = False
+                    session['passwort_wechsel_erforderlich'] = passwort_wechsel_noetig
+
+                    if passwort_wechsel_noetig:
+                        flash('Bitte setzen Sie ein neues Passwort, bevor Sie fortfahren.', 'warning')
+                        response = make_response(redirect(url_for('auth.passwort_aendern')))
+                    else:
+                        start_ep = None
+                        if 'StartseiteNachLoginEndpunkt' in user.keys():
+                            start_ep = user['StartseiteNachLoginEndpunkt']
+                        ziel = resolve_post_login_redirect_url(start_ep, request.args.get('next'))
+                        response = make_response(redirect(ziel))
                     
                     # Cookie für "Zugangsdaten merken" setzen oder löschen
                     if remember_me_checkbox:
-                        # Cookie für 30 Tage setzen
                         expires = datetime.now() + timedelta(days=30)
-                        response.set_cookie('remembered_personalnummer', personalnummer, 
-                                          expires=expires, httponly=True, samesite='Lax')
+                        response.set_cookie(
+                            'remembered_personalnummer',
+                            personalnummer,
+                            expires=expires,
+                            httponly=True,
+                            samesite=current_app.config.get('REMEMBER_COOKIE_SAMESITE', 'Lax'),
+                            secure=bool(current_app.config.get('REMEMBER_COOKIE_SECURE', False)),
+                        )
                     else:
-                        # Cookie löschen falls vorhanden
-                        response.set_cookie('remembered_personalnummer', '', expires=0)
+                        response.set_cookie(
+                            'remembered_personalnummer',
+                            '',
+                            expires=0,
+                            httponly=True,
+                            samesite=current_app.config.get('REMEMBER_COOKIE_SAMESITE', 'Lax'),
+                            secure=bool(current_app.config.get('REMEMBER_COOKIE_SECURE', False)),
+                        )
                     
                     return response
                 else:
@@ -213,8 +242,12 @@ def passwort_aendern():
             flash('Die neuen Passwörter stimmen nicht überein.', 'danger')
             return render_template('passwort_aendern.html')
         
-        if len(neues_passwort) < 6:
-            flash('Das neue Passwort muss mindestens 6 Zeichen lang sein.', 'danger')
+        policy_fehler = validate_passwort_policy(neues_passwort)
+        if policy_fehler:
+            flash(policy_fehler, 'danger')
+            return render_template('passwort_aendern.html')
+        if neues_passwort == altes_passwort:
+            flash('Das neue Passwort muss sich vom alten Passwort unterscheiden.', 'danger')
             return render_template('passwort_aendern.html')
         
         try:
@@ -234,14 +267,21 @@ def passwort_aendern():
                     flash('Das alte Passwort ist nicht korrekt.', 'danger')
                     return render_template('passwort_aendern.html')
                 
-                # Neues Passwort hashen und speichern
+                # Neues Passwort hashen und speichern; ggf. Wechsel-Flag zurücksetzen.
                 neues_passwort_hash = generate_password_hash(neues_passwort)
-                conn.execute(
-                    'UPDATE Mitarbeiter SET Passwort = ? WHERE ID = ?',
-                    (neues_passwort_hash, session['user_id'])
-                )
+                try:
+                    conn.execute(
+                        'UPDATE Mitarbeiter SET Passwort = ?, PasswortWechselErforderlich = 0 WHERE ID = ?',
+                        (neues_passwort_hash, session['user_id'])
+                    )
+                except Exception:
+                    conn.execute(
+                        'UPDATE Mitarbeiter SET Passwort = ? WHERE ID = ?',
+                        (neues_passwort_hash, session['user_id'])
+                    )
                 conn.commit()
-                
+                session.pop('passwort_wechsel_erforderlich', None)
+
                 flash('Passwort erfolgreich geändert.', 'success')
                 return redirect(url_for('auth.profil'))
                 
@@ -535,6 +575,7 @@ def webauthn_login_options():
 
 
 @auth_bp.route("/webauthn/login/verify", methods=["POST"])
+@limiter.limit('20/minute;100/hour')
 def webauthn_login_verify():
     """
     Prüft die Antwort von navigator.credentials.get() und meldet den Benutzer an,

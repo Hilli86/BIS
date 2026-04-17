@@ -43,6 +43,20 @@ class Config:
     
     # Session-Konfiguration
     PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax')
+    # SESSION_COOKIE_SECURE wird pro Umgebung gesetzt (Development=False, Production=True).
+    SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
+    REMEMBER_COOKIE_HTTPONLY = True
+    REMEMBER_COOKIE_SAMESITE = os.environ.get('REMEMBER_COOKIE_SAMESITE', 'Lax')
+    REMEMBER_COOKIE_SECURE = os.environ.get('REMEMBER_COOKIE_SECURE', 'False').lower() == 'true'
+
+    # Vertrauenswuerdige Reverse-Proxies (komma-separierte IPs/CIDRs).
+    # Nur fuer diese Gegenstellen werden X-Forwarded-For / X-Real-IP ausgewertet.
+    # Beispiel (nginx vor der App): TRUSTED_PROXIES="127.0.0.1,10.0.0.0/8"
+    TRUSTED_PROXIES = tuple(
+        p.strip() for p in os.environ.get('TRUSTED_PROXIES', '').split(',') if p.strip()
+    )
     
     # Debug-Modus (nur für Entwicklung)
     DEBUG = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
@@ -92,10 +106,16 @@ class ProductionConfig(Config):
     DEBUG = False
     SQL_TRACING = False
 
-    # Für das Intranet-System unter https://10.40.140.243
-    WEBAUTHN_RP_ID = 'm-0015'
-    WEBAUTHN_RP_NAME = 'BIS – Betriebsinformationssystem'
-    WEBAUTHN_ORIGIN = 'https://m-0015'
+    # WebAuthn-Parameter muessen im Produktivbetrieb zwingend ueber
+    # Umgebungsvariablen gesetzt werden – kein stilles Fallback auf Hostnamen,
+    # da ein falscher Origin FIDO2-Authentifizierung scheitern laesst.
+    WEBAUTHN_RP_ID = os.environ.get('WEBAUTHN_RP_ID')
+    WEBAUTHN_RP_NAME = os.environ.get('WEBAUTHN_RP_NAME', 'BIS – Betriebsinformationssystem')
+    WEBAUTHN_ORIGIN = os.environ.get('WEBAUTHN_ORIGIN')
+
+    # Produktiv muss der Auth-Cookie ausschliesslich ueber HTTPS uebertragen werden.
+    SESSION_COOKIE_SECURE = True
+    REMEMBER_COOKIE_SECURE = True
 
 # Konfiguration basierend auf Umgebungsvariable auswählen
 config = {

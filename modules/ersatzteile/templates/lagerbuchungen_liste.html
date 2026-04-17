@@ -15,6 +15,7 @@
     <div class="collapse show" id="buchungCollapse">
         <div class="card-body">
             <form method="POST" action="{{ url_for('ersatzteile.schnellbuchung') }}">
+                {{ csrf_field() }}
                 <div class="row g-3">
                     <div class="col-md-2">
                         <label class="form-label"><strong>Ersatzteil-ID:</strong> <span class="text-danger">*</span></label>
@@ -338,6 +339,7 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <form method="post" action="{{ url_for('ersatzteile.lagerbuchung_admin_thema') }}">
+                {{ csrf_field() }}
                 <div class="modal-header">
                     <h5 class="modal-title" id="modalAdminThemaLabel"><i class="bi bi-journal-bookmark"></i> Thema-ID (Lagerbuchung)</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
@@ -366,6 +368,7 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <form method="post" action="{{ url_for('ersatzteile.lagerbuchung_admin_wartung') }}">
+                {{ csrf_field() }}
                 <div class="modal-header">
                     <h5 class="modal-title" id="modalAdminWartungLabel"><i class="bi bi-wrench"></i> Wartungsdurchführung-ID (Lagerbuchung)</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>

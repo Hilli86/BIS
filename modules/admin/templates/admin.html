@@ -32,6 +32,7 @@
       <div class="card-header">Neuen Mitarbeiter anlegen</div>
       <div class="card-body">
         <form action="{{ url_for('admin.mitarbeiter_add') }}" method="post" class="row g-2">
+    {{ csrf_field() }}
           <div class="col-md-2"><input name="personalnummer" class="form-control" placeholder="Personalnr." required></div>
           <div class="col-md-2"><input name="vorname" class="form-control" placeholder="Vorname" required></div>
           <div class="col-md-2"><input name="nachname" class="form-control" placeholder="Nachname" required></div>
@@ -84,6 +85,7 @@
                 </button>
                 <div class="collapse mt-2" id="stamm{{ m.ID }}" data-bs-parent="#accordion{{ m.ID }}">
                   <form action="{{ url_for('admin.mitarbeiter_update', mid=m.ID) }}" method="post" class="border p-2 rounded bg-light">
+    {{ csrf_field() }}
                     <div class="row g-2">
                       <div class="col-md-6">
                         <label class="form-label fw-bold">Vorname:</label>
@@ -134,6 +136,7 @@
                 </button>
                 <div class="collapse mt-2" id="abt{{ m.ID }}" data-bs-parent="#accordion{{ m.ID }}">
                   <form action="{{ url_for('admin.mitarbeiter_abteilungen', mid=m.ID) }}" method="post" class="border p-2 rounded bg-light">
+    {{ csrf_field() }}
                     <div class="mb-2">
                       <label class="form-label fw-bold">Primärabteilung:</label>
                       <select name="primaer_abteilung_id" class="form-select form-select-sm">
@@ -167,6 +170,7 @@
                 </button>
                 <div class="collapse mt-2" id="ber{{ m.ID }}" data-bs-parent="#accordion{{ m.ID }}">
                   <form action="{{ url_for('admin.mitarbeiter_berechtigungen', mid=m.ID) }}" method="post" class="border p-2 rounded bg-light">
+    {{ csrf_field() }}
                     <label class="form-label fw-bold">Berechtigungen:</label>
                     {% for b in berechtigungen %}
                     <div class="form-check">
@@ -191,6 +195,7 @@
                 </button>
                 <div class="collapse mt-2" id="menue{{ m.ID }}" data-bs-parent="#accordion{{ m.ID }}">
                   <form action="{{ url_for('admin.mitarbeiter_menue_sichtbarkeit', mid=m.ID) }}" method="post" class="border p-2 rounded bg-light admin-menue-sichtbarkeit-form">
+    {{ csrf_field() }}
                     <label class="form-label fw-bold">Sichtbarkeit der Menüpunkte</label>
                     <p class="small text-muted mb-2">
                       <strong>Aktuell (Sidebar):</strong> tatsächliche Anzeige nach Berechtigungen und Override.
@@ -267,6 +272,7 @@
       <div class="card-header">Neue Berechtigung anlegen</div>
       <div class="card-body">
         <form action="{{ url_for('admin.berechtigung_add') }}" method="post" class="row g-2">
+    {{ csrf_field() }}
           <div class="col-md-3"><input name="schluessel" class="form-control" placeholder="Schlüssel (z.B. artikel_buchen)" required></div>
           <div class="col-md-3"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung" required></div>
           <div class="col-md-5"><input name="beschreibung" class="form-control" placeholder="Beschreibung"></div>
@@ -292,6 +298,7 @@
           <td>{% if b.Aktiv %}<span class="badge bg-success">aktiv</span>{% else %}<span class="badge bg-secondary">inaktiv</span>{% endif %}</td>
           <td>
             <form action="{{ url_for('admin.berechtigung_update', bid=b.ID) }}" method="post" class="row g-1 mb-1">
+    {{ csrf_field() }}
               <div class="col-md-4"><input name="bezeichnung" class="form-control form-control-sm" value="{{ b.Bezeichnung }}"></div>
               <div class="col-md-5"><input name="beschreibung" class="form-control form-control-sm" value="{{ b.Beschreibung or '' }}" placeholder="Beschreibung"></div>
               <div class="col-md-2 form-check d-flex align-items-center">
@@ -301,6 +308,7 @@
               <div class="col-md-1"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-save"></i></button></div>
             </form>
             <form action="{{ url_for('admin.berechtigung_toggle', bid=b.ID) }}" method="post" class="d-inline">
+    {{ csrf_field() }}
               <button class="btn btn-sm btn-outline-secondary">{% if b.Aktiv %}Deaktivieren{% else %}Aktivieren{% endif %}</button>
             </form>
           </td>
@@ -316,6 +324,7 @@
       <div class="card-header">Neue Abteilung anlegen</div>
       <div class="card-body">
         <form action="{{ url_for('admin.abteilung_add') }}" method="post" class="row g-2">
+    {{ csrf_field() }}
           <div class="col-md-5"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung" required></div>
           <div class="col-md-4">
             <select name="parent_abteilung_id" class="form-select">
@@ -352,6 +361,7 @@
           <td>{% if a.Aktiv %}<span class="badge bg-success">aktiv</span>{% else %}<span class="badge bg-secondary">inaktiv</span>{% endif %}</td>
           <td>
             <form action="{{ url_for('admin.abteilung_update', aid=a.ID) }}" method="post" class="row g-1 align-items-center">
+    {{ csrf_field() }}
               <div class="col-md-4"><input name="bezeichnung" class="form-control form-control-sm" value="{{ a.Bezeichnung }}"></div>
               <div class="col-md-4">
                 <select name="parent_abteilung_id" class="form-select form-select-sm">
@@ -385,6 +395,7 @@
       <div class="card-header">Neuen Bereich anlegen</div>
       <div class="card-body">
         <form action="{{ url_for('admin.bereich_add') }}" method="post" class="row g-2">
+    {{ csrf_field() }}
           <div class="col-md-6"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung" required></div>
           <div class="col-md-12"><button class="btn btn-success">Anlegen</button></div>
         </form>
@@ -398,6 +409,7 @@
         <tr>
           <td>
             <form action="{{ url_for('admin.bereich_update', bid=b.ID) }}" method="post" class="d-flex align-items-center gap-2">
+    {{ csrf_field() }}
               <input name="bezeichnung" class="form-control form-control-sm" value="{{ b.Bezeichnung }}">
           </td>
           <td>
@@ -422,6 +434,7 @@
       <div class="card-header">Neues Gewerk anlegen</div>
       <div class="card-body">
         <form action="{{ url_for('admin.gewerk_add') }}" method="post" class="row g-2">
+    {{ csrf_field() }}
           <div class="col-md-5"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung" required></div>
           <div class="col-md-5">
             <select name="bereich_id" class="form-select" required>
@@ -443,6 +456,7 @@
         <tr>
           <td>
             <form action="{{ url_for('admin.gewerk_update', gid=g.ID) }}" method="post" class="d-flex align-items-center gap-2">
+    {{ csrf_field() }}
               <input name="bezeichnung" class="form-control form-control-sm" value="{{ g.Bezeichnung }}">
           </td>
           <td>
@@ -474,6 +488,7 @@
       <div class="card-header">Neue Fremdfirma anlegen</div>
       <div class="card-body">
         <form action="{{ url_for('admin.fremdfirma_add') }}" method="post" class="row g-2">
+    {{ csrf_field() }}
           <div class="col-md-3"><input name="firmenname" class="form-control" placeholder="Firmenname *" required></div>
           <div class="col-md-4"><textarea name="adresse" class="form-control" rows="2" placeholder="Adresse"></textarea></div>
           <div class="col-md-3"><textarea name="taetigkeitsbereich" class="form-control" rows="2" placeholder="Tätigkeitsbereich"></textarea></div>
@@ -491,6 +506,7 @@
         <tr>
           <td>
             <form action="{{ url_for('admin.fremdfirma_update', fid=f.ID) }}" method="post">
+    {{ csrf_field() }}
               <input name="firmenname" class="form-control form-control-sm" value="{{ f.Firmenname }}" required>
           </td>
           <td>
@@ -523,6 +539,7 @@
       <div class="card-header">Neue Tätigkeit anlegen</div>
       <div class="card-body">
         <form action="{{ url_for('admin.taetigkeit_add') }}" method="post" class="row g-2">
+    {{ csrf_field() }}
           <div class="col-md-6"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung" required></div>
           <div class="col-md-3"><input type="number" name="sortierung" class="form-control" placeholder="Sortierung" value="0"></div>
           <div class="col-md-3"><button class="btn btn-success w-100">Anlegen</button></div>
@@ -537,6 +554,7 @@
         <tr>
           <td>
             <form action="{{ url_for('admin.taetigkeit_update', tid=t.ID) }}" method="post" class="d-flex align-items-center gap-2">
+    {{ csrf_field() }}
               <input name="bezeichnung" class="form-control form-control-sm" value="{{ t.Bezeichnung }}">
           </td>
           <td>
@@ -564,6 +582,7 @@
       <div class="card-header">Neuen Status anlegen</div>
       <div class="card-body">
         <form action="{{ url_for('admin.status_add') }}" method="post" class="row g-2">
+    {{ csrf_field() }}
           <div class="col-md-4"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung" required></div>
           <div class="col-md-4">
             <div class="input-group">
@@ -584,6 +603,7 @@
         <tr>
           <td>
             <form action="{{ url_for('admin.status_update', sid=s.ID) }}" method="post" class="d-flex align-items-center gap-2" data-status-form>
+    {{ csrf_field() }}
               <input name="bezeichnung" class="form-control form-control-sm" value="{{ s.Bezeichnung }}">
           </td>
           <td>
@@ -617,6 +637,7 @@
       <div class="card-header">Neue Ersatzteil-Kategorie anlegen</div>
       <div class="card-body">
         <form action="{{ url_for('admin.ersatzteil_kategorie_add') }}" method="post" class="row g-2">
+    {{ csrf_field() }}
           <div class="col-md-5"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung" required></div>
           <div class="col-md-4"><input name="beschreibung" class="form-control" placeholder="Beschreibung (optional)"></div>
           <div class="col-md-2"><input type="number" name="sortierung" class="form-control" placeholder="Sortierung" value="0"></div>
@@ -632,6 +653,7 @@
         <tr>
           <td>
             <form action="{{ url_for('admin.ersatzteil_kategorie_update', kid=k.ID) }}" method="post" class="d-flex align-items-center gap-2">
+    {{ csrf_field() }}
               <input name="bezeichnung" class="form-control form-control-sm" value="{{ k.Bezeichnung }}" required>
           </td>
           <td>
@@ -650,6 +672,7 @@
               <button class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Speichern</button>
             </form>
             <form action="{{ url_for('admin.ersatzteil_kategorie_delete', kid=k.ID) }}" method="post" class="d-inline mt-1">
+    {{ csrf_field() }}
               <button class="btn btn-sm btn-danger" onclick="return confirm('Kategorie wirklich deaktivieren?')"><i class="bi bi-trash"></i> Löschen</button>
             </form>
           </td>
@@ -665,6 +688,7 @@
       <div class="card-header">Neue Kostenstelle anlegen</div>
       <div class="card-body">
         <form action="{{ url_for('admin.kostenstelle_add') }}" method="post" class="row g-2">
+    {{ csrf_field() }}
           <div class="col-md-4"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung *" required></div>
           <div class="col-md-5"><input name="beschreibung" class="form-control" placeholder="Beschreibung"></div>
           <div class="col-md-2"><input type="number" name="sortierung" class="form-control" placeholder="Sortierung" value="0"></div>
@@ -680,6 +704,7 @@
         <tr>
           <td>
             <form action="{{ url_for('admin.kostenstelle_update', kid=k.ID) }}" method="post" class="d-flex align-items-center gap-2">
+    {{ csrf_field() }}
               <input name="bezeichnung" class="form-control form-control-sm" value="{{ k.Bezeichnung }}" required>
           </td>
           <td>
@@ -698,6 +723,7 @@
               <button class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Speichern</button>
             </form>
             <form action="{{ url_for('admin.kostenstelle_delete', kid=k.ID) }}" method="post" class="d-inline mt-1">
+    {{ csrf_field() }}
               <button class="btn btn-sm btn-danger" onclick="return confirm('Kostenstelle wirklich deaktivieren?')"><i class="bi bi-trash"></i> Löschen</button>
             </form>
           </td>
@@ -713,6 +739,7 @@
       <div class="card-header">Neuen Lagerort anlegen</div>
       <div class="card-body">
         <form action="{{ url_for('admin.lagerort_add') }}" method="post" class="row g-2">
+    {{ csrf_field() }}
           <div class="col-md-4"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung *" required></div>
           <div class="col-md-5"><input name="beschreibung" class="form-control" placeholder="Beschreibung"></div>
           <div class="col-md-2"><input type="number" name="sortierung" class="form-control" placeholder="Sortierung" value="0"></div>
@@ -728,6 +755,7 @@
         <tr>
           <td>
             <form action="{{ url_for('admin.lagerort_update', lid=l.ID) }}" method="post" class="d-flex align-items-center gap-2">
+    {{ csrf_field() }}
               <input name="bezeichnung" class="form-control form-control-sm" value="{{ l.Bezeichnung }}" required>
           </td>
           <td>
@@ -746,6 +774,7 @@
               <button class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Speichern</button>
             </form>
             <form action="{{ url_for('admin.lagerort_delete', lid=l.ID) }}" method="post" class="d-inline mt-1">
+    {{ csrf_field() }}
               <button class="btn btn-sm btn-danger" onclick="return confirm('Lagerort wirklich deaktivieren?')"><i class="bi bi-trash"></i> Löschen</button>
             </form>
           </td>
@@ -761,6 +790,7 @@
       <div class="card-header">Neuen Lagerplatz anlegen</div>
       <div class="card-body">
         <form action="{{ url_for('admin.lagerplatz_add') }}" method="post" class="row g-2">
+    {{ csrf_field() }}
           <div class="col-md-4"><input name="bezeichnung" class="form-control" placeholder="Bezeichnung *" required></div>
           <div class="col-md-5"><input name="beschreibung" class="form-control" placeholder="Beschreibung"></div>
           <div class="col-md-2"><input type="number" name="sortierung" class="form-control" placeholder="Sortierung" value="0"></div>
@@ -776,6 +806,7 @@
         <tr>
           <td>
             <form action="{{ url_for('admin.lagerplatz_update', lid=l.ID) }}" method="post" class="d-flex align-items-center gap-2">
+    {{ csrf_field() }}
               <input name="bezeichnung" class="form-control form-control-sm" value="{{ l.Bezeichnung }}" required>
           </td>
           <td>
@@ -794,6 +825,7 @@
               <button class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Speichern</button>
             </form>
             <form action="{{ url_for('admin.lagerplatz_delete', lid=l.ID) }}" method="post" class="d-inline mt-1">
+    {{ csrf_field() }}
               <button class="btn btn-sm btn-danger" onclick="return confirm('Lagerplatz wirklich deaktivieren?')"><i class="bi bi-trash"></i> Löschen</button>
             </form>
           </td>
@@ -809,6 +841,7 @@
       <div class="card-header">Neuen Lieferanten anlegen</div>
       <div class="card-body">
         <form action="{{ url_for('admin.lieferant_add') }}" method="post" class="row g-2">
+    {{ csrf_field() }}
           <div class="col-md-2"><input name="name" class="form-control" placeholder="Name *" required></div>
           <div class="col-md-2"><input name="kontaktperson" class="form-control" placeholder="Kontaktperson"></div>
           <div class="col-md-2"><input name="telefon" class="form-control" placeholder="Telefon"></div>
@@ -848,6 +881,7 @@
         <tr>
           <td>
             <form action="{{ url_for('admin.lieferant_update', lid=l.ID) }}" method="post">
+    {{ csrf_field() }}
               <input name="name" class="form-control form-control-sm" value="{{ l.Name }}" required>
           </td>
           <td>
@@ -885,6 +919,7 @@
               <button class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Speichern</button>
             </form>
             <form action="{{ url_for('admin.lieferant_delete', lid=l.ID) }}" method="post" class="d-inline mt-1">
+    {{ csrf_field() }}
               <button class="btn btn-sm btn-danger" onclick="return confirm('Lieferant wirklich löschen?')"><i class="bi bi-trash"></i> Löschen</button>
             </form>
           </td>
@@ -900,6 +935,7 @@
       <div class="card-header">Firmendaten bearbeiten</div>
       <div class="card-body">
         <form action="{{ url_for('admin.firmendaten') }}" method="post">
+    {{ csrf_field() }}
           <div class="row g-3">
             <div class="col-md-12">
               <h5>Grunddaten</h5>
@@ -1054,6 +1090,7 @@
           <div class="card-header">Zebradrucker</div>
           <div class="card-body">
             <form action="{{ url_for('admin.zebra_printer_save') }}" method="post" class="row g-2 mb-4 border-bottom pb-3" id="zebraDruckerNeuForm">
+    {{ csrf_field() }}
               <input type="hidden" name="id" value="">
               <div class="col-md-3">
                 <input name="name" class="form-control" placeholder="Name" required>
@@ -1115,6 +1152,7 @@
                         data-desc="{{ (p.description or '')|e }}"
                         data-active="{{ 1 if p.active else 0 }}">Bearbeiten</button>
                       <form action="{{ url_for('admin.zebra_printer_toggle', pid=p.id) }}" method="post" class="d-inline">
+    {{ csrf_field() }}
                         <button type="submit" class="btn btn-sm btn-outline-secondary">
                           {% if p.active %}Deaktivieren{% else %}Aktivieren{% endif %}
                         </button>
@@ -1140,6 +1178,7 @@
               Ohne Drucker öffnet die Anwendung bei interaktivem Druck ein Auswahl-Dialog; automatische Drucke (z.&nbsp;B. Wareneingang) benötigen einen gesetzten Drucker.
             </p>
             <form action="{{ url_for('admin.zebra_druck_konfig_save') }}" method="post" class="row g-2 mb-4 border-bottom pb-3" id="druckKonfigNeuForm">
+    {{ csrf_field() }}
               <input type="hidden" name="id" value="">
               <div class="col-md-3">
                 <select name="funktion_code" class="form-select" required>
@@ -1271,6 +1310,7 @@
           <div class="card-header">Etikettenformate</div>
           <div class="card-body">
             <form action="{{ url_for('admin.zebra_label_save') }}" method="post" class="row g-2 mb-4 border-bottom pb-3" id="labelFormatNeuForm">
+    {{ csrf_field() }}
               <input type="hidden" name="id" value="">
               <div class="col-md-4">
                 <input name="name" class="form-control" placeholder="Name (z.B. 30x30 mm)" required>
@@ -1345,6 +1385,7 @@
           <div class="card-header">Etiketten</div>
           <div class="card-body">
             <form action="{{ url_for('admin.zebra_etikett_save') }}" method="post" class="row g-2 mb-4 border-bottom pb-3" id="etikettForm">
+    {{ csrf_field() }}
               <input type="hidden" name="id" value="" id="etikettId">
               <div class="col-md-4">
                 <input name="bezeichnung" class="form-control" placeholder="Bezeichnung (z.B. ErsatzteilLabel)" required id="etikettBezeichnung">
@@ -1942,10 +1983,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Hilfsfunktion für Alerts
 function showAlert(type, message) {
+  const esc = (window.BIS && window.BIS.escapeHtml) ? window.BIS.escapeHtml : (v => String(v == null ? '' : v));
+  const safeType = /^[a-z-]+$/i.test(String(type || '')) ? type : 'info';
   const alertDiv = document.createElement('div');
-  alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+  alertDiv.className = `alert alert-${safeType} alert-dismissible fade show`;
   alertDiv.innerHTML = `
-    ${message}
+    ${esc(message)}
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
   `;
   

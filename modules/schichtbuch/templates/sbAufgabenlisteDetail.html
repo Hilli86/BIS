@@ -71,6 +71,7 @@
       </a>
       <form method="POST" action="{{ url_for('schichtbuch.aufgabenliste_archivieren', liste_id=detail.liste.ID) }}" class="m-0 d-inline"
             onsubmit="return confirm('Liste archivieren? Sie erscheint nicht mehr in der &Uuml;bersicht (Aktiv = 0).');">
+        {{ csrf_field() }}
         <button type="submit" class="btn btn-sm btn-light" title="Liste archivieren" aria-label="Liste archivieren">
           <i class="bi bi-archive" aria-hidden="true"></i>
         </button>
@@ -198,6 +199,7 @@
             <td class="text-end" data-label="Aktion">
               <form method="POST" action="{{ url_for('schichtbuch.aufgabenliste_thema_entfernen', liste_id=detail.liste.ID, thema_id=t.ID) }}"
                     class="m-0 w-100" onsubmit="return confirm('Thema von dieser Liste entfernen?');">
+                {{ csrf_field() }}
                 <button type="submit" class="btn btn-sm btn-outline-danger">Entfernen</button>
               </form>
             </td>

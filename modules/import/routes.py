@@ -5,19 +5,49 @@ Routes für Datei-Import-Funktionalität
 
 from flask import request, session, jsonify, current_app, send_from_directory, abort
 import os
+import re
 import shutil
 import mimetypes
 from werkzeug.utils import secure_filename
 from . import import_bp
 from utils.file_handling import get_file_list, move_file_safe, speichere_in_import_ordner
 from utils import get_db_connection
+from utils.auth_guards import is_authenticated_user
+from utils.security import resolve_under_base, PathTraversalError
 from modules.ersatzteile.services import importiere_datei_aus_ordner, get_datei_typ_aus_dateiname
+
+
+# Allowlist erlaubter ziel_ordner-Muster fuer /api/import/verschieben.
+# Es werden ausschliesslich diese Muster akzeptiert (kein Pfad-Traversal,
+# nur numerische IDs, keine Sonderzeichen ausser den unten angegebenen).
+_ZIEL_ORDNER_MUSTER = tuple(
+    re.compile(p) for p in (
+        r'^Schichtbuch/Themen/\d+$',
+        r'^Bestellwesen/Angebote/\d+$',
+        r'^Bestellwesen/Lieferscheine/\d+$',
+        r'^Bestellwesen/Auftragsbest[^/]+/\d+$',
+        r'^Bestellwesen/Rechnungen/\d+$',
+        r'^Angebote/Bestellungen/\d+$',
+        r'^Ersatzteile/\d+/(bilder|dokumente)$',
+        r'^Wartungen/\d+/(bilder|dokumente)$',
+        r'^Wartungen/durchfuehrung/\d+/serviceberichte$',
+    )
+)
+
+
+def _ziel_ordner_erlaubt(pfad):
+    if not pfad or not isinstance(pfad, str):
+        return False
+    normalisiert = pfad.replace('\\', '/').strip().strip('/')
+    if '..' in normalisiert.split('/'):
+        return False
+    return any(muster.match(normalisiert) for muster in _ZIEL_ORDNER_MUSTER)
 
 
 @import_bp.route('/dateien', methods=['GET'])
 def import_dateien_liste():
     """Liste alle Dateien im Import-Ordner auf"""
-    if 'user_id' not in session:
+    if not is_authenticated_user(session):
         return jsonify({'success': False, 'message': 'Nicht angemeldet'}), 401
     
     import_folder = current_app.config['IMPORT_FOLDER']
@@ -38,7 +68,7 @@ def import_datei_anzeigen(filename):
     Liefert eine Datei aus dem Import-Ordner (Vorschau im Browser, nur angemeldete Nutzer).
     Kein Pfad in der URL; Traversal wird abgewiesen.
     """
-    if 'user_id' not in session:
+    if not is_authenticated_user(session):
         abort(401)
 
     if not filename or '..' in filename or '/' in filename or '\\' in filename:
@@ -66,7 +96,7 @@ def import_datei_anzeigen(filename):
 @import_bp.route('/hochladen', methods=['POST'])
 def import_hochladen():
     """Datei direkt in den Import-Ordner speichern (z. B. Dokumenten-Scan)."""
-    if 'user_id' not in session:
+    if not is_authenticated_user(session):
         return jsonify({'success': False, 'message': 'Nicht angemeldet'}), 401
 
     file = request.files.get('file')
@@ -95,7 +125,7 @@ def import_hochladen():
 @import_bp.route('/verschieben', methods=['POST'])
 def import_datei_verschieben():
     """Verschiebe eine Datei aus dem Import-Ordner zu einem Zielordner und erstelle Datenbankeintrag"""
-    if 'user_id' not in session:
+    if not is_authenticated_user(session):
         return jsonify({'success': False, 'message': 'Nicht angemeldet'}), 401
     
     mitarbeiter_id = session.get('user_id')
@@ -109,35 +139,39 @@ def import_datei_verschieben():
 
     if not original_filename or not ziel_ordner:
         return jsonify({'success': False, 'message': 'Fehlende Parameter'}), 400
-    
-    # Sicherheitsprüfung: Dateiname darf keine Pfad-Traversal enthalten
+
     if '..' in original_filename or '/' in original_filename or '\\' in original_filename:
         return jsonify({'success': False, 'message': 'Ungültiger Dateiname'}), 400
-    
+
+    if not _ziel_ordner_erlaubt(ziel_ordner):
+        return jsonify({'success': False, 'message': 'Ungültiger Zielordner'}), 400
+    ziel_ordner = ziel_ordner.replace('\\', '/').strip().strip('/')
+
     import_folder = current_app.config['IMPORT_FOLDER']
-    quelle = os.path.join(import_folder, original_filename)
-    
-    # Sicherheitsprüfung: Quelle muss im Import-Ordner sein (mit normalisiertem Pfad)
-    quelle_abs = os.path.abspath(quelle)
-    import_folder_abs = os.path.abspath(import_folder)
-    if not quelle_abs.startswith(import_folder_abs):
+    upload_base = current_app.config['UPLOAD_BASE_FOLDER']
+
+    try:
+        quelle = resolve_under_base(import_folder, original_filename)
+    except PathTraversalError:
         return jsonify({'success': False, 'message': 'Ungültiger Dateipfad'}), 403
-    
-    # Prüfen ob Datei existiert
-    if not os.path.exists(quelle):
+
+    if not os.path.isfile(quelle):
         return jsonify({'success': False, 'message': f'Datei nicht gefunden: {original_filename}'}), 404
-    
-    # Sicheren Dateinamen für Ziel erstellen (mit Timestamp für Eindeutigkeit)
+
     from datetime import datetime
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
     safe_filename = timestamp + secure_filename(original_filename)
-    ziel = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], ziel_ordner, safe_filename)
-    
-    # Zielordner erstellen falls nicht vorhanden
+
+    try:
+        ziel = resolve_under_base(upload_base, f'{ziel_ordner}/{safe_filename}')
+    except PathTraversalError:
+        return jsonify({'success': False, 'message': 'Ungültiger Zielpfad'}), 403
+
     os.makedirs(os.path.dirname(ziel), exist_ok=True)
-    
-    # Datei verschieben
-    success, final_filename, error_message = move_file_safe(quelle, ziel, create_unique_name=False)
+
+    success, final_filename, error_message = move_file_safe(
+        quelle, ziel, create_unique_name=False
+    )
     
     if success:
         # Datenbankeintrag erstellen, falls Bereich-Informationen vorhanden

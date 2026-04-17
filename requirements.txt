@@ -9,12 +9,16 @@ colorama==0.4.6
 reportlab==4.2.2
 qrcode==7.4.2
 Pillow==11.2.1
-docxtpl
-docx2pdf
-pywebpush
-fido2
-python-dotenv
+docxtpl==0.19.1
+docx2pdf==0.1.8
+pywebpush==2.0.3
+fido2==1.2.0
+python-dotenv==1.0.1
+
+# Sicherheit
+Flask-WTF==1.2.2
+flask-limiter==3.12
+Flask-Talisman==1.1.0
 
 # Tests (CI / lokale Qualitätssicherung)
 pytest==8.3.5
-

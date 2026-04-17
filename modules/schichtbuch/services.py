@@ -138,19 +138,27 @@ def build_themen_query(sichtbare_abteilungen, bereich_filter=None, gewerk_filter
     
     if q_filter and q_filter.strip():
         q_trim = q_filter.strip()
+        # LIKE-Sonderzeichen escapen, damit % und _ vom Nutzer nicht
+        # ausgewertet werden; ESCAPE-Klausel mit Backslash aktiviert.
+        q_like = (
+            q_trim.replace('\\', '\\\\')
+            .replace('%', '\\%')
+            .replace('_', '\\_')
+        )
+        like_pattern = f'%{q_like}%'
         if q_trim.isdigit():
             query += (
                 ' AND (t.ID = ? OR EXISTS (SELECT 1 FROM SchichtbuchBemerkungen b2 '
-                'WHERE b2.ThemaID = t.ID AND b2.Gelöscht = 0 AND b2.Bemerkung LIKE ?))'
+                "WHERE b2.ThemaID = t.ID AND b2.Gelöscht = 0 AND b2.Bemerkung LIKE ? ESCAPE '\\'))"
             )
             params.append(int(q_trim))
-            params.append(f'%{q_filter}%')
+            params.append(like_pattern)
         else:
             query += (
                 ' AND EXISTS (SELECT 1 FROM SchichtbuchBemerkungen b2 '
-                'WHERE b2.ThemaID = t.ID AND b2.Gelöscht = 0 AND b2.Bemerkung LIKE ?)'
+                "WHERE b2.ThemaID = t.ID AND b2.Gelöscht = 0 AND b2.Bemerkung LIKE ? ESCAPE '\\')"
             )
-            params.append(f'%{q_filter}%')
+            params.append(like_pattern)
     
     if exclude_aufgabenliste_id is not None:
         query += (

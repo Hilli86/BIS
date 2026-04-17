@@ -8,8 +8,12 @@ from flask import current_app
 
 
 def sql_trace(statement):
-    """SQL-Tracing für Debugging"""
-    print("SQL:", statement)
+    """SQL-Tracing für Debugging – schreibt in den Flask-Logger (DEBUG)."""
+    try:
+        current_app.logger.debug('SQL: %s', statement)
+    except RuntimeError:
+        # Kein App-Kontext (sehr früher Bootstrap): still verwerfen.
+        pass
 
 
 @contextmanager

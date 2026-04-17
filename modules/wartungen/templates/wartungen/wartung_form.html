@@ -5,6 +5,7 @@
 <div class="alert alert-info">Sie haben nur Leserecht auf diese Wartung.</div>
 {% endif %}
 <form method="post" enctype="multipart/form-data" class="card shadow-sm p-4 mb-4">
+  {{ csrf_field() }}
   <div class="mb-3">
     <label class="form-label">Gewerk</label>
     <select name="gewerk_id" class="form-select" required {% if wartung and not kann_edit %}disabled{% endif %}>

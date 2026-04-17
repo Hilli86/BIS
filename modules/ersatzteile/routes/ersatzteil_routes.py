@@ -916,7 +916,7 @@ def ersatzteil_datei_upload(ersatzteil_id):
                     success_upload, filename, error_message = save_uploaded_file(
                         file,
                         upload_folder,
-                        allowed_extensions=None  # Bereits validiert
+                        allowed_extensions=allowed_extensions,
                     )
                     
                     if not success_upload or error_message:
@@ -1575,19 +1575,21 @@ def datei_anzeigen(filepath):
     """Datei anzeigen/herunterladen"""
     mitarbeiter_id = session.get('user_id')
     
-    # Pfad normalisieren: Backslashes zu Forward-Slashes konvertieren (für Windows-Kompatibilität)
+    from utils.security import resolve_under_base, PathTraversalError
+
     filepath = filepath.replace('\\', '/')
-    
-    # Sicherheitsprüfung: Dateipfad muss mit Ersatzteile beginnen
+
     if not filepath.startswith('Ersatzteile/'):
         flash('Ungültiger Dateipfad.', 'danger')
         return redirect(url_for('ersatzteile.ersatzteil_liste'))
-    
-    # Für Dateisystem: Backslashes für Windows verwenden
-    filepath_fs = filepath.replace('/', os.sep)
-    full_path = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], filepath_fs)
-    
-    if not os.path.exists(full_path):
+
+    try:
+        full_path = resolve_under_base(current_app.config['UPLOAD_BASE_FOLDER'], filepath)
+    except PathTraversalError:
+        flash('Ungültiger Dateipfad.', 'danger')
+        return redirect(url_for('ersatzteile.ersatzteil_liste'))
+
+    if not os.path.isfile(full_path):
         flash('Datei nicht gefunden.', 'danger')
         return redirect(url_for('ersatzteile.ersatzteil_liste'))
     

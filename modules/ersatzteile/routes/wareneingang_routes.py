@@ -414,11 +414,14 @@ def lieferschein_anzeigen(filepath):
         return redirect(url_for('ersatzteile.wareneingang'))
     
     try:
-        # Vollständigen Pfad erstellen
-        full_path = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], filepath)
-        
-        # Sicherheitsprüfung: Datei muss existieren und im erlaubten Ordner sein
-        if not os.path.exists(full_path) or not os.path.abspath(full_path).startswith(os.path.abspath(current_app.config['UPLOAD_BASE_FOLDER'])):
+        from utils.security import resolve_under_base, PathTraversalError
+        try:
+            full_path = resolve_under_base(current_app.config['UPLOAD_BASE_FOLDER'], filepath)
+        except PathTraversalError:
+            flash('Ungültiger Dateipfad.', 'danger')
+            return redirect(url_for('ersatzteile.wareneingang'))
+
+        if not os.path.isfile(full_path):
             flash('Datei nicht gefunden.', 'danger')
             return redirect(url_for('ersatzteile.wareneingang'))
         

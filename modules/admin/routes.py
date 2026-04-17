@@ -545,22 +545,39 @@ def mitarbeiter_add():
     if not personalnummer or not vorname or not nachname:
         return ajax_response('Bitte Personalnummer, Vorname und Nachname ausfüllen.', success=False)
     
+    from utils.security import validate_passwort_policy, generiere_zufalls_passwort
     try:
+        if passwort:
+            policy_fehler = validate_passwort_policy(passwort)
+            if policy_fehler:
+                return ajax_response(policy_fehler, success=False)
+            initial_passwort = passwort
+            wechsel_erforderlich = 1
+            passwort_hinweis = 'Das Passwort muss beim ersten Login geändert werden.'
+        else:
+            initial_passwort = generiere_zufalls_passwort()
+            wechsel_erforderlich = 1
+            passwort_hinweis = (
+                f'Initial-Passwort (einmalig): {initial_passwort} – '
+                'muss beim ersten Login geändert werden.'
+            )
+
+        passwort_hash = generate_password_hash(initial_passwort)
         with get_db_connection() as conn:
-            if passwort:
+            try:
+                conn.execute(
+                    '''INSERT INTO Mitarbeiter (Personalnummer, Vorname, Nachname, Email, Handynummer, Aktiv, Passwort,
+                       StartseiteNachLoginEndpunkt, PasswortWechselErforderlich) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                    (personalnummer, vorname, nachname, email, handynummer, aktiv, passwort_hash, startseite_ep, wechsel_erforderlich),
+                )
+            except Exception:
                 conn.execute(
                     '''INSERT INTO Mitarbeiter (Personalnummer, Vorname, Nachname, Email, Handynummer, Aktiv, Passwort,
                        StartseiteNachLoginEndpunkt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
-                    (personalnummer, vorname, nachname, email, handynummer, aktiv, generate_password_hash(passwort), startseite_ep),
-                )
-            else:
-                conn.execute(
-                    '''INSERT INTO Mitarbeiter (Personalnummer, Vorname, Nachname, Email, Handynummer, Aktiv,
-                       StartseiteNachLoginEndpunkt) VALUES (?, ?, ?, ?, ?, ?, ?)''',
-                    (personalnummer, vorname, nachname, email, handynummer, aktiv, startseite_ep),
+                    (personalnummer, vorname, nachname, email, handynummer, aktiv, passwort_hash, startseite_ep),
                 )
             conn.commit()
-        return ajax_response('Mitarbeiter erfolgreich angelegt.')
+        return ajax_response(f'Mitarbeiter erfolgreich angelegt. {passwort_hinweis}')
     except Exception as e:
         return ajax_response(f'Fehler beim Anlegen: {str(e)}', success=False, status_code=500)
 
@@ -576,7 +593,12 @@ def mitarbeiter_update(mid):
     aktiv = 1 if request.form.get('aktiv') == 'on' else 0
     passwort = request.form.get('passwort')
     startseite_ep = normalisiere_startseite_endpunkt(request.form.get('startseite_nach_login'))
+    from utils.security import validate_passwort_policy
     try:
+        if passwort:
+            policy_fehler = validate_passwort_policy(passwort)
+            if policy_fehler:
+                return ajax_response(policy_fehler, success=False)
         with get_db_connection() as conn:
             conn.execute(
                 '''UPDATE Mitarbeiter SET Vorname = ?, Nachname = ?, Email = ?, Handynummer = ?, Aktiv = ?,
@@ -584,7 +606,17 @@ def mitarbeiter_update(mid):
                 (vorname, nachname, email, handynummer, aktiv, startseite_ep, mid),
             )
             if passwort:
-                conn.execute('UPDATE Mitarbeiter SET Passwort = ? WHERE ID = ?', (generate_password_hash(passwort), mid))
+                passwort_hash = generate_password_hash(passwort)
+                try:
+                    conn.execute(
+                        'UPDATE Mitarbeiter SET Passwort = ?, PasswortWechselErforderlich = 1 WHERE ID = ?',
+                        (passwort_hash, mid),
+                    )
+                except Exception:
+                    conn.execute(
+                        'UPDATE Mitarbeiter SET Passwort = ? WHERE ID = ?',
+                        (passwort_hash, mid),
+                    )
             conn.commit()
         return ajax_response('Mitarbeiter aktualisiert.')
     except Exception as e:
@@ -607,33 +639,39 @@ def mitarbeiter_deactivate(mid):
 @admin_bp.route('/mitarbeiter/reset-password/<int:mid>', methods=['POST'])
 @admin_required
 def mitarbeiter_reset_password(mid):
-    """Passwort des Mitarbeiters auf Vorname zurücksetzen"""
+    """Passwort des Mitarbeiters auf ein Zufalls-Passwort zuruecksetzen (Wechsel-Zwang)."""
+    from utils.security import generiere_zufalls_passwort
     try:
         with get_db_connection() as conn:
-            # Vorname des Mitarbeiters abrufen
             mitarbeiter = conn.execute(
                 'SELECT Vorname, Nachname FROM Mitarbeiter WHERE ID = ?',
                 (mid,)
             ).fetchone()
-            
+
             if not mitarbeiter:
                 return ajax_response('Mitarbeiter nicht gefunden.', success=False, status_code=404)
-            
+
             vorname = mitarbeiter['Vorname']
             nachname = mitarbeiter['Nachname']
-            
-            if not vorname:
-                return ajax_response('Mitarbeiter hat keinen Vornamen.', success=False)
-            
-            # Passwort auf Vorname setzen (gehasht)
-            neues_passwort_hash = generate_password_hash(vorname)
-            conn.execute(
-                'UPDATE Mitarbeiter SET Passwort = ? WHERE ID = ?',
-                (neues_passwort_hash, mid)
-            )
+
+            neues_passwort = generiere_zufalls_passwort()
+            neues_passwort_hash = generate_password_hash(neues_passwort)
+            try:
+                conn.execute(
+                    'UPDATE Mitarbeiter SET Passwort = ?, PasswortWechselErforderlich = 1 WHERE ID = ?',
+                    (neues_passwort_hash, mid),
+                )
+            except Exception:
+                conn.execute(
+                    'UPDATE Mitarbeiter SET Passwort = ? WHERE ID = ?',
+                    (neues_passwort_hash, mid),
+                )
             conn.commit()
-            
-        return ajax_response(f'Passwort für {vorname} {nachname} wurde auf "{vorname}" zurückgesetzt.')
+
+        return ajax_response(
+            f'Passwort für {vorname} {nachname} zurückgesetzt. '
+            f'Einmal-Passwort: {neues_passwort} – muss beim nächsten Login geändert werden.'
+        )
     except Exception as e:
         return ajax_response(f'Fehler beim Zurücksetzen: {str(e)}', success=False, status_code=500)
 

@@ -2126,12 +2126,17 @@ def rechnung_anzeigen(filepath):
         return redirect(url_for('ersatzteile.bestellung_liste'))
     
     try:
-        full_path = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], filepath)
-        
-        if not os.path.exists(full_path) or not os.path.abspath(full_path).startswith(os.path.abspath(current_app.config['UPLOAD_BASE_FOLDER'])):
+        from utils.security import resolve_under_base, PathTraversalError
+        try:
+            full_path = resolve_under_base(current_app.config['UPLOAD_BASE_FOLDER'], filepath)
+        except PathTraversalError:
+            flash('Ungültiger Dateipfad.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_liste'))
+
+        if not os.path.isfile(full_path):
             flash('Datei nicht gefunden.', 'danger')
             return redirect(url_for('ersatzteile.bestellung_liste'))
-        
+
         file_ext = os.path.splitext(full_path)[1].lower()
         if file_ext == '.pdf':
             mimetype = 'application/pdf'
@@ -2141,16 +2146,16 @@ def rechnung_anzeigen(filepath):
             mimetype = 'image/png'
         else:
             mimetype = 'application/octet-stream'
-        
+
         return send_from_directory(
             os.path.dirname(full_path),
             os.path.basename(full_path),
             mimetype=mimetype,
             as_attachment=False
         )
-    except Exception as e:
-        flash(f'Fehler beim Laden der Datei: {str(e)}', 'danger')
-        print(f"Rechnung anzeigen Fehler: {e}")
+    except Exception:
+        current_app.logger.exception('Rechnung anzeigen Fehler')
+        flash('Fehler beim Laden der Datei.', 'danger')
         return redirect(url_for('ersatzteile.bestellung_liste'))
 
 
@@ -2185,16 +2190,19 @@ def bestellung_datei_anzeigen(bestellung_id, filepath):
                     flash('Sie haben keine Berechtigung, diese Datei zu sehen.', 'danger')
                     return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
         
-        # Vollständigen Pfad erstellen - unterstütze beide Pfad-Formate
-        if filepath.startswith('Angebote/Bestellungen/'):
-            # Neues Format: Angebote/Bestellungen/{id}/...
-            full_path = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], filepath.replace('/', os.sep))
-        else:
-            # Altes Format: Bestellungen/{id}/...
-            full_path = os.path.join(current_app.config['ANGEBOTE_UPLOAD_FOLDER'], filepath.replace('/', os.sep))
-        
-        # Sicherheitsprüfung: Datei muss existieren
-        if not os.path.exists(full_path):
+        from utils.security import resolve_under_base, PathTraversalError
+        base = (
+            current_app.config['UPLOAD_BASE_FOLDER']
+            if filepath.startswith('Angebote/Bestellungen/')
+            else current_app.config['ANGEBOTE_UPLOAD_FOLDER']
+        )
+        try:
+            full_path = resolve_under_base(base, filepath)
+        except PathTraversalError:
+            flash('Ungültiger Dateipfad.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+        if not os.path.isfile(full_path):
             flash('Datei nicht gefunden.', 'danger')
             return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
         
@@ -2250,11 +2258,14 @@ def auftragsbestätigung_anzeigen(filepath):
                 flash('Ungültige Bestellungs-ID im Dateipfad.', 'danger')
                 return redirect(url_for('ersatzteile.bestellung_liste'))
         
-        # Vollständigen Pfad erstellen
-        full_path = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], filepath)
-        
-        # Sicherheitsprüfung: Datei muss existieren und im erlaubten Ordner sein
-        if not os.path.exists(full_path) or not os.path.abspath(full_path).startswith(os.path.abspath(current_app.config['UPLOAD_BASE_FOLDER'])):
+        from utils.security import resolve_under_base, PathTraversalError
+        try:
+            full_path = resolve_under_base(current_app.config['UPLOAD_BASE_FOLDER'], filepath)
+        except PathTraversalError:
+            flash('Ungültiger Dateipfad.', 'danger')
+            return redirect(url_for('ersatzteile.bestellung_liste'))
+
+        if not os.path.isfile(full_path):
             flash('Datei nicht gefunden.', 'danger')
             return redirect(url_for('ersatzteile.bestellung_liste'))
         

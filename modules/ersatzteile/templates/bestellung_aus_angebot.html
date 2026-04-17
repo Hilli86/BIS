@@ -4,6 +4,7 @@
 <h1 class="mb-4">Bestellung aus Angebot erstellen</h1>
 
 <form method="post" id="bestellungForm">
+    {{ csrf_field() }}
     <div class="card mb-4 shadow-sm">
         <div class="card-header bg-primary text-white">
             <h5 class="mb-0">Angebotsanfrage #{{ anfrage.ID }}</h5>

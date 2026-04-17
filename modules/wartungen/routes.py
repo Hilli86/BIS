@@ -303,7 +303,7 @@ def _save_serviceberichte_files(conn, durchfuehrung_id, mitarbeiter_id, files, b
         create_upload_folder(sub)
         ts = datetime.now().strftime('%Y%m%d_%H%M%S_')
         file.filename = ts + secure_filename(orig)
-        ok, fname, err = save_uploaded_file(file, sub, allowed_extensions=None)
+        ok, fname, err = save_uploaded_file(file, sub, allowed_extensions=_SERVICE_BERICHT_EXT)
         if not ok or err:
             fehler.append(f'{orig}: {err or "Speichern fehlgeschlagen"}')
             continue
@@ -417,7 +417,7 @@ def wartung_neu():
                             orig = file.filename
                             ts = datetime.now().strftime('%Y%m%d_%H%M%S_')
                             file.filename = ts + secure_filename(orig)
-                            ok, fname, err = save_uploaded_file(file, sub, allowed_extensions=None)
+                            ok, fname, err = save_uploaded_file(file, sub, allowed_extensions=allowed)
                             if ok:
                                 rel = f'Wartungen/{wid}/dokumente/{fname}'
                                 typ = get_datei_typ_aus_dateiname(orig)
@@ -535,7 +535,7 @@ def wartung_datei_upload(wartung_id):
                     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
                     file.filename = timestamp + secure_filename(original_filename)
                     success_upload, filename, error_message = save_uploaded_file(
-                        file, upload_folder, allowed_extensions=None,
+                        file, upload_folder, allowed_extensions=allowed_extensions,
                     )
                     if not success_upload or error_message:
                         fehler.append(f'{original_filename}: {error_message}')
@@ -1587,9 +1587,13 @@ def durchfuehrung_datei(filepath):
         if not row:
             flash('Datei nicht gefunden.', 'danger')
             return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=dfid))
-    fs = filepath.replace('/', os.sep)
-    full_path = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], fs)
-    if not os.path.exists(full_path):
+    from utils.security import resolve_under_base, PathTraversalError
+    try:
+        full_path = resolve_under_base(current_app.config['UPLOAD_BASE_FOLDER'], filepath)
+    except PathTraversalError:
+        flash('Ungültiger Pfad.', 'danger')
+        return redirect(url_for('wartungen.wartung_liste'))
+    if not os.path.isfile(full_path):
         flash('Datei nicht gefunden.', 'danger')
         return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=dfid))
     return send_from_directory(os.path.dirname(full_path), os.path.basename(full_path))
@@ -1674,9 +1678,13 @@ def wartung_datei(filepath):
                     return redirect(url_for('wartungen.wartung_liste'))
         except ValueError:
             pass
-    fs = filepath.replace('/', os.sep)
-    full_path = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], fs)
-    if not os.path.exists(full_path):
+    from utils.security import resolve_under_base, PathTraversalError
+    try:
+        full_path = resolve_under_base(current_app.config['UPLOAD_BASE_FOLDER'], filepath)
+    except PathTraversalError:
+        flash('Ungültiger Pfad.', 'danger')
+        return redirect(url_for('wartungen.wartung_liste'))
+    if not os.path.isfile(full_path):
         flash('Datei nicht gefunden.', 'danger')
         return redirect(url_for('wartungen.wartung_liste'))
     return send_from_directory(os.path.dirname(full_path), os.path.basename(full_path))

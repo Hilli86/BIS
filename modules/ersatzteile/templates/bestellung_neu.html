@@ -4,6 +4,7 @@
 <h1 class="mb-4">Neue Bestellung</h1>
 
 <form method="post" id="bestellungForm">
+    {{ csrf_field() }}
     <div class="card mb-4 shadow-sm">
         <div class="card-header bg-warning text-dark">
             <h5 class="mb-0">Grunddaten</h5>

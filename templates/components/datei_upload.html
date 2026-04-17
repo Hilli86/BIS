@@ -55,6 +55,7 @@
                 {% set route_param = {} %}
             {% endif %}
             <form method="POST" action="{{ url_for(upload_route, **route_param) }}" enctype="multipart/form-data">
+                {{ csrf_field() }}
                 {% if ziel_plan_id is not none %}
                 <input type="hidden" name="ziel_plan_id" value="{{ ziel_plan_id }}">
                 {% endif %}

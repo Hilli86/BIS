@@ -48,6 +48,7 @@ def init_database_schema(db_path, verbose=False):
             create_column_if_not_exists(conn, 'Mitarbeiter', 'Email', 'ALTER TABLE Mitarbeiter ADD COLUMN Email TEXT NULL')
             create_column_if_not_exists(conn, 'Mitarbeiter', 'Handynummer', 'ALTER TABLE Mitarbeiter ADD COLUMN Handynummer TEXT NULL')
             create_column_if_not_exists(conn, 'Mitarbeiter', 'StartseiteNachLoginEndpunkt', 'ALTER TABLE Mitarbeiter ADD COLUMN StartseiteNachLoginEndpunkt TEXT NULL')
+            create_column_if_not_exists(conn, 'Mitarbeiter', 'PasswortWechselErforderlich', 'ALTER TABLE Mitarbeiter ADD COLUMN PasswortWechselErforderlich INTEGER NOT NULL DEFAULT 0')
         
         # ========== 2. Abteilung ==========
         create_table_if_not_exists(conn, 'Abteilung', '''
@@ -1284,8 +1285,14 @@ def init_database_schema(db_path, verbose=False):
         conn.commit()
         
         # BIS-Admin Abteilung und Benutzer erstellen (falls nicht vorhanden)
+        # Sicherheit: Es wird KEIN Default-Passwort mehr gesetzt. Bei leerer DB
+        # wird ein Admin mit zufälligem Passwort angelegt und einmalig via
+        # app.logger ausgegeben. Der Admin MUSS das Passwort beim ersten Login
+        # wechseln (Flag PasswortWechselErforderlich).
         if generate_password_hash:
-            # BIS-Admin Abteilung erstellen (falls nicht vorhanden)
+            import secrets as _secrets
+            import logging as _logging
+
             cursor.execute("SELECT ID FROM Abteilung WHERE Bezeichnung = 'BIS-Admin'")
             abteilung = cursor.fetchone()
             if not abteilung:
@@ -1296,16 +1303,38 @@ def init_database_schema(db_path, verbose=False):
                 abteilung_id = cursor.lastrowid
             else:
                 abteilung_id = abteilung['ID']
-            
-            # BIS-Admin Benutzer erstellen (falls nicht vorhanden)
+
+            cursor.execute("SELECT COUNT(*) AS cnt FROM Mitarbeiter")
+            mitarbeiter_count_row = cursor.fetchone()
+            mitarbeiter_count = mitarbeiter_count_row['cnt'] if mitarbeiter_count_row else 0
+
+            # Admin nur anlegen, wenn noch keine Mitarbeiter existieren (Initial-Setup)
             cursor.execute("SELECT ID FROM Mitarbeiter WHERE Personalnummer = '99999'")
             benutzer = cursor.fetchone()
-            if not benutzer:
-                passwort_hash = generate_password_hash('a')
-                cursor.execute('''
-                    INSERT INTO Mitarbeiter (Personalnummer, Vorname, Nachname, Aktiv, Passwort, PrimaerAbteilungID)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ''', ('99999', '', 'BIS-Admin', 1, passwort_hash, abteilung_id))
+            if not benutzer and mitarbeiter_count == 0:
+                initial_passwort = _secrets.token_urlsafe(18)
+                passwort_hash = generate_password_hash(initial_passwort)
+                # PasswortWechselErforderlich ist optional im Schema; Insert defensiv
+                try:
+                    cursor.execute('''
+                        INSERT INTO Mitarbeiter (Personalnummer, Vorname, Nachname, Aktiv, Passwort, PrimaerAbteilungID, PasswortWechselErforderlich)
+                        VALUES (?, ?, ?, ?, ?, ?, 1)
+                    ''', ('99999', '', 'BIS-Admin', 1, passwort_hash, abteilung_id))
+                except Exception:
+                    cursor.execute('''
+                        INSERT INTO Mitarbeiter (Personalnummer, Vorname, Nachname, Aktiv, Passwort, PrimaerAbteilungID)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', ('99999', '', 'BIS-Admin', 1, passwort_hash, abteilung_id))
+
+                _logger = _logging.getLogger('bis.init')
+                _logger.warning('')
+                _logger.warning('=' * 72)
+                _logger.warning('INITIAL-ADMIN ANGELEGT (einmalig)')
+                _logger.warning('  Personalnummer: 99999')
+                _logger.warning('  Passwort:       %s', initial_passwort)
+                _logger.warning('Bitte sofort nach dem ersten Login ein neues Passwort setzen.')
+                _logger.warning('=' * 72)
+                _logger.warning('')
             
             # BIS-Admin Mitarbeitern Admin-Berechtigung geben
             cursor.execute("SELECT ID FROM Berechtigung WHERE Schluessel = 'admin'")

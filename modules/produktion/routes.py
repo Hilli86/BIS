@@ -296,17 +296,14 @@ def etikettierung_bild(filepath):
         abort(403)
     
     try:
+        from utils.security import resolve_under_base, PathTraversalError
         base_folder = current_app.config.get('UPLOAD_BASE_FOLDER')
-        full_path = os.path.join(base_folder, filepath)
-        
-        # Sicherheitsprüfung: Datei muss im erlaubten Ordner sein
-        abs_base = os.path.abspath(base_folder)
-        abs_file = os.path.abspath(full_path)
-        if not abs_file.startswith(abs_base):
+        try:
+            full_path = resolve_under_base(base_folder, filepath)
+        except PathTraversalError:
             abort(403)
-        
-        # Prüfen ob Datei existiert
-        if not os.path.exists(full_path) or not os.path.isfile(full_path):
+
+        if not os.path.isfile(full_path):
             abort(404)
         
         # Verzeichnis und Dateiname extrahieren

@@ -5,7 +5,8 @@ Modulare Flask-Anwendung mit Blueprints
 Hauptdatei - nur Initialisierung und Blueprint-Registrierung
 """
 
-from flask import Flask, render_template, session, redirect, url_for, request, send_from_directory
+from flask import Flask, render_template, session, redirect, url_for, request, send_from_directory, jsonify
+from markupsafe import Markup
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from utils.navigation_history import (
@@ -13,7 +14,11 @@ from utils.navigation_history import (
     pop_navigation_back_redirect,
     record_navigation_after_request,
 )
+from utils.csrf import csrf
+from utils.rate_limit import limiter
+from utils.security_headers import init_security_headers
 import click
+import logging
 import os
 from config import config, DEV_SECRET_KEY_FALLBACK
 
@@ -27,15 +32,71 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 # Konfiguration laden
 config_name = os.environ.get('FLASK_ENV', 'default')
 app.config.from_object(config[config_name])
+app.config['FLASK_ENV_EFFECTIVE'] = config_name
 
-# Produktion: Session-Sicherheit – kein Default-Schlüssel
-if config_name == 'production':
-    sk = app.config.get('SECRET_KEY')
-    if not sk or sk == DEV_SECRET_KEY_FALLBACK:
+
+_FORBIDDEN_SECRET_KEYS = frozenset({
+    '',
+    DEV_SECRET_KEY_FALLBACK,
+    'bitte-in-.env-oder-umgebung-aendern',
+    'change-me',
+    'changeme',
+    'secret',
+    'dev',
+    'development',
+    'test',
+})
+
+_SECRET_KEY_PLACEHOLDER_TOKENS = (
+    'bitte-',
+    'example',
+    'placeholder',
+    'changeme',
+    'change-me',
+    'dev-key',
+    'fallback',
+)
+
+
+def _validate_secret_key(raw_key, env_name):
+    """Akzeptiert nur starke SECRET_KEY-Werte in Produktion und warnt sonst."""
+    is_production = env_name == 'production'
+    problems = []
+    if raw_key is None or raw_key in _FORBIDDEN_SECRET_KEYS:
+        problems.append('SECRET_KEY fehlt oder entspricht einem bekannten Default.')
+    else:
+        if len(raw_key) < 32:
+            problems.append('SECRET_KEY ist zu kurz (mind. 32 Zeichen erforderlich).')
+        lowered = raw_key.lower()
+        if any(token in lowered for token in _SECRET_KEY_PLACEHOLDER_TOKENS):
+            problems.append('SECRET_KEY enthält einen Platzhalter.')
+
+    if not problems:
+        return
+
+    if is_production:
         raise RuntimeError(
-            'Produktion (FLASK_ENV=production): SECRET_KEY muss per Umgebungsvariable gesetzt sein '
-            'und darf nicht dem Entwicklungs-Default entsprechen.'
+            'Produktion (FLASK_ENV=production): ' + ' '.join(problems)
+            + ' Bitte eine starke, per Umgebungsvariable gesetzte SECRET_KEY verwenden.'
         )
+
+    logging.getLogger('bis.security').warning(
+        'Unsicherer SECRET_KEY erkannt (%s): %s',
+        env_name,
+        ' '.join(problems),
+    )
+
+
+_validate_secret_key(app.config.get('SECRET_KEY'), config_name)
+
+# CSRF-Schutz (Flask-WTF) – global aktivieren
+csrf.init_app(app)
+
+# Rate-Limiting (flask-limiter) – global aktivieren; konkrete Limits via Dekoratoren
+limiter.init_app(app)
+
+# Security-Header (Flask-Talisman)
+init_security_headers(app)
 
 # Datenbank-Prüfung beim Start
 with app.app_context():
@@ -94,6 +155,13 @@ def wartung_faelligkeit_td_class(value):
     }[naechste_faelligkeit_stufe(value)]
 
 
+@app.template_filter('safe_color')
+def safe_color_filter(value, fallback='inherit'):
+    """Gibt nur gueltige Hex-Farben oder einen Fallback zurueck (CSS-Injection-Schutz)."""
+    from utils.security import validate_css_color
+    return validate_css_color(value, fallback=fallback)
+
+
 @app.template_filter('wartung_faelligkeit_badge_class')
 def wartung_faelligkeit_badge_class(value):
     """CSS-Klasse für Badges (Bootstrap text-bg-*)."""
@@ -113,6 +181,26 @@ def _ensure_menue_sichtbarkeit():
     if session.get('user_id') and not session.get('is_guest'):
         from utils.menue_definitions import get_menue_sichtbarkeit_fuer_mitarbeiter
         session['user_menue_sichtbarkeit'] = get_menue_sichtbarkeit_fuer_mitarbeiter(session['user_id'])
+
+
+_PASSWORT_WECHSEL_ERLAUBTE_ENDPUNKTE = {
+    'auth.passwort_aendern',
+    'auth.logout',
+    'auth.login',
+    'static',
+    'health_check',
+}
+
+
+@app.before_request
+def _enforce_password_change():
+    """Nutzer mit erzwungenem Passwort-Wechsel nur auf Passwort-Ändern-Seite lassen."""
+    if not session.get('passwort_wechsel_erforderlich'):
+        return None
+    endpoint = request.endpoint or ''
+    if endpoint in _PASSWORT_WECHSEL_ERLAUBTE_ENDPUNKTE:
+        return None
+    return redirect(url_for('auth.passwort_aendern'))
 
 
 @app.after_request
@@ -141,6 +229,22 @@ def menue_sichtbar(schluessel):
     """
     sichtbarkeit = session.get('user_menue_sichtbarkeit', {})
     return sichtbarkeit.get(schluessel, True)
+
+
+@app.template_global('csrf_field')
+def csrf_field():
+    """Rendert ein verstecktes Input-Feld mit aktuellem CSRF-Token."""
+    from flask_wtf.csrf import generate_csrf
+    return Markup(
+        '<input type="hidden" name="csrf_token" value="%s">' % generate_csrf()
+    )
+
+
+@app.get('/health')
+@csrf.exempt
+def health_check():
+    """Health-Check für Load-Balancer / Docker HEALTHCHECK."""
+    return jsonify(status='ok'), 200
 
 
 # Blueprints registrieren
@@ -276,7 +380,18 @@ def cli_vapid_verify():
 
 
 # ========== App starten ==========
+#
+# In Produktion wird die App über gunicorn gestartet (siehe Dockerfile und
+# deployment/bis.service). Für lokale Entwicklung:
+#
+#   flask --app app run            # Debug über FLASK_DEBUG=True steuerbar
+#
+# Ein direkter Aufruf (`python app.py`) ist bewusst nur für Entwicklung
+# gedacht und startet NICHT standardmäßig mit Debug=True/host=0.0.0.0.
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0')
+    debug_flag = app.config.get('DEBUG', False)
+    host = os.environ.get('BIS_DEV_HOST', '127.0.0.1')
+    port = int(os.environ.get('BIS_DEV_PORT', '5000'))
+    app.run(debug=debug_flag, host=host, port=port)
 

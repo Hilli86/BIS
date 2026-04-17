@@ -7,6 +7,7 @@
 
 {% if batch %}
 <form method="post" id="durchfuehrungBatchForm">
+  {{ csrf_field() }}
   {% if protokoll_kontext and protokoll_kontext.herkunft == 'jahresuebersicht' %}
   <input type="hidden" name="protokoll_herkunft" value="jahresuebersicht">
   <input type="hidden" name="jahr" value="{{ protokoll_kontext.jahr }}">
@@ -116,6 +117,7 @@
 {% else %}
 
 <form method="post" id="durchfuehrungSingleForm" enctype="multipart/form-data">
+  {{ csrf_field() }}
   {% if protokoll_kontext and protokoll_kontext.herkunft == 'jahresuebersicht' %}
   <input type="hidden" name="protokoll_herkunft" value="jahresuebersicht">
   <input type="hidden" name="jahr" value="{{ protokoll_kontext.jahr }}">

@@ -156,19 +156,59 @@ def format_schichtbuch_datum(s):
     return s
 
 
+def _ip_matches_trusted(remote_addr, trusted_entries):
+    """Prueft, ob ``remote_addr`` in einer Liste aus Hosts/Netzen liegt."""
+    if not remote_addr or not trusted_entries:
+        return False
+    try:
+        import ipaddress
+        ip = ipaddress.ip_address(remote_addr)
+    except (ValueError, TypeError):
+        return False
+    for entry in trusted_entries:
+        entry = (entry or '').strip()
+        if not entry:
+            continue
+        try:
+            if '/' in entry:
+                if ip in ipaddress.ip_network(entry, strict=False):
+                    return True
+            else:
+                if ip == ipaddress.ip_address(entry):
+                    return True
+        except ValueError:
+            continue
+    return False
+
+
 def get_client_ip(request):
     """
     Öffentliche Client-IP hinter einem Reverse-Proxy (z. B. nginx).
 
-    Erwartet gesetzte Proxy-Header (z. B. X-Forwarded-For / X-Real-IP); sonst
-    fällt die Funktion auf remote_addr zurück (nach ProxyFix in app.py ggf.
-    bereits aus X-Forwarded-* abgeleitet).
+    ``X-Forwarded-For`` / ``X-Real-IP`` werden nur ausgewertet, wenn die
+    TCP-Gegenstelle (``request.remote_addr``) in der Konfiguration unter
+    ``TRUSTED_PROXIES`` als vertrauenswuerdig gelistet ist. Andernfalls kann
+    ein Angreifer die Header frei setzen und damit Rate-Limiting, Audit-Logs
+    oder IP-basierte Checks umgehen.
     """
-    xff = (request.headers.get('X-Forwarded-For') or '').strip()
-    if xff:
-        return xff.split(',')[0].strip() or ''
-    xri = (request.headers.get('X-Real-IP') or '').strip()
-    if xri:
-        return xri
-    return getattr(request, 'remote_addr', None) or ''
+    remote = getattr(request, 'remote_addr', None) or ''
+    trusted = []
+    try:
+        from flask import current_app
+        cfg = current_app.config.get('TRUSTED_PROXIES') or ()
+        if isinstance(cfg, str):
+            trusted = [p.strip() for p in cfg.split(',') if p.strip()]
+        else:
+            trusted = list(cfg)
+    except Exception:
+        trusted = []
+
+    if _ip_matches_trusted(remote, trusted):
+        xff = (request.headers.get('X-Forwarded-For') or '').strip()
+        if xff:
+            return xff.split(',')[0].strip() or remote
+        xri = (request.headers.get('X-Real-IP') or '').strip()
+        if xri:
+            return xri
+    return remote
 

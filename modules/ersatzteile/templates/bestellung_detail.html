@@ -21,6 +21,7 @@
             {% endif %}
             {% if ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) and not bestellung.Gelöscht and bestellung.Status in ['Erstellt', 'Zur Freigabe', 'Freigegeben', 'Bestellt'] %}
             <form method="POST" action="{{ url_for('ersatzteile.bestellung_loeschen', bestellung_id=bestellung.ID) }}" class="d-inline m-0" onsubmit="return confirm('Möchten Sie diese Bestellung wirklich löschen?');">
+                {{ csrf_field() }}
                 <button type="submit" class="btn btn-sm btn-danger" title="Bestellung löschen">
                     <i class="bi bi-trash"></i> Löschen
                 </button>
@@ -121,6 +122,7 @@
                                 {% set prioritaet = bestellung.Prioritaet or 3 %}
                                 {% if bestellung.Status == 'Erstellt' and not bestellung.Gelöscht %}
                                 <form method="POST" action="{{ url_for('ersatzteile.bestellung_prioritaet_bearbeiten', bestellung_id=bestellung.ID) }}" class="d-inline">
+                                    {{ csrf_field() }}
                                     <div class="d-flex align-items-center gap-2">
                                         <select name="prioritaet" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
                                             <option value="1" {% if prioritaet == 1 %}selected{% endif %}>1 - Sehr niedrig</option>
@@ -196,6 +198,7 @@
                                 {{ bestellung.Lieferdatum[:10] if bestellung.Lieferdatum else '-' }}
                                 {% else %}
                                 <form method="POST" action="{{ url_for('ersatzteile.bestellung_lieferdatum_bearbeiten', bestellung_id=bestellung.ID) }}" class="d-flex flex-wrap align-items-center gap-2">
+                                    {{ csrf_field() }}
                                     <input type="date" name="lieferdatum" class="form-control form-control-sm" style="width: auto; max-width: 100%;" value="{{ bestellung.Lieferdatum[:10] if bestellung.Lieferdatum else '' }}">
                                     <button type="submit" class="btn btn-sm btn-primary">Speichern</button>
                                 </form>
@@ -235,6 +238,7 @@
         <div class="d-flex flex-wrap gap-2">
             {% if bestellung.Status == 'Erstellt' %}
             <form method="POST" action="{{ url_for('ersatzteile.bestellung_zur_freigabe', bestellung_id=bestellung.ID) }}" class="w-100">
+                {{ csrf_field() }}
                 <div class="row g-3">
                     <div class="col-md-12">
                         <label for="freigabe_bemerkung" class="form-label">Freigabebemerkung:</label>
@@ -283,6 +287,7 @@
                           action="{{ url_for('ersatzteile.bestellung_anfrage_zurueckziehen', bestellung_id=bestellung.ID) }}"
                           class="d-inline"
                           onsubmit="return confirm('Möchten Sie die Freigabeanfrage wirklich zurückziehen?');">
+                        {{ csrf_field() }}
                         <button type="submit" class="btn btn-outline-danger">
                             <i class="bi bi-arrow-counterclockwise"></i> Anfrage zurückziehen
                         </button>
@@ -300,6 +305,7 @@
                 <i class="bi bi-filetype-csv"></i> CSV exportieren
             </a>
             <form method="POST" action="{{ url_for('ersatzteile.bestellung_als_bestellt', bestellung_id=bestellung.ID) }}" class="d-inline">
+                {{ csrf_field() }}
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-check-circle"></i> Als bestellt markieren
                 </button>
@@ -316,6 +322,7 @@
                   action="{{ url_for('ersatzteile.bestellung_bestellstatus_zuruecksetzen', bestellung_id=bestellung.ID) }}"
                   class="d-inline"
                   onsubmit="return confirm('Bestellstatus auf „Erstellt“ zurücksetzen? Freigabe- und Bestelldaten (inkl. Unterschrift) werden gelöscht.');">
+                {{ csrf_field() }}
                 <button type="submit" class="btn btn-outline-warning">
                     <i class="bi bi-arrow-counterclockwise"></i> Bestellstatus zurücksetzen
                 </button>
@@ -332,6 +339,7 @@
             {% if bestellung.Status == 'Erledigt' %}
             <form method="POST" action="{{ url_for('ersatzteile.bestellung_stornieren', bestellung_id=bestellung.ID) }}" class="d-inline" 
                   onsubmit="return confirm('Möchten Sie diese Bestellung wirklich stornieren?');">
+                {{ csrf_field() }}
                 <button type="submit" class="btn btn-danger">
                     <i class="bi bi-x-circle"></i> Bestellung stornieren
                 </button>
@@ -356,6 +364,7 @@
     <div class="collapse" id="addPositionCollapse">
         <div class="card-body">
             <form method="POST" action="{{ url_for('ersatzteile.bestellung_position_hinzufuegen', bestellung_id=bestellung.ID) }}">
+                {{ csrf_field() }}
                 <div class="row g-3">
                     <div class="col-md-2">
                         <label class="form-label">ErsatzteilID:</label>
@@ -500,6 +509,7 @@
                                 </button>
                                 <form method="POST" action="{{ url_for('ersatzteile.bestellung_position_loeschen', bestellung_id=bestellung.ID, position_id=p.ID) }}" 
                                       onsubmit="return confirm('Position wirklich löschen?');" class="d-inline">
+                                    {{ csrf_field() }}
                                     <button type="submit" class="btn btn-sm btn-outline-danger">
                                         <i class="bi bi-trash"></i>
                                     </button>
@@ -508,6 +518,7 @@
                                 {% if bestellung.Status in ['Freigegeben', 'Bestellt'] and not bestellung.Gelöscht and not p.ErsatzteilID and p.Bestellnummer and p.Bezeichnung %}
                                 <form method="POST" action="{{ url_for('ersatzteile.bestellung_position_artikel_erstellen', bestellung_id=bestellung.ID, position_id=p.ID) }}" 
                                       onsubmit="return confirm('Artikel aus dieser Position erstellen?');" class="d-inline">
+                                    {{ csrf_field() }}
                                     <button type="submit" class="btn btn-sm btn-outline-success" title="Artikel erstellen">
                                         <i class="bi bi-plus-circle"></i>
                                     </button>
@@ -713,6 +724,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form method="POST" id="editPositionForm" action="">
+                {{ csrf_field() }}
                 <div class="modal-body">
                     <input type="hidden" id="edit_position_id" name="position_id">
                     <div class="mb-3">
@@ -781,6 +793,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="sichtbarkeitForm" method="POST" action="">
+                {{ csrf_field() }}
                 <div class="modal-body">
                     <div id="sichtbarkeitCheckboxen">
                         <div class="text-center">
@@ -940,9 +953,10 @@ function openErsatzteilModalDetail(lieferantId, targetForm) {
                 stack: error.stack,
                 name: error.name
             });
+            const esc = (window.BIS && window.BIS.escapeHtml) ? window.BIS.escapeHtml : (v => String(v == null ? '' : v));
             modalBody.innerHTML = `<div class="alert alert-danger">
                 <strong>Fehler beim Laden der Ersatzteile:</strong><br>
-                ${error.message || 'Unbekannter Fehler'}
+                ${esc(error.message || 'Unbekannter Fehler')}
             </div>`;
         });
 }
@@ -957,27 +971,38 @@ function renderErsatzteilListDetail(ersatzteile) {
         return;
     }
     
-    let html = '<div class="list-group">';
+    const esc = (window.BIS && window.BIS.escapeHtml) ? window.BIS.escapeHtml : (v => String(v == null ? '' : v));
+    const listGroup = document.createElement('div');
+    listGroup.className = 'list-group';
     ersatzteile.forEach(ersatzteil => {
         const bestandText = `${ersatzteil.bestand || 0} ${ersatzteil.einheit || ''}`.trim();
-        // Sicherstellen, dass alle Werte korrekt escaped sind
-        const preisValue = (ersatzteil.preis != null && ersatzteil.preis !== undefined) ? ersatzteil.preis : 'null';
-        const waehrungValue = (ersatzteil.waehrung || 'EUR').replace(/'/g, "\\'");
-        const bestellnummerEscaped = (ersatzteil.bestellnummer || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-        const bezeichnungEscaped = (ersatzteil.bezeichnung || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-        html += `
-            <a href="#" class="list-group-item list-group-item-action" onclick="selectErsatzteilDetail(${ersatzteil.id}, '${bestellnummerEscaped}', '${bezeichnungEscaped}', ${preisValue}, '${waehrungValue}', event)">
-                <div class="d-flex w-100 justify-content-between">
-                    <h6 class="mb-1">${ersatzteil.bestellnummer || 'Keine Bestellnummer'}</h6>
-                    <small>${bestandText}</small>
-                </div>
-                <p class="mb-1">${ersatzteil.bezeichnung || 'Keine Bezeichnung'}</p>
-                <small>ID: ${ersatzteil.id}</small>
-            </a>
+        const preis = (ersatzteil.preis != null) ? Number(ersatzteil.preis) : null;
+        const waehrung = (ersatzteil.waehrung || 'EUR');
+        const link = document.createElement('a');
+        link.href = '#';
+        link.className = 'list-group-item list-group-item-action';
+        link.innerHTML = `
+            <div class="d-flex w-100 justify-content-between">
+                <h6 class="mb-1">${esc(ersatzteil.bestellnummer || 'Keine Bestellnummer')}</h6>
+                <small>${esc(bestandText)}</small>
+            </div>
+            <p class="mb-1">${esc(ersatzteil.bezeichnung || 'Keine Bezeichnung')}</p>
+            <small>ID: ${esc(ersatzteil.id)}</small>
         `;
+        link.addEventListener('click', (event) => {
+            event.preventDefault();
+            selectErsatzteilDetail(
+                ersatzteil.id,
+                ersatzteil.bestellnummer || '',
+                ersatzteil.bezeichnung || '',
+                preis,
+                waehrung,
+                event
+            );
+        });
+        listGroup.appendChild(link);
     });
-    html += '</div>';
-    modalBody.innerHTML = html;
+    modalBody.replaceChildren(listGroup);
 }
 
 // Funktion zum Filtern der Ersatzteil-Liste
@@ -1579,6 +1604,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="unterschriftForm" method="POST" action="">
+                {{ csrf_field() }}
                 <div class="modal-body">
                     <p class="mb-3">Bitte unterschreiben Sie, um die Bestellung freizugeben:</p>
                     
@@ -1655,22 +1681,25 @@ async function ladeImportDateien(typ) {
             return;
         }
         
-        let html = '<div class="list-group">';
+        const esc = (window.BIS && window.BIS.escapeHtml) ? window.BIS.escapeHtml : (v => String(v == null ? '' : v));
+        const listGroup = document.createElement('div');
+        listGroup.className = 'list-group';
         gefilterteDateien.forEach(datei => {
-            const links = typeof importOrdnerRowLeftHtml === 'function'
+            const row = document.createElement('div');
+            row.className = 'list-group-item d-flex justify-content-between align-items-center gap-2';
+            const leftHtml = typeof importOrdnerRowLeftHtml === 'function'
                 ? importOrdnerRowLeftHtml(datei.name, datei.size)
-                : `<div><strong>${datei.name}</strong><br><small class="text-muted">${datei.size}</small></div>`;
-            html += `
-                <div class="list-group-item d-flex justify-content-between align-items-center gap-2">
-                    ${links}
-                    <button type="button" class="btn btn-sm btn-primary flex-shrink-0" onclick="verschiebeAusImport('${datei.name.replace(/'/g, "\\'")}', '${typ}', {{ bestellung.ID }})">
-                        <i class="bi bi-arrow-right"></i> Verwenden
-                    </button>
-                </div>
-            `;
+                : `<div><strong>${esc(datei.name)}</strong><br><small class="text-muted">${esc(datei.size)}</small></div>`;
+            row.innerHTML = leftHtml;
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-sm btn-primary flex-shrink-0';
+            btn.innerHTML = '<i class="bi bi-arrow-right"></i> Verwenden';
+            btn.addEventListener('click', () => verschiebeAusImport(datei.name, typ, {{ bestellung.ID }}));
+            row.appendChild(btn);
+            listGroup.appendChild(row);
         });
-        html += '</div>';
-        liste.innerHTML = html;
+        liste.replaceChildren(listGroup);
     } catch (error) {
         console.error('Fehler beim Laden der Dateien:', error);
         liste.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Dateien.</div>';
@@ -1808,6 +1837,7 @@ async function exportBestellungPDF(bestellungId) {
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="freigabebemerkungForm" method="POST" action="">
+                {{ csrf_field() }}
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="freigabebemerkung_text" class="form-label">Freigabebemerkung:</label>

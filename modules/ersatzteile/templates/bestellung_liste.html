@@ -701,6 +701,11 @@ function loescheBestellung(bestellungId) {
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = '{{ url_for("ersatzteile.bestellung_loeschen", bestellung_id=0) }}'.replace('/0', `/${bestellungId}`);
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrf_token';
+    csrfInput.value = (window.BIS && window.BIS.csrfToken) || '';
+    form.appendChild(csrfInput);
     document.body.appendChild(form);
     form.submit();
 }

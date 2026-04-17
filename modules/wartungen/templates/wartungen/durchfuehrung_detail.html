@@ -191,6 +191,7 @@
   </div>
   <div class="card-body">
     <form method="post" action="{{ url_for('wartungen.durchfuehrung_ersatzteil_verknuepfen', durchfuehrung_id=d.ID) }}" id="ersatzteilZuordnenFormWd">
+      {{ csrf_field() }}
       <div class="row g-3">
         <div class="col-md-4">
           <label class="form-label"><strong>Ersatzteil-ID:</strong></label>

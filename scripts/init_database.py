@@ -737,18 +737,28 @@ def init_database():
         if benutzer:
             user_id = benutzer['ID']
             print(f"[SKIP] Benutzer 'BIS-Admin' existiert bereits (ID: {user_id})")
+            initial_passwort = None
         else:
-            # Passwort hashen
-            passwort_hash = generate_password_hash('a')
-            
-            cursor.execute('''
-                INSERT INTO Mitarbeiter (Personalnummer, Vorname, Nachname, Aktiv, Passwort, PrimaerAbteilungID)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', ('99999', '', 'BIS-Admin', 1, passwort_hash, abteilung_id))
+            # Zufälliges Initial-Passwort erzeugen (wird einmalig ausgegeben).
+            import secrets as _secrets
+            initial_passwort = _secrets.token_urlsafe(18)
+            passwort_hash = generate_password_hash(initial_passwort)
+
+            try:
+                cursor.execute('''
+                    INSERT INTO Mitarbeiter (Personalnummer, Vorname, Nachname, Aktiv, Passwort, PrimaerAbteilungID, PasswortWechselErforderlich)
+                    VALUES (?, ?, ?, ?, ?, ?, 1)
+                ''', ('99999', '', 'BIS-Admin', 1, passwort_hash, abteilung_id))
+            except Exception:
+                cursor.execute('''
+                    INSERT INTO Mitarbeiter (Personalnummer, Vorname, Nachname, Aktiv, Passwort, PrimaerAbteilungID)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', ('99999', '', 'BIS-Admin', 1, passwort_hash, abteilung_id))
             user_id = cursor.lastrowid
             print(f"[OK] Benutzer 'BIS-Admin' erstellt (ID: {user_id})")
             print(f"  - Personalnummer: 99999")
-            print(f"  - Passwort: a")
+            print(f"  - Passwort (einmalig): {initial_passwort}")
+            print(f"  - Bitte sofort nach dem ersten Login aendern!")
         
         # Änderungen speichern
         conn.commit()
@@ -758,9 +768,13 @@ def init_database():
         print("  [ERFOLG] Datenbank erfolgreich initialisiert!")
         print("=" * 70)
         print()
-        print("Login-Daten:")
-        print("  Personalnummer: 99999")
-        print("  Passwort: a")
+        if initial_passwort:
+            print("Login-Daten (einmalig, bitte sicher notieren):")
+            print("  Personalnummer: 99999")
+            print(f"  Passwort:       {initial_passwort}")
+            print("  Hinweis: Beim ersten Login ist eine Passwort-Aenderung erforderlich.")
+        else:
+            print("Bestehender BIS-Admin wurde beibehalten; kein neues Passwort gesetzt.")
         print()
         
     except Exception as e:

@@ -13,6 +13,7 @@
                 </div>
                 <div class="card-body">
                     <form method="POST" action="{{ url_for('auth.profil') }}">
+                        {{ csrf_field() }}
                         <div class="row mb-3">
                             <div class="col-md-6">
                                 <label for="personalnummer" class="form-label">
@@ -330,6 +331,7 @@
                 </div>
                 <div class="card-body">
                     <form method="POST" action="{{ url_for('auth.passwort_aendern') }}">
+                        {{ csrf_field() }}
                         <div class="mb-3">
                             <label for="altes_passwort" class="form-label">
                                 <i class="bi bi-lock"></i> Aktuelles Passwort

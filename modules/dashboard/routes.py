@@ -6,6 +6,7 @@ Routes für Dashboard-Übersicht und API-Endpunkte
 from flask import render_template, request, redirect, url_for, session, jsonify, current_app
 from . import dashboard_bp
 from utils import get_db_connection, get_sichtbare_abteilungen_fuer_mitarbeiter, login_required
+from utils.auth_guards import is_authenticated_user
 from utils.helpers import row_to_dict
 from utils.benachrichtigungen import (
     ziel_url_fuer_benachrichtigung,
@@ -49,9 +50,9 @@ def api_dashboard():
             },
         })
     
-    if 'user_id' not in session:
+    if not is_authenticated_user(session):
         return jsonify({'error': 'Nicht angemeldet'}), 401
-    
+
     mitarbeiter_id = session.get('user_id')
     
     try:
@@ -80,11 +81,9 @@ def api_dashboard():
                 },
                 'wartungen_zusammenfassung': wartungen_zusammenfassung,
             })
-    except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"Dashboard API Fehler: {error_details}")
-        return jsonify({'success': False, 'error': str(e), 'details': error_details}), 500
+    except Exception:
+        current_app.logger.exception('Dashboard API Fehler')
+        return jsonify({'success': False, 'error': 'Interner Fehler.'}), 500
 
 
 @dashboard_bp.route('/benachrichtigungen')
@@ -105,11 +104,12 @@ def api_benachrichtigungen_ungelesen():
 
 
 @dashboard_bp.route('/api/benachrichtigungen')
+@login_required
 def api_benachrichtigungen():
     """API-Endpoint für Benachrichtigungen"""
-    if 'user_id' not in session:
+    if not is_authenticated_user(session):
         return jsonify({'error': 'Nicht angemeldet'}), 401
-    
+
     user_id = session.get('user_id')
     
     with get_db_connection() as conn:

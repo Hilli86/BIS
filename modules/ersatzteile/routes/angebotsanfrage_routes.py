@@ -1243,11 +1243,14 @@ def angebotsanfrage_datei_anzeigen(filepath):
         flash('Ungültiger Dateipfad.', 'danger')
         return redirect(url_for('ersatzteile.angebotsanfrage_liste'))
     
-    # Pfad für Dateisystem: Backslashes für Windows
-    filepath_for_fs = filepath.replace('/', os.sep)
-    full_path = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], filepath_for_fs)
-    
-    if not os.path.exists(full_path):
+    from utils.security import resolve_under_base, PathTraversalError
+    try:
+        full_path = resolve_under_base(current_app.config['UPLOAD_BASE_FOLDER'], filepath)
+    except PathTraversalError:
+        flash('Ungültiger Dateipfad.', 'danger')
+        return redirect(url_for('ersatzteile.angebotsanfrage_liste'))
+
+    if not os.path.isfile(full_path):
         flash('Datei nicht gefunden.', 'danger')
         return redirect(url_for('ersatzteile.angebotsanfrage_liste'))
     

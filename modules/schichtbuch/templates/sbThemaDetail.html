@@ -45,6 +45,7 @@
                       data-has-lagerbuchungen="{{ '1' if thema_hat_lagerbuchungen else '0' }}"
                       data-kann-rueckbuchen="{{ '1' if kann_artikel_rueckbuchen else '0' }}"
                       onsubmit="return confirmThemaLoeschen(this);">
+                    {{ csrf_field() }}
                     <button type="submit" class="btn btn-sm btn-light text-danger" title="Thema löschen">
                         <i class="bi bi-trash"></i> <span class="d-none d-sm-inline">Löschen</span>
                     </button>
@@ -333,6 +334,7 @@
         </div>
         <div class="card-body">
             <form method="POST" action="{{ url_for('ersatzteile.thema_verknuepfen', thema_id=thema.ID) }}" id="ersatzteilZuordnenForm">
+                {{ csrf_field() }}
                 <div class="row g-3">
                     <div class="col-md-4">
                         <label class="form-label"><strong>Ersatzteil-ID:</strong></label>
@@ -382,6 +384,7 @@
         </div>
         <div class="card-body">
             <form method="POST">
+                {{ csrf_field() }}
                 <div class="mb-3">
                     <label for="bemerkung" class="form-label fw-bold">Bemerkung</label>
                     <textarea class="form-control" id="bemerkung" name="bemerkung" rows="4" required></textarea>
@@ -801,6 +804,7 @@ async function loadDateienListe(themaId) {
                             ${isAdmin ? `
                                 <form method="POST" action="/schichtbuch/thema/${currentThemaId}/datei/${datei.id}/loeschen" 
                                       onsubmit="return confirm('Datei wirklich löschen?');" class="mt-2">
+                                    <input type="hidden" name="csrf_token" value="${window.BIS && window.BIS.csrfToken || ''}">
                                     <button type="submit" class="btn btn-sm btn-danger w-100">
                                         <i class="bi bi-trash"></i> Löschen
                                     </button>
@@ -830,6 +834,7 @@ async function loadDateienListe(themaId) {
                     ${isAdmin ? `
                         <form method="POST" action="/schichtbuch/thema/${currentThemaId}/datei/${datei.id}/loeschen" 
                               onsubmit="return confirm('Datei wirklich löschen?');" class="d-inline ms-2">
+                            <input type="hidden" name="csrf_token" value="${window.BIS && window.BIS.csrfToken || ''}">
                             <button type="submit" class="btn btn-sm btn-danger">
                                 <i class="bi bi-trash"></i>
                             </button>

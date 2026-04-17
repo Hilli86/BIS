@@ -21,6 +21,7 @@ from modules.ersatzteile.services import (
     rueckbuche_lager_fuer_geloeschtes_thema,
 )
 from utils.file_handling import save_uploaded_file, create_upload_folder, originale_loeschen_aus_formular, loesche_import_kopie_nach_upload
+from utils.security import safe_redirect_target
 
 
 def get_datei_anzahl(thema_id):
@@ -202,8 +203,8 @@ def add_bemerkung():
     bemerkung_text = request.form.get('bemerkung')
     status_id = request.form.get('status_id')
     taetigkeit_id = request.form.get('taetigkeit_id')
-    next_url = request.form.get('next') or url_for('schichtbuch.themaliste')
-    
+    next_url = safe_redirect_target(request.form.get('next'), url_for('schichtbuch.themaliste'))
+
 
     if not thema_id or not bemerkung_text:
         flash("Fehler: Thema oder Bemerkung fehlt.", "danger")
@@ -546,7 +547,7 @@ def thema_detail(thema_id):
         if darf_thema_gewerk_aendern:
             bereiche_gewerk_edit, gewerke_gewerk_edit = services.get_bereiche_gewerke_fuer_gewerk_select(conn)
 
-    previous_page = request.args.get('next') or url_for('schichtbuch.themaliste')
+    previous_page = safe_redirect_target(request.args.get('next'), url_for('schichtbuch.themaliste'))
     
     # Dateianzahl ermitteln
     datei_anzahl = get_datei_anzahl(thema_id)
@@ -600,7 +601,7 @@ def thema_gewerk_aendern(thema_id):
         flash('Ungültige Gewerk-Auswahl.', 'warning')
         return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
 
-    next_url = request.form.get('next') or url_for('schichtbuch.thema_detail', thema_id=thema_id)
+    next_url = safe_redirect_target(request.form.get('next'), url_for('schichtbuch.thema_detail', thema_id=thema_id))
 
     with get_db_connection() as conn:
         if not services.check_thema_berechtigung(thema_id, mitarbeiter_id, conn):
@@ -784,7 +785,7 @@ def delete_thema(thema_id):
     kann_rueckbuchen = 'admin' in perms or 'artikel_buchen' in perms
     rueckbuchen_gewuenscht = request.form.get('rueckbuchen_ersatzteile') == '1'
 
-    next_url = request.referrer or url_for('schichtbuch.themaliste')
+    next_url = safe_redirect_target(request.referrer, url_for('schichtbuch.themaliste'))
     rueckbuchungs_hinweis = None
 
     try:
@@ -837,7 +838,7 @@ def delete_bemerkung(bemerkung_id):
         conn.execute('UPDATE SchichtbuchBemerkungen SET Gelöscht = 1 WHERE ID = ?', (bemerkung_id,))
         conn.commit()
     flash(f'Bemerkung #{bemerkung_id} wurde gelöscht.', 'info')
-    next_url = request.referrer or url_for('schichtbuch.themaliste')
+    next_url = safe_redirect_target(request.referrer, url_for('schichtbuch.themaliste'))
     return redirect(next_url)
 
 
@@ -1294,22 +1295,27 @@ def thema_datei_download(thema_id, filename):
         if not berechtigt:
             return "Kein Zugriff auf dieses Thema", 403
         
-        # Prüfe ob Datei zu diesem Thema gehört (über Dateipfad)
+        # Nur Dateien, die explizit zu diesem Thema-Ordner gehoeren und
+        # deren Dateiname exakt dem angeforderten Namen entspricht.
+        expected_suffix = f'Schichtbuch/Themen/{int(thema_id)}/{filename}'
         datei = conn.execute('''
             SELECT Dateipfad FROM Datei
-            WHERE BereichTyp = 'Thema' AND BereichID = ? AND Dateipfad LIKE ?
-        ''', (thema_id, f'%{filename}')).fetchone()
+            WHERE BereichTyp = 'Thema' AND BereichID = ?
+              AND REPLACE(Dateipfad, '\\', '/') = ?
+        ''', (thema_id, expected_suffix)).fetchone()
         
         if not datei:
             return "Datei nicht gefunden", 404
     
-    # Dateipfad aus Datenbank verwenden
-    filepath = os.path.join(current_app.config['UPLOAD_BASE_FOLDER'], datei['Dateipfad'].replace('/', os.sep))
-    
-    # Sicherheitsprüfung: Datei muss im erlaubten Ordner sein
-    if not os.path.exists(filepath) or not os.path.abspath(filepath).startswith(os.path.abspath(current_app.config['UPLOAD_BASE_FOLDER'])):
+    from utils.security import resolve_under_base, PathTraversalError
+    try:
+        filepath = resolve_under_base(current_app.config['UPLOAD_BASE_FOLDER'], datei['Dateipfad'])
+    except PathTraversalError:
         return "Ungültiger Dateipfad", 403
-    
+
+    if not os.path.isfile(filepath):
+        return "Datei nicht gefunden", 404
+
     return send_from_directory(os.path.dirname(filepath), os.path.basename(filepath))
 
 

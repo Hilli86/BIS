@@ -359,7 +359,7 @@ window.SB_KANN_RUECKBUCHEN = '{{ "1" if kann_artikel_rueckbuchen else "0" }}';
         {% for thema in themen %}
     {% set bs = bemerk_dict.get(thema.ID) or [] %}
     {% set letzte = bs[0] if bs else none %}
-    <tr class="thema-row thema-row-kopf" style="color: {{ thema.Farbe or 'inherit' }}; cursor: pointer;" onclick="window.location.href='{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}'">
+    <tr class="thema-row thema-row-kopf" style="color: {{ thema.Farbe|safe_color('inherit') }}; cursor: pointer;" onclick="window.location.href='{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}'">
       <td>
         <span class="d-inline-flex align-items-center gap-1">
           <a href="{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}" class="text-decoration-none fw-bold" onclick="event.stopPropagation();">
@@ -389,7 +389,7 @@ window.SB_KANN_RUECKBUCHEN = '{{ "1" if kann_artikel_rueckbuchen else "0" }}';
         {% endif %}
       </td>
       <td class="sb-tl-status-wrap">
-        <span class="badge rounded-pill" style="background-color: {{ thema.Farbe|default('#ccc')|trim }}; color: #fff;">
+        <span class="badge rounded-pill" style="background-color: {{ thema.Farbe|safe_color('#ccc') }}; color: #fff;">
           {{ thema.Status }}
         </span>
       </td>
@@ -416,6 +416,7 @@ window.SB_KANN_RUECKBUCHEN = '{{ "1" if kann_artikel_rueckbuchen else "0" }}';
                 data-has-lagerbuchungen="{{ '1' if thema.ID in themen_mit_lagerbuchungen else '0' }}"
                 data-kann-rueckbuchen="{{ '1' if kann_artikel_rueckbuchen else '0' }}"
                 onsubmit="return confirmThemaLoeschen(this);">
+            {{ csrf_field() }}
             <button type="submit" class="btn btn-sm btn-outline-danger"
                     title="Thema löschen">
                 <i class="bi bi-trash"></i>
@@ -425,7 +426,7 @@ window.SB_KANN_RUECKBUCHEN = '{{ "1" if kann_artikel_rueckbuchen else "0" }}';
       </td>
     </tr>
     {% if letzte and letzte.Bemerkung %}
-    <tr class="thema-row sb-tl-follow" style="color: {{ thema.Farbe or 'inherit' }}; cursor: pointer;" onclick="window.location.href='{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}'">
+    <tr class="thema-row sb-tl-follow" style="color: {{ thema.Farbe|safe_color('inherit') }}; cursor: pointer;" onclick="window.location.href='{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}'">
       <td></td>
       <td colspan="5" class="text-body sb-tl-bemerkung-text pt-0 pb-2">{{ letzte.Bemerkung }}</td>
       <td class="sb-tl-follow-actions-cell p-0" onclick="event.stopPropagation();" aria-hidden="true"></td>
@@ -461,6 +462,7 @@ window.SB_KANN_RUECKBUCHEN = '{{ "1" if kann_artikel_rueckbuchen else "0" }}';
     <tr class="collapse collapse-row table-light" id="newBemerkung{{ thema.ID }}">
       <td colspan="7">
         <form action="{{ url_for('schichtbuch.add_bemerkung') }}" method="post" class="mt-2">
+          {{ csrf_field() }}
           <input type="hidden" name="thema_id" value="{{ thema.ID }}">
           <input type="hidden" name="next" value="{{ request.full_path }}">
           
@@ -523,7 +525,7 @@ window.SB_KANN_RUECKBUCHEN = '{{ "1" if kann_artikel_rueckbuchen else "0" }}';
                 {% for thema in themen %}
                 {% set bs_m = bemerk_dict.get(thema.ID) or [] %}
                 {% set letzte_m = bs_m[0] if bs_m else none %}
-                <div class="thema-card-mobile mb-3" data-thema-id="{{ thema.ID }}" style="color: {{ thema.Farbe or 'inherit' }};">
+                <div class="thema-card-mobile mb-3" data-thema-id="{{ thema.ID }}" style="color: {{ thema.Farbe|safe_color('inherit') }};">
                     <div class="card shadow-sm thema-card-clickable" onclick="window.location.href='{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID, next=request.full_path) }}'">
                         <!-- Card Header: ID + Status -->
                         <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center gap-2">
@@ -541,7 +543,7 @@ window.SB_KANN_RUECKBUCHEN = '{{ "1" if kann_artikel_rueckbuchen else "0" }}';
                               </button>
                               {% endif %}
                             </span>
-                            <span class="badge rounded-pill flex-shrink-0" style="background-color: {{ thema.Farbe|default('#ccc')|trim }}; color: #fff;">
+                            <span class="badge rounded-pill flex-shrink-0" style="background-color: {{ thema.Farbe|safe_color('#ccc') }}; color: #fff;">
                                 {{ thema.Status }}
                             </span>
                         </div>
@@ -615,6 +617,7 @@ window.SB_KANN_RUECKBUCHEN = '{{ "1" if kann_artikel_rueckbuchen else "0" }}';
                                       data-has-lagerbuchungen="{{ '1' if thema.ID in themen_mit_lagerbuchungen else '0' }}"
                                       data-kann-rueckbuchen="{{ '1' if kann_artikel_rueckbuchen else '0' }}"
                                       onsubmit="return confirmThemaLoeschen(this);">
+                                    {{ csrf_field() }}
                                     <button type="submit" class="btn btn-sm btn-outline-danger w-100"
                                             title="Thema löschen">
                                         <i class="bi bi-trash"></i>
@@ -629,6 +632,7 @@ window.SB_KANN_RUECKBUCHEN = '{{ "1" if kann_artikel_rueckbuchen else "0" }}';
                         <div class="card shadow-sm">
                             <div class="card-body">
                                 <form action="{{ url_for('schichtbuch.add_bemerkung') }}" method="post" class="mt-2" onclick="event.stopPropagation();">
+                                    {{ csrf_field() }}
                                     <input type="hidden" name="thema_id" value="{{ thema.ID }}">
                                     <input type="hidden" name="next" value="{{ request.full_path }}">
                                     
@@ -727,6 +731,15 @@ function escapeHtml(s) {
 
 function escapeHtmlBr(s) {
   return String(s ?? '').split('\n').map(escapeHtml).join('<br>');
+}
+
+function safeCssColor(value, fallback) {
+  if (fallback === undefined) fallback = 'inherit';
+  if (!value) return fallback;
+  const v = String(value).trim();
+  if (v === 'inherit' || v === 'transparent' || v === 'currentColor' || v === 'currentcolor') return v;
+  if (/^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(v)) return v;
+  return fallback;
 }
 
 function renderZusatzGewerkeBadges(zusatz, mobileBlock) {
@@ -946,7 +959,7 @@ document.addEventListener("submit", async (e) => {
           const badge = themaCard.querySelector(".badge");
           if (badge) {
             badge.textContent = data.neuer_status;
-            badge.style.backgroundColor = data.neue_farbe;
+            badge.style.backgroundColor = safeCssColor(data.neue_farbe, '#ccc');
           }
         }
       }
@@ -1014,7 +1027,7 @@ document.addEventListener("submit", async (e) => {
           const badge = themaRow.querySelector(".badge");
           if (badge) {
             badge.textContent = data.neuer_status;
-            badge.style.backgroundColor = data.neue_farbe;
+            badge.style.backgroundColor = safeCssColor(data.neue_farbe, '#ccc');
           }
         }
 
@@ -1091,7 +1104,7 @@ async function loadMoreThemen() {
         if (isMobile && cardsContainer) {
           // Mobile: Card erstellen
           let cardHtml = `
-            <div class="thema-card-mobile mb-3" data-thema-id="${thema.ID}" style="color: ${thema.Farbe || 'inherit'};">
+            <div class="thema-card-mobile mb-3" data-thema-id="${thema.ID}" style="color: ${safeCssColor(thema.Farbe, 'inherit')};">
               <div class="card shadow-sm thema-card-clickable" onclick="window.location.href='${detailUrl}'">
                 <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center gap-2">
                   <span class="d-inline-flex align-items-center gap-1" onclick="event.stopPropagation();">
@@ -1103,7 +1116,7 @@ async function loadMoreThemen() {
                       <i class="bi bi-chevron-down sb-bemerk-chevron" aria-hidden="true"></i>
                     </button>` : ''}
                   </span>
-                  <span class="badge rounded-pill flex-shrink-0" style="background-color: ${thema.Farbe || '#ccc'}; color: #fff;">
+                  <span class="badge rounded-pill flex-shrink-0" style="background-color: ${safeCssColor(thema.Farbe, '#ccc')}; color: #fff;">
                     ${escapeHtml(thema.Status)}
                   </span>
                 </div>
@@ -1160,6 +1173,7 @@ async function loadMoreThemen() {
                           data-has-lagerbuchungen="${thema.HatVerbuchteErsatzteile ? '1' : '0'}"
                           data-kann-rueckbuchen="${window.SB_KANN_RUECKBUCHEN || '0'}"
                           onsubmit="return confirmThemaLoeschen(this);">
+                      <input type="hidden" name="csrf_token" value="${window.BIS && window.BIS.csrfToken || ''}">
                       <button type="submit" class="btn btn-sm btn-outline-danger w-100"
                               title="Thema löschen">
                         <i class="bi bi-trash"></i>
@@ -1175,6 +1189,7 @@ async function loadMoreThemen() {
                 <div class="card shadow-sm">
                   <div class="card-body">
                     <form action="/schichtbuch/themaliste/add" method="post" class="mt-2" onclick="event.stopPropagation();">
+                      <input type="hidden" name="csrf_token" value="${window.BIS && window.BIS.csrfToken || ''}">
                       <input type="hidden" name="thema_id" value="${thema.ID}">
                       <input type="hidden" name="next" value="${window.location.pathname}${window.location.search}">
                       <div class="mb-2">
@@ -1210,7 +1225,7 @@ async function loadMoreThemen() {
           if (!tbodyEl) return;
           const themaRow = document.createElement('tr');
           themaRow.className = 'thema-row thema-row-kopf';
-          themaRow.style.color = thema.Farbe || 'inherit';
+          themaRow.style.color = safeCssColor(thema.Farbe, 'inherit');
           themaRow.style.cursor = 'pointer';
           themaRow.onclick = () => { window.location.href = detailUrl; };
           const b0 = bemerkungen[0];
@@ -1230,7 +1245,7 @@ async function loadMoreThemen() {
             <td class="text-nowrap sb-tl-datum text-muted">${b0 ? formatSchichtbuchDatum(b0.Datum) : '–'}</td>
             <td class="sb-tl-bereich text-body">${escapeHtml(thema.Bereich)} – ${escapeHtml(thema.Gewerk)}${renderZusatzGewerkeBadges(thema.ZusatzGewerke, false)}</td>
             <td class="sb-tl-status-wrap">
-              <span class="badge rounded-pill" style="background-color: ${thema.Farbe || '#ccc'}; color: #fff;">
+              <span class="badge rounded-pill" style="background-color: ${safeCssColor(thema.Farbe, '#ccc')}; color: #fff;">
                 ${escapeHtml(thema.Status)}
               </span>
             </td>
@@ -1257,6 +1272,7 @@ async function loadMoreThemen() {
                       data-has-lagerbuchungen="${thema.HatVerbuchteErsatzteile ? '1' : '0'}"
                       data-kann-rueckbuchen="${window.SB_KANN_RUECKBUCHEN || '0'}"
                       onsubmit="return confirmThemaLoeschen(this);">
+                  <input type="hidden" name="csrf_token" value="${window.BIS && window.BIS.csrfToken || ''}">
                   <button type="submit" class="btn btn-sm btn-outline-danger"
                           title="Thema löschen">
                     <i class="bi bi-trash"></i>
@@ -1271,7 +1287,7 @@ async function loadMoreThemen() {
           if (b0 && b0.Bemerkung) {
             const followRow = document.createElement('tr');
             followRow.className = 'thema-row sb-tl-follow';
-            followRow.style.color = thema.Farbe || 'inherit';
+            followRow.style.color = safeCssColor(thema.Farbe, 'inherit');
             followRow.style.cursor = 'pointer';
             followRow.onclick = () => { window.location.href = detailUrl; };
             followRow.innerHTML = `
@@ -1288,6 +1304,7 @@ async function loadMoreThemen() {
           collapseRow.innerHTML = `
             <td colspan="7">
               <form action="/schichtbuch/themaliste/add" method="post" class="mt-2">
+                <input type="hidden" name="csrf_token" value="${window.BIS && window.BIS.csrfToken || ''}">
                 <input type="hidden" name="thema_id" value="${thema.ID}">
                 <input type="hidden" name="next" value="${window.location.pathname}${window.location.search}">
                 

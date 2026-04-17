@@ -58,6 +58,7 @@
             {% if 'admin' in session.get('user_berechtigungen', []) %}
             <form method="POST" action="{{ url_for('ersatzteile.ersatzteil_loeschen', ersatzteil_id=ersatzteil.ID) }}" 
                   onsubmit="return confirm('Ersatzteil wirklich löschen?');" class="d-inline">
+                {{ csrf_field() }}
                 <button type="submit" class="btn btn-sm btn-light">
                     <i class="bi bi-trash"></i> <span class="d-none d-sm-inline">Löschen</span>
                 </button>
@@ -236,6 +237,7 @@
             {% if ersatzteil.ArtikelfotoPfad %}
             <form method="POST" action="{{ url_for('ersatzteile.ersatzteil_artikelfoto_loeschen', ersatzteil_id=ersatzteil.ID) }}" 
                   onsubmit="return confirm('Artikelfoto wirklich löschen?');" class="d-inline">
+                {{ csrf_field() }}
                 <!-- Filter-Parameter als versteckte Felder übergeben -->
                 {% if filter_params.kategorie %}
                 <input type="hidden" name="kategorie" value="{{ filter_params.kategorie }}">
@@ -298,6 +300,7 @@
             <hr>
             <form method="POST" action="{{ url_for('ersatzteile.ersatzteil_artikelfoto_upload', ersatzteil_id=ersatzteil.ID) }}" 
                   enctype="multipart/form-data">
+                {{ csrf_field() }}
                 <!-- Filter-Parameter als versteckte Felder übergeben -->
                 {% if filter_params.kategorie %}
                 <input type="hidden" name="kategorie" value="{{ filter_params.kategorie }}">
@@ -353,6 +356,7 @@
             <small class="form-text text-muted d-block mb-2">Der Server lädt die Seite bzw. erkennt Bild-URLs (z. B. .jpg, .png, .webp) ohne HTML-Parsing; Auswahl erfolgt im Dialog.</small>
             <p class="form-label fw-bold mb-2 mt-3">Oder Artikelfoto von einem anderen BIS-Artikel kopieren</p>
             <form method="POST" action="{{ url_for('ersatzteile.ersatzteil_artikelfoto_kopieren_von_artikel', ersatzteil_id=ersatzteil.ID) }}" class="mb-2">
+                {{ csrf_field() }}
                 <div class="input-group">
                     <input type="text" class="form-control" name="quelle_artikelkennung" id="artikelfoto_kopie_quelle"
                            placeholder="Bestellnummer oder Hersteller-Artikelnummer" autocomplete="off" maxlength="200">
@@ -394,6 +398,7 @@
             <small class="form-text text-muted d-block mb-2">Es wird genau ein passender, nicht gelöschter Artikel benötigt; Sie müssen auf den Quell-Artikel Zugriff haben.</small>
             <form id="artikelfotoUploadVonUrlForm" method="POST"
                   action="{{ url_for('ersatzteile.ersatzteil_artikelfoto_upload_von_url', ersatzteil_id=ersatzteil.ID) }}">
+                {{ csrf_field() }}
                 <input type="hidden" name="image_url" id="artikelfoto_upload_von_url_value" value="">
                 {% if filter_params.kategorie %}
                 <input type="hidden" name="kategorie" value="{{ filter_params.kategorie }}">
@@ -495,6 +500,7 @@
     </div>
     <div class="card-body">
         <form method="POST" action="{{ url_for('ersatzteile.lagerbuchung', ersatzteil_id=ersatzteil.ID) }}">
+            {{ csrf_field() }}
             <div class="row g-3">
                 <div class="col-md-3">
                     <label class="form-label"><strong>Typ:</strong></label>

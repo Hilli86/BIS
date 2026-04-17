@@ -9,6 +9,7 @@
     </div>
     <div class="card-body">
         <form method="POST" enctype="multipart/form-data">
+            {{ csrf_field() }}
             <!-- Filter-Parameter als versteckte Felder übergeben -->
             {% if filter_params.kategorie %}
             <input type="hidden" name="kategorie" value="{{ filter_params.kategorie }}">
