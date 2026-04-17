@@ -10,6 +10,63 @@ from utils.abteilungen import (
 )
 
 INTERVALL_EINHEITEN = ('Tag', 'Woche', 'Monat')
+ERINNERUNG_TAGE_VOR_MAX = 365
+
+
+def _parse_erinnerung_tage_vor(raw):
+    """Formular/DB: leer → None; sonst 0 … ERINNERUNG_TAGE_VOR_MAX."""
+    if raw is None:
+        return None
+    if isinstance(raw, str) and not raw.strip():
+        return None
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        raise ValueError('Erinnerung (Tage vor Fälligkeit): bitte eine ganze Zahl eingeben.') from None
+    if n < 0 or n > ERINNERUNG_TAGE_VOR_MAX:
+        raise ValueError(
+            f'Erinnerung (Tage vor Fälligkeit): Wert zwischen 0 und {ERINNERUNG_TAGE_VOR_MAX}.',
+        ) from None
+    return n
+
+
+def _parse_termin_vereinbart_datum(raw, termin_vereinbart_ja):
+    """Nur bei vereinbartem Termin; sonst None. Rückgabe YYYY-MM-DD oder None."""
+    if not termin_vereinbart_ja:
+        return None
+    s = (raw or '').strip() if raw is not None else ''
+    if not s:
+        return None
+    if len(s) < 10:
+        raise ValueError('Termin-Datum: bitte gültiges Datum (JJJJ-MM-TT) angeben.') from None
+    try:
+        datetime.strptime(s[:10], '%Y-%m-%d')
+    except ValueError:
+        raise ValueError('Termin-Datum: bitte gültiges Datum (JJJJ-MM-TT) angeben.') from None
+    return s[:10]
+
+
+def _erinnerung_ueberschritten(naechste_faelligkeit_raw, erinnerung_tage_vor, intervall_anzahl):
+    """True, wenn heute der Beginn des Erinnerungsfensters erreicht/überschritten ist (Fälligkeit minus X Tage)."""
+    if erinnerung_tage_vor is None:
+        return False
+    try:
+        ia = int(intervall_anzahl)
+    except (TypeError, ValueError):
+        return False
+    if ia == 0:
+        return False
+    try:
+        tage = int(erinnerung_tage_vor)
+    except (TypeError, ValueError):
+        return False
+    if tage < 0:
+        return False
+    due = _datum_aus_naechste_faelligkeit_feld(naechste_faelligkeit_raw)
+    if due is None:
+        return False
+    heute = date.today()
+    return heute >= (due - timedelta(days=tage))
 
 
 def normalisiere_wartung_doku_url(raw):
@@ -630,7 +687,8 @@ def update_wartung(conn, wartung_id, gewerk_id, bezeichnung, beschreibung, aktiv
 
 def list_plaene_fuer_wartung(conn, wartung_id):
     return conn.execute('''
-        SELECT ID, IntervallEinheit, IntervallAnzahl, NaechsteFaelligkeit, HatFestesIntervall, Aktiv, ErstelltAm
+        SELECT ID, IntervallEinheit, IntervallAnzahl, NaechsteFaelligkeit, HatFestesIntervall,
+               ErinnerungTageVor, TerminVereinbart, TerminVereinbartDatum, Aktiv, ErstelltAm
         FROM Wartungsplan
         WHERE WartungID = ?
         ORDER BY Aktiv DESC, ID DESC
@@ -644,7 +702,17 @@ def get_plan(conn, plan_id):
     ).fetchone()
 
 
-def create_wartungsplan(conn, wartung_id, einheit, anzahl, naechste, hat_festes_intervall=False):
+def create_wartungsplan(
+    conn,
+    wartung_id,
+    einheit,
+    anzahl,
+    naechste,
+    hat_festes_intervall=False,
+    erinnerung_tage_vor_raw=None,
+    termin_vereinbart=False,
+    termin_vereinbart_datum_raw=None,
+):
     if einheit not in INTERVALL_EINHEITEN:
         raise ValueError('Ungültige Intervall-Einheit.')
     try:
@@ -658,16 +726,40 @@ def create_wartungsplan(conn, wartung_id, einheit, anzahl, naechste, hat_festes_
         hat_festes_intervall = False
     else:
         na = (naechste or '').strip() or None
+    ev = _parse_erinnerung_tage_vor(erinnerung_tage_vor_raw)
+    tv = 1 if termin_vereinbart else 0
+    td = _parse_termin_vereinbart_datum(termin_vereinbart_datum_raw, tv == 1)
     cur = conn.execute(
         '''INSERT INTO Wartungsplan
-           (WartungID, IntervallEinheit, IntervallAnzahl, NaechsteFaelligkeit, HatFestesIntervall)
-           VALUES (?, ?, ?, ?, ?)''',
-        (wartung_id, einheit, anzahl, na, 1 if hat_festes_intervall else 0),
+           (WartungID, IntervallEinheit, IntervallAnzahl, NaechsteFaelligkeit, HatFestesIntervall,
+            ErinnerungTageVor, TerminVereinbart, TerminVereinbartDatum)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+        (
+            wartung_id,
+            einheit,
+            anzahl,
+            na,
+            1 if hat_festes_intervall else 0,
+            ev,
+            tv,
+            td,
+        ),
     )
     return cur.lastrowid
 
 
-def update_wartungsplan(conn, plan_id, einheit, anzahl, naechste, aktiv, hat_festes_intervall=False):
+def update_wartungsplan(
+    conn,
+    plan_id,
+    einheit,
+    anzahl,
+    naechste,
+    aktiv,
+    hat_festes_intervall=False,
+    erinnerung_tage_vor_raw=None,
+    termin_vereinbart=False,
+    termin_vereinbart_datum_raw=None,
+):
     if einheit not in INTERVALL_EINHEITEN:
         raise ValueError('Ungültige Intervall-Einheit.')
     try:
@@ -681,10 +773,42 @@ def update_wartungsplan(conn, plan_id, einheit, anzahl, naechste, aktiv, hat_fes
         hat_festes_intervall = False
     else:
         na = (naechste or '').strip() or None
+    ev = _parse_erinnerung_tage_vor(erinnerung_tage_vor_raw)
+    tv = 1 if termin_vereinbart else 0
+    td = _parse_termin_vereinbart_datum(termin_vereinbart_datum_raw, tv == 1)
     conn.execute(
         '''UPDATE Wartungsplan SET IntervallEinheit = ?, IntervallAnzahl = ?,
-           NaechsteFaelligkeit = ?, HatFestesIntervall = ?, Aktiv = ? WHERE ID = ?''',
-        (einheit, anzahl, na, 1 if hat_festes_intervall else 0, 1 if aktiv else 0, plan_id),
+           NaechsteFaelligkeit = ?, HatFestesIntervall = ?,
+           ErinnerungTageVor = ?, TerminVereinbart = ?, TerminVereinbartDatum = ?,
+           Aktiv = ? WHERE ID = ?''',
+        (
+            einheit,
+            anzahl,
+            na,
+            1 if hat_festes_intervall else 0,
+            ev,
+            tv,
+            td,
+            1 if aktiv else 0,
+            plan_id,
+        ),
+    )
+
+
+def update_wartungsplan_wartungstermin(conn, plan_id, zuruecksetzen, termin_datum_raw=None):
+    """Nur TerminVereinbart / TerminVereinbartDatum: absagen (zuruecksetzen) oder vereinbart speichern."""
+    if zuruecksetzen:
+        conn.execute(
+            '''UPDATE Wartungsplan SET TerminVereinbart = 0, TerminVereinbartDatum = NULL
+               WHERE ID = ?''',
+            (plan_id,),
+        )
+        return
+    td = _parse_termin_vereinbart_datum(termin_datum_raw, True)
+    conn.execute(
+        '''UPDATE Wartungsplan SET TerminVereinbart = 1, TerminVereinbartDatum = ?
+           WHERE ID = ?''',
+        (td, plan_id),
     )
 
 
@@ -826,6 +950,7 @@ def list_plaene_sichtbar(
     if is_admin:
         return conn.execute(f'''
             SELECT p.ID, p.IntervallEinheit, p.IntervallAnzahl, p.NaechsteFaelligkeit, p.Aktiv,
+                   p.ErinnerungTageVor, p.TerminVereinbart, p.TerminVereinbartDatum,
                    w.ID AS WartungID,
                    w.Bezeichnung AS WartungBez, g.Bezeichnung AS Gewerk, b.Bezeichnung AS Bereich,
                    {letzte_df_sql}
@@ -842,6 +967,7 @@ def list_plaene_sichtbar(
     ph = ','.join(['?'] * len(sichtbare))
     return conn.execute(f'''
         SELECT p.ID, p.IntervallEinheit, p.IntervallAnzahl, p.NaechsteFaelligkeit, p.Aktiv,
+               p.ErinnerungTageVor, p.TerminVereinbart, p.TerminVereinbartDatum,
                w.ID AS WartungID,
                w.Bezeichnung AS WartungBez, g.Bezeichnung AS Gewerk, b.Bezeichnung AS Bereich,
                {letzte_df_sql}
@@ -902,6 +1028,14 @@ def map_wartung_aktive_plaene_metadaten(
             'IntervallAnzahl': r['IntervallAnzahl'],
             'IntervallEinheit': r['IntervallEinheit'],
             'NaechsteFaelligkeit': r['NaechsteFaelligkeit'],
+            'ErinnerungTageVor': r['ErinnerungTageVor'],
+            'TerminVereinbart': r['TerminVereinbart'],
+            'TerminVereinbartDatum': r['TerminVereinbartDatum'],
+            'ErinnerungUeberschritten': _erinnerung_ueberschritten(
+                r['NaechsteFaelligkeit'],
+                r['ErinnerungTageVor'],
+                r['IntervallAnzahl'],
+            ),
         })
     for lst in out.values():
         lst.sort(key=lambda x: (x['NaechsteFaelligkeit'] is None, x['NaechsteFaelligkeit'] or ''))

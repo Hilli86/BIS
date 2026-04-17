@@ -443,10 +443,7 @@
 </div>
 {% endif %}
 
-<div class="mb-3">
-    <a href="{{ url_for('ersatzteile.angebotsanfrage_liste') }}" class="btn btn-secondary">
-        <i class="bi bi-arrow-left"></i> Zurück zur Liste
-    </a>
+<div class="mb-3 d-flex flex-wrap gap-2 align-items-center">
     <button type="button" class="btn btn-primary" onclick="exportAngebotsanfragePDF({{ anfrage.ID }})">
         <i class="bi bi-file-pdf"></i> Als PDF exportieren
     </button>

@@ -948,31 +948,27 @@
 
   <!-- 🔹 Hauptinhalt -->
   <div class="main-content {% if session.user_id or session.get('is_guest') %}with-sidebar{% endif %}">
-    <!-- Flash-Meldungen anzeigen -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <div class="container-fluid mt-3">
-          {% for category, message in messages %}
-            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert" style="z-index: 1000; position: relative;">
-              <strong>{% if category == 'danger' or category == 'error' %}⚠️ Fehler:{% elif category == 'success' %}✅ Erfolg:{% elif category == 'warning' %}⚠️ Warnung:{% else %}ℹ️ Info:{% endif %}</strong> {{ message }}
-              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-          {% endfor %}
-        </div>
-      {% endif %}
-    {% endwith %}
-
     {% block page_header %}{% endblock %}
     {% if (session.user_id or session.get('is_guest')) and bis_nav_breadcrumbs %}
     <div class="bis-page-toolbar bis-page-toolbar-bleed">
       <div class="d-flex flex-wrap align-items-center gap-3">
-        {% if bis_nav_previous_url and bis_nav_previous_url != bis_nav_current_path %}
         <div class="flex-shrink-0">
+          {% if bis_nav_previous_url and bis_nav_previous_url != bis_nav_current_path %}
+            {% if bis_nav_zurueck_mit_pop %}
+          <a href="{{ url_for('bis_nav_zurueck', bis_nav_from=bis_nav_current_path) }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Zurück
+          </a>
+            {% else %}
           <a href="{{ bis_nav_previous_url }}" class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Zurück
           </a>
+            {% endif %}
+          {% else %}
+          <button type="button" class="btn btn-sm btn-outline-secondary" disabled aria-disabled="true" title="Keine vorherige Seite im Verlauf">
+            <i class="bi bi-arrow-left"></i> Zurück
+          </button>
+          {% endif %}
         </div>
-        {% endif %}
         <nav aria-label="Navigation" class="flex-grow-1 min-w-0">
           <ol class="breadcrumb mb-0 small">
             {% for c in bis_nav_breadcrumbs %}
@@ -989,6 +985,20 @@
       </div>
     </div>
     {% endif %}
+
+    <!-- Flash-Meldungen unter Breadcrumb-Leiste -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="container-fluid mt-3">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert" style="z-index: 1000; position: relative;">
+              <strong>{% if category == 'danger' or category == 'error' %}⚠️ Fehler:{% elif category == 'success' %}✅ Erfolg:{% elif category == 'warning' %}⚠️ Warnung:{% else %}ℹ️ Info:{% endif %}</strong> {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
     
     {% block content %}
     {% endblock %}

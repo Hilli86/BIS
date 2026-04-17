@@ -970,9 +970,20 @@ def plan_neu(wartung_id):
             anzahl = request.form.get('intervall_anzahl', 1)
             naechste = request.form.get('naechste_faelligkeit', '')
             hat_fest = request.form.get('hat_festes_intervall') == '1'
+            er_tage = request.form.get('erinnerung_tage_vor')
+            term_ja = request.form.get('termin_vereinbart') == '1'
+            term_datum = request.form.get('termin_vereinbart_datum', '')
             try:
                 pid = services.create_wartungsplan(
-                    conn, wartung_id, einheit, anzahl, naechste, hat_festes_intervall=hat_fest,
+                    conn,
+                    wartung_id,
+                    einheit,
+                    anzahl,
+                    naechste,
+                    hat_festes_intervall=hat_fest,
+                    erinnerung_tage_vor_raw=er_tage,
+                    termin_vereinbart=term_ja,
+                    termin_vereinbart_datum_raw=term_datum,
                 )
                 conn.commit()
                 flash('Wartungsplan angelegt.', 'success')
@@ -1025,10 +1036,21 @@ def plan_bearbeiten(plan_id):
             naechste = request.form.get('naechste_faelligkeit', '')
             aktiv = request.form.get('aktiv') == '1'
             hat_fest = request.form.get('hat_festes_intervall') == '1'
+            er_tage = request.form.get('erinnerung_tage_vor')
+            term_ja = request.form.get('termin_vereinbart') == '1'
+            term_datum = request.form.get('termin_vereinbart_datum', '')
             try:
                 services.update_wartungsplan(
-                    conn, plan_id, einheit, anzahl, naechste, aktiv,
+                    conn,
+                    plan_id,
+                    einheit,
+                    anzahl,
+                    naechste,
+                    aktiv,
                     hat_festes_intervall=hat_fest,
+                    erinnerung_tage_vor_raw=er_tage,
+                    termin_vereinbart=term_ja,
+                    termin_vereinbart_datum_raw=term_datum,
                 )
                 conn.commit()
                 flash('Gespeichert.', 'success')
@@ -1044,6 +1066,45 @@ def plan_bearbeiten(plan_id):
         plan=p,
         title='Wartungsplan bearbeiten',
     )
+
+
+@wartungen_bp.route('/plan/<int:plan_id>/wartungstermin', methods=['POST'])
+@login_required
+def plan_wartungstermin(plan_id):
+    """Schnellpflege Wartungstermin (Modal auf Wartungsdetail)."""
+    if not kann_wartungsplan_pflegen():
+        flash('Keine Berechtigung.', 'danger')
+        return redirect(url_for('wartungen.wartung_liste'))
+    mitarbeiter_id = session.get('user_id')
+    aktion = (request.form.get('aktion') or '').strip().lower()
+    with get_db_connection() as conn:
+        if not hat_wartungsplan_zugriff(mitarbeiter_id, plan_id, conn):
+            flash('Kein Zugriff.', 'danger')
+            return redirect(url_for('wartungen.wartung_liste'))
+        p = services.get_plan(conn, plan_id)
+        if not p:
+            flash('Wartungsplan nicht gefunden.', 'danger')
+            return redirect(url_for('wartungen.wartung_liste'))
+        wid = p['WartungID']
+        try:
+            if aktion == 'zuruecksetzen':
+                services.update_wartungsplan_wartungstermin(conn, plan_id, zuruecksetzen=True)
+                conn.commit()
+                flash('Wartungstermin zurückgesetzt (als abgesagt).', 'success')
+            elif aktion == 'speichern':
+                services.update_wartungsplan_wartungstermin(
+                    conn,
+                    plan_id,
+                    zuruecksetzen=False,
+                    termin_datum_raw=request.form.get('termin_vereinbart_datum', ''),
+                )
+                conn.commit()
+                flash('Wartungstermin gespeichert.', 'success')
+            else:
+                flash('Ungültige Aktion.', 'danger')
+        except ValueError as e:
+            flash(str(e), 'danger')
+    return redirect(url_for('wartungen.wartung_detail', wartung_id=wid, plan_id=plan_id))
 
 
 @wartungen_bp.route('/plan/<int:plan_id>/durchfuehrung/neu', methods=['GET', 'POST'])
@@ -1486,9 +1547,6 @@ def durchfuehrung_detail(durchfuehrung_id):
         kostenstellen = conn.execute(
             'SELECT ID, Bezeichnung FROM Kostenstelle WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung'
         ).fetchall()
-    fallback_zurueck = url_for(
-        'wartungen.wartung_detail', wartung_id=d['WartungID'], plan_id=d['PlanID'],
-    )
     return render_template(
         'wartungen/durchfuehrung_detail.html',
         d=d,
@@ -1498,7 +1556,6 @@ def durchfuehrung_detail(durchfuehrung_id):
         serviceberichte=serviceberichte,
         kostenstellen=kostenstellen,
         kann_protokollieren=kann_wartung_protokollieren(),
-        fallback_zurueck=fallback_zurueck,
     )
 
 

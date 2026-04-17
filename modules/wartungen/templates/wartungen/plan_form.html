@@ -2,17 +2,6 @@
 {% block content %}
 <h1 class="mb-4">{{ title }}</h1>
 <p class="text-muted">{{ wartung.Bereich }} – {{ wartung.Gewerk }} · {{ wartung.Bezeichnung }}</p>
-<div class="mb-3">
-  {% if plan %}
-  <a href="{{ url_for('wartungen.wartung_detail', wartung_id=wartung.ID, plan_id=plan.ID) }}" class="btn btn-secondary">
-    <i class="bi bi-arrow-left"></i> Zurück zur Wartung
-  </a>
-  {% else %}
-  <a href="{{ url_for('wartungen.wartung_detail', wartung_id=wartung.ID) }}" class="btn btn-secondary">
-    <i class="bi bi-arrow-left"></i> Zurück zur Wartung
-  </a>
-  {% endif %}
-</div>
 <form method="post" class="card shadow-sm">
   <div class="card-body p-4">
     <div class="row">
@@ -48,6 +37,24 @@
           <div class="form-text">
             Wenn aktiviert, wird die nächste Fälligkeit vom bisherigen Solltermin gerechnet; sonst vom Datum der Durchführung.
           </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="erinnerung_tage_vor">Erinnerung (Tage vor nächster Fälligkeit)</label>
+          <input type="number" name="erinnerung_tage_vor" id="erinnerung_tage_vor" class="form-control w-auto" min="0" max="365"
+            placeholder="optional"
+            value="{% if plan and plan.ErinnerungTageVor is not none %}{{ plan.ErinnerungTageVor }}{% endif %}">
+          <div class="form-text">Leer lassen, wenn keine Erinnerung vorgemerkt werden soll. Die automatische Erinnerung wird später ergänzt.</div>
+        </div>
+        <div class="mb-3">
+          <div class="form-check mb-2">
+            <input type="checkbox" name="termin_vereinbart" value="1" class="form-check-input" id="termin_vereinbart"
+              {% if plan and plan.TerminVereinbart %}checked{% endif %}>
+            <label class="form-check-label" for="termin_vereinbart">Wartungstermin vereinbart</label>
+          </div>
+          <label class="form-label" for="termin_vereinbart_datum">Datum des vereinbarten Termins</label>
+          <input type="date" name="termin_vereinbart_datum" id="termin_vereinbart_datum" class="form-control w-auto"
+            value="{{ plan.TerminVereinbartDatum if plan and plan.TerminVereinbartDatum else '' }}">
+          <div class="form-text">Nur relevant bei „vereinbart“. Ohne Häkchen wird das Datum beim Speichern entfernt.</div>
         </div>
         {% if plan %}
         <div class="mb-0 form-check">

@@ -3,11 +3,6 @@
 {% from 'components/datei_liste.html' import datei_liste %}
 {% block content %}
 <h1 class="mb-4">Wartung: {{ wartung.Bezeichnung }}</h1>
-<div class="mb-3">
-  <a href="{{ url_for('wartungen.wartung_liste') }}" class="btn btn-secondary">
-    <i class="bi bi-arrow-left"></i> Zurück zur Liste
-  </a>
-</div>
 
 <div class="card mb-4 shadow-sm">
   <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -137,6 +132,9 @@
             <th>Intervall</th>
             <th style="white-space: nowrap;">Nächste Fälligkeit</th>
             <th class="text-nowrap">Bezug</th>
+            <th class="text-nowrap">Erinnerung (Tage)</th>
+            <th class="text-nowrap">Termin vereinb.</th>
+            <th class="text-nowrap">Termin-Datum</th>
             <th>Aktiv</th>
             <th style="min-width: 10rem;">Aktionen</th>
           </tr>
@@ -148,6 +146,9 @@
             {% if p.IntervallAnzahl == 0 %}
             <td class="text-nowrap"><span class="text-muted">–</span></td>
             <td><span class="text-muted">–</span></td>
+            <td class="text-nowrap"><span class="text-muted">–</span></td>
+            <td class="text-nowrap"><span class="text-muted">–</span></td>
+            <td class="text-nowrap"><span class="text-muted">–</span></td>
             {% else %}
             {% set ftd = p.NaechsteFaelligkeit|wartung_faelligkeit_td_class %}
             <td class="text-nowrap{% if ftd %} {{ ftd }}{% endif %}">{{ p.NaechsteFaelligkeit or '–' }}</td>
@@ -158,6 +159,9 @@
               <span class="badge text-bg-light text-dark border" title="Nächster Termin von der Durchführung">Durchführung</span>
               {% endif %}
             </td>
+            <td class="text-nowrap">{% if p.ErinnerungTageVor is not none %}{{ p.ErinnerungTageVor }}{% else %}<span class="text-muted">–</span>{% endif %}</td>
+            <td class="text-nowrap">{% if p.TerminVereinbart %}<span class="badge bg-success">Ja</span>{% else %}<span class="badge bg-secondary">Nein</span>{% endif %}</td>
+            <td class="text-nowrap">{% if p.TerminVereinbartDatum %}{{ p.TerminVereinbartDatum }}{% else %}<span class="text-muted">–</span>{% endif %}</td>
             {% endif %}
             <td>{% if p.Aktiv %}<span class="badge bg-success">Ja</span>{% else %}<span class="badge bg-secondary">Nein</span>{% endif %}</td>
             <td class="text-nowrap" onclick="event.stopPropagation();">
@@ -166,6 +170,13 @@
                 <a href="{{ url_for('wartungen.plan_bearbeiten', plan_id=p.ID) }}" class="btn btn-sm btn-outline-secondary" title="Plan bearbeiten">
                   <i class="bi bi-pencil"></i>
                 </a>
+                <button type="button" class="btn btn-sm btn-outline-primary" title="Wartungstermin eintragen"
+                  data-bs-toggle="modal" data-bs-target="#modalWartungsterminPlan"
+                  data-action-url="{{ url_for('wartungen.plan_wartungstermin', plan_id=p.ID) }}"
+                  data-termin-datum="{{ p.TerminVereinbartDatum or '' }}"
+                  data-intervall-hint="{% if p.IntervallAnzahl == 0 %}Ohne Intervall{% else %}Alle {{ p.IntervallAnzahl }} {{ p.IntervallEinheit }}(e){% endif %}">
+                  <i class="bi bi-calendar-plus"></i>
+                </button>
                 {% endif %}
                 {% if kann_protokollieren %}
                 <a href="{{ url_for('wartungen.durchfuehrung_neu', plan_id=p.ID) }}" class="btn btn-sm btn-outline-success" title="Durchführung eintragen">
@@ -236,6 +247,34 @@
     {% endif %}
   </div>
 </div>
+
+{% if kann_plan and plaene %}
+<div class="modal fade" id="modalWartungsterminPlan" tabindex="-1" aria-labelledby="modalWartungsterminPlanLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="formWartungsterminPlan" method="post" action="">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalWartungsterminPlanLabel">Wartungstermin eintragen</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-3" id="modalWartungsterminIntervall"></p>
+          <div class="mb-3">
+            <label class="form-label" for="modalWartungsterminDatum">Vereinbartes Datum</label>
+            <input type="date" class="form-control w-auto" name="termin_vereinbart_datum" id="modalWartungsterminDatum" autocomplete="off">
+          </div>
+          <p class="small text-muted mb-0">Speichern markiert den Termin als vereinbart (optional mit Datum). Zurücksetzen entfernt Vereinbarung und Datum, z. B. bei Absage.</p>
+        </div>
+        <div class="modal-footer flex-wrap gap-2">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Schließen</button>
+          <button type="submit" name="aktion" value="zuruecksetzen" class="btn btn-outline-danger">Zurücksetzen</button>
+          <button type="submit" name="aktion" value="speichern" class="btn btn-primary">Speichern</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -329,6 +368,20 @@ document.addEventListener('DOMContentLoaded', function () {
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
+  }
+  var modalWt = document.getElementById('modalWartungsterminPlan');
+  var formWt = document.getElementById('formWartungsterminPlan');
+  if (modalWt && formWt && typeof bootstrap !== 'undefined') {
+    modalWt.addEventListener('show.bs.modal', function (ev) {
+      var btn = ev.relatedTarget;
+      if (!btn || !btn.getAttribute) return;
+      var url = btn.getAttribute('data-action-url');
+      if (url) formWt.setAttribute('action', url);
+      var inp = document.getElementById('modalWartungsterminDatum');
+      if (inp) inp.value = btn.getAttribute('data-termin-datum') || '';
+      var hint = document.getElementById('modalWartungsterminIntervall');
+      if (hint) hint.textContent = btn.getAttribute('data-intervall-hint') || '';
+    });
   }
 });
 </script>

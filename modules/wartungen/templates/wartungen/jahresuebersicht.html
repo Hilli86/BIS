@@ -35,6 +35,10 @@
     line-height: 1;
     vertical-align: middle;
   }
+  /* Wartungstermin: Erinnerungsfenster erreicht/überschritten */
+  .jahresmatrix-wt-erinnerung {
+    background-color: #ede7f6 !important;
+  }
   .jahresmatrix-kalender-wrap .jahresmatrix-kalender-badge {
     position: absolute;
     top: -0.15rem;
@@ -51,11 +55,6 @@
   }
 </style>
 <h1 class="mb-4">Wartungen – Jahresübersicht</h1>
-<div class="mb-3">
-  <a href="{{ url_for('wartungen.wartung_liste') }}" class="btn btn-secondary">
-    <i class="bi bi-arrow-left"></i> Zurück zur Wartungsliste
-  </a>
-</div>
 
 {% if not bereiche %}
 <div class="alert alert-info">Für Ihr Konto sind keine Wartungen sichtbar.</div>
@@ -109,6 +108,7 @@
       <span class="badge text-bg-info">innerhalb 7 Tage</span>
       · <span class="badge text-bg-warning text-dark">heute bis 7 Tage überfällig</span>
       · <span class="badge text-bg-danger">über 7 Tage überfällig</span>
+      · Wartungstermin: <span class="jahresmatrix-wt-erinnerung px-2 py-1 rounded small">violett</span> = Erinnerungsfenster erreicht (laut eingestellten Tagen vor Fälligkeit)
     </p>
     <div id="jahresmatrix-scroll-main" class="table-responsive jahresmatrix-scroll-main" style="overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%;">
       <table class="table table-hover table-sm table-bordered mb-0 align-middle text-center" style="min-width: max-content; width: 100%;">
@@ -117,6 +117,7 @@
             <th class="text-start bg-body-secondary" style="min-width: 12rem;">Wartung</th>
             <th class="text-start bg-body-secondary" style="min-width: 7.5rem;">Intervall</th>
             <th class="text-start bg-body-secondary text-nowrap" style="min-width: 8rem;">Nächste Fälligkeit</th>
+            <th class="text-start bg-body-secondary text-nowrap" style="min-width: 8rem;" title="Vereinbarter Wartungstermin; violett, wenn das Erinnerungsfenster erreicht ist">Wartungstermin</th>
             <th class="text-center bg-body-secondary align-middle" style="min-width: 3.5rem;" title="Auswahl für Mehrere protokollieren">
               {% if kann_protokollieren %}
               <button type="button" class="btn btn-sm btn-primary px-2" id="btn-jahres-matrix-batch" title="Ausgewählte Wartungen im Formular „Mehrere protokollieren“ öffnen">
@@ -134,7 +135,7 @@
       {% for grp in matrix_groups %}
         <tbody>
           <tr class="table-secondary">
-            <td colspan="{{ 4 + monatsnamen|length }}" class="text-start fw-semibold small py-2">{{ grp.bereich }} · {{ grp.gewerk }}</td>
+            <td colspan="{{ 5 + monatsnamen|length }}" class="text-start fw-semibold small py-2">{{ grp.bereich }} · {{ grp.gewerk }}</td>
           </tr>
           {% for row in grp.rows %}
           <tr>
@@ -184,6 +185,21 @@
                 {% endif %}
               {% endfor %}
             </td>
+            <td class="text-start small align-middle">
+              {% for pm in row.aktive_plaene_meta %}
+              <div class="text-nowrap rounded px-1 py-0{% if not loop.first %} mt-1 pt-1 border-top border-light{% endif %}{% if pm.ErinnerungUeberschritten %} jahresmatrix-wt-erinnerung{% endif %}">
+                {% if pm.TerminVereinbartDatum %}
+                  {{ pm.TerminVereinbartDatum }}
+                {% elif pm.TerminVereinbart %}
+                  <span class="text-muted">vereinbart (o. Datum)</span>
+                {% else %}
+                  <span class="text-muted">–</span>
+                {% endif %}
+              </div>
+              {% else %}
+              <span class="text-muted">–</span>
+              {% endfor %}
+            </td>
             <td class="text-center p-1 align-middle">
               {% if kann_protokollieren %}
                 {% if row.aktive_plan_ids %}
@@ -223,7 +239,7 @@
       {% if not matrix_groups %}
         <tbody>
           <tr>
-            <td colspan="{{ 4 + monatsnamen|length }}" class="text-muted text-start">Keine Wartungen für die gewählten Filter.</td>
+            <td colspan="{{ 5 + monatsnamen|length }}" class="text-muted text-start">Keine Wartungen für die gewählten Filter.</td>
           </tr>
         </tbody>
       {% endif %}

@@ -63,6 +63,9 @@
             <th>Wartung</th>
             <th>Intervall</th>
             <th>Nächste Fälligkeit</th>
+            <th class="text-nowrap">Erinnerung (Tage)</th>
+            <th class="text-nowrap">Termin vereinb.</th>
+            <th class="text-nowrap">Termin-Datum</th>
             <th class="text-nowrap">Letzte Durchführung</th>
             <th>Aktiv</th>
             <th style="min-width: 8rem;">Aktionen</th>
@@ -81,6 +84,9 @@
             {% set ftd = p.NaechsteFaelligkeit|wartung_faelligkeit_td_class %}
             <td class="text-nowrap{% if ftd %} {{ ftd }}{% endif %}">{{ p.NaechsteFaelligkeit or '–' }}</td>
             {% endif %}
+            <td class="text-nowrap">{% if p.ErinnerungTageVor is not none %}{{ p.ErinnerungTageVor }}{% else %}<span class="text-muted">–</span>{% endif %}</td>
+            <td class="text-nowrap">{% if p.TerminVereinbart %}<span class="badge bg-success">Ja</span>{% else %}<span class="badge bg-secondary">Nein</span>{% endif %}</td>
+            <td class="text-nowrap">{% if p.TerminVereinbartDatum %}{{ p.TerminVereinbartDatum }}{% else %}<span class="text-muted">–</span>{% endif %}</td>
             <td class="text-nowrap">{% if p.LetzteDurchfuehrung %}{{ p.LetzteDurchfuehrung[:16] }}{% else %}<span class="text-muted">–</span>{% endif %}</td>
             <td>{% if p.Aktiv %}<span class="badge bg-success">Ja</span>{% else %}<span class="badge bg-secondary">Nein</span>{% endif %}</td>
             <td class="text-nowrap" onclick="event.stopPropagation();">
@@ -127,6 +133,13 @@
           </div>
           <div class="small mb-2"><strong>Letzte Durchführung:</strong>
             {% if p.LetzteDurchfuehrung %}{{ p.LetzteDurchfuehrung[:16] }}{% else %}<span class="text-muted">–</span>{% endif %}
+          </div>
+          <div class="small mb-2"><strong>Erinnerung (Tage):</strong>
+            {% if p.ErinnerungTageVor is not none %}{{ p.ErinnerungTageVor }}{% else %}<span class="text-muted">–</span>{% endif %}
+          </div>
+          <div class="small mb-2"><strong>Termin vereinbart:</strong>
+            {% if p.TerminVereinbart %}Ja{% else %}Nein{% endif %}
+            {% if p.TerminVereinbartDatum %} · <strong>Datum:</strong> {{ p.TerminVereinbartDatum }}{% endif %}
           </div>
           {% if kann_plan or kann_protokollieren %}
           <div class="d-flex flex-wrap gap-1" onclick="event.stopPropagation();">

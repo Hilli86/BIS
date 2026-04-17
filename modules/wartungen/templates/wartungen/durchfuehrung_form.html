@@ -1,37 +1,6 @@
 {% extends "layout/base.html" %}
 {% block content %}
 <h1 class="mb-4">{% if batch %}Mehrere Wartungen protokollieren{% else %}Durchführung protokollieren{% endif %}</h1>
-<div class="mb-3">
-  {% if batch %}
-    {% if zurueck_plaene_url %}
-    <a href="{{ zurueck_plaene_url }}" class="btn btn-secondary">
-      <i class="bi bi-arrow-left"></i> Zurück zu Wartungsplänen
-    </a>
-    {% elif zurueck_jahres_url %}
-    <a href="{{ zurueck_jahres_url }}" class="btn btn-secondary">
-      <i class="bi bi-arrow-left"></i> Zurück zur Jahresübersicht
-    </a>
-    {% else %}
-    <a href="{{ url_for('wartungen.plaene_uebersicht') }}" class="btn btn-secondary">
-      <i class="bi bi-arrow-left"></i> Zurück zur Wartungsplan-Liste
-    </a>
-    {% endif %}
-  {% else %}
-    {% if zurueck_plaene_url %}
-    <a href="{{ zurueck_plaene_url }}" class="btn btn-secondary">
-      <i class="bi bi-arrow-left"></i> Zurück zu Wartungsplänen
-    </a>
-    {% elif zurueck_jahres_url %}
-    <a href="{{ zurueck_jahres_url }}" class="btn btn-secondary">
-      <i class="bi bi-arrow-left"></i> Zurück zur Jahresübersicht
-    </a>
-    {% else %}
-    <a href="{{ url_for('wartungen.wartung_detail', wartung_id=wartung.ID, plan_id=plan.ID) }}" class="btn btn-secondary">
-      <i class="bi bi-arrow-left"></i> Zurück zur Wartung
-    </a>
-    {% endif %}
-  {% endif %}
-</div>
 {% if not batch %}
 <p class="text-muted">{{ wartung.Bereich }} – {{ wartung.Gewerk }} · {{ wartung.Bezeichnung }}</p>
 {% endif %}

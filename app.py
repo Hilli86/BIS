@@ -8,7 +8,11 @@ Hauptdatei - nur Initialisierung und Blueprint-Registrierung
 from flask import Flask, render_template, session, redirect, url_for, request, send_from_directory
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from utils.navigation_history import navigation_history_context, record_navigation_after_request
+from utils.navigation_history import (
+    navigation_history_context,
+    pop_navigation_back_redirect,
+    record_navigation_after_request,
+)
 import click
 import os
 from config import config, DEV_SECRET_KEY_FALLBACK
@@ -121,6 +125,12 @@ def _bis_record_navigation_history(response):
 @app.context_processor
 def _bis_navigation_history_context():
     return navigation_history_context()
+
+
+@app.get('/bis/nav/zurueck')
+def bis_nav_zurueck():
+    """Zurück: obersten Navigationsstack-Eintrag entfernen, dann zur vorherigen Seite."""
+    return pop_navigation_back_redirect()
 
 
 @app.template_global('menue_sichtbar')

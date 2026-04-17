@@ -1,5 +1,5 @@
 ---
-description: BIS – Entitäts-Detailseiten (Zurück-Link, erste Karte mit Aktionsleiste)
+description: BIS – Entitäts-Detailseiten (Breadcrumb, erste Karte mit Aktionsleiste)
 globs: "**/*.html"
 alwaysApply: false
 ---
@@ -11,7 +11,7 @@ Orientierung: [`ersatzteil_detail.html`](modules/ersatzteile/templates/ersatztei
 ## Seitenkopf
 
 1. **`h1`** mit Objekttitel (z. B. Name, Nummer), unten **`mb-4`**.
-2. **Zurück zur übergeordneten Liste:** darunter ein Block **`mb-3`** mit Link **`btn btn-secondary`**, Icon **`bi-arrow-left`**, Label z. B. **„Zurück zur Liste“** (Ziel: passende Übersichts-`url_for`, ggf. Filter-Query wie bei Bestellungen).
+2. **Navigation:** Zurück zur Liste erfolgt über die **Breadcrumb-Leiste** in [`templates/layout/base.html`](templates/layout/base.html); keinen separaten grauen **„Zurück zur Liste“**-Button unter dem Titel mehr einbauen.
 
 ## Erste Inhalts-Karte („Block 1“)
 

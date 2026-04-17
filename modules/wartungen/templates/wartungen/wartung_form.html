@@ -1,17 +1,6 @@
 {% extends "layout/base.html" %}
 {% block content %}
 <h1 class="mb-4">{{ title }}</h1>
-<div class="mb-3">
-  {% if wartung %}
-  <a href="{{ url_for('wartungen.wartung_detail', wartung_id=wartung.ID) }}" class="btn btn-secondary">
-    <i class="bi bi-arrow-left"></i> Zurück zur Wartung
-  </a>
-  {% else %}
-  <a href="{{ url_for('wartungen.wartung_liste') }}" class="btn btn-secondary">
-    <i class="bi bi-arrow-left"></i> Zurück zur Liste
-  </a>
-  {% endif %}
-</div>
 {% if wartung and not kann_edit %}
 <div class="alert alert-info">Sie haben nur Leserecht auf diese Wartung.</div>
 {% endif %}

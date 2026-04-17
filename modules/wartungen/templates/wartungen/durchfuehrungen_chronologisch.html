@@ -1,11 +1,6 @@
 {% extends "layout/base.html" %}
 {% block content %}
 <h1 class="mb-4">Protokollierte Wartungen</h1>
-<div class="mb-3">
-  <a href="{{ url_for('wartungen.wartung_liste') }}" class="btn btn-secondary">
-    <i class="bi bi-arrow-left"></i> Zurück zur Wartungsliste
-  </a>
-</div>
 
 {% if not bereiche %}
 <div class="alert alert-info">Für Ihr Konto sind keine Wartungen sichtbar.</div>
