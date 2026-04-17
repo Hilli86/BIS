@@ -1,5 +1,28 @@
 {% extends "layout/base.html" %}
 
+{% block styles %}
+{{ super() if super }}
+<style>
+    .zusatz-gewerke-columns {
+        column-count: 1;
+        column-gap: 1.5rem;
+    }
+    @media (min-width: 576px) { .zusatz-gewerke-columns { column-count: 2; } }
+    @media (min-width: 992px) { .zusatz-gewerke-columns { column-count: 3; } }
+    @media (min-width: 1400px) { .zusatz-gewerke-columns { column-count: 4; } }
+    .zusatz-gewerke-gruppe {
+        break-inside: avoid;
+        -webkit-column-break-inside: avoid;
+        page-break-inside: avoid;
+        margin-bottom: 1rem;
+        display: inline-block;
+        width: 100%;
+    }
+    .zusatz-gewerke-toggle[aria-expanded="true"] .bi-chevron-right { display: none; }
+    .zusatz-gewerke-toggle[aria-expanded="false"] .bi-chevron-down { display: none; }
+</style>
+{% endblock %}
+
 {% block content %}
 <h1 class="mb-4" id="themaNeuKopf">Neues Thema anlegen</h1>
 <div id="themaNeuToastContainer" class="toast-container position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 1085;" aria-live="polite"></div>
@@ -163,6 +186,52 @@
     </div>
     {% endif %}
 
+    <!-- Zusatz-Gewerke (eingeklappt) -->
+    <div class="col-12">
+        <hr class="my-2">
+        <button type="button"
+                class="btn btn-link p-0 text-decoration-none fw-bold zusatz-gewerke-toggle"
+                data-bs-toggle="collapse"
+                data-bs-target="#zusatzGewerkeCollapse"
+                aria-expanded="false"
+                aria-controls="zusatzGewerkeCollapse">
+            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+            <i class="bi bi-chevron-down" aria-hidden="true"></i>
+            <i class="bi bi-plus-circle"></i>
+            Zusatz-Gewerke <small class="text-muted fw-normal">(optional)</small>
+        </button>
+        <div class="form-text text-muted mb-2">
+            Optionale weitere Gewerke, die diesem Thema zugeordnet werden. Das aktuelle Hauptgewerk kann nicht zusätzlich gewählt werden.
+        </div>
+        <div class="collapse" id="zusatzGewerkeCollapse">
+            <div class="card border">
+                <div class="card-body">
+                    <div class="zusatz-gewerke-columns">
+                        {% for b in bereiche %}
+                            {% set ns = namespace(hat_gewerke=false) %}
+                            {% for g in gewerke if g.BereichID == b.ID %}{% set ns.hat_gewerke = true %}{% endfor %}
+                            {% if ns.hat_gewerke %}
+                            <div class="zusatz-gewerke-gruppe">
+                                <div class="fw-bold text-muted small mb-1">{{ b.Bezeichnung }}</div>
+                                {% for g in gewerke if g.BereichID == b.ID %}
+                                <div class="form-check zusatz-gewerk-item" data-gewerk-id="{{ g.ID }}">
+                                    <input class="form-check-input zusatz-gewerk-checkbox" type="checkbox"
+                                           name="zusatz_gewerke" value="{{ g.ID }}"
+                                           id="neu_zusatz_gewerk_{{ g.ID }}">
+                                    <label class="form-check-label" for="neu_zusatz_gewerk_{{ g.ID }}">
+                                        {{ g.Bezeichnung }}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Ersatzteile -->
     <div class="col-12">
         <hr class="my-2">
@@ -267,6 +336,24 @@
     const bereichSelect = document.getElementById('bereich');
     const gewerkSelect = document.getElementById('gewerk');
 
+    // 🔸 Zusatz-Gewerke: Hauptgewerk-Eintrag deaktivieren und entchecken
+    function updateZusatzGewerkeDisable() {
+        const hauptGewerkId = gewerkSelect.value;
+        document.querySelectorAll('.zusatz-gewerk-item').forEach(function(item) {
+            const gid = item.getAttribute('data-gewerk-id');
+            const cb = item.querySelector('.zusatz-gewerk-checkbox');
+            if (!cb) return;
+            if (gid && hauptGewerkId && gid === hauptGewerkId) {
+                cb.checked = false;
+                cb.disabled = true;
+                item.classList.add('text-muted');
+            } else {
+                cb.disabled = false;
+                item.classList.remove('text-muted');
+            }
+        });
+    }
+
     // 🔸 Gewerke nach Bereich filtern
     bereichSelect.addEventListener('change', function() {
         const selectedBereich = this.value;
@@ -278,7 +365,10 @@
         gewerkSelect.value = "";
         document.getElementById('offeneThemenContainer').style.display = 'none';
         document.getElementById('offeneThemenListe').innerHTML = '';
+        updateZusatzGewerkeDisable();
     });
+
+    gewerkSelect.addEventListener('change', updateZusatzGewerkeDisable);
 
     // 🔸 Offene Themen beim Gewerk-Wechsel laden
     const themaDetailUrl = '{{ url_for("schichtbuch.thema_detail", thema_id=0) }}';
@@ -795,6 +885,16 @@
                 el.classList.remove('is-invalid');
             });
             bereichSelect.dispatchEvent(new Event('change', { bubbles: true }));
+
+            const zusatzCollapseEl = document.getElementById('zusatzGewerkeCollapse');
+            if (zusatzCollapseEl && typeof bootstrap !== 'undefined' && bootstrap.Collapse) {
+                const inst = bootstrap.Collapse.getOrCreateInstance(zusatzCollapseEl, { toggle: false });
+                inst.hide();
+            }
+            document.querySelectorAll('.zusatz-gewerk-checkbox').forEach(function(cb) {
+                cb.checked = false;
+            });
+            updateZusatzGewerkeDisable();
 
             // Ersatzteile-Container leeren
             const ersatzteileContainer = document.getElementById('ersatzteileContainer');

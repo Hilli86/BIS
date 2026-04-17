@@ -419,7 +419,11 @@ def list_themen_fuer_aufgabenliste(
         q += ' AND b.Bezeichnung = ?'
         params.append(bereich_filter)
     if gewerk_filter:
-        q += ' AND g.Bezeichnung = ?'
+        q += ''' AND (g.Bezeichnung = ? OR EXISTS (
+            SELECT 1 FROM SchichtbuchThemaGewerk tg
+            JOIN Gewerke g2 ON tg.GewerkID = g2.ID
+            WHERE tg.ThemaID = t.ID AND g2.Bezeichnung = ?))'''
+        params.append(gewerk_filter)
         params.append(gewerk_filter)
     if status_filter_list:
         ph = ','.join(['?'] * len(status_filter_list))

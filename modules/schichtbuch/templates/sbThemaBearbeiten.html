@@ -1,0 +1,214 @@
+{% extends "layout/base.html" %}
+
+{% block styles %}
+{{ super() if super }}
+<style>
+    .zusatz-gewerke-columns {
+        column-count: 1;
+        column-gap: 1.5rem;
+    }
+    @media (min-width: 576px) { .zusatz-gewerke-columns { column-count: 2; } }
+    @media (min-width: 992px) { .zusatz-gewerke-columns { column-count: 3; } }
+    @media (min-width: 1400px) { .zusatz-gewerke-columns { column-count: 4; } }
+    .zusatz-gewerke-gruppe {
+        break-inside: avoid;
+        -webkit-column-break-inside: avoid;
+        page-break-inside: avoid;
+        margin-bottom: 1rem;
+        display: inline-block;
+        width: 100%;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Thema #{{ thema.ID }} bearbeiten</h1>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-warning text-dark">
+        <h5 class="mb-0">Thema #{{ thema.ID }} bearbeiten</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST">
+            <div class="row g-3">
+                <div class="col-12">
+                    <h6 class="fw-bold mb-2"><i class="bi bi-tools"></i> Hauptgewerk</h6>
+                    <div class="text-muted small mb-2">
+                        Bereich und Gewerk f&uuml;r dieses Thema.
+                    </div>
+                </div>
+                <div class="col-md-5">
+                    <label for="themaBearbeitenBereich" class="form-label"><strong>Bereich:</strong></label>
+                    <select id="themaBearbeitenBereich" class="form-select" aria-label="Bereich">
+                        <option value="">-- bitte w&auml;hlen --</option>
+                        {% for b in bereiche %}
+                        <option value="{{ b.ID }}" {% if thema.BereichID == b.ID %}selected{% endif %}>{{ b.Bezeichnung }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-7">
+                    <label for="themaBearbeitenGewerk" class="form-label"><strong>Gewerk:</strong> <span class="text-danger">*</span></label>
+                    <select name="gewerk_id" id="themaBearbeitenGewerk" class="form-select" required aria-label="Gewerk">
+                        <option value="">-- zuerst Bereich w&auml;hlen --</option>
+                        {% for g in gewerke %}
+                        <option value="{{ g.ID }}" data-bereich="{{ g.BereichID }}" {% if thema.GewerkID == g.ID %}selected{% endif %}>{{ g.Bezeichnung }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-12">
+                    <hr class="my-3">
+                    <h6 class="fw-bold mb-2"><i class="bi bi-plus-circle"></i> Zusatz-Gewerke <small class="text-muted fw-normal">(Optional)</small></h6>
+                    <div class="text-muted small mb-2">
+                        Optionale weitere Gewerke, die diesem Thema zugeordnet werden. Das aktuelle Hauptgewerk kann nicht zus&auml;tzlich gew&auml;hlt werden.
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="zusatz-gewerke-columns">
+                                {% for b in bereiche %}
+                                    {% set ns = namespace(hat_gewerke=false) %}
+                                    {% for g in gewerke if g.BereichID == b.ID %}{% set ns.hat_gewerke = true %}{% endfor %}
+                                    {% if ns.hat_gewerke %}
+                                    <div class="zusatz-gewerke-gruppe">
+                                        <div class="fw-bold text-muted small mb-1">{{ b.Bezeichnung }}</div>
+                                        {% for g in gewerke if g.BereichID == b.ID %}
+                                        <div class="form-check zusatz-gewerk-item" data-gewerk-id="{{ g.ID }}">
+                                            <input class="form-check-input zusatz-gewerk-checkbox" type="checkbox"
+                                                   name="zusatz_gewerke" value="{{ g.ID }}"
+                                                   id="zusatz_gewerk_{{ g.ID }}"
+                                                   {% if g.ID in zusatz_gewerke_ids %}checked{% endif %}>
+                                            <label class="form-check-label" for="zusatz_gewerk_{{ g.ID }}">
+                                                {{ g.Bezeichnung }}
+                                            </label>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12">
+                    <hr class="my-3">
+                    <h6 class="fw-bold mb-2"><i class="bi bi-eye"></i> Sichtbarkeit</h6>
+                    <div class="text-muted small mb-2">
+                        W&auml;hlen Sie aus, welche Abteilungen dieses Thema sehen d&uuml;rfen. Mindestens eine Abteilung muss gew&auml;hlt sein.
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            {% if auswaehlbare_abteilungen %}
+                                {% for gruppe in auswaehlbare_abteilungen %}
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox"
+                                               name="sichtbare_abteilungen" value="{{ gruppe.parent.ID }}"
+                                               id="sicht_abt_{{ gruppe.parent.ID }}"
+                                               {% if gruppe.parent.ID in aktuelle_sichtbarkeiten_ids %}checked{% endif %}>
+                                        <label class="form-check-label fw-bold" for="sicht_abt_{{ gruppe.parent.ID }}">
+                                            {{ gruppe.parent.Bezeichnung }}
+                                        </label>
+                                        {% if gruppe.parent.ID == primaer_abteilung_id %}
+                                        <small class="text-muted">(Prim&auml;rabteilung)</small>
+                                        {% endif %}
+                                    </div>
+                                    {% if gruppe.children %}
+                                    <div class="mt-2">
+                                        {% for c in gruppe.children %}
+                                            <div class="form-check" style="margin-left: {{ (c.level + 1) * 1.5 }}rem;">
+                                                <input class="form-check-input" type="checkbox"
+                                                       name="sichtbare_abteilungen" value="{{ c.ID }}"
+                                                       id="sicht_abt_{{ c.ID }}"
+                                                       {% if c.ID in aktuelle_sichtbarkeiten_ids %}checked{% endif %}>
+                                                <label class="form-check-label" for="sicht_abt_{{ c.ID }}">
+                                                    {% for i in range(c.level + 1) %}&#8627;{% endfor %} {{ c.Bezeichnung }}
+                                                </label>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-muted fst-italic">Keine ausw&auml;hlbaren Abteilungen verf&uuml;gbar.</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12">
+                    <hr class="my-3">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Speichern
+                    </button>
+                    <a href="{{ url_for('schichtbuch.thema_detail', thema_id=thema.ID) }}" class="btn btn-secondary">
+                        <i class="bi bi-x-lg"></i> Abbrechen
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function initThemaBearbeitenForm() {
+    const bereichSelect = document.getElementById('themaBearbeitenBereich');
+    const gewerkSelect = document.getElementById('themaBearbeitenGewerk');
+    if (!bereichSelect || !gewerkSelect) return;
+
+    function applyBereichFilter(keepSelection) {
+        const selectedBereich = bereichSelect.value;
+        const currentGewerk = gewerkSelect.value;
+        Array.from(gewerkSelect.options).forEach(function (opt) {
+            if (opt.value === '') return;
+            const show = !selectedBereich || opt.dataset.bereich === selectedBereich;
+            opt.style.display = show ? 'block' : 'none';
+            opt.disabled = !show;
+        });
+        if (!keepSelection) {
+            const sel = gewerkSelect.options[gewerkSelect.selectedIndex];
+            if (!sel || sel.disabled || sel.value === '') {
+                gewerkSelect.value = '';
+            }
+        } else if (currentGewerk) {
+            const match = gewerkSelect.querySelector('option[value="' + currentGewerk + '"]');
+            if (match && !match.disabled) {
+                gewerkSelect.value = currentGewerk;
+            }
+        }
+        updateZusatzDisable();
+    }
+
+    function updateZusatzDisable() {
+        const hauptGewerkId = gewerkSelect.value;
+        document.querySelectorAll('.zusatz-gewerk-item').forEach(function (item) {
+            const gid = item.getAttribute('data-gewerk-id');
+            const cb = item.querySelector('.zusatz-gewerk-checkbox');
+            if (!cb) return;
+            if (gid && hauptGewerkId && gid === hauptGewerkId) {
+                cb.checked = false;
+                cb.disabled = true;
+                item.classList.add('text-muted');
+            } else {
+                cb.disabled = false;
+                item.classList.remove('text-muted');
+            }
+        });
+    }
+
+    bereichSelect.addEventListener('change', function () {
+        applyBereichFilter(false);
+    });
+    gewerkSelect.addEventListener('change', updateZusatzDisable);
+
+    applyBereichFilter(true);
+})();
+</script>
+{% endblock %}

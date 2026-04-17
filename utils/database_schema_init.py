@@ -202,7 +202,23 @@ def init_database_schema(db_path, verbose=False):
             # Prüfe auf fehlende Spalten
             if create_column_if_not_exists(conn, 'SchichtbuchThemaSichtbarkeit', 'ErstelltAm', 'ALTER TABLE SchichtbuchThemaSichtbarkeit ADD COLUMN ErstelltAm DATETIME'):
                 conn.execute('UPDATE SchichtbuchThemaSichtbarkeit SET ErstelltAm = datetime(\'now\') WHERE ErstelltAm IS NULL')
-        
+
+        # ========== 10a. SchichtbuchThemaGewerk (optionale Zusatz-Gewerke) ==========
+        create_table_if_not_exists(conn, 'SchichtbuchThemaGewerk', '''
+            CREATE TABLE SchichtbuchThemaGewerk (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                ThemaID INTEGER NOT NULL,
+                GewerkID INTEGER NOT NULL,
+                ErstelltAm DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (ThemaID) REFERENCES SchichtbuchThema(ID) ON DELETE CASCADE,
+                FOREIGN KEY (GewerkID) REFERENCES Gewerke(ID) ON DELETE CASCADE,
+                UNIQUE(ThemaID, GewerkID)
+            )
+        ''', [
+            'CREATE INDEX idx_thema_gewerk_thema ON SchichtbuchThemaGewerk(ThemaID)',
+            'CREATE INDEX idx_thema_gewerk_gewerk ON SchichtbuchThemaGewerk(GewerkID)'
+        ])
+
         # ========== 10b. Aufgabenliste (Schichtbuch) ==========
         created_auf = create_table_if_not_exists(conn, 'Aufgabenliste', '''
             CREATE TABLE Aufgabenliste (
@@ -1238,6 +1254,11 @@ def init_database_schema(db_path, verbose=False):
             INSERT OR IGNORE INTO Berechtigung (Schluessel, Bezeichnung, Beschreibung, Aktiv)
             VALUES ('darf_Thema_Gewerk_ändern', 'Schichtbuch: Gewerk am Thema ändern',
                     'Erlaubt das nachträgliche Ändern des zugewiesenen Gewerks auf der Thema-Detailseite', 1)
+        ''')
+        conn.execute('''
+            INSERT OR IGNORE INTO Berechtigung (Schluessel, Bezeichnung, Beschreibung, Aktiv)
+            VALUES ('darf_Thema_bearbeiten', 'Schichtbuch: Thema bearbeiten',
+                    'Erlaubt das Bearbeiten von Gewerk, Zusatz-Gewerken und Sichtbarkeit auf einer eigenen Seite', 1)
         ''')
         
         # ========== 31. MitarbeiterBerechtigung ==========

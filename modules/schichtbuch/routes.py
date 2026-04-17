@@ -78,7 +78,8 @@ def themaliste():
         thema_ids = [t['ID'] for t in themen] if themen else []
         themen_mit_lagerbuchungen = services.thema_ids_mit_lagerbuchungen(thema_ids, conn)
         bemerk_dict = services.get_bemerkungen_fuer_themen(thema_ids, conn)
-        
+        zusatz_gewerke_dict = services.get_zusatz_gewerke_fuer_themen(thema_ids, conn)
+
         # Werte für Dropdowns holen
         status_liste = conn.execute('SELECT ID, Bezeichnung FROM Status WHERE Aktiv = 1 ORDER BY Sortierung ASC').fetchall()
         bereich_liste = conn.execute('SELECT Bezeichnung FROM Bereich WHERE Aktiv = 1 ORDER BY Bezeichnung').fetchall()
@@ -103,6 +104,7 @@ def themaliste():
         themen_mit_lagerbuchungen=themen_mit_lagerbuchungen,
         kann_artikel_rueckbuchen=kann_artikel_rueckbuchen,
         bemerk_dict=bemerk_dict,
+        zusatz_gewerke_dict=zusatz_gewerke_dict,
         status_liste=status_liste,
         bereich_liste=bereich_liste,
         taetigkeiten_liste=taetigkeiten_liste,
@@ -157,12 +159,14 @@ def themaliste_load_more():
         thema_ids = [t['ID'] for t in themen] if themen else []
         themen_mit_lagerbuchungen = services.thema_ids_mit_lagerbuchungen(thema_ids, conn)
         bemerk_dict = services.get_bemerkungen_fuer_themen(thema_ids, conn)
+        zusatz_gewerke_dict = services.get_zusatz_gewerke_fuer_themen(thema_ids, conn)
 
     # Als JSON zurückgeben
     themen_out = []
     for t in themen:
         d = dict(t)
         d['HatVerbuchteErsatzteile'] = 1 if t['ID'] in themen_mit_lagerbuchungen else 0
+        d['ZusatzGewerke'] = zusatz_gewerke_dict.get(t['ID'], [])
         themen_out.append(d)
 
     return jsonify({
@@ -338,6 +342,10 @@ def themaneu():
                     thema_id, ersatzteil_ids, ersatzteil_mengen, ersatzteil_bemerkungen,
                     mitarbeiter_id, conn, is_admin=is_admin, ersatzteil_kostenstellen=ersatzteil_kostenstellen
                 )
+
+                zusatz_gewerke_ids = request.form.getlist('zusatz_gewerke')
+                if zusatz_gewerke_ids:
+                    services.update_thema_zusatz_gewerke(thema_id, zusatz_gewerke_ids, conn)
 
                 conn.commit()
         except ValueError as e:
@@ -532,6 +540,7 @@ def thema_detail(thema_id):
         detail_data = services.get_thema_detail_data(thema_id, mitarbeiter_id, conn, is_admin=is_admin)
         perms_for_gewerk = session.get('user_berechtigungen', [])
         darf_thema_gewerk_aendern = is_admin or 'darf_Thema_Gewerk_ändern' in perms_for_gewerk
+        darf_thema_bearbeiten = is_admin or 'darf_Thema_bearbeiten' in perms_for_gewerk
         bereiche_gewerk_edit = None
         gewerke_gewerk_edit = None
         if darf_thema_gewerk_aendern:
@@ -554,6 +563,7 @@ def thema_detail(thema_id):
         status_liste=detail_data['status_liste'],
         taetigkeiten=detail_data['taetigkeiten'],
         sichtbarkeiten=detail_data['sichtbarkeiten'],
+        zusatz_gewerke=detail_data['zusatz_gewerke'],
         previous_page=previous_page,
         datei_anzahl=datei_anzahl,
         ersatzteil_verknuepfungen=detail_data['thema_lagerbuchungen'],
@@ -563,6 +573,7 @@ def thema_detail(thema_id):
         thema_hat_lagerbuchungen=thema_hat_lagerbuchungen,
         kann_artikel_rueckbuchen=kann_artikel_rueckbuchen,
         darf_thema_gewerk_aendern=darf_thema_gewerk_aendern,
+        darf_thema_bearbeiten=darf_thema_bearbeiten,
         bereiche_gewerk_edit=bereiche_gewerk_edit,
         gewerke_gewerk_edit=gewerke_gewerk_edit,
     )
@@ -624,6 +635,106 @@ def thema_gewerk_aendern(thema_id):
 
     flash('Gewerk wurde gespeichert.', 'success')
     return redirect(next_url)
+
+
+@schichtbuch_bp.route('/thema/<int:thema_id>/bearbeiten', methods=['GET', 'POST'])
+@login_required
+def thema_bearbeiten(thema_id):
+    """Kombiniertes Bearbeiten von Hauptgewerk, Zusatz-Gewerken und Sichtbarkeit."""
+    mitarbeiter_id = session.get('user_id')
+    perms = session.get('user_berechtigungen', [])
+    is_admin = 'admin' in perms
+    if not is_admin and 'darf_Thema_bearbeiten' not in perms:
+        flash('Sie haben keine Berechtigung, Themen zu bearbeiten.', 'danger')
+        return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
+
+    with get_db_connection() as conn:
+        if not services.check_thema_berechtigung(thema_id, mitarbeiter_id, conn):
+            flash('Sie haben keine Berechtigung für dieses Thema.', 'danger')
+            return redirect(url_for('schichtbuch.themaliste'))
+
+        thema_row = conn.execute(
+            'SELECT ID FROM SchichtbuchThema WHERE ID = ? AND Gelöscht = 0',
+            (thema_id,),
+        ).fetchone()
+        if not thema_row:
+            flash('Thema wurde nicht gefunden.', 'warning')
+            return redirect(url_for('schichtbuch.themaliste'))
+
+        if request.method == 'POST':
+            gewerk_id_raw = (request.form.get('gewerk_id') or '').strip()
+            zusatz_gewerke_raw = request.form.getlist('zusatz_gewerke')
+            sichtbare_abteilungen = request.form.getlist('sichtbare_abteilungen')
+
+            if not gewerk_id_raw:
+                flash('Bitte ein Hauptgewerk auswählen.', 'warning')
+                return redirect(url_for('schichtbuch.thema_bearbeiten', thema_id=thema_id))
+            try:
+                gewerk_id = int(gewerk_id_raw)
+            except ValueError:
+                flash('Ungültige Gewerk-Auswahl.', 'warning')
+                return redirect(url_for('schichtbuch.thema_bearbeiten', thema_id=thema_id))
+
+            g_row = conn.execute(
+                '''SELECT G.ID FROM Gewerke G
+                   JOIN Bereich B ON G.BereichID = B.ID
+                   WHERE G.ID = ? AND G.Aktiv = 1 AND B.Aktiv = 1''',
+                (gewerk_id,),
+            ).fetchone()
+            if not g_row:
+                flash('Das gewählte Gewerk ist ungültig oder nicht aktiv.', 'warning')
+                return redirect(url_for('schichtbuch.thema_bearbeiten', thema_id=thema_id))
+
+            if not sichtbare_abteilungen:
+                flash('Mindestens eine Abteilung muss sichtbar sein.', 'warning')
+                return redirect(url_for('schichtbuch.thema_bearbeiten', thema_id=thema_id))
+
+            try:
+                conn.execute(
+                    'UPDATE SchichtbuchThema SET GewerkID = ? WHERE ID = ? AND Gelöscht = 0',
+                    (gewerk_id, thema_id),
+                )
+                services.update_thema_zusatz_gewerke(thema_id, zusatz_gewerke_raw, conn)
+
+                conn.execute(
+                    'DELETE FROM SchichtbuchThemaSichtbarkeit WHERE ThemaID = ?',
+                    (thema_id,),
+                )
+                for abt_id_raw in sichtbare_abteilungen:
+                    try:
+                        abt_id = int(abt_id_raw)
+                    except (TypeError, ValueError):
+                        continue
+                    try:
+                        conn.execute(
+                            '''INSERT OR IGNORE INTO SchichtbuchThemaSichtbarkeit (ThemaID, AbteilungID)
+                               VALUES (?, ?)''',
+                            (thema_id, abt_id),
+                        )
+                    except sqlite3.IntegrityError:
+                        pass
+
+                conn.commit()
+            except Exception as e:
+                conn.rollback()
+                flash(f'Fehler beim Speichern: {e}', 'danger')
+                return redirect(url_for('schichtbuch.thema_bearbeiten', thema_id=thema_id))
+
+            flash('Thema wurde gespeichert.', 'success')
+            return redirect(url_for('schichtbuch.thema_detail', thema_id=thema_id))
+
+        data = services.get_thema_bearbeiten_data(thema_id, mitarbeiter_id, conn)
+
+    return render_template(
+        'sbThemaBearbeiten.html',
+        thema=data['thema'],
+        bereiche=data['bereiche'],
+        gewerke=data['gewerke'],
+        zusatz_gewerke_ids=data['zusatz_gewerke_ids'],
+        auswaehlbare_abteilungen=data['auswaehlbare_abteilungen'],
+        aktuelle_sichtbarkeiten_ids=data['aktuelle_sichtbarkeiten_ids'],
+        primaer_abteilung_id=data['primaer_abteilung_id'],
+    )
 
 
 @schichtbuch_bp.route('/edit_bemerkung/<int:bemerkung_id>', methods=['POST'])

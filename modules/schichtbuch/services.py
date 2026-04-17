@@ -124,7 +124,11 @@ def build_themen_query(sichtbare_abteilungen, bereich_filter=None, gewerk_filter
         params.append(bereich_filter)
     
     if gewerk_filter:
-        query += ' AND g.Bezeichnung = ?'
+        query += ''' AND (g.Bezeichnung = ? OR EXISTS (
+            SELECT 1 FROM SchichtbuchThemaGewerk tg
+            JOIN Gewerke g2 ON tg.GewerkID = g2.ID
+            WHERE tg.ThemaID = t.ID AND g2.Bezeichnung = ?))'''
+        params.append(gewerk_filter)
         params.append(gewerk_filter)
     
     if status_filter_list:
@@ -372,6 +376,16 @@ def get_thema_detail_data(thema_id, mitarbeiter_id, conn, is_admin=False):
         WHERE sv.ThemaID = ?
         ORDER BY a.Sortierung, a.Bezeichnung
     ''', (thema_id,)).fetchall()
+
+    # Optionale Zusatz-Gewerke
+    zusatz_gewerke = conn.execute('''
+        SELECT g.ID, g.Bezeichnung, b.Bezeichnung AS Bereich
+        FROM SchichtbuchThemaGewerk tg
+        JOIN Gewerke g ON tg.GewerkID = g.ID
+        JOIN Bereich b ON g.BereichID = b.ID
+        WHERE tg.ThemaID = ?
+        ORDER BY b.Bezeichnung, g.Bezeichnung
+    ''', (thema_id,)).fetchall()
     
     # Alle Status-Werte für Dropdown
     status_liste = conn.execute('SELECT * FROM Status ORDER BY Sortierung ASC').fetchall()
@@ -431,6 +445,7 @@ def get_thema_detail_data(thema_id, mitarbeiter_id, conn, is_admin=False):
     return {
         'thema': thema,
         'sichtbarkeiten': sichtbarkeiten,
+        'zusatz_gewerke': zusatz_gewerke,
         'status_liste': status_liste,
         'taetigkeiten': taetigkeiten,
         'bemerkungen': bemerkungen,
@@ -438,6 +453,156 @@ def get_thema_detail_data(thema_id, mitarbeiter_id, conn, is_admin=False):
         'thema_lagerbuchungen': thema_lagerbuchungen,
         'verfuegbare_ersatzteile': verfuegbare_ersatzteile,
         'kostenstellen': kostenstellen
+    }
+
+
+def get_zusatz_gewerke_fuer_themen(thema_ids, conn):
+    """
+    Lädt optionale Zusatz-Gewerke für mehrere Themen in einer Query (Batch).
+
+    Args:
+        thema_ids: Liste von Thema-IDs
+        conn: Datenbankverbindung
+
+    Returns:
+        Dictionary mit ThemaID als Key und Liste von Zusatz-Gewerken
+        (dict mit ID, Bezeichnung, Bereich) als Value
+    """
+    if not thema_ids:
+        return {}
+
+    placeholders = ','.join(['?'] * len(thema_ids))
+    rows = conn.execute(f'''
+        SELECT
+            tg.ThemaID,
+            g.ID AS GewerkID,
+            g.Bezeichnung,
+            b.Bezeichnung AS Bereich
+        FROM SchichtbuchThemaGewerk tg
+        JOIN Gewerke g ON tg.GewerkID = g.ID
+        JOIN Bereich b ON g.BereichID = b.ID
+        WHERE tg.ThemaID IN ({placeholders})
+        ORDER BY b.Bezeichnung, g.Bezeichnung
+    ''', list(thema_ids)).fetchall()
+
+    result = {}
+    for r in rows:
+        result.setdefault(r['ThemaID'], []).append({
+            'ID': r['GewerkID'],
+            'Bezeichnung': r['Bezeichnung'],
+            'Bereich': r['Bereich'],
+        })
+    return result
+
+
+def update_thema_zusatz_gewerke(thema_id, gewerk_ids, conn):
+    """
+    Aktualisiert die optionalen Zusatz-Gewerke eines Themas.
+    Das aktuelle Hauptgewerk wird automatisch aus der Zusatz-Liste entfernt.
+
+    Args:
+        thema_id: ID des Themas
+        gewerk_ids: Liste von GewerkIDs (int)
+        conn: Datenbankverbindung
+    """
+    import sqlite3
+
+    hauptgewerk_row = conn.execute(
+        'SELECT GewerkID FROM SchichtbuchThema WHERE ID = ?',
+        (thema_id,)
+    ).fetchone()
+    hauptgewerk_id = hauptgewerk_row['GewerkID'] if hauptgewerk_row else None
+
+    bereinigt = []
+    gesehen = set()
+    for gid in gewerk_ids or []:
+        try:
+            gid_int = int(gid)
+        except (TypeError, ValueError):
+            continue
+        if hauptgewerk_id is not None and gid_int == int(hauptgewerk_id):
+            continue
+        if gid_int in gesehen:
+            continue
+        gesehen.add(gid_int)
+        bereinigt.append(gid_int)
+
+    conn.execute('DELETE FROM SchichtbuchThemaGewerk WHERE ThemaID = ?', (thema_id,))
+    for gid in bereinigt:
+        try:
+            conn.execute('''
+                INSERT OR IGNORE INTO SchichtbuchThemaGewerk (ThemaID, GewerkID)
+                VALUES (?, ?)
+            ''', (thema_id, gid))
+        except sqlite3.IntegrityError:
+            pass
+
+
+def get_thema_bearbeiten_data(thema_id, mitarbeiter_id, conn):
+    """
+    Lädt alle Daten für die "Thema bearbeiten"-Seite
+    (Hauptgewerk, Zusatz-Gewerke, Sichtbarkeit).
+
+    Args:
+        thema_id: ID des Themas
+        mitarbeiter_id: ID des Mitarbeiters
+        conn: Datenbankverbindung
+
+    Returns:
+        Dictionary mit:
+        - thema: Thema-Informationen (ID, GewerkID, BereichID, Gewerk, Bereich)
+        - bereiche: Liste aktiver Bereiche
+        - gewerke: Liste aktiver Gewerke (mit BereichID)
+        - zusatz_gewerke_ids: Set/Liste der aktuellen Zusatz-Gewerk-IDs
+        - auswaehlbare_abteilungen: Abteilungsbaum für Sichtbarkeit
+        - aktuelle_sichtbarkeiten_ids: Liste aktuell aktiver Abteilungs-IDs
+        - primaer_abteilung_id: Primärabteilung des Mitarbeiters
+    """
+    from utils import get_abteilungsbaum_fuer_sichtbarkeit
+
+    thema = conn.execute('''
+        SELECT
+            t.ID,
+            t.GewerkID,
+            g.Bezeichnung AS Gewerk,
+            b.ID AS BereichID,
+            b.Bezeichnung AS Bereich
+        FROM SchichtbuchThema t
+        JOIN Gewerke g ON t.GewerkID = g.ID
+        JOIN Bereich b ON g.BereichID = b.ID
+        WHERE t.ID = ?
+    ''', (thema_id,)).fetchone()
+
+    bereiche, gewerke = get_bereiche_gewerke_fuer_gewerk_select(conn)
+
+    zusatz_rows = conn.execute(
+        'SELECT GewerkID FROM SchichtbuchThemaGewerk WHERE ThemaID = ?',
+        (thema_id,)
+    ).fetchall()
+    zusatz_gewerke_ids = [r['GewerkID'] for r in zusatz_rows]
+
+    auswaehlbare_abteilungen = get_abteilungsbaum_fuer_sichtbarkeit(mitarbeiter_id, conn)
+
+    aktuelle = conn.execute(
+        'SELECT AbteilungID FROM SchichtbuchThemaSichtbarkeit WHERE ThemaID = ?',
+        (thema_id,)
+    ).fetchall()
+    aktuelle_sichtbarkeiten_ids = [a['AbteilungID'] for a in aktuelle]
+
+    mitarbeiter = conn.execute(
+        'SELECT PrimaerAbteilungID FROM Mitarbeiter WHERE ID = ?',
+        (mitarbeiter_id,)
+    ).fetchone()
+    primaer_abteilung_id = mitarbeiter['PrimaerAbteilungID'] if mitarbeiter else None
+
+    return {
+        'thema': thema,
+        'bereiche': bereiche,
+        'gewerke': gewerke,
+        'zusatz_gewerke_ids': zusatz_gewerke_ids,
+        'auswaehlbare_abteilungen': auswaehlbare_abteilungen,
+        'aktuelle_sichtbarkeiten_ids': aktuelle_sichtbarkeiten_ids,
+        'primaer_abteilung_id': primaer_abteilung_id,
     }
 
 

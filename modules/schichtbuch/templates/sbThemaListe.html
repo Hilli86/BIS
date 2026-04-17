@@ -377,7 +377,17 @@ window.SB_KANN_RUECKBUCHEN = '{{ "1" if kann_artikel_rueckbuchen else "0" }}';
         </span>
       </td>
       <td class="text-nowrap sb-tl-datum text-muted">{% if letzte %}{{ letzte.Datum|schichtbuch_datum }}{% else %}–{% endif %}</td>
-      <td class="sb-tl-bereich text-body">{{ thema.Bereich }} – {{ thema.Gewerk }}</td>
+      <td class="sb-tl-bereich text-body">
+        {{ thema.Bereich }} – {{ thema.Gewerk }}
+        {% set zgs = zusatz_gewerke_dict.get(thema.ID, []) if zusatz_gewerke_dict else [] %}
+        {% if zgs %}
+          <span class="d-inline-flex flex-wrap gap-1 align-items-center ms-1">
+          {% for zg in zgs %}
+            <span class="badge bg-light text-muted border" title="Zusatz-Gewerk">{{ zg.Bereich }} – {{ zg.Bezeichnung }}</span>
+          {% endfor %}
+          </span>
+        {% endif %}
+      </td>
       <td class="sb-tl-status-wrap">
         <span class="badge rounded-pill" style="background-color: {{ thema.Farbe|default('#ccc')|trim }}; color: #fff;">
           {{ thema.Status }}
@@ -538,6 +548,14 @@ window.SB_KANN_RUECKBUCHEN = '{{ "1" if kann_artikel_rueckbuchen else "0" }}';
                         
                         <div class="card-body">
                             <h6 class="card-title mb-2 fw-bold">{{ thema.Bereich }} – {{ thema.Gewerk }}</h6>
+                            {% set zgs_m = zusatz_gewerke_dict.get(thema.ID, []) if zusatz_gewerke_dict else [] %}
+                            {% if zgs_m %}
+                            <div class="d-flex flex-wrap gap-1 mb-2">
+                              {% for zg in zgs_m %}
+                                <span class="badge bg-light text-muted border" title="Zusatz-Gewerk">{{ zg.Bereich }} – {{ zg.Bezeichnung }}</span>
+                              {% endfor %}
+                            </div>
+                            {% endif %}
                             <p class="text-muted mb-2 sb-mobile-meta">
                               {% if letzte_m %}
                                 {{ letzte_m.Datum|schichtbuch_datum }}
@@ -709,6 +727,17 @@ function escapeHtml(s) {
 
 function escapeHtmlBr(s) {
   return String(s ?? '').split('\n').map(escapeHtml).join('<br>');
+}
+
+function renderZusatzGewerkeBadges(zusatz, mobileBlock) {
+  if (!zusatz || !zusatz.length) return '';
+  const badges = zusatz.map(zg =>
+    `<span class="badge bg-light text-muted border" title="Zusatz-Gewerk">${escapeHtml(zg.Bereich)} – ${escapeHtml(zg.Bezeichnung)}</span>`
+  ).join('');
+  if (mobileBlock) {
+    return `<div class="d-flex flex-wrap gap-1 mb-2">${badges}</div>`;
+  }
+  return ` <span class="d-inline-flex flex-wrap gap-1 align-items-center ms-1">${badges}</span>`;
 }
 
 function sbEnsureThemaRowHistoryToggle(themaRow, themaId) {
@@ -1079,7 +1108,7 @@ async function loadMoreThemen() {
                   </span>
                 </div>
                 <div class="card-body">
-                  <h6 class="card-title mb-2 fw-bold">${escapeHtml(thema.Bereich)} – ${escapeHtml(thema.Gewerk)}</h6>`;
+                  <h6 class="card-title mb-2 fw-bold">${escapeHtml(thema.Bereich)} – ${escapeHtml(thema.Gewerk)}</h6>${renderZusatzGewerkeBadges(thema.ZusatzGewerke, true)}`;
           const b0m = bemerkungen[0];
           if (b0m) {
             cardHtml += `<p class="text-muted mb-2 sb-mobile-meta">${formatSchichtbuchDatum(b0m.Datum)}${b0m.Taetigkeit ? ' · ' + escapeHtml(b0m.Taetigkeit) : ' · –'} · <strong>${escapeHtml(b0m.Vorname)} ${escapeHtml(b0m.Nachname)}</strong></p>`;
@@ -1199,7 +1228,7 @@ async function loadMoreThemen() {
               </span>
             </td>
             <td class="text-nowrap sb-tl-datum text-muted">${b0 ? formatSchichtbuchDatum(b0.Datum) : '–'}</td>
-            <td class="sb-tl-bereich text-body">${escapeHtml(thema.Bereich)} – ${escapeHtml(thema.Gewerk)}</td>
+            <td class="sb-tl-bereich text-body">${escapeHtml(thema.Bereich)} – ${escapeHtml(thema.Gewerk)}${renderZusatzGewerkeBadges(thema.ZusatzGewerke, false)}</td>
             <td class="sb-tl-status-wrap">
               <span class="badge rounded-pill" style="background-color: ${thema.Farbe || '#ccc'}; color: #fff;">
                 ${escapeHtml(thema.Status)}
