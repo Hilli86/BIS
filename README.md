@@ -65,7 +65,7 @@ gunicorn --workers 3 --bind 127.0.0.1:8000 app:app
 ```
 - `python app.py` bzw. Debug-Modus sind **nicht** für den produktiven
   Betrieb gedacht.
-- Siehe `deployment/bis.service`, `deployment/docker/bis.Dockerfile` und `docker-compose.yml` für fertige Setups.
+- Siehe `deployment/bis.service`, `docker/bis.Dockerfile` und `docker-compose.yml` für fertige Setups.
 
 Die Anwendung ist dann unter `http://localhost:5000` (Dev) bzw. der vom
 Reverse-Proxy bereitgestellten URL erreichbar.
@@ -130,7 +130,7 @@ kein ausreichend starker `SECRET_KEY` gesetzt ist (siehe `app.py`,
 
 Vorbereitete Setups und Anleitungen liegen unter `deployment/` und `docs/`:
 
-- `docker-compose.yml` und `deployment/docker/bis.Dockerfile` – Container-Setup mit Gunicorn + LibreOffice; TLS-Proxy: `deployment/docker/nginx.Dockerfile`
+- `docker-compose.yml` und Ordner `docker/` (`bis.Dockerfile`, `nginx.Dockerfile`, `nginx.docker.conf`) – Container-Setup mit Gunicorn + LibreOffice und TLS-Proxy (Nginx)
 - `deployment/bis.service` – systemd-Unit für Linux
 - `deployment/install_server.sh`, `deployment/update_app.sh`, `deployment/backup_bis.sh`
 - `deployment/nginx_bis*.conf` – nginx-Konfigurationen (HTTP / HTTPS / Self-Signed)
@@ -145,6 +145,7 @@ BIS/
 ├── config.py                 # Konfigurations-Klassen (development/production)
 ├── requirements.txt
 ├── docker-compose.yml
+├── docker/                   # bis.Dockerfile, nginx.Dockerfile, nginx.docker.conf (Compose; ausserhalb deployment/)
 ├── modules/                  # Blueprints
 │   ├── auth/                 # Login, Profil, Passwort, WebAuthn
 │   ├── dashboard/            # Startseite mit KPIs
@@ -166,7 +167,7 @@ BIS/
 │   └── ...
 ├── templates/                # Globale Layouts und Fehlerseiten
 ├── static/                   # CSS/JS/Icons, Service Worker
-├── deployment/               # systemd/nginx/Skripte; docker/ = Compose-Images (bis, nginx)
+├── deployment/               # systemd/nginx/Skripte fuer Server-Deployments
 ├── docs/                     # Tiefer gehende Anleitungen
 └── scripts/                  # Hilfsskripte (z. B. init_database.py)
 ```

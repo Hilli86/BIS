@@ -47,7 +47,7 @@ SECRET_KEY=bitte-durch-eigenen-langen-zufaelligen-wert-ersetzen-min-32-zeichen
 # WEBAUTHN_RP_ID=localhost
 # WEBAUTHN_ORIGIN=http://localhost:5000
 #
-# Zugriff über anderen Hostnamen (Zertifikat/SAN im nginx-Dockerfile anpassen):
+# Zugriff über anderen Hostnamen (Zertifikat/SAN in docker/nginx.Dockerfile anpassen):
 # WEBAUTHN_RP_ID=mein-server
 # WEBAUTHN_ORIGIN=https://mein-server
 

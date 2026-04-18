@@ -9,7 +9,7 @@ services:
   bis:
     build:
       context: .
-      dockerfile: deployment/docker/bis.Dockerfile
+      dockerfile: docker/bis.Dockerfile
     container_name: bis-app
     ports:
       - "5000:5000"
@@ -36,7 +36,7 @@ services:
   bis-nginx:
     build:
       context: .
-      dockerfile: deployment/docker/nginx.Dockerfile
+      dockerfile: docker/nginx.Dockerfile
     container_name: bis-nginx
     ports:
       - "443:443"

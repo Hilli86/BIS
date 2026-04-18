@@ -30,8 +30,9 @@ docs/
 *.md
 !README.md
 
-# Tests und Deployment außerhalb Docker
+# Tests und Deployment außerhalb Docker (keine COPY-Pfade aus deployment/ im Build nutzen)
 deployment/
+# Compose-Dockerfiles und Nginx-Config: docker/ (nicht unter deployment/)
 migrations/
 terminals/
 

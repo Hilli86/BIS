@@ -64,7 +64,7 @@ Anleitung, um das Betriebsinformationssystem (BIS) in einem Docker-Container unt
 
 ### Projektordner öffnen
 
-Im Projektordner von BIS (dort, wo `app.py`, `docker-compose.yml` und `deployment/docker/bis.Dockerfile` liegen):
+Im Projektordner von BIS (dort, wo `app.py`, `docker-compose.yml` und `docker/bis.Dockerfile` liegen):
 
 ```powershell
 cd C:\Projekte\BIS\BIS
@@ -225,7 +225,7 @@ docker compose exec bis bash
 
 ## 9. App von GitHub aktualisieren
 
-Der Anwendungscode wird beim **Image-Build** in den Container übernommen (`COPY` in `deployment/docker/bis.Dockerfile`), nicht als Live-Ordner vom Windows-Host eingebunden. Nach einem Update des Repositories auf der Festplatte müssen Sie das Image deshalb **neu bauen** und den Container **neu starten**.
+Der Anwendungscode wird beim **Image-Build** in den Container übernommen (`COPY` in `docker/bis.Dockerfile`), nicht als Live-Ordner vom Windows-Host eingebunden. Nach einem Update des Repositories auf der Festplatte müssen Sie das Image deshalb **neu bauen** und den Container **neu starten**.
 
 **Datenbank und Uploads** liegen im Docker-Volume `bis-data` und bleiben bei diesem Vorgang in der Regel **erhalten** (siehe auch [Abschnitt 7](#7-daten-persistent-speichern-windows-ordner)).
 

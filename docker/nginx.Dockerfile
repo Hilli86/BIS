@@ -1,4 +1,5 @@
 # Nginx als TLS-Terminierung vor dem BIS-Container (selbstsigniertes Zertifikat beim Build)
+# Build-Kontext: Projektroot (siehe docker-compose.yml)
 FROM nginx:1.27-alpine
 
 RUN apk add --no-cache openssl \
@@ -9,4 +10,4 @@ RUN apk add --no-cache openssl \
         -subj "/CN=localhost" \
         -addext "subjectAltName=DNS:localhost,DNS:127.0.0.1,IP:127.0.0.1,DNS:host.docker.internal"
 
-COPY deployment/docker/nginx.docker.conf /etc/nginx/conf.d/default.conf
+COPY docker/nginx.docker.conf /etc/nginx/conf.d/default.conf
