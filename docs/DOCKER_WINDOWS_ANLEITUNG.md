@@ -109,7 +109,7 @@ Beim ersten Mal kann der Build einige Minuten dauern (Python, Abhängigkeiten, L
 docker compose ps
 ```
 
-Der Service `bis` sollte mit Status **running** und Port **5000** angezeigt werden.
+Der Service `Application-Service` sollte mit Status **running** und Port **5000** angezeigt werden.
 
 ---
 
@@ -165,7 +165,7 @@ Wenn Sie die Daten in einem **bestimmten Windows-Ordner** haben möchten (z. B. 
    New-Item -ItemType Directory -Path "C:\BIS-Daten" -Force
    ```
 
-2. In `docker-compose.yml` den Volume-Eintrag des Services `bis` anpassen:
+2. In `docker-compose.yml` den Volume-Eintrag des Services `Application-Service` anpassen:
 
    **Vorher (Volume):**
    ```yaml
@@ -198,16 +198,17 @@ Datenbank und Upload-Ordner liegen dann unter `C:\BIS-Daten` (im Container als `
 |---------------------|--------|
 | Container starten   | `docker compose up -d` |
 | Container stoppen   | `docker compose down` |
-| Logs anzeigen       | `docker compose logs -f bis` |
+| Logs anzeigen (App) | `docker compose logs -f Application-Service` |
+| Logs anzeigen (Nginx) | `docker compose logs -f Proxy-Service` |
 | Status prüfen       | `docker compose ps` |
 | Neu bauen + starten | `docker compose up -d --build` |
 | App-Code von GitHub holen | siehe [Abschnitt 9](#9-app-von-github-aktualisieren) |
-| In Container shell  | `docker compose exec bis bash` |
+| In Container shell  | `docker compose exec Application-Service bash` |
 
 ### Beispiel: Logs live verfolgen
 
 ```powershell
-docker compose logs -f bis
+docker compose logs -f Application-Service
 ```
 
 Beenden mit **Strg+C**.
@@ -215,7 +216,7 @@ Beenden mit **Strg+C**.
 ### Beispiel: Shell im Container (z. B. für DB-Check)
 
 ```powershell
-docker compose exec bis bash
+docker compose exec Application-Service bash
 # Im Container z. B.:
 # ls -la /data
 # exit
@@ -269,9 +270,9 @@ Der Anwendungscode wird beim **Image-Build** in den Container übernommen (`COPY
    docker compose up -d --build
    ```
 
-   Damit wird das Image mit dem aktuellen Code neu gebaut; der laufende `bis`-Container wird durch die neue Version ersetzt.
+   Damit wird das Image mit dem aktuellen Code neu gebaut; der laufende `Application-Service`-Container wird durch die neue Version ersetzt.
 
-5. **Prüfen:** Browser wie gewohnt aufrufen (z. B. **http://localhost:5000**), bei Bedarf Logs ansehen: `docker compose logs -f bis`.
+5. **Prüfen:** Browser wie gewohnt aufrufen (z. B. **http://localhost:5000**), bei Bedarf Logs ansehen: `docker compose logs -f Application-Service`.
 
 ### Kurzfassung
 
@@ -395,7 +396,7 @@ Dann BIS unter **http://localhost:8080** aufrufen.
 Logs prüfen:
 
 ```powershell
-docker compose logs bis
+docker compose logs Application-Service
 ```
 
 Häufige Ursachen:
@@ -407,7 +408,7 @@ Häufige Ursachen:
 
 Im Image ist **LibreOffice** für die DOCX→PDF-Konvertierung enthalten. Wenn PDF-Export trotzdem fehlschlägt:
 
-- Logs prüfen: `docker compose logs bis`
+- Logs prüfen: `docker compose logs Application-Service`
 - Sicherstellen, dass der Container genug Speicher hat und keine temporären Schreibfehler auftreten.
 
 ### Datenbank zurücksetzen

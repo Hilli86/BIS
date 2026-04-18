@@ -10,6 +10,7 @@ from markupsafe import Markup
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from utils.navigation_history import (
+    clear_navigation_to_home_redirect,
     navigation_history_context,
     pop_navigation_back_redirect,
     record_navigation_after_request,
@@ -219,6 +220,12 @@ def _bis_navigation_history_context():
 def bis_nav_zurueck():
     """Zurück: obersten Navigationsstack-Eintrag entfernen, dann zur vorherigen Seite."""
     return pop_navigation_back_redirect()
+
+
+@app.get('/bis/nav/start')
+def bis_nav_start():
+    """Start: Navigationsverlauf leeren, dann Dashboard bzw. Gast-Home."""
+    return clear_navigation_to_home_redirect()
 
 
 @app.template_global('menue_sichtbar')

@@ -30,6 +30,7 @@ EXCLUDED_ENDPOINTS: frozenset[str | None] = frozenset(
         'auth.login',
         'auth.login_guest',
         'bis_nav_zurueck',
+        'bis_nav_start',
     }
 )
 
@@ -302,6 +303,19 @@ def pop_navigation_back_redirect() -> Any:
     return redirect(target)
 
 
+def clear_navigation_to_home_redirect() -> Any:
+    """
+    Navigationsverlauf leeren und zur Startseite (Dashboard bzw. Gast-Home).
+
+    Wird vom Breadcrumb-Link „Start“ genutzt, damit die Leiste ohne
+    Zwischenstationen neu beginnt.
+    """
+    if not _session_has_navigation_identity():
+        return redirect(url_for('auth.login'))
+    clear_navigation_history()
+    return redirect(_home_url())
+
+
 def get_previous_url(stack: list[dict[str, Any]] | None = None, req: Any = None) -> str | None:
     """Interne URL der logisch vorherigen Seite (fuer Zurueck-Link in der Toolbar)."""
     req = req or request
@@ -336,7 +350,7 @@ def build_breadcrumb_items(stack: list[dict[str, Any]] | None = None, req: Any =
     ][-3:]
 
     crumbs: list[dict[str, Any]] = [
-        {'href': _home_url(), 'label': 'Start', 'active': False},
+        {'href': url_for('bis_nav_start'), 'label': 'Start', 'active': False},
     ]
     for e in past:
         p = e.get('path')
@@ -382,6 +396,6 @@ def navigation_history_context() -> dict[str, Any]:
 
 
 def clear_navigation_history() -> None:
-    """Optional z. B. nach explizitem Verlauf leeren (derzeit nicht genutzt)."""
+    """Verlauf in der Session leeren (z. B. nach Klick auf „Start“ in der Breadcrumb-Leiste)."""
     session.pop(SESSION_KEY, None)
     session.modified = True
