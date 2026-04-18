@@ -48,3 +48,31 @@ services:
       Application-Service:
         condition: service_healthy
     restart: unless-stopped
+
+  Backup-Service:
+    build:
+      context: .
+      dockerfile: docker/backup.Dockerfile
+    image: bis/backup-service:latest
+    container_name: bis-backup-service
+    environment:
+      TZ: Europe/Berlin
+      # 7z-Passwort (AES-256) fuer die verschluesselte Kopie nach OneDrive.
+      # Pflicht, wenn der Backup-Service laeuft.
+      BACKUP_ENCRYPTION_PASSWORD: ${BACKUP_ENCRYPTION_PASSWORD:?BACKUP_ENCRYPTION_PASSWORD muss als Umgebungsvariable gesetzt sein}
+      # GFS-Retention (taeglich / woechentlich / monatlich)
+      RETENTION_DAILY: "14"
+      RETENTION_WEEKLY: "8"
+      RETENTION_MONTHLY: "12"
+      # "false" deaktiviert den taeglichen Erfolgs-Ping an Admins (Fehler kommen immer).
+      NOTIFY_ON_SUCCESS: "true"
+    volumes:
+      # Gleicher Datenpfad wie Application-Service (DB + Uploads). rw noetig fuer Benachrichtigungs-Insert.
+      - C:\BIS-Daten:/data
+      # Lokales Backup-Ziel (unverschluesselt, schneller Restore).
+      - C:\BIS-Backups:/backup-plain
+      # Verschluesselte Offsite-Kopie (OneDrive synchronisiert in die Cloud).
+      - C:\Users\hilli\OneDrive\Apps\BIS\Backups:/backup-encrypted
+    depends_on:
+      - Application-Service
+    restart: unless-stopped

@@ -1,25 +1,25 @@
 # =============================================================================
-# BIS ù Umgebungsvariablen fùr Docker Compose (Beispiel)
+# BIS ÔøΩ Umgebungsvariablen fÔøΩr Docker Compose (Beispiel)
 # =============================================================================
 #
-# Docker Compose lùdt beim Start automatisch eine Datei namens `.env` im
-# gleichen Ordner wie `docker-compose.yml` und nutzt sie u.a. fùr
+# Docker Compose lÔøΩdt beim Start automatisch eine Datei namens `.env` im
+# gleichen Ordner wie `docker-compose.yml` und nutzt sie u.a. fÔøΩr
 # `${SECRET_KEY}` im Compose-File.
 #
 # Vorgehen:
 #   1. Diese Datei nach `.env` kopieren (Name exakt `.env`).
 #   2. SECRET_KEY unten setzen (mind. 32 Zeichen, kein Platzhalter).
-#   3. Optional: WebAuthn/Mail/VAPID ergùnzen ù siehe Hinweise am Ende.
+#   3. Optional: WebAuthn/Mail/VAPID ergÔøΩnzen ÔøΩ siehe Hinweise am Ende.
 #
 # Pfade zur Datenbank und zu Uploads sind im Compose-File fest auf den
 # Volume-Mount `/data` im Container gelegt (Windows-Host z.B. `C:\BIS-Daten:/data`).
 # FLASK_ENV, SESSION_COOKIE_SECURE, TRUSTED_PROXIES usw. stehen ebenfalls in
-# `docker-compose.yml`; dort anpassen, wenn Sie etwas davon ùndern wollen.
+# `docker-compose.yml`; dort anpassen, wenn Sie etwas davon ÔøΩndern wollen.
 #
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# Pflicht fùr `docker compose` (Substitution in docker-compose.yml)
+# Pflicht fÔøΩr `docker compose` (Substitution in docker-compose.yml)
 # -----------------------------------------------------------------------------
 
 # Erzeugen z.B. mit:
@@ -31,10 +31,10 @@ SECRET_KEY=bitte-durch-eigenen-langen-zufaelligen-wert-ersetzen-min-32-zeichen
 # -----------------------------------------------------------------------------
 #
 # In Produktion erwartet die App WEBAUTHN_RP_ID und WEBAUTHN_ORIGIN aus der
-# Umgebung. Ohne diese Werte schlùgt die Passkey-Nutzung fehl, sobald der
+# Umgebung. Ohne diese Werte schlÔøΩgt die Passkey-Nutzung fehl, sobald der
 # FIDO2-Server initialisiert wird.
 #
-# Zugriff ùber Nginx mit HTTPS (Standard im Repo: https://localhost):
+# Zugriff ÔøΩber Nginx mit HTTPS (Standard im Repo: https://localhost):
 #   Tragen Sie die folgenden Zeilen in docker-compose.yml unter
 #   services.Application-Service.environment ein (oder entkommentieren Sie die dortigen
 #   Platzhalter und passen Sie Hostname/Origin an).
@@ -43,11 +43,11 @@ SECRET_KEY=bitte-durch-eigenen-langen-zufaelligen-wert-ersetzen-min-32-zeichen
 # WEBAUTHN_ORIGIN=https://localhost
 # WEBAUTHN_RP_NAME=BIS
 #
-# Nur direkt ùber http://localhost:5000 (ohne Nginx):
+# Nur direkt ÔøΩber http://localhost:5000 (ohne Nginx):
 # WEBAUTHN_RP_ID=localhost
 # WEBAUTHN_ORIGIN=http://localhost:5000
 #
-# Zugriff ùber anderen Hostnamen (Zertifikat/SAN in docker/nginx.Dockerfile anpassen):
+# Zugriff ÔøΩber anderen Hostnamen (Zertifikat/SAN in docker/nginx.Dockerfile anpassen):
 # WEBAUTHN_RP_ID=mein-server
 # WEBAUTHN_ORIGIN=https://mein-server
 
@@ -55,7 +55,7 @@ SECRET_KEY=bitte-durch-eigenen-langen-zufaelligen-wert-ersetzen-min-32-zeichen
 # Optional: E-Mail (Benachrichtigungen)
 # -----------------------------------------------------------------------------
 # Diese Variablen sind nicht in docker-compose.yml voreingetragen. Entweder
-# hier setzen und in docker-compose bei services.Application-Service ergùnzen:
+# hier setzen und in docker-compose bei services.Application-Service ergÔøΩnzen:
 #   env_file: .env
 # oder jede Variable einzeln unter services.Application-Service.environment eintragen.
 #
@@ -72,8 +72,8 @@ SECRET_KEY=bitte-durch-eigenen-langen-zufaelligen-wert-ersetzen-min-32-zeichen
 # -----------------------------------------------------------------------------
 # Optional: Web-Push (VAPID)
 # -----------------------------------------------------------------------------
-# Schlùssel z.B. mit: flask --app app vapid-generate
-# Im Container mùssen Pfade innerhalb des Images oder des Volume-Mounts
+# SchlÔøΩssel z.B. mit: flask --app app vapid-generate
+# Im Container mÔøΩssen Pfade innerhalb des Images oder des Volume-Mounts
 # liegen (z.B. PEM unter /data/... mounten).
 #
 # VAPID_PRIVATE_KEY=/data/instance/vapid_private.pem
@@ -81,7 +81,21 @@ SECRET_KEY=bitte-durch-eigenen-langen-zufaelligen-wert-ersetzen-min-32-zeichen
 # VAPID_EMAIL=admin@example.com
 
 # -----------------------------------------------------------------------------
-# Optional: Vertrauenswùrdige Proxies (bereits Default im Compose)
+# Optional: VertrauenswÔøΩrdige Proxies (bereits Default im Compose)
 # -----------------------------------------------------------------------------
-# Nur nùtig, wenn Sie TRUSTED_PROXIES in docker-compose ùberschreiben wollen:
+# Nur nÔøΩtig, wenn Sie TRUSTED_PROXIES in docker-compose ÔøΩberschreiben wollen:
 # TRUSTED_PROXIES=172.16.0.0/12,127.0.0.1
+
+# -----------------------------------------------------------------------------
+# Pflicht, wenn Backup-Service aktiv: 7z-Passwort (AES-256)
+# -----------------------------------------------------------------------------
+#
+# Der Service "Backup-Service" erzeugt eine verschluesselte Kopie der
+# Datensicherung nach C:\Users\<User>\OneDrive\Apps\BIS\Backups. Ohne dieses
+# Passwort laesst sich das Archiv nicht wiederherstellen - unbedingt an einem
+# sicheren Ort aufbewahren (Passwort-Manager, versiegelter Umschlag, o. a.).
+#
+# Erzeugen z. B. mit:
+#   python -c "import secrets; print(secrets.token_urlsafe(32))"
+#
+BACKUP_ENCRYPTION_PASSWORD=bitte-durch-eigenen-langen-zufaelligen-wert-ersetzen
