@@ -1,15 +1,18 @@
 # BIS - Betriebsinformationssystem
 
-Ein Flask-basiertes Schichtbuch-System für die Verwaltung von Arbeitsaufträgen und Bemerkungen.
+Modulare Flask-Anwendung mit Blueprints für Schichtbuch, Ersatzteile/Bestellwesen,
+Wartungen, Produktion und administrative Aufgaben. Optimiert für den Einsatz in
+einem Werkstatt-/Produktionsumfeld inkl. Etikettendruck (Zebra), PDF/DOCX-Berichten
+und Web-Push-Benachrichtigungen.
 
 ## 🚀 Schnellstart
 
 ### Voraussetzungen
-- Python 3.8+
+- Python 3.11+
 - pip
-- **LibreOffice** (für PDF-Export von Bestellungen und Angebotsanfragen)
-  - Linux: `sudo apt-get install libreoffice` oder `sudo yum install libreoffice`
-  - Windows: Download von [libreoffice.org](https://www.libreoffice.org/download/)
+- **LibreOffice** (für DOCX→PDF-Konvertierung von Bestellungen, Angebotsanfragen, Berichten)
+  - Linux: `sudo apt-get install libreoffice-writer libreoffice-common`
+  - Windows: Download von [libreoffice.org](https://www.libreoffice.org/download/) – alternativ wird unter Windows auch MS Word über `docx2pdf` genutzt
   - macOS: `brew install --cask libreoffice`
 
 ### Installation
@@ -20,56 +23,38 @@ git clone <repository-url>
 cd BIS
 ```
 
-2. **Virtuelle Umgebung erstellen:**
+2. **Virtuelle Umgebung erstellen und aktivieren:**
 ```bash
-python -m venv venv
+python -m venv .venv
 ```
+- Windows (PowerShell): `./.venv/Scripts/Activate.ps1`
+- Windows (CMD): `.venv\Scripts\activate`
+- Linux/Mac: `source .venv/bin/activate`
 
-3. **Virtuelle Umgebung aktivieren:**
-- Windows (PowerShell):
-```powershell
-./venv/Scripts/Activate.ps1
-```
-- Windows (CMD):
-```cmd
-venv\Scripts\activate
-```
-- Linux/Mac:
-```bash
-source venv/bin/activate
-```
-
-4. **Abhängigkeiten installieren:**
+3. **Abhängigkeiten installieren:**
 ```bash
 pip install -r requirements.txt
 ```
 
-5. **Umgebungsvariablen konfigurieren:**
-Erstellen Sie eine `.env` basierend auf `env_example.txt`:
-- Windows (PowerShell):
-```powershell
-Copy-Item env_example.txt .env
-```
-- Windows (CMD):
-```cmd
-copy env_example.txt .env
-```
-- Linux/Mac:
-```bash
-cp env_example.txt .env
-```
+4. **Umgebungsvariablen konfigurieren:**
+Erstellen Sie eine `.env` basierend auf `env_example.txt` und passen Sie
+mindestens `SECRET_KEY`, `DATABASE_URL` und `UPLOAD_BASE_FOLDER` an.
+Für **Docker Compose** eignet sich `env_docker_example.txt` als Vorlage (u.a. Hinweise zu `SECRET_KEY`, WebAuthn hinter Nginx und optional Mail/VAPID).
 
-6. **Datenbank:**
-- Standard-Datei ist `database_main.db` (bereits im Repo enthalten).
-- Pfad kann über `DATABASE_URL` in `.env` geändert werden.
+5. **Datenbank:**
+- Standard-Datei ist `database_main.db` (Pfad konfigurierbar über `DATABASE_URL`).
+- Beim ersten App-Start werden fehlende Tabellen, Spalten und Indizes
+  automatisch angelegt (siehe `utils/database_check.py`).
+- Optional kann die Datenbank vorab mit `python scripts/init_database.py`
+  initialisiert werden – siehe Abschnitt **Initial-Admin** unten.
 
-7. **Anwendung starten:**
+6. **Anwendung starten:**
 
 Lokale Entwicklung (Flask-Dev-Server):
 ```bash
 flask --app app run
 ```
-- Debug-Modus optional über `FLASK_DEBUG=True` aktivieren (siehe unten).
+- Debug-Modus optional über `FLASK_DEBUG=True` aktivieren.
 - Host/Port lassen sich per `--host 0.0.0.0 --port 5000` setzen oder über
   die Umgebungsvariablen `BIS_DEV_HOST`/`BIS_DEV_PORT` beim direkten
   `python app.py`-Start.
@@ -80,7 +65,7 @@ gunicorn --workers 3 --bind 127.0.0.1:8000 app:app
 ```
 - `python app.py` bzw. Debug-Modus sind **nicht** für den produktiven
   Betrieb gedacht.
-- Siehe `deployment/bis.service` und `Dockerfile` für fertige Setups.
+- Siehe `deployment/bis.service`, `deployment/docker/bis.Dockerfile` und `docker-compose.yml` für fertige Setups.
 
 Die Anwendung ist dann unter `http://localhost:5000` (Dev) bzw. der vom
 Reverse-Proxy bereitgestellten URL erreichbar.
@@ -90,290 +75,240 @@ Reverse-Proxy bereitgestellten URL erreichbar.
 Bei einer **leeren Datenbank** (kein Mitarbeiter vorhanden) wird einmalig
 ein Admin-Benutzer angelegt:
 
-- **Personalnummer:** 99999
-- **Passwort:** wird zufällig erzeugt und **einmalig** beim Start in die
-  Anwendungslogs geschrieben (Logger `bis.init`, Level `WARNING`).
-- **Name:** BIS-Admin
+- **Personalnummer:** `99999`
+- **Name:** BIS-Admin (Primär-Abteilung „BIS-Admin", erhält automatisch die
+  Berechtigung `admin`).
+- **Passwort:** wird **zufällig** mit `secrets.token_urlsafe(18)` erzeugt
+  und einmalig ausgegeben:
+  - beim Aufruf von `python scripts/init_database.py` direkt im Terminal in einer
+    auffälligen Banner-Box (`stdout`),
+  - beim normalen App-Start zusätzlich als `WARNING`-Eintrag des Loggers
+    `bis.init` (in der Konsole bzw. im Service-Log).
 - **Wechsel-Zwang:** Beim ersten Login wird der Admin zur Passwort-Änderung
-  geführt (`PasswortWechselErforderlich = 1`), ein Weiterarbeiten ist erst
+  geführt (`PasswortWechselErforderlich = 1`); ein Weiterarbeiten ist erst
   nach dem Setzen eines neuen Passworts möglich.
+
+> **Wichtig:** Das Initial-Passwort wird **nicht** persistent gespeichert oder
+> erneut ausgegeben. Geht es verloren, muss das Passwort direkt in der
+> Datenbank (Tabelle `Mitarbeiter`, Spalte `Passwort` via
+> `werkzeug.security.generate_password_hash`) zurückgesetzt werden – oder ein
+> vorhandener Admin setzt es über die Admin-Oberfläche neu.
 
 Wenn bereits Mitarbeiter existieren, wird **kein** zusätzlicher Admin
 automatisch angelegt. Admin-Rechte können nachträglich über die
 Admin-Seite vergeben werden.
 
-
 ## ⚙️ Konfiguration
 
-### Umgebungsvariablen
-
-Erstellen Sie eine `.env` Datei basierend auf `env_example.txt`:
+### Umgebungsvariablen (`.env`)
 
 ```env
-FLASK_ENV=development
-SECRET_KEY=ihr-super-geheimer-schluessel
+# Pflicht
+FLASK_ENV=development           # development | production
+SECRET_KEY=<mind. 32 Zeichen, kein Platzhalter>
 DATABASE_URL=database_main.db
-SQL_TRACING=True
+
+# Optional / empfohlen
+UPLOAD_BASE_FOLDER=C:\Pfad\zu\Daten   # Basisordner für Uploads
+SQL_TRACING=False                     # SQL-Statements im Log mitschreiben
+SESSION_COOKIE_SECURE=true            # bei HTTPS-Betrieb auf true
+REMEMBER_COOKIE_SECURE=true
+
+# Web-Push (VAPID)
+# Erzeugen: flask --app app vapid-generate
+# Prüfen:    flask --app app vapid-verify
+VAPID_PRIVATE_KEY=C:\Pfad\BIS\instance\vapid_private.pem
+VAPID_PUBLIC_KEY=<base64 url-safe>
+VAPID_EMAIL=admin@example.com
 ```
 
-### Produktionsumgebung
+In **Produktion** (`FLASK_ENV=production`) verweigert die App den Start, wenn
+kein ausreichend starker `SECRET_KEY` gesetzt ist (siehe `app.py`,
+`_validate_secret_key`).
 
-Für die Produktion setzen Sie:
-```env
-FLASK_ENV=production
-SECRET_KEY=<starker-zufaelliger-schluessel>
-SQL_TRACING=False
-```
+### Produktions-Deployment
 
-**📦 Produktionsserver-Deployment:**
+Vorbereitete Setups und Anleitungen liegen unter `deployment/` und `docs/`:
 
-Für die Einrichtung eines produktiven Servers:
-
-- **💰 Hosting-Optionen:** [HOSTING_OPTIONEN.md](HOSTING_OPTIONEN.md) - Günstige Hosting-Anbieter für Tests & Start
-- **⭐ Schnellstart:** [SCHNELLSTART_DEPLOYMENT.md](SCHNELLSTART_DEPLOYMENT.md) - Setup in 30 Min
-- **📖 Vollständiger Guide:** [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) - Alle Details
-- **📋 Übersicht:** [DEPLOYMENT_ÜBERSICHT.md](DEPLOYMENT_ÜBERSICHT.md) - Alle Optionen
-
-Automatische Deployment-Scripts finden Sie im Ordner `deployment/`.
+- `docker-compose.yml` und `deployment/docker/bis.Dockerfile` – Container-Setup mit Gunicorn + LibreOffice; TLS-Proxy: `deployment/docker/nginx.Dockerfile`
+- `deployment/bis.service` – systemd-Unit für Linux
+- `deployment/install_server.sh`, `deployment/update_app.sh`, `deployment/backup_bis.sh`
+- `deployment/nginx_bis*.conf` – nginx-Konfigurationen (HTTP / HTTPS / Self-Signed)
+- `docs/DEPLOYMENT_GUIDE.md`, `docs/SCHNELLSTART_DEPLOYMENT.md`, `docs/HOSTING_OPTIONEN.md`,
+  `docs/DEPLOYMENT_ÜBERSICHT.md`, `docs/PROXMOX_EINRICHTUNG.md`
 
 ## 📁 Projektstruktur
 
 ```
 BIS/
-├── app.py                 # Hauptanwendung
-├── config.py              # Konfiguration
-├── init_database.py       # Datenbank-Initialisierung
-├── modules/               # Modulare Blueprints
-│   ├── auth/             # Authentifizierung
-│   ├── schichtbuch/      # Schichtbuch-Funktionen
-│   ├── ersatzteile/     # Ersatzteile-Verwaltung
-│   └── admin/            # Admin-Bereich
-├── utils/                 # Hilfsfunktionen
-├── migrations/            # Datenbank-Migrationen
-├── templates/             # HTML-Templates
-│   ├── layout/
-│   ├── dashboard/
-│   ├── auth/
-│   └── errors/
-├── static/                # CSS/JS/Icons
-├── env_example.txt        # Beispiel-Env
-├── requirements.txt       # Python-Abhängigkeiten
-└── database_main.db       # SQLite-Datenbank (Standard)
+├── app.py                    # Flask-App, Blueprint-Registrierung, CLI-Befehle
+├── config.py                 # Konfigurations-Klassen (development/production)
+├── requirements.txt
+├── docker-compose.yml
+├── modules/                  # Blueprints
+│   ├── auth/                 # Login, Profil, Passwort, WebAuthn
+│   ├── dashboard/            # Startseite mit KPIs
+│   ├── schichtbuch/          # Themen, Bemerkungen, Aufgabenlisten
+│   ├── ersatzteile/          # Artikel, Lager, Bestellwesen, Auswertungen
+│   ├── wartungen/            # Wartungspläne, Durchführungen, Jahresübersicht
+│   ├── produktion/           # Etikettierung, Etiketten drucken
+│   ├── diverses/             # Zebra-Drucker, Dokumente erfassen
+│   ├── search/               # Globale Suche
+│   ├── import/               # CSV-/Daten-Import
+│   ├── admin/                # Stammdaten, Berechtigungen, Login-Logs
+│   └── errors/               # 4xx/5xx-Handler
+├── utils/                    # Querschnitts-Utilities
+│   ├── database*.py          # Verbindungs-Pool, Schema-Init, Health-Check
+│   ├── security*.py          # CSRF, Talisman/CSP, Rate-Limiting, Header
+│   ├── reports/              # PDF-/DOCX-Erzeugung (docxtpl + LibreOffice)
+│   ├── benachrichtigungen*.py# E-Mail/Push/Toast-Pipeline
+│   ├── vapid_setup.py        # VAPID-Schlüssel-Erzeugung/-Prüfung
+│   └── ...
+├── templates/                # Globale Layouts und Fehlerseiten
+├── static/                   # CSS/JS/Icons, Service Worker
+├── deployment/               # systemd/nginx/Skripte; docker/ = Compose-Images (bis, nginx)
+├── docs/                     # Tiefer gehende Anleitungen
+└── scripts/                  # Hilfsskripte (z. B. init_database.py)
 ```
 
 ## 🔧 Funktionen
 
-### Benutzerverwaltung
-- **Benutzerauthentifizierung** mit Personalnummer
-- **Benutzerprofil** - Anzeige und Bearbeitung persönlicher Daten
-- **Passwort ändern** - Selbstständige Passwortänderung
-- **Dashboard** - Übersicht mit Statistiken und Aktivitäten
+### Benutzer & Konto
+- Login per Personalnummer + Passwort, optional **WebAuthn/Passkeys** (FIDO2)
+- **Profil** mit Kontaktdaten (E-Mail, Handynummer)
+- Selbst-Service: Passwort ändern, Push-Subscription verwalten
+- **Erzwungene Passwort-Änderung** beim ersten Login (Initial-Admin oder Reset)
+- Dashboard mit Statistiken, KPIs (inkl. Wartungsfälligkeiten) und Modul-Karten
 
-### Schichtbuch-Verwaltung
-- **Themenliste** mit Infinite Scroll (Laden in Seiten à 50 Einträgen)
-- **Filter** (einklappbar):
-  - Bereich und Gewerk (Gewerk dynamisch nach Bereich)
-  - Status-Mehrfachauswahl
-  - Textsuche in Bemerkungen
-- **Thema-Details**
-  - Tätigkeit wird pro Bemerkung angezeigt
-  - Eigene Bemerkungen können inline bearbeitet werden (Text und Tätigkeit)
-  - **PDF-Export** - Themen als PDF exportieren
-  - Datei-Upload und QR-Code-Generierung
-- **Status-Tracking** (Offen, In Arbeit, Abgeschlossen)
-- **Sichtbarkeitssteuerung** - Themen für bestimmte Abteilungen sichtbar machen
-
-### Benachrichtigungen
-- **Toast-Benachrichtigungen** bei neuen Bemerkungen auf eigenen Themen
-- **Badge-Anzeige** in der Navigation für ungelesene Nachrichten
-- Automatische Aktualisierung alle 30 Sekunden
+### Schichtbuch
+- **Themenliste** mit Infinite Scroll, einklappbarem Filter (Bereich, Gewerk,
+  Status-Mehrfachauswahl, Volltextsuche)
+- Themen mit optionalen **Zusatz-Gewerken** und Sichtbarkeits-Steuerung pro Abteilung
+- **Thema-Detail**: Bemerkungen mit Tätigkeit, Inline-Bearbeitung eigener
+  Einträge, Datei-Upload, QR-Code-Generierung, **PDF-Export inkl. Foto-Anhängen**
+- **Aufgabenlisten**: gruppieren mehrere Themen für definierte Mitarbeiter/
+  Abteilungen, mit Sortierung, Archivierung, Duplizieren und gezielter Sichtbarkeit
+- Status-Tracking (Offen / In Arbeit / Abgeschlossen) und Tätigkeiten pro Bemerkung
+- Optionale **Lager-Rückbuchung** beim Löschen eines Themas
 
 ### Bestellwesen
-- **Angebotsanfragen**:
-  - Anfragen an Lieferanten mit mehreren Positionen
-  - Status-Verwaltung (Offen, Versendet, Angebot erhalten, Abgeschlossen)
-  - Smart-Add-Funktion: Prüft auf bestehende offene Anfragen beim Lieferanten
-  - **PDF-Export** im professionellen Geschäftsdokument-Stil (benötigt LibreOffice)
-  - Positionen bearbeitbar per Klick (bei offenen Anfragen)
-  - Artikel direkt aus Position erstellen (wenn noch nicht vorhanden)
-  - PDF-Upload für erhaltene Angebote
-  - Preisübernahme aus Angebot mit automatischer Preisstand-Aktualisierung
-- **Bestellungen**:
-  - **PDF-Export** für Bestellungen (benötigt LibreOffice)
-  - Falls LibreOffice nicht verfügbar ist, wird automatisch DOCX zurückgegeben
-- **Modal-Auswahl**:
-  - Ersatzteile vom Lieferanten per Modal auswählbar
-  - Automatisches Befüllen von Bestellnummer und Bezeichnung
+- **Angebotsanfragen** an Lieferanten mit mehreren Positionen, Status-Workflow
+  (Offen → Versendet → Angebot erhalten → Abgeschlossen)
+  - Smart-Add: prüft auf bestehende offene Anfragen pro Lieferant
+  - PDF-Upload erhaltener Angebote, Preisübernahme mit automatischer Preisstand-Aktualisierung
+  - Inline-Bearbeitung von Positionen, Anlegen neuer Artikel direkt aus einer Position
+  - **PDF-Export** im Geschäftsdokument-Stil (LibreOffice oder MS Word) +
+    **DOCX-Export** als Alternative
+- **Bestellungen** mit Freigabe-Workflow, PDF-/DOCX-Export und Druckbericht
+- **Wareneingang buchen**: bestellungs- bzw. positionsweises Einbuchen mit
+  automatischer Lagerbuchung
+- **Auswertungen** über Zeiträume, Lieferanten und Abteilungs-Hierarchien
+  (rekursive Aggregation über Unter-Abteilungen)
 
-### Ersatzteile-Verwaltung
-- **Ersatzteil-Liste** mit umfangreichen Filtern:
-  - Kategorie, Lieferant, Bestandswarnung
-  - Textsuche (Bestellnummer, Bezeichnung, Beschreibung)
-  - Sortierung nach verschiedenen Kriterien (ID, Bestellnummer, Kategorie, Bezeichnung, Lieferant, Bestand, Lagerort, Lagerplatz)
-  - Direkt zu Angebotsanfrage hinzufügen (Button in Liste)
-- **Ersatzteil-Detailansicht**:
-  - Vollständige Informationen (Bestellnummer editierbar, Bezeichnung, Hersteller, Preis mit Preisstand, Währung, Lagerort, Lagerplatz)
-  - Bestandsanzeige mit Mindestbestand und Warnung
-  - End-of-Life und Nachfolgeartikel-Verwaltung
-  - Kennzeichen (A-Z) für Kategorisierung
-  - Bilder und Dokumente hochladen/verwalten
-  - Abteilungsbasierte Zugriffsrechte
-  - Smart-Add zu Angebotsanfrage mit Toast-Benachrichtigung
-- **Lagerbuchungen**:
-  - Übersicht aller Lagerbuchungen mit Filtern (Ersatzteil, Typ, Kostenstelle, Datum)
-  - Eingang, Ausgang und Inventur
-  - Automatische Bestandsaktualisierung
-  - Preis- und Währungserfassung pro Buchung
-  - Verknüpfung mit Schichtbuch-Themen
-  - Schnellbuchung durch Eingabe der Ersatzteil-ID
-- **Thema-Verknüpfung**:
-  - Ersatzteile direkt mit Schichtbuch-Themen verknüpfen
-  - Automatische Lagerbuchung (Ausgang) bei Verknüpfung
-- **Lieferanten-Verwaltung**:
-  - Lieferanten-Liste mit Kontaktdaten
-  - Detailansicht mit zugehörigen Ersatzteilen
-  - Adressverwaltung (Straße, PLZ, Ort)
-- **Berechtigungen**:
-  - Abteilungsbasierte Zugriffsrechte für Ersatzteile
-  - Administratoren haben vollen Zugriff
-  - Nur Administratoren können Ersatzteile anlegen/bearbeiten/löschen
+### Ersatzteile / Lager
+- **Artikelliste** mit Filtern (Kategorie, Lieferant, Bestandswarnung), Suche
+  und konfigurierbarer Sortierung; mobiles Card-Layout mit Artikelfoto
+- **Artikel-Detail**: Stammdaten (inkl. Preis/Preisstand/Währung), Lagerort/-platz,
+  Mindestbestand, End-of-Life + Nachfolgeartikel, Kennzeichen, Bilder/Dokumente
+- **Suche Artikel**: schneller Zugriff über Bestellnummer/Bezeichnung/Hersteller
+- **Lieferanten-Verwaltung** inkl. Detailseite mit zugeordneten Artikeln
+- **Lagerbuchungen** (Eingang, Ausgang, Inventur) mit Filtern, Schnellbuchung
+  per Artikel-ID und Verknüpfung zu Schichtbuch-/Wartungs-Vorgängen
+- **Inventurliste** mit eigenem Filter (Lagerort/Lagerplatz)
+- **Etiketten drucken** für Artikel (Zebra-ZPL, Vorschau, Vorlagen-Auswahl)
+
+### Wartungen
+- **Wartungs-Stammsätze** je Bereich/Gewerk mit Berechtigungs-Steuerung
+- **Wartungspläne** mit festem Intervall (oder ohne Fälligkeit bei Intervall 0)
+  und Anzeige der letzten Durchführung
+- **Durchführungen** einzeln oder als **Mehrfach-Protokoll** für mehrere Pläne
+  in einem Vorgang, inkl. verbrauchter Artikel und Service-Berichten
+- **Angebote/Kosten** pro Durchführung verknüpfbar
+- **Jahresübersicht** mit Fälligkeits-Ampel und direkter Protokollierung
+- **Chronologische Protokoll-Liste**, sortierbar
+- Datei-Upload zu Wartungen und Durchführungen (Service-Berichte etc.)
+
+### Produktion / Diverses
+- **Etikettierung**: Übersicht der Artikeleinstellungen je Linie aus
+  Ordner-Struktur, mit Bildern
+- **Etiketten drucken**: konfigurierbare Vorlagen, Platzhalter, Druck-Konfigs
+- **Zebra-Drucker**: zentrale Druckerliste, Kalibrieren, Testdruck
+- **Dokumente erfassen**: Aufnahme per Kamera + Zuschneiden, Ablage im Import-Ordner
+
+### Benachrichtigungen
+- **In-App-Toasts** und Badge in der Navigation für ungelesene Nachrichten
+- **Web-Push** über Service Worker + VAPID
+  (CLI: `flask --app app vapid-generate`, `vapid-verify`, `push-test`)
+- E-Mail-Pipeline für Schichtbuch-Themen (mit konfigurierbarer Empfängerlogik)
+- Automatische Bereinigung alter Benachrichtigungen beim App-Start
+
+### Globale Suche & Navigation
+- **Globale Suche** über Themen, Artikel, Bestellungen, Wartungen u. a.
+- **Navigationsverlauf** in der Session: Breadcrumb + Zurück-Button
+  (Endpoint `/bis/nav/zurueck`)
+- Sidebar mit modulbasierter Sichtbarkeitssteuerung pro Mitarbeiter
 
 ### Admin-Bereich
-- **Mitarbeiter-Verwaltung** - Anlegen, Bearbeiten, Passwort zurücksetzen, Email und Handynummer
-- **Berechtigungs-Verwaltung** - Flexible Rechtevergabe pro Mitarbeiter
-  - Admin, Artikel buchen, Bestellungen erstellen/freigeben
-  - Checkboxen für schnelle Zuweisung
-  - Erweiterbar für zukünftige Berechtigungen
-- **Abteilungs-Verwaltung** - Hierarchische Struktur
-- **Stammdaten-Verwaltung** - Bereiche, Gewerke, Status, Tätigkeiten
-- **Ersatzteil-Stammdaten** - Kategorien, Kostenstellen, Lagerorte, Lagerplätze, Lieferanten
-- **Firmendaten** - Verwaltung von Firmendaten für PDF-Export (Adresse, Lieferanschrift, Kontakt, Logo, Bankverbindung)
-- **Datenbank-Check** - Überprüfung und Reparatur der Datenbankstruktur
-- **Login-Logs** - Übersicht aller Login-Versuche mit Filterung
+- **Mitarbeiter-Verwaltung** (Anlegen, Bearbeiten, Deaktivieren,
+  Passwort zurücksetzen, E-Mail/Handynummer)
+- **Berechtigungs-Verwaltung** (Tabellen-basiert, beliebig erweiterbar):
+  Admin, Artikel buchen, Bestellungen erstellen/freigeben, Wartung anlegen,
+  Gewerk am Thema ändern, Zebra-Drucker u. a.
+- **Abteilungen** (hierarchisch) und Mitarbeiter-Abteilungs-Zuordnung
+- **Stammdaten**: Bereiche, Gewerke, Status, Tätigkeiten, Kategorien,
+  Kostenstellen, Lagerorte, Lagerplätze, Lieferanten
+- **Firmendaten** für Berichte (Adresse, Lieferanschrift, Kontakt, Logo, Bankverbindung)
+- **Zebra**: Drucker-Liste, Etikettenformate, Druckkonfigurationen, Testdruck
+- **Login-Logs** mit Filterung
+- **Datenbank-Check** über UI
 
-### Technische Features
-- **AJAX-Unterstützung** für dynamische Updates
-- **Responsive Design** - Mobile Navigation mit Hamburger-Menü
-- **PWA-Unterstützung** - Installierbar als Web-App
+## 🔐 Sicherheits-Härtung
+
+Die App ist auf direkten Online-Betrieb hinter Reverse-Proxy ausgelegt:
+
+- **CSRF-Schutz** für alle State-Changing-Requests (Flask-WTF, globaler `csrf`)
+- **Content-Security-Policy** + weitere Header über **Flask-Talisman**
+  (`utils/security_headers.py`); HSTS automatisch in Produktion
+- **Rate-Limiting** über `flask-limiter` (konkrete Limits per Dekorator,
+  z. B. Login)
+- **ProxyFix** für korrekte Erkennung von HTTPS, Host und Client-IP hinter nginx
+- **Session-Cookies** `HttpOnly`, `Secure` (wenn HTTPS), `SameSite`
+- **Passwort-Hashing** über Werkzeug; **Initial-Admin** ohne Default-Passwort
+- **WebAuthn/Passkeys** als zweiter/erster Faktor möglich (`fido2`)
+- **Path-Traversal-Schutz** beim Datei-Download (Wartungen, Berichte, Uploads)
+- **CSS-Color-Sanitizing** für Templates (`safe_color`-Filter)
+- **SECRET_KEY-Validierung**: kein Start in Produktion mit Default/Platzhalter
 
 ## 🛠️ Entwicklung
 
 ### Debug-Modus aktivieren
-- Windows (PowerShell):
-```powershell
-$env:FLASK_DEBUG="True"
-flask --app app run
-```
-- Windows (CMD):
-```cmd
-set FLASK_DEBUG=True
-flask --app app run
-```
-- Linux/Mac:
-```bash
-export FLASK_DEBUG=True
-flask --app app run
-```
+- Windows (PowerShell): `$env:FLASK_DEBUG="True"; flask --app app run`
+- Windows (CMD): `set FLASK_DEBUG=True && flask --app app run`
+- Linux/Mac: `FLASK_DEBUG=True flask --app app run`
 
-Hinweis: Debug-Modus ist **ausschließlich** für die lokale Entwicklung
-bestimmt. In Produktion (`FLASK_ENV=production`) darf er nicht aktiviert
-werden.
+> Debug-Modus ist **ausschließlich** für die lokale Entwicklung bestimmt.
+> In Produktion (`FLASK_ENV=production`) darf er nicht aktiviert werden.
 
 ### SQL-Tracing aktivieren
-- Windows (PowerShell):
-```powershell
-$env:SQL_TRACING="True"
-flask --app app run
-```
-- Windows (CMD):
-```cmd
-set SQL_TRACING=True
-flask --app app run
-```
-- Linux/Mac:
+- Variable `SQL_TRACING=True` setzen, App neu starten.
+
+### Tests ausführen
 ```bash
-export SQL_TRACING=True
-flask --app app run
+pytest
 ```
 
-## 📝 Changelog
+### Nützliche CLI-Befehle (Flask)
+```bash
+flask --app app vapid-generate            # VAPID-Schlüssel für Web-Push erzeugen
+flask --app app vapid-verify              # VAPID-Schlüssel-Paar prüfen
+flask --app app push-test <mitarbeiter_id># Test-Push an Mitarbeiter senden
+```
 
-### Version 1.6 (Aktuell)
-- ✅ **UI-Verbesserungen Tabellen** - Einheitliches Design für alle Tabellen
-  - Themen-Tabelle: Card-Wrapper, table-responsive, table-hover hinzugefügt
-  - Hover-Effekt bei Bemerkungszeilen entfernt
-  - Themenzeile klickbar gemacht
-- ✅ **Auge-Button entfernt** - Redundante "Details anzeigen"-Buttons entfernt
-  - Entfernt aus: Themen, Angebotsanfragen, Bestellungen, Wareneingang, Ersatzteile, Lieferanten
-  - Zeilen sind jetzt klickbar und führen direkt zur Detailseite
-- ✅ **Lieferanten-Verbesserungen**
-  - Lieferanten-Zeilen klickbar gemacht
-  - In Lieferanten-Detail: ErsatzteilID-Spalte am Anfang hinzugefügt und verlinkt
-- ✅ **Inventurliste Filter** - Filter für Lagerort und Lagerplatz hinzugefügt
-  - Einklappbarer Filter-Bereich
-  - Kombinierbare Filter
-  - Zurücksetzen-Button
+## 🐛 Bekannte Einschränkungen
 
-### Version 1.5
-- ✅ **Berechtigungssystem** - Flexibles, tabellen-basiertes Rechtesystem
-  - Admin-Berechtigung für vollständigen Zugriff
-  - Artikel-Buchungs-Berechtigung für Lagerbewegungen
-  - Bestellungs-Berechtigungen vorbereitet (erstellen/freigeben)
-  - Verwaltung direkt im Admin-Bereich
-- ✅ **Artikel-Vorlage** - Neue Artikel aus bestehenden erstellen
-  - Suchfeld mit Autocomplete auf "Neuer Artikel"-Seite
-  - Button "Als Vorlage verwenden" auf Detail-Seite
-  - Alle Daten werden automatisch übernommen
-- ✅ **Admin-UI verbessert** - Übersichtliche Accordion-Struktur
-  - Stammdaten, Abteilungen und Berechtigungen in ausklappbaren Bereichen
-  - Nur ein Bereich gleichzeitig geöffnet
-  - Redundanter "Deaktivieren"-Button entfernt
-- ✅ **Code-Bereinigung** - BIS-Admin Abteilungsprüfungen durch Berechtigungen ersetzt
-- ✅ **Inventurliste** - Bestand-Feld optimiert (Schrittweite 1, kein Placeholder)
-
-### Version 1.4
-- ✅ **Bestellwesen** - Neuer Navigationsbereich für Angebotsanfragen
-- ✅ **Angebotsanfragen** - Vollständiges Anfragewesen mit Status-Verwaltung
-- ✅ **PDF-Export Angebotsanfragen** - Professioneller Geschäftsdokument-Stil
-- ✅ **Firmendaten** - Verwaltung mit Logo, Lieferanschrift und Bankverbindung
-- ✅ **Smart-Add zu Angebotsanfrage** - Intelligente Zuordnung zu bestehenden Anfragen
-- ✅ **Position-Editor** - Angebotspositionen per Klick bearbeitbar
-- ✅ **Artikel aus Position erstellen** - Neue Ersatzteile direkt aus Angebotsposition anlegen
-- ✅ **Mitarbeiter Email/Handy** - Kontaktdaten für Mitarbeiter mit Anzeige im PDF
-- ✅ **Bestellnummer bearbeitbar** - Ersatzteil-Bestellnummern können geändert werden
-- ✅ **Preisstand-Verwaltung** - Automatische Aktualisierung bei Preisübernahme
-
-### Version 1.3
-- ✅ **Benutzerprofil** - Anzeige und Bearbeitung persönlicher Daten
-- ✅ **PDF-Export** - Themen als PDF exportieren
-- ✅ **Benachrichtigungssystem** - Toast-Benachrichtigungen und Badge-Anzeige
-- ✅ **Passwort ändern** - Selbstständige Passwortänderung für Benutzer
-- ✅ **Dashboard** - Übersicht mit Statistiken und Aktivitäten
-- ✅ **Mobile Navigation** - Responsive Design mit Hamburger-Menü
-- ✅ **Admin: Passwort zurücksetzen** - Passwort auf Vorname zurücksetzen
-- ✅ **UI-Verbesserungen** - Bootstrap Icons für Speichern- und Löschen-Buttons im Admin-Bereich
-
-### Version 1.2
-- ✅ sbListeDetails: Infinite Scroll, neue Filter (Bereich, Gewerk, Status-Multi, Textsuche)
-- ✅ sbThemaDetail: Tätigkeit pro Bemerkung, Inline-Bearbeitung eigener Bemerkungen
-
-### Version 1.1
-- ✅ Sicherheitsverbesserungen (Secret Key, Passwort-Hashing)
-- ✅ Error Handling hinzugefügt
-- ✅ Konfigurationsmanagement
-- ✅ Context Manager für DB-Verbindungen
-- ✅ Debug-Ausgaben entfernt
-
-### Version 1.0
-- Grundfunktionalität implementiert
-- Schichtbuch-System
-- Benutzerauthentifizierung
-
-## 🐛 Bekannte Probleme
-
-- Keine automatischen Tests implementiert
+- Tests decken bisher nur einzelne Bereiche ab; Flächendeckung wird ausgebaut.
+- DOCX→PDF benötigt LibreOffice (Linux/Docker/macOS) oder MS Word (Windows via `docx2pdf`).
 
 ## 📞 Support
 
 Bei Problemen oder Fragen wenden Sie sich an das Entwicklungsteam.
-

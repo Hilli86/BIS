@@ -1717,27 +1717,41 @@ def update_bestellung_sichtbarkeit(bestellung_id):
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/pdf')
 @login_required
 def bestellung_pdf_export(bestellung_id):
-    """PDF-Export für eine Bestellung mit docx-Vorlage"""
+    """PDF-/DOCX-Export für eine Bestellung mit docx-Vorlage.
+
+    Optionaler Query-Parameter ``format=docx`` erzwingt die Auslieferung als DOCX
+    (überspringt die PDF-Konvertierung).
+    """
+    force_docx = (request.args.get('format', '').lower() == 'docx')
     try:
         with get_db_connection() as conn:
-            content, filename, mimetype, is_pdf = generate_bestellung_pdf(bestellung_id, conn)
-            
+            content, filename, mimetype, is_pdf = generate_bestellung_pdf(
+                bestellung_id, conn, force_docx=force_docx
+            )
+
             response = make_response(content)
             response.headers['Content-Type'] = mimetype
             response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+            response.headers['Content-Length'] = str(len(content))
+            response.headers['Cache-Control'] = 'no-store'
             return response
-            
+
     except ValueError as e:
+        if force_docx:
+            return jsonify({'error': str(e)}), 400
         flash(str(e), 'danger')
         return redirect(url_for('ersatzteile.bestellung_liste'))
     except FileNotFoundError as e:
+        if force_docx:
+            return jsonify({'error': str(e)}), 404
         flash(str(e), 'danger')
         return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
     except Exception as e:
-        flash(f'Fehler beim Erstellen des Berichts: {str(e)}', 'danger')
-        print(f"Bestellungs-Export Fehler: {e}")
         import traceback
         traceback.print_exc()
+        if force_docx:
+            return jsonify({'error': str(e)}), 500
+        flash(f'Fehler beim Erstellen des Berichts: {str(e)}', 'danger')
         return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
 
 

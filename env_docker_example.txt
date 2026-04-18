@@ -1,0 +1,87 @@
+# =============================================================================
+# BIS – Umgebungsvariablen für Docker Compose (Beispiel)
+# =============================================================================
+#
+# Docker Compose lädt beim Start automatisch eine Datei namens `.env` im
+# gleichen Ordner wie `docker-compose.yml` und nutzt sie u.a. für
+# `${SECRET_KEY}` im Compose-File.
+#
+# Vorgehen:
+#   1. Diese Datei nach `.env` kopieren (Name exakt `.env`).
+#   2. SECRET_KEY unten setzen (mind. 32 Zeichen, kein Platzhalter).
+#   3. Optional: WebAuthn/Mail/VAPID ergänzen – siehe Hinweise am Ende.
+#
+# Pfade zur Datenbank und zu Uploads sind im Compose-File fest auf den
+# Volume-Mount `/data` im Container gelegt (Windows-Host z.B. `C:\BIS-Daten:/data`).
+# FLASK_ENV, SESSION_COOKIE_SECURE, TRUSTED_PROXIES usw. stehen ebenfalls in
+# `docker-compose.yml`; dort anpassen, wenn Sie etwas davon ändern wollen.
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Pflicht für `docker compose` (Substitution in docker-compose.yml)
+# -----------------------------------------------------------------------------
+
+# Erzeugen z.B. mit:
+#   python -c "import secrets; print(secrets.token_urlsafe(48))"
+SECRET_KEY=bitte-durch-eigenen-langen-zufaelligen-wert-ersetzen-min-32-zeichen
+
+# -----------------------------------------------------------------------------
+# Optional: WebAuthn / Passkeys (FLASK_ENV=production)
+# -----------------------------------------------------------------------------
+#
+# In Produktion erwartet die App WEBAUTHN_RP_ID und WEBAUTHN_ORIGIN aus der
+# Umgebung. Ohne diese Werte schlägt die Passkey-Nutzung fehl, sobald der
+# FIDO2-Server initialisiert wird.
+#
+# Zugriff über Nginx mit HTTPS (Standard im Repo: https://localhost):
+#   Tragen Sie die folgenden Zeilen in docker-compose.yml unter
+#   services.bis.environment ein (oder entkommentieren Sie die dortigen
+#   Platzhalter und passen Sie Hostname/Origin an).
+#
+# WEBAUTHN_RP_ID=localhost
+# WEBAUTHN_ORIGIN=https://localhost
+# WEBAUTHN_RP_NAME=BIS
+#
+# Nur direkt über http://localhost:5000 (ohne Nginx):
+# WEBAUTHN_RP_ID=localhost
+# WEBAUTHN_ORIGIN=http://localhost:5000
+#
+# Zugriff über anderen Hostnamen (Zertifikat/SAN im nginx-Dockerfile anpassen):
+# WEBAUTHN_RP_ID=mein-server
+# WEBAUTHN_ORIGIN=https://mein-server
+
+# -----------------------------------------------------------------------------
+# Optional: E-Mail (Benachrichtigungen)
+# -----------------------------------------------------------------------------
+# Diese Variablen sind nicht in docker-compose.yml voreingetragen. Entweder
+# hier setzen und in docker-compose bei services.bis ergänzen:
+#   env_file: .env
+# oder jede Variable einzeln unter services.bis.environment eintragen.
+#
+# MAIL_ENABLED=true
+# MAIL_SERVER=smtp.example.com
+# MAIL_PORT=587
+# MAIL_USE_TLS=true
+# MAIL_USE_SSL=false
+# MAIL_USERNAME=
+# MAIL_PASSWORD=
+# MAIL_DEFAULT_SENDER=noreply@example.com
+# MAIL_DEFAULT_SENDER_NAME=BIS System
+
+# -----------------------------------------------------------------------------
+# Optional: Web-Push (VAPID)
+# -----------------------------------------------------------------------------
+# Schlüssel z.B. mit: flask --app app vapid-generate
+# Im Container müssen Pfade innerhalb des Images oder des Volume-Mounts
+# liegen (z.B. PEM unter /data/... mounten).
+#
+# VAPID_PRIVATE_KEY=/data/instance/vapid_private.pem
+# VAPID_PUBLIC_KEY=
+# VAPID_EMAIL=admin@example.com
+
+# -----------------------------------------------------------------------------
+# Optional: Vertrauenswürdige Proxies (bereits Default im Compose)
+# -----------------------------------------------------------------------------
+# Nur nötig, wenn Sie TRUSTED_PROXIES in docker-compose überschreiben wollen:
+# TRUSTED_PROXIES=172.16.0.0/12,127.0.0.1

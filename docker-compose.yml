@@ -1,9 +1,15 @@
 # BIS – Betriebsinformationssystem
 # Docker Compose für lokalen Betrieb (z. B. unter Windows 11 mit Docker Desktop)
+#
+# HTTPS: Nginx (443) mit selbstsigniertem Zertifikat, Proxy zum Service "bis:5000".
+# Zusaetzlich weiterhin direkter Zugriff auf die App: http://localhost:5000 (optional: ports bei "bis" entfernen).
+# Browser-Warnung beim ersten Aufruf von https://localhost ist bei Self-Signed normal.
 
 services:
   bis:
-    build: .
+    build:
+      context: .
+      dockerfile: deployment/docker/bis.Dockerfile
     container_name: bis-app
     ports:
       - "5000:5000"
@@ -16,14 +22,26 @@ services:
       UPLOAD_BASE_FOLDER: /data/Daten
       SESSION_COOKIE_SECURE: "true"
       REMEMBER_COOKIE_SECURE: "true"
+      # Typische Docker-Bridge-Netze: damit X-Forwarded-* vom Nginx-Container vertrauenswürdig sind
+      TRUSTED_PROXIES: "172.16.0.0/12,127.0.0.1"
       # Optional: WEBAUTHN_ORIGIN/RP_ID/RP_NAME anpassen, wenn ueber Hostname/IP zugegriffen wird
       # WEBAUTHN_ORIGIN: https://bis.example.com
       # WEBAUTHN_RP_ID: bis.example.com
       # WEBAUTHN_RP_NAME: BIS
     volumes:
       # Persistente Daten (Datenbank + Uploads)
-      - bis-data:/data
+      - C:\BIS-Daten:/data
     restart: unless-stopped
 
-volumes:
-  bis-data:
+  bis-nginx:
+    build:
+      context: .
+      dockerfile: deployment/docker/nginx.Dockerfile
+    container_name: bis-nginx
+    ports:
+      - "443:443"
+      - "80:80"
+    depends_on:
+      bis:
+        condition: service_healthy
+    restart: unless-stopped

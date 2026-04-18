@@ -64,7 +64,7 @@ Anleitung, um das Betriebsinformationssystem (BIS) in einem Docker-Container unt
 
 ### Projektordner öffnen
 
-Im Projektordner von BIS (dort, wo `app.py`, `Dockerfile` und `docker-compose.yml` liegen):
+Im Projektordner von BIS (dort, wo `app.py`, `docker-compose.yml` und `deployment/docker/bis.Dockerfile` liegen):
 
 ```powershell
 cd C:\Projekte\BIS\BIS
@@ -76,20 +76,15 @@ cd C:\Projekte\BIS\BIS
 
 Für Produktion sollten Sie mindestens einen eigenen **SECRET_KEY** setzen. Dafür legen Sie im Projektordner eine Datei `.env` an:
 
-1. Kopieren Sie `env_example.txt` nach `.env`:
+1. Kopieren Sie die Docker-Vorlage nach `.env` (empfohlen für Compose):
 
    ```powershell
-   Copy-Item env_example.txt .env
+   Copy-Item env_docker_example.txt .env
    ```
 
-2. Öffnen Sie `.env` und passen Sie an:
+   Alternativ allgemeine Vorlage: `Copy-Item env_example.txt .env` – dann `FLASK_ENV` und Pfade aus der Datei ignorieren; im Container setzt `docker-compose.yml` bereits `FLASK_ENV=production` und die Datenpfade unter `/data`.
 
-   ```env
-   SECRET_KEY=ihr-langer-zufaelliger-geheimer-schluessel
-   FLASK_ENV=production
-   ```
-
-Ohne `.env` verwendet `docker-compose` den Platzhalter-SECRET_KEY aus der `docker-compose.yml` (nur für Tests geeignet).
+2. Öffnen Sie `.env` und setzen Sie mindestens einen starken **SECRET_KEY** (mind. 32 Zeichen). Ohne gültigen `SECRET_KEY` bricht `docker compose` beim Start mit einer Fehlermeldung ab (`${SECRET_KEY:?}` in der Compose-Datei).
 
 ---
 
@@ -230,7 +225,7 @@ docker compose exec bis bash
 
 ## 9. App von GitHub aktualisieren
 
-Der Anwendungscode wird beim **Image-Build** in den Container übernommen (`COPY` im `Dockerfile`), nicht als Live-Ordner vom Windows-Host eingebunden. Nach einem Update des Repositories auf der Festplatte müssen Sie das Image deshalb **neu bauen** und den Container **neu starten**.
+Der Anwendungscode wird beim **Image-Build** in den Container übernommen (`COPY` in `deployment/docker/bis.Dockerfile`), nicht als Live-Ordner vom Windows-Host eingebunden. Nach einem Update des Repositories auf der Festplatte müssen Sie das Image deshalb **neu bauen** und den Container **neu starten**.
 
 **Datenbank und Uploads** liegen im Docker-Volume `bis-data` und bleiben bei diesem Vorgang in der Regel **erhalten** (siehe auch [Abschnitt 7](#7-daten-persistent-speichern-windows-ordner)).
 

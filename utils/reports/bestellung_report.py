@@ -22,10 +22,12 @@ except ImportError:
     DOCX2PDF_AVAILABLE = False
 
 
-def generate_bestellung_pdf(bestellung_id, conn):
+def generate_bestellung_pdf(bestellung_id, conn, force_docx=False):
     """
     Generiert ein PDF/DOCX für eine Bestellung.
     Gibt ein Tupel zurück: (content: bytes, filename: str, mimetype: str, is_pdf: bool)
+
+    force_docx=True überspringt die PDF-Konvertierung und liefert direkt das DOCX zurück.
     """
     # Bestellung laden
     bestellung = conn.execute("""
@@ -280,7 +282,7 @@ def generate_bestellung_pdf(bestellung_id, conn):
             pass
     
     # Als PDF konvertieren oder DOCX zurückgeben
-    if DOCX2PDF_AVAILABLE:
+    if DOCX2PDF_AVAILABLE and not force_docx:
         # PDF-Konvertierung versuchen
         buffer = BytesIO()
         doc.save(buffer)

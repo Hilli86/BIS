@@ -20,10 +20,12 @@ except ImportError:
     DOCX2PDF_AVAILABLE = False
 
 
-def generate_angebotsanfrage_pdf(angebotsanfrage_id, conn):
+def generate_angebotsanfrage_pdf(angebotsanfrage_id, conn, force_docx=False):
     """
     Generiert ein PDF/DOCX für eine Angebotsanfrage.
     Gibt ein Tupel zurück: (content: bytes, filename: str, mimetype: str, is_pdf: bool)
+
+    force_docx=True überspringt die PDF-Konvertierung und liefert direkt das DOCX zurück.
     """
     # Angebotsanfrage laden
     anfrage = conn.execute("""
@@ -195,7 +197,7 @@ def generate_angebotsanfrage_pdf(angebotsanfrage_id, conn):
     doc.render(context)
     
     # Als PDF konvertieren oder DOCX zurückgeben
-    if DOCX2PDF_AVAILABLE:
+    if DOCX2PDF_AVAILABLE and not force_docx:
         # PDF-Konvertierung versuchen
         buffer = BytesIO()
         doc.save(buffer)

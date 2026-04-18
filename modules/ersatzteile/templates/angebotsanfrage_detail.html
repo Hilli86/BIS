@@ -450,8 +450,11 @@
 {% endif %}
 
 <div class="mb-3 d-flex flex-wrap gap-2 align-items-center">
-    <button type="button" class="btn btn-primary" onclick="exportAngebotsanfragePDF({{ anfrage.ID }})">
+    <button type="button" class="btn btn-primary" onclick="exportAngebotsanfrageReport({{ anfrage.ID }}, 'pdf')">
         <i class="bi bi-file-pdf"></i> Als PDF exportieren
+    </button>
+    <button type="button" class="btn btn-outline-primary" onclick="exportAngebotsanfrageReport({{ anfrage.ID }}, 'docx')">
+        <i class="bi bi-file-earmark-word"></i> Als DOC exportieren
     </button>
     <form method="POST" action="{{ url_for('ersatzteile.angebotsanfrage_loeschen', angebotsanfrage_id=anfrage.ID) }}" 
           onsubmit="return confirm('Möchten Sie diese Angebotsanfrage wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.');" class="d-inline">
@@ -910,36 +913,112 @@ async function verschiebeAusImportAngebotsanfrage(filename) {
     }
 }
 
-// PDF-Export mit Ladeanzeige
-async function exportAngebotsanfragePDF(angebotsanfrageId) {
-    // Modal öffnen
-    const modal = new bootstrap.Modal(document.getElementById('pdfExportModal'));
+// PDF-/DOCX-Export mit Fortschrittsanzeige und Abbruch-Möglichkeit
+let angebotsanfrageExportAbortController = null;
+let angebotsanfrageExportCancelHandler = null;
+let angebotsanfrageExportWatchdog = null;
+
+async function exportAngebotsanfrageReport(angebotsanfrageId, fmt) {
+    const format = (fmt || 'pdf').toString().toLowerCase();
+    const isDocx = (format === 'docx');
+
+    const modalEl = document.getElementById('pdfExportModal');
+    const titleEl = document.getElementById('pdfExportModalTitle');
+    const descEl = document.getElementById('pdfExportModalDescription');
+    const progressBar = document.getElementById('pdfExportProgressBar');
+    const cancelBtn = document.getElementById('pdfExportCancelBtn');
+    const statusEl = document.getElementById('pdfExportStatus');
+
+    if (titleEl) titleEl.textContent = isDocx ? 'DOC wird erstellt...' : 'PDF wird erstellt...';
+    if (descEl) descEl.textContent = isDocx
+        ? 'Bitte warten Sie, während das DOC-Dokument generiert wird.'
+        : 'Bitte warten Sie, während der PDF-Bericht generiert wird.';
+    if (statusEl) statusEl.textContent = '';
+    if (progressBar) {
+        progressBar.classList.remove('bg-danger', 'bg-success');
+        progressBar.classList.add('progress-bar-striped', 'progress-bar-animated', 'bg-primary');
+        progressBar.style.width = '100%';
+    }
+
+    if (angebotsanfrageExportAbortController) {
+        try { angebotsanfrageExportAbortController.abort(); } catch (_) { /* ignore */ }
+    }
+    angebotsanfrageExportAbortController = new AbortController();
+    const signal = angebotsanfrageExportAbortController.signal;
+
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+    const closeModal = () => {
+        try { modal.hide(); } catch (_) { /* ignore */ }
+        setTimeout(() => {
+            try {
+                modalEl.classList.remove('show');
+                modalEl.style.display = 'none';
+                modalEl.setAttribute('aria-hidden', 'true');
+                modalEl.removeAttribute('aria-modal');
+                document.body.classList.remove('modal-open');
+                document.body.style.removeProperty('overflow');
+                document.body.style.removeProperty('padding-right');
+                document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+            } catch (_) { /* ignore */ }
+        }, 300);
+    };
+
+    if (cancelBtn && angebotsanfrageExportCancelHandler) {
+        cancelBtn.removeEventListener('click', angebotsanfrageExportCancelHandler);
+    }
+    angebotsanfrageExportCancelHandler = () => {
+        if (statusEl) statusEl.textContent = 'Vorgang wird abgebrochen...';
+        if (angebotsanfrageExportAbortController) {
+            try { angebotsanfrageExportAbortController.abort(); } catch (_) { /* ignore */ }
+        }
+        closeModal();
+    };
+    if (cancelBtn) {
+        cancelBtn.disabled = false;
+        cancelBtn.addEventListener('click', angebotsanfrageExportCancelHandler);
+    }
+
     modal.show();
-    
+
+    if (angebotsanfrageExportWatchdog) clearTimeout(angebotsanfrageExportWatchdog);
+    angebotsanfrageExportWatchdog = setTimeout(() => {
+        if (angebotsanfrageExportAbortController) {
+            try { angebotsanfrageExportAbortController.abort(); } catch (_) { /* ignore */ }
+        }
+    }, 90000);
+
+    let aborted = false;
+    let downloadOk = false;
+
     try {
-        const url = '{{ url_for("ersatzteile.angebotsanfrage_pdf_export", angebotsanfrage_id=0) }}'.replace('/0', `/${angebotsanfrageId}`);
-        
-        const response = await fetch(url);
-        
+        let url = '{{ url_for("ersatzteile.angebotsanfrage_pdf_export", angebotsanfrage_id=0) }}'.replace('/0', `/${angebotsanfrageId}`);
+        if (isDocx) {
+            url += (url.includes('?') ? '&' : '?') + 'format=docx';
+        }
+
+        const response = await fetch(url, { signal, redirect: 'error' });
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
-        // Blob aus Response erstellen
+
         const blob = await response.blob();
-        
-        // Dateiname aus Content-Disposition Header extrahieren oder generieren
+
         const contentDisposition = response.headers.get('Content-Disposition');
-        let filename = `Angebotsanfrage_${angebotsanfrageId}_${new Date().toISOString().split('T')[0]}.pdf`;
+        const fallbackExt = isDocx ? 'docx' : 'pdf';
+        let filename = `Angebotsanfrage_${angebotsanfrageId}_${new Date().toISOString().split('T')[0]}.${fallbackExt}`;
         if (contentDisposition) {
-            // Regex für filename="..." oder filename=...
             const filenameMatch = contentDisposition.match(/filename[*]?=['"]?([^'";]+)['"]?/i);
             if (filenameMatch && filenameMatch[1]) {
                 filename = filenameMatch[1].trim();
             }
         }
-        
-        // Download starten
+
+        downloadOk = true;
+        closeModal();
+        await new Promise(r => setTimeout(r, 50));
+
         const downloadUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = downloadUrl;
@@ -947,33 +1026,80 @@ async function exportAngebotsanfragePDF(angebotsanfrageId) {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        window.URL.revokeObjectURL(downloadUrl);
-        
-        // Modal schließen
-        modal.hide();
-        
-        // Erfolgs-Toast anzeigen (falls vorhanden)
-        if (typeof showToast === 'function') {
-            showToast('PDF erfolgreich erstellt und heruntergeladen.', 'success');
-        }
+        setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 2000);
     } catch (error) {
-        console.error('Fehler beim PDF-Export:', error);
-        modal.hide();
-        alert('Fehler beim Erstellen des PDFs. Bitte versuchen Sie es erneut.');
+        if (error && error.name === 'AbortError') {
+            aborted = true;
+            if (statusEl) statusEl.textContent = 'Vorgang abgebrochen.';
+            if (progressBar) {
+                progressBar.classList.remove('progress-bar-animated', 'bg-primary');
+                progressBar.classList.add('bg-danger');
+            }
+            if (typeof showToast === 'function') {
+                showToast('Berichterstellung abgebrochen.', 'info');
+            }
+        } else {
+            console.error('Fehler beim Berichts-Export:', error);
+            if (typeof showToast === 'function') {
+                showToast('Fehler beim Erstellen des Berichts.', 'danger');
+            } else {
+                alert('Fehler beim Erstellen des Berichts. Bitte versuchen Sie es erneut.');
+            }
+        }
+    } finally {
+        if (angebotsanfrageExportWatchdog) {
+            clearTimeout(angebotsanfrageExportWatchdog);
+            angebotsanfrageExportWatchdog = null;
+        }
+        closeModal();
+        if (cancelBtn && angebotsanfrageExportCancelHandler) {
+            cancelBtn.removeEventListener('click', angebotsanfrageExportCancelHandler);
+        }
+        angebotsanfrageExportCancelHandler = null;
+        angebotsanfrageExportAbortController = null;
+
+        if (downloadOk && !aborted && typeof showToast === 'function') {
+            showToast(
+                (isDocx ? 'DOC' : 'PDF') + ' erfolgreich erstellt und heruntergeladen.',
+                'success'
+            );
+        }
     }
+}
+
+// Rückwärtskompatibilität: alte Funktion bleibt verfügbar
+function exportAngebotsanfragePDF(angebotsanfrageId) {
+    return exportAngebotsanfrageReport(angebotsanfrageId, 'pdf');
 }
 </script>
 
-<!-- Modal für PDF-Export -->
+<!-- Modal für PDF-/DOC-Export -->
 <div class="modal fade" id="pdfExportModal" tabindex="-1" aria-labelledby="pdfExportModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-body text-center py-4">
-                <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
-                    <span class="visually-hidden">Lädt...</span>
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="pdfExportModalLabel">
+                    <i class="bi bi-file-earmark-arrow-down"></i>
+                    <span id="pdfExportModalTitle">PDF wird erstellt...</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Schließen"></button>
+            </div>
+            <div class="modal-body py-4">
+                <p class="text-muted mb-3" id="pdfExportModalDescription">
+                    Bitte warten Sie, während der Bericht generiert wird.
+                </p>
+                <div class="progress" style="height: 1.25rem;" role="progressbar" aria-label="Berichterstellung" aria-valuemin="0" aria-valuemax="100">
+                    <div id="pdfExportProgressBar"
+                         class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                         style="width: 100%;">
+                    </div>
                 </div>
-                <h5 class="mb-2">PDF wird erstellt...</h5>
-                <p class="text-muted mb-0">Bitte warten Sie, während der Bericht generiert wird.</p>
+                <div class="small text-muted mt-2" id="pdfExportStatus"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-danger" id="pdfExportCancelBtn">
+                    <i class="bi bi-x-circle"></i> Abbrechen
+                </button>
             </div>
         </div>
     </div>

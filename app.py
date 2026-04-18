@@ -381,8 +381,8 @@ def cli_vapid_verify():
 
 # ========== App starten ==========
 #
-# In Produktion wird die App über gunicorn gestartet (siehe Dockerfile und
-# deployment/bis.service). Für lokale Entwicklung:
+# In Produktion wird die App über gunicorn gestartet (siehe
+# deployment/docker/bis.Dockerfile und deployment/bis.service). Für lokale Entwicklung:
 #
 #   flask --app app run            # Debug über FLASK_DEBUG=True steuerbar
 #

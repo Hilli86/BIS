@@ -1,9 +1,10 @@
-# BIS – Betriebsinformationssystem
+# BIS � Betriebsinformationssystem
 # Docker-Image fuer Linux-Container (z. B. unter Docker Desktop auf Windows 11)
+# Build-Kontext: Projektroot (docker-compose: context: .)
 
 FROM python:3.11-slim-bookworm
 
-# LibreOffice fuer DOCX→PDF-Konvertierung (Berichte) und curl fuer HEALTHCHECK
+# LibreOffice fuer DOCX?PDF-Konvertierung (Berichte) und curl fuer HEALTHCHECK
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libreoffice-writer libreoffice-common \
     curl \
