@@ -4,6 +4,7 @@
 # HTTPS: Nginx (443) mit selbstsigniertem Zertifikat, Proxy zum Service "bis:5000".
 # Zusaetzlich weiterhin direkter Zugriff auf die App: http://localhost:5000 (optional: ports bei "bis" entfernen).
 # Browser-Warnung beim ersten Aufruf von https://localhost ist bei Self-Signed normal.
+# Zugriff: https://localhost/ (Standardport 443). http://localhost:443/ leitet Nginx per error_page 497 auf HTTPS um.
 
 services:
   bis:
