@@ -7,7 +7,7 @@
 # Zugriff: https://localhost/ (Standardport 443). http://localhost:443/ leitet Nginx per error_page 497 auf HTTPS um.
 
 services:
-  bis-app:
+  bis:
     build:
       context: .
       dockerfile: docker/bis.Dockerfile
@@ -45,6 +45,6 @@ services:
       - "443:443"
       - "80:80"
     depends_on:
-      bis-app:
+      bis:
         condition: service_healthy
     restart: unless-stopped
