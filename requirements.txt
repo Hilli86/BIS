@@ -1,5 +1,5 @@
-Flask==3.1.2
-Werkzeug==3.1.3
+Flask==3.1.3
+Werkzeug==3.1.6
 itsdangerous==2.2.0
 Jinja2==3.1.6
 MarkupSafe==3.0.3
@@ -8,12 +8,15 @@ blinker==1.9.0
 colorama==0.4.6
 reportlab==4.2.2
 qrcode==7.4.2
-Pillow==11.2.1
+Pillow==12.2.0
 docxtpl==0.19.1
 docx2pdf==0.1.8
 pywebpush==2.0.3
-fido2==1.2.0
+fido2==2.2.0
 python-dotenv==1.0.1
+
+# Transitive Abhängigkeit (pywebpush u.a.); Pin fuer pip-audit / CVE-Fixes
+cryptography==46.0.7
 
 # Sicherheit
 Flask-WTF==1.2.2
@@ -21,4 +24,4 @@ flask-limiter==3.12
 Flask-Talisman==1.1.0
 
 # Tests (CI / lokale Qualitätssicherung)
-pytest==8.3.5
+pytest==9.0.3
