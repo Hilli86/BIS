@@ -72,6 +72,31 @@
     background-color: var(--bs-secondary, #6c757d);
     box-shadow: 0 0 0 1px var(--bs-body-bg, #fff);
   }
+  /* Erste Spalte („Wartung“) beim horizontalen Scrollen fixieren */
+  #jahresmatrix-scroll-main {
+    position: relative;
+  }
+  #jahresmatrix-scroll-main .jahresmatrix-sticky-first-col {
+    position: sticky;
+    left: 0;
+    min-width: 12rem;
+    max-width: 18rem;
+    box-shadow: 4px 0 8px -4px rgba(0, 0, 0, 0.12);
+    background-clip: padding-box;
+    z-index: 2;
+    background-color: var(--bs-body-bg, #fff);
+  }
+  #jahresmatrix-scroll-main thead .jahresmatrix-sticky-first-col {
+    z-index: 4;
+    background-color: var(--bs-secondary-bg, #e9ecef);
+  }
+  #jahresmatrix-scroll-main tbody tr.table-secondary > .jahresmatrix-sticky-first-col {
+    z-index: 3;
+    background-color: var(--bs-secondary-bg, #e9ecef);
+  }
+  #jahresmatrix-scroll-main table.table-hover tbody tr:hover > .jahresmatrix-sticky-first-col {
+    background-color: var(--bs-table-hover-bg, rgba(0, 0, 0, 0.075));
+  }
 </style>
 <h1 class="mb-4">Wartungen – Jahresübersicht</h1>
 
@@ -133,7 +158,7 @@
       <table class="table table-hover table-sm table-bordered mb-0 align-middle text-center" style="min-width: max-content; width: 100%;">
         <thead>
           <tr>
-            <th class="text-start bg-body-secondary" style="min-width: 12rem;">Wartung</th>
+            <th class="text-start bg-body-secondary jahresmatrix-sticky-first-col">Wartung</th>
             <th class="text-start bg-body-secondary" style="min-width: 7.5rem;">Intervall</th>
             <th class="text-start bg-body-secondary text-nowrap" style="min-width: 8rem;">Nächste Fälligkeit</th>
             <th class="text-start bg-body-secondary text-nowrap" style="min-width: 8rem;" title="Vereinbarter Wartungstermin; violett, wenn das Erinnerungsfenster erreicht ist">Wartungstermin</th>
@@ -154,11 +179,12 @@
       {% for grp in matrix_groups %}
         <tbody>
           <tr class="table-secondary">
-            <td colspan="{{ 5 + monatsnamen|length }}" class="text-start fw-semibold small py-2">{{ grp.bereich }} · {{ grp.gewerk }}</td>
+            <td class="jahresmatrix-sticky-first-col border-end-0 py-2" aria-hidden="true"></td>
+            <td colspan="{{ 4 + monatsnamen|length }}" class="text-start fw-semibold small py-2">{{ grp.bereich }} · {{ grp.gewerk }}</td>
           </tr>
           {% for row in grp.rows %}
           <tr>
-            <td class="text-start">
+            <td class="text-start text-break jahresmatrix-sticky-first-col">
               <a href="{{ url_for('wartungen.wartung_detail', wartung_id=row.wartung.ID) }}" class="text-decoration-none text-reset d-block" title="Wartungsdetail öffnen">
                 {{ row.wartung.Bezeichnung }}
                 {% if not row.wartung.Aktiv %}<span class="badge bg-secondary ms-1">inaktiv</span>{% endif %}
@@ -258,7 +284,8 @@
       {% if not matrix_groups %}
         <tbody>
           <tr>
-            <td colspan="{{ 5 + monatsnamen|length }}" class="text-muted text-start">Keine Wartungen für die gewählten Filter.</td>
+            <td class="jahresmatrix-sticky-first-col border-end-0" aria-hidden="true"></td>
+            <td colspan="{{ 4 + monatsnamen|length }}" class="text-muted text-start">Keine Wartungen für die gewählten Filter.</td>
           </tr>
         </tbody>
       {% endif %}
