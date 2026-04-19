@@ -1,4 +1,4 @@
-# BIS – Betriebsinformationssystem
+# BIS ï¿½ Betriebsinformationssystem
 # Docker-Image fuer Linux-Container (z. B. unter Docker Desktop auf Windows 11)
 # Build-Kontext: Projektroot (docker-compose: context: .)
 
@@ -34,5 +34,8 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD curl --fail --silent http://127.0.0.1:5000/health || exit 1
 
-# Gunicorn: 0.0.0.0 damit von aussen erreichbar
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--threads", "4", "app:app"]
+# Gunicorn: 0.0.0.0 damit von aussen erreichbar.
+# Nur 1 Worker, dafuer mehrere Threads: SQLite-Backend (Schema-Init/Migration in app.py)
+# und In-Memory-Rate-Limiter (utils/rate_limit.py) vertragen keinen Multi-Worker-Betrieb.
+# Parallele Requests werden ueber Threads bedient (App ist I/O-/Subprocess-bound).
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "8", "app:app"]

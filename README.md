@@ -61,7 +61,7 @@ flask --app app run
 
 Produktion (Gunicorn hinter Reverse-Proxy, z. B. nginx):
 ```bash
-gunicorn --workers 3 --bind 127.0.0.1:8000 app:app
+gunicorn --workers 1 --threads 8 --bind 127.0.0.1:8000 app:app
 ```
 - `python app.py` bzw. Debug-Modus sind **nicht** für den produktiven
   Betrieb gedacht.
