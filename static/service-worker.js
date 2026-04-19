@@ -1,13 +1,15 @@
 // Service Worker für BIS PWA
-const CACHE_NAME = 'bis-cache-v1';
+const CACHE_NAME = 'bis-cache-v2-vendor-local';
 const urlsToCache = [
   '/',
   '/static/style.css',
   '/static/script.js',
   '/static/manifest.json',
-  'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
-  'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',
-  'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css'
+  '/static/vendor/bootstrap/bootstrap.min.css',
+  '/static/vendor/bootstrap/bootstrap.bundle.min.js',
+  '/static/vendor/bootstrap-icons/bootstrap-icons.css',
+  '/static/vendor/bootstrap-icons/fonts/bootstrap-icons.woff2',
+  '/static/vendor/ibm-plex-sans/ibm-plex-sans.css'
 ];
 
 // Installation

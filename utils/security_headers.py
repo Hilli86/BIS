@@ -12,10 +12,10 @@ from __future__ import annotations
 from flask_talisman import Talisman
 
 
-_BOOTSTRAP = 'https://cdn.jsdelivr.net'
-_ICONS = 'https://cdn.jsdelivr.net'
-_GOOGLE_FONTS_CSS = 'https://fonts.googleapis.com'
-_GOOGLE_FONTS_STATIC = 'https://fonts.gstatic.com'
+# Externe Quelle ausschliesslich fuer das (lazy geladene) OpenCV.js der
+# Dokumenterfassung – alle anderen Vendor-Assets liegen lokal unter
+# /static/vendor/.
+_OPENCV_CDN = 'https://cdn.jsdelivr.net'
 
 
 def init_security_headers(app) -> Talisman:
@@ -36,18 +36,15 @@ def init_security_headers(app) -> Talisman:
             "'self'",
             "'unsafe-inline'",
             "'unsafe-eval'",
-            _BOOTSTRAP,
+            _OPENCV_CDN,
         ],
         'script-src-attr': ["'unsafe-inline'"],
         'style-src': [
             "'self'",
             "'unsafe-inline'",
-            _BOOTSTRAP,
-            _ICONS,
-            _GOOGLE_FONTS_CSS,
         ],
         'img-src': ["'self'", 'data:', 'blob:'],
-        'font-src': ["'self'", _ICONS, _GOOGLE_FONTS_STATIC, 'data:'],
+        'font-src': ["'self'", 'data:'],
         'connect-src': ["'self'"],
         'frame-ancestors': "'self'",
         'base-uri': "'self'",

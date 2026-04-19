@@ -1,0 +1,9 @@
+# Vendor-Bibliotheken (Bootstrap, Bootstrap-Icons, Fonts, html5-qrcode)
+# unverändert/binär behandeln, damit weder CRLF-Konvertierung noch
+# Whitespace-Normalisierung die Auslieferung kaputtmacht.
+static/vendor/** binary
+*.woff2 binary
+*.woff binary
+*.ttf binary
+*.otf binary
+*.eot binary

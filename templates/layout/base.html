@@ -31,9 +31,9 @@
   <!-- Web App Manifest -->
   <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
   
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.css') }}">
+  <link href="{{ url_for('static', filename='vendor/ibm-plex-sans/ibm-plex-sans.css') }}" rel="stylesheet">
 
   <style>
     /* --- BIS: Industrie-/Produktivitäts-Theme (Tokens + Bootstrap) --- */
@@ -1110,7 +1110,7 @@
     {% endblock %}
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="{{ url_for('static', filename='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
   <script>window.bootstrap = bootstrap;</script>
   <script src="{{ url_for('static', filename='js/bis_common.js') }}"></script>
   <script src="{{ url_for('static', filename='webauthn.js') }}"></script>
