@@ -42,23 +42,18 @@
     transition: transform 0.2s ease;
   }
 </style>
-<div class="container-fluid mt-4">
-  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-    <h2 class="mb-0">
-      <i class="bi bi-camera"></i> Dokumente erfassen
-    </h2>
-  </div>
+<h1 class="mb-4">Dokumente erfassen</h1>
 
   <p class="text-muted mb-4">
     Dokument mit der Kamera fotografieren oder ein vorhandenes Bild wählen. Anschließend wird das Dokument erkannt und zugeschnitten.
     Über die Regler können Sie das Ergebnis anpassen. Die Datei wird im <strong>Import-Ordner</strong> gespeichert und steht dort für weitere Schritte zur Verfügung.
   </p>
 
-  <div class="row g-4">
+  <div class="row g-4 mb-4">
     <div class="col-lg-6">
-      <div class="card">
-        <div class="card-header">
-          <i class="bi bi-image"></i> Aufnahme / Quelle
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-secondary text-white">
+          <h5 class="mb-0"><i class="bi bi-image me-1"></i> Aufnahme / Quelle</h5>
         </div>
         <div class="card-body">
           <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
@@ -95,9 +90,9 @@
     </div>
 
     <div class="col-lg-6">
-      <div class="card">
-        <div class="card-header">
-          <i class="bi bi-bounding-box"></i> Dokumentrand anpassen
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-secondary text-white">
+          <h5 class="mb-0"><i class="bi bi-bounding-box me-1"></i> Dokumentrand anpassen</h5>
         </div>
         <div class="card-body">
           <p class="small text-muted">Ziehen Sie die vier Punkte bei Bedarf. Anschließend „Zuschneiden“ wählen.</p>
@@ -120,12 +115,12 @@
     </div>
   </div>
 
-  <div class="row g-4 mt-1">
+  <div class="row g-4">
     <div class="col-lg-8">
-      <div class="card">
-        <div class="card-header p-0">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-secondary text-white p-0 border-0">
           <button
-            class="btn btn-light w-100 text-start rounded-0 d-flex align-items-center justify-content-between px-3 py-2"
+            class="btn btn-link text-white text-decoration-none w-100 text-start rounded-0 d-flex align-items-center justify-content-between px-3 py-2 shadow-none"
             type="button"
             data-bs-toggle="collapse"
             data-bs-target="#collapse-bearbeitung"
@@ -133,7 +128,7 @@
             aria-controls="collapse-bearbeitung"
             id="btn-toggle-bearbeitung"
           >
-            <span><i class="bi bi-sliders"></i> Bearbeitung</span>
+            <span class="fw-semibold"><i class="bi bi-sliders me-1"></i> Bearbeitung</span>
             <i class="bi bi-chevron-down collapse-chevron"></i>
           </button>
         </div>
@@ -167,9 +162,9 @@
       </div>
     </div>
     <div class="col-lg-4">
-      <div class="card">
-        <div class="card-header">
-          <i class="bi bi-cloud-upload"></i> Speichern
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-secondary text-white">
+          <h5 class="mb-0"><i class="bi bi-cloud-upload me-1"></i> Speichern</h5>
         </div>
         <div class="card-body">
           <p class="small text-muted">Speichert die bearbeitete Vorschau als JPEG im zentralen Import-Ordner.</p>
@@ -190,7 +185,6 @@
       </div>
     </div>
   </div>
-</div>
 
 <script
   id="dokumente-erfassen-boot"
