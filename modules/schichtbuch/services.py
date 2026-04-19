@@ -120,7 +120,17 @@ def build_themen_query(sichtbare_abteilungen, bereich_filter=None, gewerk_filter
     
     # Filter anwenden
     if bereich_filter:
-        query += ' AND b.Bezeichnung = ?'
+        # Primär-Gewerk-Bereich oder optional zugeordnetes Gewerk in diesem Bereich
+        query += ''' AND (
+            b.Bezeichnung = ?
+            OR EXISTS (
+                SELECT 1 FROM SchichtbuchThemaGewerk tg_b
+                JOIN Gewerke g_b ON tg_b.GewerkID = g_b.ID
+                JOIN Bereich b_b ON g_b.BereichID = b_b.ID
+                WHERE tg_b.ThemaID = t.ID AND b_b.Bezeichnung = ?
+            )
+        )'''
+        params.append(bereich_filter)
         params.append(bereich_filter)
     
     if gewerk_filter:

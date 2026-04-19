@@ -13,7 +13,18 @@
 <form method="get" action="{{ url_for('wartungen.wartung_liste') }}" class="card shadow-sm mb-4" id="form-wartung-liste-filter">
   <div class="card-body py-3">
     <div class="row g-3 align-items-end">
-      <div class="col-md-5">
+      {% if abteilungen %}
+      <div class="col-lg-3 col-md-6">
+        <label class="form-label mb-1" for="filter-wl-abteilung">Abteilung</label>
+        <select class="form-select" id="filter-wl-abteilung" name="abteilung_id" onchange="this.form.submit()">
+          <option value="" {% if abteilung_id is none %}selected{% endif %}>Alle Abteilungen</option>
+          {% for a in abteilungen %}
+          <option value="{{ a.ID }}" {% if abteilung_id == a.ID %}selected{% endif %}>{{ a.Bezeichnung }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <div class="col-lg-3 col-md-6">
         <label class="form-label mb-1" for="filter-wl-bereich">Bereich</label>
         <select class="form-select" id="filter-wl-bereich" name="bereich_id" onchange="this.form.submit()">
           <option value="" {% if bereich_id is none %}selected{% endif %}>Alle Bereiche</option>
@@ -22,7 +33,7 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-5">
+      <div class="col-lg-3 col-md-6">
         <label class="form-label mb-1" for="filter-wl-gewerk">Gewerk</label>
         <select class="form-select" id="filter-wl-gewerk" name="gewerk_id" onchange="this.form.submit()" {% if not gewerke %}disabled{% endif %}>
           <option value="" {% if gewerk_id is none %}selected{% endif %}>Alle Gewerke</option>
@@ -33,7 +44,8 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-2">
+      <div class="col-lg-3 col-md-6">
+        <label class="form-label mb-1 d-none d-lg-block">&nbsp;</label>
         <a href="{{ url_for('wartungen.wartung_liste') }}" class="btn btn-outline-secondary w-100">Zurücksetzen</a>
       </div>
     </div>

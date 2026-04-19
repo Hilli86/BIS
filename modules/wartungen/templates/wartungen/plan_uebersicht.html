@@ -6,7 +6,18 @@
 <form method="get" action="{{ url_for('wartungen.plaene_uebersicht') }}" class="card shadow-sm mb-4" id="form-plan-liste-filter">
   <div class="card-body py-3">
     <div class="row g-3 align-items-end">
-      <div class="col-lg-3 col-md-6">
+      {% if abteilungen %}
+      <div class="col-lg-2 col-md-6">
+        <label class="form-label mb-1" for="filter-pl-abteilung">Abteilung</label>
+        <select class="form-select" id="filter-pl-abteilung" name="abteilung_id" onchange="this.form.submit()">
+          <option value="" {% if abteilung_id is none %}selected{% endif %}>Alle Abteilungen</option>
+          {% for a in abteilungen %}
+          <option value="{{ a.ID }}" {% if abteilung_id == a.ID %}selected{% endif %}>{{ a.Bezeichnung }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <div class="col-lg-2 col-md-6">
         <label class="form-label mb-1" for="filter-pl-bereich">Bereich</label>
         <select class="form-select" id="filter-pl-bereich" name="bereich_id" onchange="this.form.submit()">
           <option value="" {% if bereich_id is none %}selected{% endif %}>Alle Bereiche</option>
@@ -15,7 +26,7 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-lg-3 col-md-6">
+      <div class="col-lg-2 col-md-6">
         <label class="form-label mb-1" for="filter-pl-gewerk">Gewerk</label>
         <select class="form-select" id="filter-pl-gewerk" name="gewerk_id" onchange="this.form.submit()" {% if not gewerke %}disabled{% endif %}>
           <option value="" {% if gewerk_id is none %}selected{% endif %}>Alle Gewerke</option>
@@ -97,7 +108,7 @@
                 </a>
                 {% endif %}
                 {% if kann_protokollieren %}
-                <a href="{{ url_for('wartungen.durchfuehrung_neu', plan_id=p.ID, herkunft='plaene_uebersicht', plan_order=plan_order, bereich_id=bereich_id, gewerk_id=gewerk_id) }}" class="btn btn-sm btn-outline-success text-nowrap" title="Durchführung eintragen">
+                <a href="{{ url_for('wartungen.durchfuehrung_neu', plan_id=p.ID, herkunft='plaene_uebersicht', plan_order=plan_order, bereich_id=bereich_id, gewerk_id=gewerk_id, abteilung_id=abteilung_id) }}" class="btn btn-sm btn-outline-success text-nowrap" title="Durchführung eintragen">
                   <i class="bi bi-journal-plus"></i>
                 </a>
                 {% endif %}
@@ -149,7 +160,7 @@
             </a>
             {% endif %}
             {% if kann_protokollieren %}
-            <a href="{{ url_for('wartungen.durchfuehrung_neu', plan_id=p.ID, herkunft='plaene_uebersicht', plan_order=plan_order, bereich_id=bereich_id, gewerk_id=gewerk_id) }}" class="btn btn-sm btn-outline-success">
+            <a href="{{ url_for('wartungen.durchfuehrung_neu', plan_id=p.ID, herkunft='plaene_uebersicht', plan_order=plan_order, bereich_id=bereich_id, gewerk_id=gewerk_id, abteilung_id=abteilung_id) }}" class="btn btn-sm btn-outline-success">
               <i class="bi bi-journal-plus"></i> Durchführung
             </a>
             {% endif %}

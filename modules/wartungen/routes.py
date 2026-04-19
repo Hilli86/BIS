@@ -103,16 +103,21 @@ PROTOKOLL_HERKUNFT_PLAENE_UEBERSICHT = 'plaene_uebersicht'
 
 
 def _empty_protokoll_kontext():
-    return {'herkunft': '', 'jahr': None, 'bereich_id': None, 'gewerk_id': None, 'plan_order': None}
+    return {
+        'herkunft': '', 'jahr': None, 'bereich_id': None, 'gewerk_id': None,
+        'abteilung_id': None, 'plan_order': None,
+    }
 
 
-def _jahresuebersicht_protokoll_query_args(jahr, bereich_id, gewerk_id):
+def _jahresuebersicht_protokoll_query_args(jahr, bereich_id, gewerk_id, abteilung_id=None):
     """Query-Parameter für durchfuehrung_neu, wenn der Aufruf von der Jahresübersicht kommt."""
     q = {'herkunft': PROTOKOLL_HERKUNFT_JAHRESUEBERSICHT, 'jahr': jahr}
     if bereich_id is not None:
         q['bereich_id'] = bereich_id
     if gewerk_id is not None:
         q['gewerk_id'] = gewerk_id
+    if abteilung_id is not None:
+        q['abteilung_id'] = abteilung_id
     return q
 
 
@@ -126,14 +131,22 @@ def _parse_protokoll_kontext_args(args):
             jahr = cy
         bid = args.get('bereich_id', type=int)
         gid = args.get('gewerk_id', type=int)
-        return {'herkunft': h, 'jahr': jahr, 'bereich_id': bid, 'gewerk_id': gid, 'plan_order': None}
+        aid = args.get('abteilung_id', type=int)
+        return {
+            'herkunft': h, 'jahr': jahr, 'bereich_id': bid, 'gewerk_id': gid,
+            'abteilung_id': aid, 'plan_order': None,
+        }
     if h == PROTOKOLL_HERKUNFT_PLAENE_UEBERSICHT:
         bid = args.get('bereich_id', type=int)
         gid = args.get('gewerk_id', type=int)
+        aid = args.get('abteilung_id', type=int)
         plan_order = (args.get('plan_order') or 'stamm').strip().lower()
         if plan_order not in ('stamm', 'faelligkeit_asc', 'faelligkeit_desc'):
             plan_order = 'stamm'
-        return {'herkunft': h, 'jahr': None, 'bereich_id': bid, 'gewerk_id': gid, 'plan_order': plan_order}
+        return {
+            'herkunft': h, 'jahr': None, 'bereich_id': bid, 'gewerk_id': gid,
+            'abteilung_id': aid, 'plan_order': plan_order,
+        }
     return _empty_protokoll_kontext()
 
 
@@ -158,7 +171,15 @@ def _parse_protokoll_kontext_form(form):
             gid = int(gid) if gid not in (None, '') else None
         except (TypeError, ValueError):
             gid = None
-        return {'herkunft': h, 'jahr': jahr, 'bereich_id': bid, 'gewerk_id': gid, 'plan_order': None}
+        aid = form.get('abteilung_id')
+        try:
+            aid = int(aid) if aid not in (None, '') else None
+        except (TypeError, ValueError):
+            aid = None
+        return {
+            'herkunft': h, 'jahr': jahr, 'bereich_id': bid, 'gewerk_id': gid,
+            'abteilung_id': aid, 'plan_order': None,
+        }
     if h == PROTOKOLL_HERKUNFT_PLAENE_UEBERSICHT:
         bid = form.get('bereich_id')
         gid = form.get('gewerk_id')
@@ -170,10 +191,18 @@ def _parse_protokoll_kontext_form(form):
             gid = int(gid) if gid not in (None, '') else None
         except (TypeError, ValueError):
             gid = None
+        aid = form.get('abteilung_id')
+        try:
+            aid = int(aid) if aid not in (None, '') else None
+        except (TypeError, ValueError):
+            aid = None
         plan_order = (form.get('plan_order') or 'stamm').strip().lower()
         if plan_order not in ('stamm', 'faelligkeit_asc', 'faelligkeit_desc'):
             plan_order = 'stamm'
-        return {'herkunft': h, 'jahr': None, 'bereich_id': bid, 'gewerk_id': gid, 'plan_order': plan_order}
+        return {
+            'herkunft': h, 'jahr': None, 'bereich_id': bid, 'gewerk_id': gid,
+            'abteilung_id': aid, 'plan_order': plan_order,
+        }
     return _empty_protokoll_kontext()
 
 
@@ -186,6 +215,8 @@ def _url_jahresuebersicht_mit_protokoll_kontext(kontext):
         q['bereich_id'] = kontext['bereich_id']
     if kontext.get('gewerk_id') is not None:
         q['gewerk_id'] = kontext['gewerk_id']
+    if kontext.get('abteilung_id') is not None:
+        q['abteilung_id'] = kontext['abteilung_id']
     return url_for('wartungen.jahresuebersicht', **q)
 
 
@@ -198,6 +229,8 @@ def _url_plaene_uebersicht_mit_protokoll_kontext(kontext):
         q['bereich_id'] = kontext['bereich_id']
     if kontext.get('gewerk_id') is not None:
         q['gewerk_id'] = kontext['gewerk_id']
+    if kontext.get('abteilung_id') is not None:
+        q['abteilung_id'] = kontext['abteilung_id']
     po = kontext.get('plan_order') or 'stamm'
     if po != 'stamm':
         q['plan_order'] = po
@@ -346,30 +379,44 @@ def _collect_fremdfirma_zeilen_from_form():
 def wartung_liste():
     mitarbeiter_id = session.get('user_id')
     adm = is_admin()
+    abteilung_id = _query_int_arg('abteilung_id')
     bereich_id = _query_int_arg('bereich_id')
     gewerk_id = _query_int_arg('gewerk_id')
 
     with get_db_connection() as conn:
-        bereiche = services.list_bereiche_fuer_wartungen_sichtbar(conn, mitarbeiter_id, adm)
+        abteilungen = services.list_abteilungen_fuer_wartung_liste_filter(conn, mitarbeiter_id, adm)
+        valid_abteilung_ids = {a['ID'] for a in abteilungen}
+        if abteilung_id is not None and abteilung_id not in valid_abteilung_ids:
+            abteilung_id = None
+        bereiche = services.list_bereiche_fuer_wartungen_sichtbar(
+            conn, mitarbeiter_id, adm, abteilung_id=abteilung_id,
+        )
         valid_bereich_ids = {b['ID'] for b in bereiche}
         if bereich_id is not None and bereich_id not in valid_bereich_ids:
             bereich_id = None
         gewerke = services.list_gewerke_fuer_wartung_liste_filter(
-            conn, mitarbeiter_id, adm, bereich_id,
+            conn, mitarbeiter_id, adm, bereich_id, abteilung_id=abteilung_id,
         )
         valid_gewerk_ids = {g['ID'] for g in gewerke}
         if gewerk_id is not None and gewerk_id not in valid_gewerk_ids:
             gewerk_id = None
         rows = services.list_wartungen(
-            conn, mitarbeiter_id, adm, bereich_id=bereich_id, gewerk_id=gewerk_id,
+            conn,
+            mitarbeiter_id,
+            adm,
+            bereich_id=bereich_id,
+            gewerk_id=gewerk_id,
+            abteilung_id=abteilung_id,
         )
     return render_template(
         'wartungen/wartung_liste.html',
         wartungen=rows,
         bereiche=bereiche,
         gewerke=gewerke,
+        abteilungen=abteilungen,
         bereich_id=bereich_id,
         gewerk_id=gewerk_id,
+        abteilung_id=abteilung_id,
         kann_neu=kann_wartung_stamm_anlegen(),
     )
 
@@ -654,6 +701,7 @@ def wartung_bearbeiten(wartung_id):
 def plaene_uebersicht():
     mitarbeiter_id = session.get('user_id')
     adm = is_admin()
+    abteilung_id = _query_int_arg('abteilung_id')
     bereich_id = _query_int_arg('bereich_id')
     gewerk_id = _query_int_arg('gewerk_id')
     plan_order = (request.args.get('plan_order') or 'stamm').strip().lower()
@@ -665,12 +713,18 @@ def plaene_uebersicht():
         plan_order = 'stamm'
         sort_mode, sort_dir = 'stamm', 'asc'
     with get_db_connection() as conn:
-        bereiche = services.list_bereiche_fuer_plaene_sichtbar(conn, mitarbeiter_id, adm)
+        abteilungen = services.list_abteilungen_fuer_wartung_liste_filter(conn, mitarbeiter_id, adm)
+        valid_abteilung_ids = {a['ID'] for a in abteilungen}
+        if abteilung_id is not None and abteilung_id not in valid_abteilung_ids:
+            abteilung_id = None
+        bereiche = services.list_bereiche_fuer_plaene_sichtbar(
+            conn, mitarbeiter_id, adm, abteilung_id=abteilung_id,
+        )
         valid_bereich_ids = {b['ID'] for b in bereiche}
         if bereich_id is not None and bereich_id not in valid_bereich_ids:
             bereich_id = None
         gewerke = services.list_gewerke_fuer_plan_liste_filter(
-            conn, mitarbeiter_id, adm, bereich_id,
+            conn, mitarbeiter_id, adm, bereich_id, abteilung_id=abteilung_id,
         )
         valid_gewerk_ids = {g['ID'] for g in gewerke}
         if gewerk_id is not None and gewerk_id not in valid_gewerk_ids:
@@ -681,6 +735,7 @@ def plaene_uebersicht():
             adm,
             bereich_id=bereich_id,
             gewerk_id=gewerk_id,
+            abteilung_id=abteilung_id,
             sort_mode=sort_mode,
             sort_dir=sort_dir,
         )
@@ -689,8 +744,10 @@ def plaene_uebersicht():
         plaene=rows,
         bereiche=bereiche,
         gewerke=gewerke,
+        abteilungen=abteilungen,
         bereich_id=bereich_id,
         gewerk_id=gewerk_id,
+        abteilung_id=abteilung_id,
         plan_order=plan_order,
         kann_protokollieren=kann_wartung_protokollieren(),
         kann_plan=kann_wartungsplan_pflegen(),
@@ -876,14 +933,24 @@ def jahresuebersicht():
         jahre = sorted(set(jahre + [jahr]), reverse=True)
 
     with get_db_connection() as conn:
-        bereiche = services.list_bereiche_fuer_wartungen_sichtbar(conn, mitarbeiter_id, adm)
+        abteilung_id = _query_int_arg('abteilung_id')
+        abteilungen = services.list_abteilungen_fuer_wartung_liste_filter(conn, mitarbeiter_id, adm)
+        valid_abteilung_ids = {a['ID'] for a in abteilungen}
+        if abteilung_id is not None and abteilung_id not in valid_abteilung_ids:
+            abteilung_id = None
+
+        bereiche = services.list_bereiche_fuer_wartungen_sichtbar(
+            conn, mitarbeiter_id, adm, abteilung_id=abteilung_id,
+        )
         if not bereiche:
             return render_template(
                 'wartungen/jahresuebersicht.html',
                 bereiche=[],
                 gewerke=[],
+                abteilungen=abteilungen,
                 bereich_id=None,
                 gewerk_id=None,
+                abteilung_id=abteilung_id,
                 jahr=jahr,
                 jahre=jahre,
                 monatsnamen=monatsnamen,
@@ -891,7 +958,10 @@ def jahresuebersicht():
                 kann_protokollieren=kann_wartung_protokollieren(),
                 title='Wartungen – Jahresübersicht',
                 jahresuebersicht_protokoll_query=_jahresuebersicht_protokoll_query_args(
-                    jahr, _query_int_arg('bereich_id'), _query_int_arg('gewerk_id'),
+                    jahr,
+                    _query_int_arg('bereich_id'),
+                    _query_int_arg('gewerk_id'),
+                    abteilung_id,
                 ),
             )
 
@@ -901,7 +971,7 @@ def jahresuebersicht():
             bereich_id = None
 
         gewerke = services.list_gewerke_fuer_wartung_liste_filter(
-            conn, mitarbeiter_id, adm, bereich_id,
+            conn, mitarbeiter_id, adm, bereich_id, abteilung_id=abteilung_id,
         )
         gewerk_id = _query_int_arg('gewerk_id')
         valid_gewerk_ids = {g['ID'] for g in gewerke}
@@ -911,10 +981,21 @@ def jahresuebersicht():
         matrix_groups = []
         if gewerke:
             wartungen = services.list_wartungen_jahresuebersicht(
-                conn, mitarbeiter_id, adm, bereich_id=bereich_id, gewerk_id=gewerk_id,
+                conn,
+                mitarbeiter_id,
+                adm,
+                bereich_id=bereich_id,
+                gewerk_id=gewerk_id,
+                abteilung_id=abteilung_id,
             )
             drows = services.list_durchfuehrungen_jahresuebersicht(
-                conn, jahr, mitarbeiter_id, adm, bereich_id=bereich_id, gewerk_id=gewerk_id,
+                conn,
+                jahr,
+                mitarbeiter_id,
+                adm,
+                bereich_id=bereich_id,
+                gewerk_id=gewerk_id,
+                abteilung_id=abteilung_id,
             )
             matrix_groups = _jahresmatrix_grouped(wartungen, drows)
             wid_list = []
@@ -922,12 +1003,22 @@ def jahresuebersicht():
                 for row in g['rows']:
                     wid_list.append(row['wartung']['ID'])
             plan_map = services.map_wartung_zu_aktiven_plan_ids(
-                conn, wid_list, mitarbeiter_id, adm,
-                bereich_id=bereich_id, gewerk_id=gewerk_id,
+                conn,
+                wid_list,
+                mitarbeiter_id,
+                adm,
+                bereich_id=bereich_id,
+                gewerk_id=gewerk_id,
+                abteilung_id=abteilung_id,
             )
             plan_meta_map = services.map_wartung_aktive_plaene_metadaten(
-                conn, wid_list, mitarbeiter_id, adm,
-                bereich_id=bereich_id, gewerk_id=gewerk_id,
+                conn,
+                wid_list,
+                mitarbeiter_id,
+                adm,
+                bereich_id=bereich_id,
+                gewerk_id=gewerk_id,
+                abteilung_id=abteilung_id,
             )
             for g in matrix_groups:
                 for row in g['rows']:
@@ -939,8 +1030,10 @@ def jahresuebersicht():
         'wartungen/jahresuebersicht.html',
         bereiche=bereiche,
         gewerke=gewerke,
+        abteilungen=abteilungen,
         bereich_id=bereich_id,
         gewerk_id=gewerk_id,
+        abteilung_id=abteilung_id,
         jahr=jahr,
         jahre=jahre,
         monatsnamen=monatsnamen,
@@ -948,7 +1041,7 @@ def jahresuebersicht():
         kann_protokollieren=kann_wartung_protokollieren(),
         title='Wartungen – Jahresübersicht',
         jahresuebersicht_protokoll_query=_jahresuebersicht_protokoll_query_args(
-            jahr, bereich_id, gewerk_id,
+            jahr, bereich_id, gewerk_id, abteilung_id,
         ),
     )
 
