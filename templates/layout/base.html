@@ -33,6 +33,11 @@
   
   <link href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.css') }}">
+  {# Latin-Subset von IBM Plex Sans (Regular + Semibold) vorab laden,
+     damit der Browser sie parallel zum CSS holen kann. Verhindert FOUT
+     ("Zucken" der Texte in Header/Sidebar) beim Seitenwechsel. #}
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+        href="{{ url_for('static', filename='vendor/ibm-plex-sans/files/ibmplexsans-12.woff2') }}">
   <link href="{{ url_for('static', filename='vendor/ibm-plex-sans/ibm-plex-sans.css') }}" rel="stylesheet">
 
   <script>
