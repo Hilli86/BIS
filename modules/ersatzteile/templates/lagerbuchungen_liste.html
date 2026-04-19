@@ -336,7 +336,7 @@
 
 {% if is_admin %}
 <div class="modal fade" id="modalAdminThema" tabindex="-1" aria-labelledby="modalAdminThemaLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-fullscreen-sm-down">
         <div class="modal-content">
             <form method="post" action="{{ url_for('ersatzteile.lagerbuchung_admin_thema') }}">
                 {{ csrf_field() }}
@@ -365,7 +365,7 @@
 </div>
 
 <div class="modal fade" id="modalAdminWartung" tabindex="-1" aria-labelledby="modalAdminWartungLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-fullscreen-sm-down">
         <div class="modal-content">
             <form method="post" action="{{ url_for('ersatzteile.lagerbuchung_admin_wartung') }}">
                 {{ csrf_field() }}

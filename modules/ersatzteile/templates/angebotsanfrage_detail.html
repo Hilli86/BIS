@@ -6,11 +6,11 @@
 <h1 class="mb-4">Angebotsanfrage #{{ anfrage.ID }}</h1>
 
 <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">Grunddaten</h5>
-        <form method="POST" action="{{ url_for('ersatzteile.angebotsanfrage_bearbeiten', angebotsanfrage_id=anfrage.ID) }}" class="d-inline">
+    <div class="card-header bg-primary text-white bis-toolbar justify-between">
+        <h5 class="mb-0 bis-toolbar-title">Grunddaten</h5>
+        <form method="POST" action="{{ url_for('ersatzteile.angebotsanfrage_bearbeiten', angebotsanfrage_id=anfrage.ID) }}" class="d-inline-flex">
             {{ csrf_field() }}
-            <select name="status" class="form-select form-select-sm d-inline-block" style="width: auto;" onchange="this.form.submit()">
+            <select name="status" class="form-select form-select-sm" style="min-width: 11rem;" onchange="this.form.submit()">
                 <option value="Offen" {% if anfrage.Status == 'Offen' %}selected{% endif %}>Offen</option>
                 <option value="Versendet" {% if anfrage.Status == 'Versendet' %}selected{% endif %}>Versendet</option>
                 <option value="Angebot erhalten" {% if anfrage.Status == 'Angebot erhalten' %}selected{% endif %}>Angebot erhalten</option>
@@ -24,7 +24,7 @@
                 <table class="table table-sm table-borderless mb-0">
                     <tbody>
                         <tr>
-                            <td class="text-muted" style="width: 150px;"><strong>Lieferant:</strong></td>
+                            <td class="text-muted" style="min-width: 9rem; width: auto;"><strong>Lieferant:</strong></td>
                             <td>{{ anfrage.LieferantName or '-' }}</td>
                         </tr>
                         {% if anfrage.LieferantKontakt %}
@@ -175,7 +175,7 @@
     </div>
     <div class="card-body">
         {% if positionen %}
-        <div class="table-responsive">
+        <div class="table-responsive d-none d-md-block">
             <table class="table table-sm">
                 <colgroup>
                     <col style="width: 7%;">
@@ -290,6 +290,46 @@
                     {% endfor %}
                 </tbody>
             </table>
+        </div>
+
+        <div class="d-md-none">
+            {% for p in positionen %}
+            <div class="bis-mobile-card">
+                <div class="bis-toolbar justify-between mb-1">
+                    <strong class="bis-toolbar-title">{{ p.Bestellnummer or '–' }}</strong>
+                    {% if p.Angebotspreis %}<span class="badge bg-success">{{ "%.2f"|format(p.Angebotspreis) }} {{ p.Angebotswaehrung or 'EUR' }}</span>{% endif %}
+                </div>
+                <div class="small text-break mb-2">{{ p.Bezeichnung or '–' }}</div>
+                <div class="bis-mc-row"><span class="bis-mc-label">Menge</span><span class="bis-mc-value">{{ p.Menge }} {{ p.Einheit or 'Stück' }}</span></div>
+                {% if p.AktuellerPreis %}<div class="bis-mc-row"><span class="bis-mc-label">Aktuell</span><span class="bis-mc-value">{{ "%.2f"|format(p.AktuellerPreis) }} {{ p.AktuelleWaehrung or 'EUR' }}</span></div>{% endif %}
+                {% if p.Kostenstelle %}<div class="bis-mc-row"><span class="bis-mc-label">Kostenstelle</span><span class="bis-mc-value">{{ p.Kostenstelle }}</span></div>{% endif %}
+                {% if p.Bemerkung %}<div class="bis-mc-row"><span class="bis-mc-label">Bemerkung</span><span class="bis-mc-value">{{ p.Bemerkung }}</span></div>{% endif %}
+                {% if p.ErsatzteilID %}<div class="bis-mc-row"><span class="bis-mc-label">Artikel</span><span class="bis-mc-value"><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=p.ErsatzteilID) }}">#{{ p.ErsatzteilID }}</a></span></div>{% endif %}
+                {% if p.Link %}<div class="bis-mc-row"><span class="bis-mc-label">Link</span><span class="bis-mc-value"><a href="{{ p.Link }}" target="_blank" rel="noopener noreferrer"><i class="bi bi-link-45deg"></i> Öffnen</a></span></div>{% endif %}
+                {% if anfrage.Status == 'Offen' %}
+                <div class="d-flex flex-wrap gap-2 mt-2 bis-actions-touch">
+                    <button class="btn btn-sm btn-outline-primary" onclick="openEditPositionModal({{ p.ID }}, '{{ p.Bestellnummer|replace("'", "\\'") or '' }}', '{{ p.Bezeichnung|replace("'", "\\'") or '' }}', {{ p.Menge }}, '{{ p.Einheit|replace("'", "\\'") or 'Stück' }}', '{{ p.Bemerkung|replace("'", "\\'") or '' }}', {{ p.ErsatzteilID or 'null' }}, {% if p.Link %}'{{ p.Link|replace("'", "\\'") }}'{% else %}''{% endif %}, {{ p.KostenstelleID or 'null' }})"><i class="bi bi-pencil"></i> Bearbeiten</button>
+                    <form method="POST" action="{{ url_for('ersatzteile.angebotsanfrage_position_loeschen', angebotsanfrage_id=anfrage.ID, position_id=p.ID) }}" onsubmit="return confirm('Position wirklich löschen?');" class="d-inline">
+                        {{ csrf_field() }}
+                        <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Löschen</button>
+                    </form>
+                    {% if not p.ErsatzteilID and p.Bestellnummer and p.Bezeichnung %}
+                    <form method="POST" action="{{ url_for('ersatzteile.angebotsanfrage_position_artikel_erstellen', angebotsanfrage_id=anfrage.ID, position_id=p.ID) }}" onsubmit="return confirm('Artikel aus dieser Position erstellen?');" class="d-inline">
+                        {{ csrf_field() }}
+                        <button type="submit" class="btn btn-sm btn-outline-success"><i class="bi bi-plus-circle"></i> Artikel</button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% elif anfrage.Status == 'Versendet' and not p.ErsatzteilID and p.Bestellnummer and p.Bezeichnung %}
+                <div class="d-flex flex-wrap gap-2 mt-2 bis-actions-touch">
+                    <form method="POST" action="{{ url_for('ersatzteile.angebotsanfrage_position_artikel_erstellen', angebotsanfrage_id=anfrage.ID, position_id=p.ID) }}" onsubmit="return confirm('Artikel aus dieser Position erstellen?');" class="d-inline">
+                        {{ csrf_field() }}
+                        <button type="submit" class="btn btn-sm btn-outline-success"><i class="bi bi-plus-circle"></i> Artikel erstellen</button>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
         </div>
         {% else %}
         <div class="alert alert-info">
@@ -467,7 +507,7 @@
 
 <!-- Modal für Position bearbeiten -->
 <div class="modal fade" id="editPositionModal" tabindex="-1" aria-labelledby="editPositionModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header bg-warning text-dark">
                 <h5 class="modal-title" id="editPositionModalLabel">Position bearbeiten</h5>
@@ -803,7 +843,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- Modal für Ersatzteil-Auswahl (Detail-Seite) -->
 <div class="modal fade" id="ersatzteilModalDetail" tabindex="-1" aria-labelledby="ersatzteilModalDetailLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header bg-warning text-dark">
                 <h5 class="modal-title" id="ersatzteilModalDetailLabel">Ersatzteil auswählen</h5>
@@ -1075,7 +1115,7 @@ function exportAngebotsanfragePDF(angebotsanfrageId) {
 
 <!-- Modal für PDF-/DOC-Export -->
 <div class="modal fade" id="pdfExportModal" tabindex="-1" aria-labelledby="pdfExportModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title" id="pdfExportModalLabel">

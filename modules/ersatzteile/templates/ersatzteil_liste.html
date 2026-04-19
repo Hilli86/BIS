@@ -500,30 +500,30 @@
                     </div>
                     
                     <div class="mt-3" onclick="event.stopPropagation();">
-                        <div class="btn-group w-100" role="group">
+                        <div class="d-flex flex-wrap gap-2 bis-actions-touch" role="group">
                             {% set kann_bearbeiten = is_admin or (e.ErstelltVonID == session.get('user_id')) or ('artikel_aus_abteilungen_bearbeiten' in session.get('user_berechtigungen', []) and e.ErstelltVonID != session.get('user_id')) %}
                             {% if kann_bearbeiten %}
-                            <a href="{{ url_for('ersatzteile.ersatzteil_bearbeiten', ersatzteil_id=e.ID, kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', lagerort=lagerort_filter or '', lagerplatz=lagerplatz_filter or '', q=q_filter or '', sort=sort_by, dir=sort_dir, bestandswarnung=1 if bestandswarnung else '', kennzeichen=kennzeichen_filter or '', nur_ohne_preis=1 if nur_ohne_preis else '', from='list') }}" class="btn btn-sm btn-outline-warning" title="Artikel bearbeiten">
+                            <a href="{{ url_for('ersatzteile.ersatzteil_bearbeiten', ersatzteil_id=e.ID, kategorie=kategorie_filter or '', lieferant=lieferant_filter or '', lagerort=lagerort_filter or '', lagerplatz=lagerplatz_filter or '', q=q_filter or '', sort=sort_by, dir=sort_dir, bestandswarnung=1 if bestandswarnung else '', kennzeichen=kennzeichen_filter or '', nur_ohne_preis=1 if nur_ohne_preis else '', from='list') }}" class="btn btn-sm btn-outline-warning flex-grow-1" title="Artikel bearbeiten">
                                 <i class="bi bi-pencil"></i> Bearbeiten
                             </a>
                             {% endif %}
                             {% if e.LieferantID %}
-                            <button type="button" class="btn btn-sm btn-outline-success" onclick="addToAngebotsanfrage({{ e.ID }}, event)" title="Zu Angebotsanfrage hinzufügen">
-                                <i class="bi bi-cart-plus"></i>
+                            <button type="button" class="btn btn-sm btn-outline-success flex-grow-1" onclick="addToAngebotsanfrage({{ e.ID }}, event)" title="Zu Angebotsanfrage hinzufügen">
+                                <i class="bi bi-cart-plus"></i> Anfrage
                             </button>
                             {% endif %}
                             {% if e.LieferantID and ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) %}
-                            <button type="button" class="btn btn-sm btn-outline-info" onclick="addToBestellung({{ e.ID }}, event)" title="Zur Bestellung hinzufügen">
-                                <i class="bi bi-bag-plus"></i>
+                            <button type="button" class="btn btn-sm btn-outline-info flex-grow-1" onclick="addToBestellung({{ e.ID }}, event)" title="Zur Bestellung hinzufügen">
+                                <i class="bi bi-bag-plus"></i> Bestellung
                             </button>
                             {% endif %}
                             {% if default_printer and default_label %}
-                            <button type="button" class="btn btn-sm btn-outline-primary" 
-                                    onclick="druckeEtikett({{ e.ID }}, event)" 
+                            <button type="button" class="btn btn-sm btn-outline-primary flex-grow-1"
+                                    onclick="druckeEtikett({{ e.ID }}, event)"
                                     oncontextmenu="event.preventDefault(); oeffneEtikettKontextmenue({{ e.ID }}, {{ e.AktuellerBestand or 0 }}, event);"
                                     data-lagerbestand="{{ e.AktuellerBestand or 0 }}"
                                     title="30x30-Etikett drucken (Linksklick: 1x drucken, Rechtsklick: Anzahl wählen)">
-                                <i class="bi bi-printer"></i>
+                                <i class="bi bi-printer"></i> Etikett
                             </button>
                             {% endif %}
                         </div>
@@ -619,50 +619,52 @@ function druckeEtikett(ersatzteilId, event) {
 
 function oeffneEtikettModal(ersatzteilId, event) {
     event.stopPropagation();
-    
-    // Button-Position ermitteln
+
     const button = event.target.closest('button');
     const buttonRect = button.getBoundingClientRect();
     const modalElement = document.getElementById('etikettAnzahlModal');
     const modalDialog = modalElement.querySelector('.modal-dialog');
-    
-    // Modal-Dialog-Positionierung: Links vom Button positionieren
-    // Breite des Modals schätzen (ca. 400px) und etwas Abstand lassen
-    const modalWidth = 400;
-    const offset = 10;
-    
-    // Position berechnen: Links vom Button
-    const leftPosition = buttonRect.left - modalWidth - offset;
-    
-    // Sicherstellen, dass das Modal nicht außerhalb des Viewports ist
-    const viewportWidth = window.innerWidth;
-    const finalLeft = Math.max(10, Math.min(leftPosition, viewportWidth - modalWidth - 10));
-    
-    // Vertikale Position: Button-Mitte
-    const topPosition = buttonRect.top + (buttonRect.height / 2) - 100; // 100px Offset für Modal-Höhe
-    
-    // Modal-Dialog positionieren
-    modalDialog.style.position = 'fixed';
-    modalDialog.style.left = finalLeft + 'px';
-    modalDialog.style.top = Math.max(10, topPosition) + 'px';
-    modalDialog.style.margin = '0';
-    modalDialog.style.transform = 'none';
-    
-    // Modal öffnen mit der Ersatzteil-ID
-    const modal = new bootstrap.Modal(modalElement);
-    document.getElementById('etikettAnzahlErsatzteilId').value = ersatzteilId;
-    document.getElementById('etikettAnzahlInput').value = '1';
-    
-    // Position beim Öffnen nochmal setzen (falls Bootstrap es überschreibt)
-    modalElement.addEventListener('shown.bs.modal', function() {
+
+    const isMobile = window.innerWidth < 576;
+
+    if (!isMobile) {
+        const modalWidth = 400;
+        const offset = 10;
+        const leftPosition = buttonRect.left - modalWidth - offset;
+        const viewportWidth = window.innerWidth;
+        const finalLeft = Math.max(10, Math.min(leftPosition, viewportWidth - modalWidth - 10));
+        const topPosition = buttonRect.top + (buttonRect.height / 2) - 100;
+
         modalDialog.style.position = 'fixed';
         modalDialog.style.left = finalLeft + 'px';
         modalDialog.style.top = Math.max(10, topPosition) + 'px';
         modalDialog.style.margin = '0';
         modalDialog.style.transform = 'none';
-        document.getElementById('etikettAnzahlInput').focus();
-    }, { once: true });
-    
+
+        modalElement.addEventListener('shown.bs.modal', function() {
+            modalDialog.style.position = 'fixed';
+            modalDialog.style.left = finalLeft + 'px';
+            modalDialog.style.top = Math.max(10, topPosition) + 'px';
+            modalDialog.style.margin = '0';
+            modalDialog.style.transform = 'none';
+            document.getElementById('etikettAnzahlInput').focus();
+        }, { once: true });
+    } else {
+        modalDialog.style.position = '';
+        modalDialog.style.left = '';
+        modalDialog.style.top = '';
+        modalDialog.style.margin = '';
+        modalDialog.style.transform = '';
+
+        modalElement.addEventListener('shown.bs.modal', function() {
+            document.getElementById('etikettAnzahlInput').focus();
+        }, { once: true });
+    }
+
+    const modal = new bootstrap.Modal(modalElement);
+    document.getElementById('etikettAnzahlErsatzteilId').value = ersatzteilId;
+    document.getElementById('etikettAnzahlInput').value = '1';
+
     modal.show();
 }
 
@@ -1256,7 +1258,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- Modal für Spalten-Einstellungen -->
 <div class="modal fade" id="spaltenModal" tabindex="-1" aria-labelledby="spaltenModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header bg-warning text-dark">
                 <h5 class="modal-title" id="spaltenModalLabel">
@@ -1331,7 +1333,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- Modal für Etikett-Anzahl -->
 <div class="modal fade" id="etikettAnzahlModal" tabindex="-1" aria-labelledby="etikettAnzahlModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header bg-warning text-dark">
                 <h5 class="modal-title" id="etikettAnzahlModalLabel">
@@ -1361,7 +1363,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- Modal Druckerwahl (wenn keine Standard-Druckkonfiguration) -->
 <div class="modal fade" id="etikettDruckerWahlModal" tabindex="-1" aria-labelledby="etikettDruckerWahlModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="etikettDruckerWahlModalLabel">Drucker wählen</h5>

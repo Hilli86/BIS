@@ -687,6 +687,111 @@
         font-size: 16px !important; /* verhindert Auto-Zoom beim Fokus auf iOS */
       }
     }
+
+    /* --- BIS Mobile-Helper-Klassen --- */
+    /* Toolbar / Card-Header mit Wrap statt Overflow */
+    .bis-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .bis-toolbar.justify-between {
+      justify-content: space-between;
+    }
+    .bis-toolbar > .bis-toolbar-title {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .bis-toolbar-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    /* Touch-Targets (mindestens 44x44px laut WCAG/Apple HIG) */
+    @media (max-width: 786px) {
+      .bis-actions-touch .btn,
+      .bis-actions-touch > .btn-group > .btn {
+        min-height: 44px;
+        min-width: 44px;
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+      }
+      .bis-actions-touch .btn-sm {
+        min-height: 40px;
+        padding-top: 0.4rem;
+        padding-bottom: 0.4rem;
+      }
+    }
+
+    /* Scrollbare nav-tabs (statt Overflow / Quetschen) */
+    .bis-tabs-scroll {
+      flex-wrap: nowrap !important;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+    }
+    .bis-tabs-scroll .nav-link,
+    .bis-tabs-scroll .nav-item {
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }
+    .bis-tabs-scroll::-webkit-scrollbar {
+      height: 4px;
+    }
+    .bis-tabs-scroll::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 2px;
+    }
+
+    /* Opt-in: Modal-Vollbild auf kleinen Geräten ohne BS-Klasse umzubauen */
+    @media (max-width: 575.98px) {
+      .bis-modal-mobile-full .modal-dialog {
+        margin: 0;
+        max-width: 100%;
+        height: 100%;
+      }
+      .bis-modal-mobile-full .modal-content {
+        min-height: 100vh;
+        border-radius: 0;
+        border: none;
+      }
+    }
+
+    /* Sticky-Dock-Tokens (z. B. Wartungs-Jahresübersicht) */
+    :root {
+      --bis-dock-z: 1040;
+      --bis-safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    /* Mobile-Karten-Liste (Pendant zu Desktop-Tabellen) */
+    .bis-mobile-card {
+      border: 1px solid var(--bis-card-border);
+      border-radius: var(--bis-radius);
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+      background-color: #fff;
+    }
+    .bis-mobile-card .bis-mc-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.15rem 0;
+      font-size: 0.95rem;
+    }
+    .bis-mobile-card .bis-mc-row > .bis-mc-label {
+      color: var(--bs-secondary);
+      flex: 0 0 auto;
+    }
+    .bis-mobile-card .bis-mc-row > .bis-mc-value {
+      flex: 1 1 auto;
+      text-align: right;
+      min-width: 0;
+      word-break: break-word;
+    }
     
     /* --- Druck-Styles --- */
     @media print {

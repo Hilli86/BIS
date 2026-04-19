@@ -20,9 +20,9 @@
 <h1 class="mb-4">Ersatzteil: {{ ersatzteil.Bezeichnung }}</h1>
 
 <div class="card mb-4 shadow-sm ersatzteil-details-card">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">📋 Ersatzteil-Details</h5>
-        <div class="d-flex gap-2">
+    <div class="card-header bg-primary text-white bis-toolbar justify-between">
+        <h5 class="mb-0 bis-toolbar-title">📋 Ersatzteil-Details</h5>
+        <div class="bis-toolbar-actions bis-actions-touch">
             {% if ersatzteil.LieferantID %}
             <button type="button" class="btn btn-sm btn-light" onclick="addToAngebotsanfrage({{ ersatzteil.ID }}, event)" title="Zu Angebotsanfrage hinzufügen">
                 <i class="bi bi-cart-plus"></i> <span class="d-none d-sm-inline">Zu Angebotsanfrage</span>
@@ -81,7 +81,7 @@
                                 <strong class="text-primary">{{ ersatzteil.ID }}</strong></td>
                         </tr>
                         <tr>
-                            <td class="text-muted" style="width: 150px;"><strong>Bestellnummer:</strong></td>
+                            <td class="text-muted" style="min-width: 9rem; width: auto;"><strong>Bestellnummer:</strong></td>
                             <td><strong>{{ ersatzteil.Bestellnummer }}</strong></td>
                         </tr>
                         <tr>
@@ -142,7 +142,7 @@
                 <table class="table table-sm table-borderless mb-0 w-100">
                     <tbody>
                         <tr>
-                            <td class="text-muted" style="width: 150px;"><strong>Preis:</strong></td>
+                            <td class="text-muted" style="min-width: 9rem; width: auto;"><strong>Preis:</strong></td>
                             <td>
                                 {% if ersatzteil.Preis %}
                                 {{ "%.2f"|format(ersatzteil.Preis) }} {{ ersatzteil.Waehrung }}
@@ -670,7 +670,7 @@
 
 <!-- Modal: QR-Code anzeigen -->
 <div class="modal fade" id="qrCodeModal" tabindex="-1" aria-labelledby="qrCodeModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title" id="qrCodeModalLabel">
@@ -701,7 +701,7 @@
 
 <!-- Modal: Bilder von Artikel-URL -->
 <div class="modal fade" id="artikelfotoSeiteBilderModal" tabindex="-1" aria-labelledby="artikelfotoSeiteBilderModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header bg-success text-white">
                 <h5 class="modal-title" id="artikelfotoSeiteBilderModalLabel">
@@ -1042,33 +1042,31 @@ function oeffneEtikettModal(ersatzteilId, event) {
         event.stopPropagation();
     }
     
-    // Button-Position ermitteln
     const button = event ? event.target.closest('button') : document.querySelector(`button[onclick*="${ersatzteilId}"]`);
     const buttonRect = button.getBoundingClientRect();
     const modalElement = document.getElementById('etikettAnzahlModal');
     const modalDialog = modalElement.querySelector('.modal-dialog');
-    
-    // Modal-Dialog-Positionierung: Links vom Button positionieren
-    // Breite des Modals schätzen (ca. 400px) und etwas Abstand lassen
-    const modalWidth = 400;
-    const offset = 10;
-    
-    // Position berechnen: Links vom Button
-    const leftPosition = buttonRect.left - modalWidth - offset;
-    
-    // Sicherstellen, dass das Modal nicht außerhalb des Viewports ist
+
     const viewportWidth = window.innerWidth;
-    const finalLeft = Math.max(10, Math.min(leftPosition, viewportWidth - modalWidth - 10));
-    
-    // Vertikale Position: Button-Mitte
-    const topPosition = buttonRect.top + (buttonRect.height / 2) - 100; // 100px Offset für Modal-Höhe
-    
-    // Modal-Dialog positionieren
-    modalDialog.style.position = 'fixed';
-    modalDialog.style.left = finalLeft + 'px';
-    modalDialog.style.top = Math.max(10, topPosition) + 'px';
-    modalDialog.style.margin = '0';
-    modalDialog.style.transform = 'none';
+
+    if (viewportWidth < 576) {
+        modalDialog.style.position = '';
+        modalDialog.style.left = '';
+        modalDialog.style.top = '';
+        modalDialog.style.margin = '';
+        modalDialog.style.transform = '';
+    } else {
+        const modalWidth = Math.min(400, viewportWidth - 16);
+        const offset = 10;
+        const leftPosition = buttonRect.left - modalWidth - offset;
+        const finalLeft = Math.max(10, Math.min(leftPosition, viewportWidth - modalWidth - 10));
+        const topPosition = buttonRect.top + (buttonRect.height / 2) - 100;
+        modalDialog.style.position = 'fixed';
+        modalDialog.style.left = finalLeft + 'px';
+        modalDialog.style.top = Math.max(10, topPosition) + 'px';
+        modalDialog.style.margin = '0';
+        modalDialog.style.transform = 'none';
+    }
     
     // Modal öffnen mit der Ersatzteil-ID
     const modal = new bootstrap.Modal(modalElement);
@@ -1651,7 +1649,7 @@ async function verschiebeAusImportErsatzteil(filename, ersatzteilId) {
 
 <!-- Modal für Etikett-Anzahl -->
 <div class="modal fade" id="etikettAnzahlModal" tabindex="-1" aria-labelledby="etikettAnzahlModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header bg-warning text-dark">
                 <h5 class="modal-title" id="etikettAnzahlModalLabel">
@@ -1680,7 +1678,7 @@ async function verschiebeAusImportErsatzteil(filename, ersatzteilId) {
 </div>
 
 <div class="modal fade" id="etikettDruckerWahlModal" tabindex="-1" aria-labelledby="etikettDruckerWahlModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="etikettDruckerWahlModalLabel">Drucker wählen</h5>

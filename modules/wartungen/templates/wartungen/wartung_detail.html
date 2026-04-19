@@ -68,8 +68,8 @@
 </div>
 
 <div class="card mb-4 shadow-sm">
-  <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-    <h5 class="mb-0">Beschreibungen</h5>
+  <div class="card-header bg-success text-white bis-toolbar justify-between">
+    <h5 class="mb-0 bis-toolbar-title">Beschreibungen</h5>
     {% if kann_edit %}
     <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#wartungDateiUploadCollapse">
       <i class="bi bi-plus-circle"></i> Datei hochladen
@@ -125,7 +125,7 @@
       · <span class="badge text-bg-warning text-dark">heute bis 7 Tage überfällig</span>
       · <span class="badge text-bg-danger">über 7 Tage überfällig</span>
     </p>
-    <div class="table-responsive">
+    <div class="table-responsive d-none d-md-block">
       <table class="table table-hover mb-0 align-middle">
         <thead>
           <tr>
@@ -165,7 +165,7 @@
             {% endif %}
             <td>{% if p.Aktiv %}<span class="badge bg-success">Ja</span>{% else %}<span class="badge bg-secondary">Nein</span>{% endif %}</td>
             <td class="text-nowrap" onclick="event.stopPropagation();">
-              <div class="d-inline-flex gap-1 flex-wrap">
+              <div class="d-inline-flex gap-1 flex-wrap bis-actions-touch">
                 {% if kann_plan %}
                 <a href="{{ url_for('wartungen.plan_bearbeiten', plan_id=p.ID) }}" class="btn btn-sm btn-outline-secondary" title="Plan bearbeiten">
                   <i class="bi bi-pencil"></i>
@@ -190,6 +190,39 @@
         </tbody>
       </table>
     </div>
+
+    <div class="d-md-none px-3 pt-2 pb-3">
+      {% for p in plaene %}
+      <div id="wartung-plan-card-{{ p.ID }}" class="bis-mobile-card {% if highlight_plan_id is not none and p.ID == highlight_plan_id %}border-info{% endif %}" style="cursor: pointer;" onclick="window.location.href='{{ url_for('wartungen.wartung_detail', wartung_id=wartung.ID, plan_id=p.ID) }}';">
+        <div class="bis-toolbar justify-between mb-1">
+          <strong class="bis-toolbar-title">{% if p.IntervallAnzahl == 0 %}Ohne Intervall{% else %}Alle {{ p.IntervallAnzahl }} {{ p.IntervallEinheit }}(e){% endif %}</strong>
+          {% if p.Aktiv %}<span class="badge bg-success">Aktiv</span>{% else %}<span class="badge bg-secondary">Inaktiv</span>{% endif %}
+        </div>
+        {% if p.IntervallAnzahl != 0 %}
+        {% set ftd = p.NaechsteFaelligkeit|wartung_faelligkeit_td_class %}
+        <div class="bis-mc-row"><span class="bis-mc-label">Nächste Fälligkeit</span><span class="bis-mc-value{% if ftd %} {{ ftd }}{% endif %}">{{ p.NaechsteFaelligkeit or '–' }}</span></div>
+        <div class="bis-mc-row"><span class="bis-mc-label">Bezug</span><span class="bis-mc-value">{% if p.HatFestesIntervall %}Soll{% else %}Durchführung{% endif %}</span></div>
+        {% if p.ErinnerungTageVor is not none %}<div class="bis-mc-row"><span class="bis-mc-label">Erinnerung</span><span class="bis-mc-value">{{ p.ErinnerungTageVor }} Tage</span></div>{% endif %}
+        <div class="bis-mc-row"><span class="bis-mc-label">Termin vereinb.</span><span class="bis-mc-value">{% if p.TerminVereinbart %}Ja{% if p.TerminVereinbartDatum %} ({{ p.TerminVereinbartDatum }}){% endif %}{% else %}Nein{% endif %}</span></div>
+        {% endif %}
+        <div class="d-flex flex-wrap gap-2 mt-2 bis-actions-touch" onclick="event.stopPropagation();">
+          {% if kann_plan %}
+          <a href="{{ url_for('wartungen.plan_bearbeiten', plan_id=p.ID) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i> Plan</a>
+          <button type="button" class="btn btn-sm btn-outline-primary"
+            data-bs-toggle="modal" data-bs-target="#modalWartungsterminPlan"
+            data-action-url="{{ url_for('wartungen.plan_wartungstermin', plan_id=p.ID) }}"
+            data-termin-datum="{{ p.TerminVereinbartDatum or '' }}"
+            data-intervall-hint="{% if p.IntervallAnzahl == 0 %}Ohne Intervall{% else %}Alle {{ p.IntervallAnzahl }} {{ p.IntervallEinheit }}(e){% endif %}">
+            <i class="bi bi-calendar-plus"></i> Termin
+          </button>
+          {% endif %}
+          {% if kann_protokollieren %}
+          <a href="{{ url_for('wartungen.durchfuehrung_neu', plan_id=p.ID) }}" class="btn btn-sm btn-outline-success"><i class="bi bi-journal-plus"></i> Durchführung</a>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
     {% else %}
     <div class="card-body">
       <div class="alert alert-info mb-0">
@@ -206,7 +239,7 @@
   </div>
   <div class="card-body p-0">
     {% if durchfuehrungen %}
-    <div class="table-responsive">
+    <div class="table-responsive d-none d-md-block">
       <table class="table table-hover mb-0 align-middle">
         <thead>
           <tr>
@@ -238,6 +271,21 @@
         </tbody>
       </table>
     </div>
+
+    <div class="d-md-none px-3 pt-2 pb-3">
+      {% for x in durchfuehrungen %}
+      <div class="bis-mobile-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=x.ID) }}';">
+        <div class="bis-toolbar justify-between mb-1">
+          <strong class="bis-toolbar-title">{% if x.DurchgefuehrtAm %}{{ x.DurchgefuehrtAm[:16] }}{% else %}–{% endif %}</strong>
+          {% if x.DateiAnzahl and x.DateiAnzahl > 0 %}<span class="badge bg-secondary"><i class="bi bi-paperclip"></i> {{ x.DateiAnzahl }}</span>{% endif %}
+        </div>
+        <div class="bis-mc-row"><span class="bis-mc-label">ID</span><span class="bis-mc-value text-muted">#{{ x.ID }}</span></div>
+        <div class="bis-mc-row"><span class="bis-mc-label">Plan</span><span class="bis-mc-value">{% if x.IntervallAnzahl == 0 %}Ohne Intervall{% else %}Alle {{ x.IntervallAnzahl }} {{ x.IntervallEinheit }}(e){% endif %}</span></div>
+        <div class="bis-mc-row"><span class="bis-mc-label">Von</span><span class="bis-mc-value">{{ x.ProtokolliertVon or '–' }}</span></div>
+        {% if x.Bemerkung %}<div class="mt-2 small text-break">{{ x.Bemerkung }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
     {% else %}
     <div class="card-body">
       <div class="alert alert-info mb-0">
@@ -249,8 +297,8 @@
 </div>
 
 {% if kann_plan and plaene %}
-<div class="modal fade" id="modalWartungsterminPlan" tabindex="-1" aria-labelledby="modalWartungsterminPlanLabel" aria-hidden="true">
-  <div class="modal-dialog">
+<div class="modal fade bis-modal-mobile-full" id="modalWartungsterminPlan" tabindex="-1" aria-labelledby="modalWartungsterminPlanLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <form id="formWartungsterminPlan" method="post" action="">
         {{ csrf_field() }}

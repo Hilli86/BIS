@@ -65,7 +65,7 @@
                             <small class="text-muted">({{ ersatzteile|length }} Artikel)</small>
                         </h4>
                         
-                        <div class="table-responsive">
+                        <div class="table-responsive d-none d-md-block">
                             <table class="table table-sm table-bordered table-hover">
                                 <thead class="table-light">
                                     <tr>
@@ -88,8 +88,9 @@
                                             <strong>{{ e.AktuellerBestand }}</strong>
                                         </td>
                                         <td class="text-center" style="white-space: nowrap;">
-                                            <input type="number" 
-                                                   class="form-control form-control-sm inventur-input" 
+                                            <input type="number"
+                                                   inputmode="decimal"
+                                                   class="form-control form-control-sm inventur-input"
                                                    data-ersatzteil-id="{{ e.ID }}"
                                                    data-aktueller-bestand="{{ e.AktuellerBestand }}"
                                                    data-bezeichnung="{{ e.Bezeichnung }}"
@@ -113,6 +114,34 @@
                                     {% endfor %}
                                 </tbody>
                             </table>
+                        </div>
+
+                        <div class="d-md-none">
+                            {% for e in ersatzteile %}
+                            <div class="bis-mobile-card {% if not e.EndOfLife and e.Mindestbestand > 0 and e.AktuellerBestand < e.Mindestbestand %}border-warning{% elif e.EndOfLife %}border-secondary{% endif %}">
+                                <div class="bis-toolbar justify-between mb-1">
+                                    <strong class="bis-toolbar-title">{{ e.Bestellnummer }} <span class="text-muted small">#{{ e.ID }}</span></strong>
+                                    {% if e.EndOfLife %}<span class="badge bg-danger">EOL</span>
+                                    {% elif not e.Aktiv %}<span class="badge bg-secondary">Inaktiv</span>
+                                    {% else %}<span class="badge bg-success">Aktiv</span>{% endif %}
+                                </div>
+                                <div class="small text-break mb-2">{{ e.Bezeichnung }}</div>
+                                <div class="bis-mc-row"><span class="bis-mc-label">Bestand</span><span class="bis-mc-value"><strong>{{ e.AktuellerBestand }}</strong> {{ e.Einheit }}</span></div>
+                                <div class="mt-2">
+                                    <label class="form-label small mb-1">Bestand neu</label>
+                                    <input type="number"
+                                           inputmode="decimal"
+                                           class="form-control form-control-lg inventur-input"
+                                           data-ersatzteil-id="{{ e.ID }}"
+                                           data-aktueller-bestand="{{ e.AktuellerBestand }}"
+                                           data-bezeichnung="{{ e.Bezeichnung }}"
+                                           data-bestellnummer="{{ e.Bestellnummer }}"
+                                           step="1"
+                                           min="0"
+                                           placeholder="z. B. {{ e.AktuellerBestand }}">
+                                </div>
+                            </div>
+                            {% endfor %}
                         </div>
                     </div>
                 {% endfor %}

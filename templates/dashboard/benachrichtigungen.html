@@ -1,11 +1,11 @@
 {% extends "layout/base.html" %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
-  <h1 class="mb-0">
+<div class="bis-toolbar justify-between mb-4">
+  <h1 class="mb-0 bis-toolbar-title">
     <i class="bi bi-bell"></i> Alle Benachrichtigungen
   </h1>
-  <div class="d-flex gap-2 flex-wrap">
+  <div class="bis-toolbar-actions bis-actions-touch">
     <button id="alleGelesenBtn" class="btn btn-primary">
       <i class="bi bi-check-all"></i> Alle als gelesen markieren
     </button>
@@ -80,28 +80,28 @@ document.addEventListener('DOMContentLoaded', function() {
           const gelesenBadge = notif.Gelesen ? '' : '<span class="badge bg-primary ms-2">Neu</span>';
           html += `
             <div class="list-group-item ${gelesenClass}">
-              <div class="d-flex justify-content-between align-items-start">
-                <div class="flex-grow-1">
-                  <div class="d-flex align-items-center mb-2">
+              <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+                <div class="flex-grow-1" style="min-width: 0;">
+                  <div class="d-flex align-items-center mb-2 gap-2 flex-wrap">
                     <h6 class="mb-0">${notif.Titel}</h6>
                     ${gelesenBadge}
                   </div>
-                  <p class="mb-1">${notif.Nachricht}</p>
-                  <div class="d-flex align-items-center gap-3">
+                  <p class="mb-1 text-break">${notif.Nachricht}</p>
+                  <div class="d-flex align-items-center gap-3 flex-wrap">
                     <small class="text-muted">
                       <i class="bi bi-clock"></i> ${datum}
                     </small>
                     ${notif.Modul ? `<small class="text-muted"><i class="bi bi-folder"></i> ${notif.Modul}</small>` : ''}
                   </div>
                 </div>
-                <div class="d-flex gap-2 ms-3 flex-wrap justify-content-end">
+                <div class="d-flex gap-2 flex-wrap justify-content-end bis-actions-touch">
                   ${notif.ziel_url ? `<a href="${notif.ziel_url}" class="btn btn-sm btn-outline-secondary">Öffnen</a>` : ''}
                   ${!notif.Gelesen ? `
                     <button class="btn btn-sm btn-outline-primary markiereGelesenBtn" data-id="${notif.ID}">
                       <i class="bi bi-check"></i> Als gelesen
                     </button>
                   ` : `
-                    <span class="badge bg-success">
+                    <span class="badge bg-success align-self-center">
                       <i class="bi bi-check-circle"></i> Gelesen
                     </span>
                   `}

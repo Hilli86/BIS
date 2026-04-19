@@ -4,6 +4,12 @@
     min-height: 3rem;
     margin-top: 0.25rem;
   }
+  @media (max-width: 575.98px) {
+    .wd-artikel-row .wd-artikel-meta-gap {
+      min-height: 0;
+      margin-top: 0;
+    }
+  }
 </style>
 <div class="card mb-4 shadow-sm">
   <div class="card-header bg-warning text-dark">
@@ -321,7 +327,7 @@ function wdArtikelSelect(id, bestellnummer, bezeichnung, bestand, einheit, event
 </script>
 
 <div class="modal fade" id="wdErsatzteilModal" tabindex="-1" aria-labelledby="wdErsatzteilModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="wdErsatzteilModalLabel">Ersatzteil auswählen</h5>

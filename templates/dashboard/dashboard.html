@@ -1,8 +1,8 @@
 {% extends "layout/base.html" %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
-  <h1 class="mb-0">Dashboard</h1>
+<div class="bis-toolbar justify-between mb-4">
+  <h1 class="mb-0 bis-toolbar-title">Dashboard</h1>
   <div class="text-muted small">
     <i class="bi bi-calendar3"></i> {{ "Heute" }}
   </div>
@@ -52,8 +52,8 @@
   <div class="row mb-4">
     <div class="col-12">
       <div class="card shadow-sm">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h5 class="mb-0">
+        <div class="card-header bis-toolbar justify-between">
+          <h5 class="mb-0 bis-toolbar-title">
             <i class="bi bi-bell"></i> Benachrichtigungen
           </h5>
           <a href="{{ url_for('dashboard.benachrichtigungen') }}" class="btn btn-sm btn-outline-primary">

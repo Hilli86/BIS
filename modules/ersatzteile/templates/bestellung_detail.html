@@ -439,7 +439,7 @@
     {% endif %}
     <div class="card-body">
         {% if positionen %}
-        <div class="table-responsive">
+        <div class="table-responsive d-none d-md-block">
             <table class="table table-sm">
                 <thead>
                     <tr>
@@ -536,6 +536,44 @@
                     {% endfor %}
                 </tbody>
             </table>
+        </div>
+
+        <div class="d-md-none">
+            {% for p in positionen %}
+            <div class="bis-mobile-card">
+                <div class="bis-toolbar justify-between mb-1">
+                    <strong class="bis-toolbar-title">{{ p.Bestellnummer or '–' }}</strong>
+                    {% if p.ErhalteneMenge > 0 %}
+                    <span class="badge {% if p.ErhalteneMenge < p.Menge %}bg-warning{% else %}bg-success{% endif %}">{{ p.ErhalteneMenge }} / {{ p.Menge }}</span>
+                    {% else %}
+                    <span class="badge bg-secondary">0 / {{ p.Menge }}</span>
+                    {% endif %}
+                </div>
+                <div class="small text-break mb-2">{{ p.Bezeichnung or '–' }}</div>
+                <div class="bis-mc-row"><span class="bis-mc-label">Menge</span><span class="bis-mc-value">{{ p.Menge }} {{ p.Einheit or 'Stück' }}</span></div>
+                {% if p.Preis %}<div class="bis-mc-row"><span class="bis-mc-label">Preis</span><span class="bis-mc-value">{{ "%.2f"|format(p.Preis) }} {{ p.Waehrung or 'EUR' }}</span></div>
+                <div class="bis-mc-row"><span class="bis-mc-label">Gesamt</span><span class="bis-mc-value"><strong>{{ "%.2f"|format(p.Preis * p.Menge) }} {{ p.Waehrung or 'EUR' }}</strong></span></div>{% endif %}
+                {% if p.Kostenstelle %}<div class="bis-mc-row"><span class="bis-mc-label">Kostenstelle</span><span class="bis-mc-value">{{ p.Kostenstelle }}</span></div>{% endif %}
+                {% if p.Bemerkung %}<div class="bis-mc-row"><span class="bis-mc-label">Bemerkung</span><span class="bis-mc-value">{{ p.Bemerkung }}</span></div>{% endif %}
+                {% if p.ErsatzteilID %}<div class="bis-mc-row"><span class="bis-mc-label">Artikel</span><span class="bis-mc-value"><a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=p.ErsatzteilID) }}">#{{ p.ErsatzteilID }}</a></span></div>{% endif %}
+                {% if p.Link %}<div class="bis-mc-row"><span class="bis-mc-label">Link</span><span class="bis-mc-value"><a href="{{ p.Link }}" target="_blank" rel="noopener noreferrer"><i class="bi bi-link-45deg"></i> Öffnen</a></span></div>{% endif %}
+                <div class="d-flex flex-wrap gap-2 mt-2 bis-actions-touch">
+                    {% if bestellung.Status in ['Erstellt', 'Zur Freigabe'] and not bestellung.Gelöscht %}
+                    <button class="btn btn-sm btn-outline-primary" onclick="openEditPositionModal({{ p.ID }}, '{{ p.Bestellnummer|replace("'", "\\'") or '' }}', '{{ p.Bezeichnung|replace("'", "\\'") or '' }}', {{ p.Menge }}, '{{ p.Einheit|replace("'", "\\'") or 'Stück' }}', {{ p.Preis or 0 }}, '{{ p.Waehrung or 'EUR' }}', '{{ p.Bemerkung|replace("'", "\\'") or '' }}', {% if p.Link %}'{{ p.Link|replace("'", "\\'") }}'{% else %}''{% endif %}, {{ p.KostenstelleID or 'null' }})"><i class="bi bi-pencil"></i> Bearbeiten</button>
+                    <form method="POST" action="{{ url_for('ersatzteile.bestellung_position_loeschen', bestellung_id=bestellung.ID, position_id=p.ID) }}" onsubmit="return confirm('Position wirklich löschen?');" class="d-inline">
+                        {{ csrf_field() }}
+                        <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Löschen</button>
+                    </form>
+                    {% endif %}
+                    {% if bestellung.Status in ['Freigegeben', 'Bestellt'] and not bestellung.Gelöscht and not p.ErsatzteilID and p.Bestellnummer and p.Bezeichnung %}
+                    <form method="POST" action="{{ url_for('ersatzteile.bestellung_position_artikel_erstellen', bestellung_id=bestellung.ID, position_id=p.ID) }}" onsubmit="return confirm('Artikel aus dieser Position erstellen?');" class="d-inline">
+                        {{ csrf_field() }}
+                        <button type="submit" class="btn btn-sm btn-outline-success"><i class="bi bi-plus-circle"></i> Artikel</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
         </div>
         {% else %}
         <div class="alert alert-info">
@@ -723,7 +761,7 @@
 
 <!-- Modal für Position bearbeiten -->
 <div class="modal fade" id="editPositionModal" tabindex="-1" aria-labelledby="editPositionModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header bg-warning text-dark">
                 <h5 class="modal-title" id="editPositionModalLabel">Position bearbeiten</h5>
@@ -790,7 +828,7 @@
 
 <!-- Modal für Sichtbarkeit -->
 <div class="modal fade" id="sichtbarkeitModal" tabindex="-1" aria-labelledby="sichtbarkeitModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header bg-warning text-dark">
                 <h5 class="modal-title" id="sichtbarkeitModalLabel">
@@ -1573,7 +1611,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- Modal für Ersatzteil-Auswahl (Detail-Seite) -->
 <div class="modal fade" id="ersatzteilModalDetail" tabindex="-1" aria-labelledby="ersatzteilModalDetailLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header bg-warning text-dark">
                 <h5 class="modal-title" id="ersatzteilModalDetailLabel">Ersatzteil auswählen</h5>
@@ -1601,7 +1639,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- Modal für Unterschrift -->
 <div class="modal fade" id="unterschriftModal" tabindex="-1" aria-labelledby="unterschriftModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header bg-warning text-dark">
                 <h5 class="modal-title" id="unterschriftModalLabel">
@@ -1616,7 +1654,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     <!-- Canvas für Unterschrift -->
                     <div class="signature-container mb-3" style="border: 2px solid #ddd; border-radius: 4px; background-color: #fff; position: relative;">
-                        <canvas id="signatureCanvas" width="600" height="200" style="display: block; width: 100%; height: 200px; cursor: crosshair;"></canvas>
+                        <canvas id="signatureCanvas" width="600" height="200" style="display: block; width: 100%; height: clamp(180px, 35vh, 240px); cursor: crosshair;"></canvas>
                         <!-- Versteckter File-Input für Laden -->
                         <input type="file" id="signatureFileInput" accept="image/png,image/jpeg" style="display: none;">
                     </div>
@@ -1929,7 +1967,7 @@ function exportBestellungPDF(bestellungId) {
 
 <!-- Modal für PDF-/DOC-Export -->
 <div class="modal fade" id="pdfExportModal" tabindex="-1" aria-labelledby="pdfExportModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title" id="pdfExportModalLabel">
@@ -1961,7 +1999,7 @@ function exportBestellungPDF(bestellungId) {
 
 <!-- Modal für Freigabebemerkung bearbeiten -->
 <div class="modal fade" id="freigabebemerkungModal" tabindex="-1" aria-labelledby="freigabebemerkungModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header bg-warning text-dark">
                 <h5 class="modal-title" id="freigabebemerkungModalLabel">

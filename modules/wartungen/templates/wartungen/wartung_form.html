@@ -32,12 +32,19 @@
   </div>
   <div class="mb-3">
     <label class="form-label">Sichtbar für Abteilungen</label>
-    <select name="sichtbare_abteilungen" class="form-select" multiple size="8" {% if wartung and not kann_edit %}disabled{% endif %}>
-      {% for a in abteilungen %}
-      <option value="{{ a.ID }}" {% if a.ID in gewaehlte_abteilungen %}selected{% endif %}>{{ a.Bezeichnung }}</option>
-      {% endfor %}
-    </select>
-    <div class="form-text">Strg/Cmd für Mehrfachauswahl.</div>
+    <div class="bis-checkgroup border rounded p-2" style="max-height: 18rem; overflow-y: auto;">
+      {% if abteilungen %}
+        {% for a in abteilungen %}
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="sichtbare_abteilungen" value="{{ a.ID }}" id="abt_{{ a.ID }}" {% if a.ID in gewaehlte_abteilungen %}checked{% endif %} {% if wartung and not kann_edit %}disabled{% endif %}>
+          <label class="form-check-label" for="abt_{{ a.ID }}">{{ a.Bezeichnung }}</label>
+        </div>
+        {% endfor %}
+      {% else %}
+        <span class="text-muted small">Keine Abteilungen verfügbar.</span>
+      {% endif %}
+    </div>
+    <div class="form-text">Mehrfachauswahl möglich.</div>
   </div>
   {% if wartung %}
   <div class="mb-3 form-check">

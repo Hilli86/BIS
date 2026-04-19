@@ -4,6 +4,12 @@
     min-height: 3rem;
     margin-top: 0.25rem;
   }
+  @media (max-width: 575.98px) {
+    .wd-artikel-batch-row .wd-artikel-batch-meta-gap {
+      min-height: 0;
+      margin-top: 0;
+    }
+  }
 </style>
 <div class="card mb-4 shadow-sm">
   <div class="card-header bg-warning text-dark">
@@ -24,7 +30,7 @@
 </div>
 
 <div class="modal fade" id="wdErsatzteilModalBatch" tabindex="-1" aria-labelledby="wdErsatzteilModalBatchLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="wdErsatzteilModalBatchLabel">Ersatzteil auswählen</h5>

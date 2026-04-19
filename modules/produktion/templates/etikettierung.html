@@ -118,7 +118,7 @@
                                   {{ csrf_field() }}
                                   <input type="hidden" name="linie" value="{{ linie }}">
                                   <input type="hidden" name="artikel" value="{{ artikel }}">
-                                  <input type="file" name="file" class="form-control form-control-sm" style="max-width: 220px;" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp" required>
+                                  <input type="file" name="file" class="form-control form-control-sm" style="max-width: 220px; min-width: 0;" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp" required>
                                   <button type="submit" class="btn btn-sm btn-primary">
                                     <i class="bi bi-upload"></i> bizerba.jpg ersetzen
                                   </button>
@@ -177,8 +177,10 @@
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
   }
   
-  #fotoModal .modal-dialog {
-    max-width: 90vw;
+  @media (min-width: 576px) {
+    #fotoModal .modal-dialog {
+      max-width: 90vw;
+    }
   }
   
   #fotoModal .modal-body img {
@@ -190,7 +192,7 @@
 
 {# Modal für Foto-Vorschau #}
 <div class="modal fade" id="fotoModal" tabindex="-1" aria-labelledby="fotoModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-xl">
+  <div class="modal-dialog modal-dialog-centered modal-xl modal-fullscreen-sm-down">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="fotoModalLabel"></h5>

@@ -214,13 +214,19 @@
 
                             <div class="mb-3">
                                 <label class="form-label">Abteilungen:</label>
-                                <select class="form-select" id="schichtbuch_abteilungen" multiple size="5">
-                                    <option value="">Alle Abteilungen</option>
+                                <div class="bis-checkgroup border rounded p-2" id="schichtbuch_abteilungen" style="max-height: 14rem; overflow-y: auto;">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" value="" id="schichtbuch_abt_alle">
+                                        <label class="form-check-label fw-semibold" for="schichtbuch_abt_alle">Alle Abteilungen</label>
+                                    </div>
                                     {% for abt in alle_abteilungen_fuer_auswahl %}
-                                    <option value="{{ abt.ID }}">{{ abt.Bezeichnung }}</option>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" value="{{ abt.ID }}" id="schichtbuch_abt_{{ abt.ID }}">
+                                        <label class="form-check-label" for="schichtbuch_abt_{{ abt.ID }}">{{ abt.Bezeichnung }}</label>
+                                    </div>
                                     {% endfor %}
-                                </select>
-                                <small class="text-muted">Halten Sie Strg/Cmd gedrückt, um mehrere Abteilungen auszuwählen.</small>
+                                </div>
+                                <small class="text-muted">Mehrfachauswahl möglich. „Alle Abteilungen“ ignoriert die Einzelauswahl.</small>
                             </div>
                         </div>
 
@@ -281,13 +287,19 @@
 
                             <div class="mb-3">
                                 <label class="form-label">Abteilungen:</label>
-                                <select class="form-select" id="bestellwesen_abteilungen" multiple size="5">
-                                    <option value="">Alle Abteilungen</option>
+                                <div class="bis-checkgroup border rounded p-2" id="bestellwesen_abteilungen" style="max-height: 14rem; overflow-y: auto;">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" value="" id="bestellwesen_abt_alle">
+                                        <label class="form-check-label fw-semibold" for="bestellwesen_abt_alle">Alle Abteilungen</label>
+                                    </div>
                                     {% for abt in alle_abteilungen_fuer_auswahl %}
-                                    <option value="{{ abt.ID }}">{{ abt.Bezeichnung }}</option>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" value="{{ abt.ID }}" id="bestellwesen_abt_{{ abt.ID }}">
+                                        <label class="form-check-label" for="bestellwesen_abt_{{ abt.ID }}">{{ abt.Bezeichnung }}</label>
+                                    </div>
                                     {% endfor %}
-                                </select>
-                                <small class="text-muted">Halten Sie Strg/Cmd gedrückt, um mehrere Abteilungen auszuwählen.</small>
+                                </div>
+                                <small class="text-muted">Mehrfachauswahl möglich. „Alle Abteilungen“ ignoriert die Einzelauswahl.</small>
                             </div>
                         </div>
 
@@ -471,12 +483,14 @@
             );
             if (checkbox) checkbox.checked = einstellung.aktiv;
 
-            // Abteilungen setzen
-            if (einstellung.abteilung_id) {
-              const select = document.getElementById(`${einstellung.modul}_abteilungen`);
-              if (select) {
-                const option = Array.from(select.options).find(opt => opt.value == einstellung.abteilung_id);
-                if (option) option.selected = true;
+            const grp = document.getElementById(`${einstellung.modul}_abteilungen`);
+            if (grp) {
+              if (einstellung.abteilung_id) {
+                const cb = grp.querySelector(`input[type="checkbox"][value="${einstellung.abteilung_id}"]`);
+                if (cb) cb.checked = true;
+              } else if (einstellung.aktiv) {
+                const all = grp.querySelector('input[type="checkbox"][value=""]');
+                if (all) all.checked = true;
               }
             }
           });
@@ -502,16 +516,13 @@
         const aktiv = checkbox.checked;
 
         if (aktiv) {
-          // Abteilungen für dieses Modul
-          const select = document.getElementById(`${modul}_abteilungen`);
-          const abteilungen = Array.from(select.selectedOptions).map(opt => opt.value);
+          const grp = document.getElementById(`${modul}_abteilungen`);
+          const checked = grp ? Array.from(grp.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value) : [];
 
-          if (abteilungen.length === 0 || abteilungen.includes('')) {
-            // Alle Abteilungen
+          if (checked.length === 0 || checked.includes('')) {
             einstellungen.push({ modul, aktion, abteilung_id: null, aktiv: true });
           } else {
-            // Spezifische Abteilungen
-            abteilungen.forEach(abt_id => {
+            checked.forEach(abt_id => {
               if (abt_id) {
                 einstellungen.push({ modul, aktion, abteilung_id: parseInt(abt_id), aktiv: true });
               }

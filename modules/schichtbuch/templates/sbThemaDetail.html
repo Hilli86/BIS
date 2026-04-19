@@ -15,9 +15,9 @@
     <h1 class="mb-4">Thema #{{ thema.ID }}</h1>
 
     <div class="card mb-4 shadow-sm">
-        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">📋 Thema-Details</h5>
-            <div class="d-flex gap-2">
+        <div class="card-header bg-primary text-white bis-toolbar justify-between">
+            <h5 class="mb-0 bis-toolbar-title">📋 Thema-Details</h5>
+            <div class="bis-toolbar-actions bis-actions-touch">
                 <button class="btn btn-sm btn-light" 
                         type="button"
                         onclick="exportThemaPDF({{ thema.ID }})"
@@ -58,7 +58,7 @@
                     <table class="table table-sm table-borderless mb-0">
                         <tbody>
                             <tr>
-                                <td class="text-muted" style="width: 150px;"><strong>Bereich:</strong></td>
+                                <td class="text-muted" style="min-width: 9rem; width: auto;"><strong>Bereich:</strong></td>
                                 <td>{{ thema.Bereich }}</td>
                             </tr>
                             <tr>
@@ -183,8 +183,8 @@
 
     <!-- Dateien-Bereich -->
     <div class="card mb-4 shadow-sm">
-        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">📄 Dateien & Bilder</h5>
+        <div class="card-header bg-success text-white bis-toolbar justify-between">
+            <h5 class="mb-0 bis-toolbar-title">📄 Dateien & Bilder</h5>
             <button class="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#dateienUploadCollapse">
                 <i class="bi bi-plus-circle"></i> Datei hochladen
             </button>
@@ -192,7 +192,7 @@
         <div class="collapse" id="dateienUploadCollapse">
             <div class="card-body">
                 <!-- Tab-Auswahl -->
-                <ul class="nav nav-tabs mb-3" role="tablist">
+                <ul class="nav nav-tabs mb-3 bis-tabs-scroll" role="tablist">
                     <li class="nav-item" role="presentation">
                         <button class="nav-link active" id="thema-upload-tab" data-bs-toggle="tab" data-bs-target="#thema-upload-pane" type="button">
                             <i class="bi bi-cloud-upload"></i> Hochladen
@@ -267,7 +267,7 @@
             <h5 class="mb-0">🔗 Verwendete Ersatzteile</h5>
         </div>
         <div class="card-body">
-            <div class="table-responsive">
+            <div class="table-responsive d-none d-md-block">
                 <table class="table table-sm">
                     <thead>
                         <tr>
@@ -322,6 +322,37 @@
                         {% endfor %}
                     </tbody>
                 </table>
+            </div>
+
+            <div class="d-md-none">
+                {% for v in ersatzteil_verknuepfungen %}
+                <div class="bis-mobile-card">
+                    <div class="bis-toolbar justify-between mb-1">
+                        <strong class="bis-toolbar-title">
+                            <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=v.ErsatzteilID) }}" class="text-decoration-none">
+                                {{ v.Bestellnummer }} <span class="text-muted small">#{{ v.ErsatzteilID }}</span>
+                            </a>
+                        </strong>
+                        {% if v.Typ == 'Eingang' %}
+                        <span class="badge bg-success">Eingang</span>
+                        {% elif v.Typ == 'Inventur' %}
+                        <span class="badge bg-info">Inventur</span>
+                        {% else %}
+                        <span class="badge bg-danger">Ausgang</span>
+                        {% endif %}
+                    </div>
+                    <div class="small text-break mb-2">{{ v.ErsatzteilBezeichnung }}</div>
+                    <div class="bis-mc-row"><span class="bis-mc-label">Datum</span><span class="bis-mc-value">{{ v.Buchungsdatum[:16] if v.Buchungsdatum else '-' }}</span></div>
+                    <div class="bis-mc-row"><span class="bis-mc-label">Menge</span><span class="bis-mc-value"><strong>{{ v.Menge }}</strong></span></div>
+                    {% if v.Preis %}
+                    <div class="bis-mc-row"><span class="bis-mc-label">Preis</span><span class="bis-mc-value">{{ "%.2f"|format(v.Preis) }} {{ v.Waehrung or 'EUR' }}</span></div>
+                    {% endif %}
+                    {% if v.Kostenstelle %}<div class="bis-mc-row"><span class="bis-mc-label">Kostenstelle</span><span class="bis-mc-value">{{ v.Kostenstelle }}</span></div>{% endif %}
+                    {% if v.Grund %}<div class="bis-mc-row"><span class="bis-mc-label">Grund</span><span class="bis-mc-value">{{ v.Grund }}</span></div>{% endif %}
+                    {% if v.VerwendetVon %}<div class="bis-mc-row"><span class="bis-mc-label">Von</span><span class="bis-mc-value">{{ v.VerwendetVon }}</span></div>{% endif %}
+                    {% if v.Bemerkung %}<div class="small text-muted mt-2 text-break">{{ v.Bemerkung }}</div>{% endif %}
+                </div>
+                {% endfor %}
             </div>
         </div>
     </div>
@@ -428,7 +459,7 @@
 
     <!-- Modal: Aufgabenlisten -->
     <div class="modal fade" id="aufgabenlistenModal" tabindex="-1" aria-labelledby="aufgabenlistenModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
             <div class="modal-content">
                 <div class="modal-header bg-secondary text-white">
                     <h5 class="modal-title" id="aufgabenlistenModalLabel">
@@ -456,7 +487,7 @@
 
     <!-- Modal: QR-Code anzeigen -->
     <div class="modal fade" id="qrCodeModal" tabindex="-1" aria-labelledby="qrCodeModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
             <div class="modal-content">
                 <div class="modal-header bg-primary text-white">
                     <h5 class="modal-title" id="qrCodeModalLabel">
@@ -1280,7 +1311,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- Modal für Ersatzteil-Auswahl (Detail) -->
 <div class="modal fade" id="ersatzteilModalDetail" tabindex="-1" aria-labelledby="ersatzteilModalDetailLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
         <div class="modal-content">
             <div class="modal-header bg-warning text-dark">
                 <h5 class="modal-title" id="ersatzteilModalDetailLabel">Ersatzteil auswählen</h5>

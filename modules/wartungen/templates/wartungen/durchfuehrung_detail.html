@@ -120,7 +120,7 @@
   </div>
   <div class="card-body">
     {% if lagerbuchungen %}
-    <div class="table-responsive">
+    <div class="table-responsive d-none d-md-block">
       <table class="table table-sm mb-0">
         <thead>
           <tr>
@@ -175,6 +175,28 @@
           {% endfor %}
         </tbody>
       </table>
+    </div>
+
+    <div class="d-md-none">
+      {% for v in lagerbuchungen %}
+      <div class="bis-mobile-card">
+        <div class="bis-toolbar justify-between mb-1">
+          <a href="{{ url_for('ersatzteile.ersatzteil_detail', ersatzteil_id=v.ErsatzteilID) }}" class="text-decoration-none bis-toolbar-title">
+            <strong>{{ v.Bestellnummer }}</strong> – {{ v.ErsatzteilBezeichnung }}
+          </a>
+          {% if v.Typ == 'Eingang' %}<span class="badge bg-success">Eingang</span>
+          {% elif v.Typ == 'Inventur' %}<span class="badge bg-info">Inventur</span>
+          {% else %}<span class="badge bg-danger">Ausgang</span>{% endif %}
+        </div>
+        <div class="bis-mc-row"><span class="bis-mc-label">Datum</span><span class="bis-mc-value">{{ v.Buchungsdatum[:16] if v.Buchungsdatum else '-' }}</span></div>
+        <div class="bis-mc-row"><span class="bis-mc-label">Menge</span><span class="bis-mc-value"><strong>{{ v.Menge }}</strong></span></div>
+        {% if v.Preis %}<div class="bis-mc-row"><span class="bis-mc-label">Preis</span><span class="bis-mc-value">{{ "%.2f"|format(v.Preis) }} {{ v.Waehrung or 'EUR' }}</span></div>{% endif %}
+        {% if v.Kostenstelle %}<div class="bis-mc-row"><span class="bis-mc-label">Kostenstelle</span><span class="bis-mc-value">{{ v.Kostenstelle }}</span></div>{% endif %}
+        {% if v.Grund %}<div class="bis-mc-row"><span class="bis-mc-label">Grund</span><span class="bis-mc-value">{{ v.Grund }}</span></div>{% endif %}
+        {% if v.VerwendetVon %}<div class="bis-mc-row"><span class="bis-mc-label">Von</span><span class="bis-mc-value">{{ v.VerwendetVon }}</span></div>{% endif %}
+        {% if v.Bemerkung %}<div class="mt-2 small text-break">{{ v.Bemerkung }}</div>{% endif %}
+      </div>
+      {% endfor %}
     </div>
     {% else %}
     <div class="alert alert-info mb-0">
@@ -235,7 +257,7 @@
 {% endif %}
 
 <div class="modal fade" id="ersatzteilModalWd" tabindex="-1" aria-labelledby="ersatzteilModalWdLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="ersatzteilModalWdLabel">Ersatzteil auswählen</h5>

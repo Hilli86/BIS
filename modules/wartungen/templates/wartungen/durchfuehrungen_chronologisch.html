@@ -61,7 +61,7 @@
 <div class="card shadow-sm">
   <div class="card-body p-0">
     {% if durchfuehrungen %}
-    <div class="table-responsive">
+    <div class="table-responsive d-none d-md-block">
       <table class="table table-hover mb-0 align-middle">
         <thead>
           <tr>
@@ -113,6 +113,25 @@
         </tbody>
       </table>
     </div>
+
+    <div class="d-md-none px-3 py-2">
+      {% for x in durchfuehrungen %}
+      <div class="bis-mobile-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=x.ID) }}';">
+        <div class="bis-toolbar justify-between mb-1">
+          <strong class="bis-toolbar-title">{{ x.WartungBez }}</strong>
+          {% if x.DateiAnzahl and x.DateiAnzahl > 0 %}<span class="badge bg-secondary"><i class="bi bi-paperclip"></i> {{ x.DateiAnzahl }}</span>{% endif %}
+        </div>
+        <div class="bis-mc-row"><span class="bis-mc-label">Datum</span><span class="bis-mc-value">{% if x.DurchgefuehrtAm %}{{ x.DurchgefuehrtAm[:16] }}{% else %}–{% endif %}</span></div>
+        <div class="bis-mc-row"><span class="bis-mc-label">Bereich</span><span class="bis-mc-value">{{ x.Bereich }}</span></div>
+        <div class="bis-mc-row"><span class="bis-mc-label">Gewerk</span><span class="bis-mc-value">{{ x.Gewerk }}</span></div>
+        <div class="bis-mc-row"><span class="bis-mc-label">Plan</span><span class="bis-mc-value">{% if x.IntervallAnzahl == 0 %}Ohne Intervall{% else %}Alle {{ x.IntervallAnzahl }} {{ x.IntervallEinheit }}(e){% endif %}</span></div>
+        <div class="bis-mc-row"><span class="bis-mc-label">Von</span><span class="bis-mc-value">{{ x.ProtokolliertVon or '–' }}</span></div>
+        <div class="bis-mc-row"><span class="bis-mc-label">ID</span><span class="bis-mc-value text-muted">#{{ x.ID }}</span></div>
+        {% if x.Bemerkung %}<div class="mt-2 small text-break">{{ x.Bemerkung }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
     <p class="small text-muted mb-0 px-3 py-2">
       Sortierung: {% if chrono_sort == 'datum' %}Durchführungsdatum{% else %}ID{% endif %}
       ({{ 'aufsteigend' if chrono_dir == 'asc' else 'absteigend' }}), max. 5000 Einträge.

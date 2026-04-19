@@ -139,10 +139,7 @@
 }
 
 @media (max-width: 767.98px) {
-  /* Mobilkarten: Aktions-Footer im DOM belassen, nur ausblenden (wieder sichtbar: diese Regel entfernen) */
-  .sb-tl-mobile-card-actions {
-    display: none !important;
-  }
+  /* Mobilkarten: Aktions-Footer eingeblendet (Touch-Targets via .btn min-height: 44px unten) */
   .bis-list-quicksearch-wrap {
     width: 100%;
     max-width: none;
@@ -1600,7 +1597,7 @@ async function saveSichtbarkeit() {
 
 <!-- Modal: Dateien & Bilder anzeigen -->
 <div class="modal fade" id="dateienModal" tabindex="-1" aria-labelledby="dateienModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
     <div class="modal-content">
       <div class="modal-header bg-success text-white">
         <h5 class="modal-title" id="dateienModalLabel">
@@ -1615,7 +1612,7 @@ async function saveSichtbarkeit() {
             <h6 class="card-title"><i class="bi bi-cloud-upload"></i> Datei hochladen</h6>
             
             <!-- Tab-Auswahl -->
-            <ul class="nav nav-tabs mb-3" role="tablist">
+            <ul class="nav nav-tabs mb-3 bis-tabs-scroll" role="tablist">
               <li class="nav-item" role="presentation">
                 <button class="nav-link active" id="sb-upload-tab" data-bs-toggle="tab" data-bs-target="#sb-upload-pane" type="button">
                   <i class="bi bi-cloud-upload"></i> Hochladen
@@ -1689,7 +1686,7 @@ async function saveSichtbarkeit() {
 
 <!-- Modal: Sichtbarkeit bearbeiten -->
 <div class="modal fade" id="sichtbarkeitModal" tabindex="-1" aria-labelledby="sichtbarkeitModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
     <div class="modal-content">
       <div class="modal-header bg-warning text-dark">
         <h5 class="modal-title" id="sichtbarkeitModalLabel">
@@ -1728,7 +1725,7 @@ async function saveSichtbarkeit() {
 
 <!-- Modal: Aufgabenlisten (wie Thema-Detail) -->
 <div class="modal fade" id="aufgabenlistenModal" tabindex="-1" aria-labelledby="aufgabenlistenModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
     <div class="modal-content">
       <div class="modal-header bg-secondary text-white">
         <h5 class="modal-title" id="aufgabenlistenModalLabel">

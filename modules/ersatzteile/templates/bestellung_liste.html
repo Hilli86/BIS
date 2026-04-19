@@ -219,7 +219,7 @@
                         <td class="column-bestellt-von" style="display: none;">{{ b.BestelltVon or '-' }}</td>
                         <td>{{ b.Abteilung or '-' }}</td>
                         <td class="text-end text-nowrap" onclick="event.stopPropagation();">
-                            <div class="d-flex flex-nowrap gap-1 justify-content-end">
+                            <div class="d-flex flex-wrap gap-1 justify-content-end bis-actions-touch">
                                 {% if b.Status in ['Freigegeben', 'Bestellt'] %}
                                 <button type="button" class="btn btn-sm btn-outline-primary" onclick="exportBestellungPDF({{ b.ID }})" title="Als PDF exportieren">
                                     <i class="bi bi-file-earmark-pdf"></i>

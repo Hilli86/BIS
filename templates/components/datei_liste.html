@@ -37,7 +37,7 @@
                 {% for datei in bilder %}
                     {% set datei_ext = datei.Dateiname|file_extension %}
                     {% if datei_ext in ['jpg', 'jpeg', 'png', 'gif', 'webp'] %}
-                        <div class="col-md-3 mb-3">
+                        <div class="col-6 col-md-3 mb-3">
                             <div class="card">
                                 <a href="{{ url_for(datei_anzeigen_route, filepath=datei.Dateipfad) }}" target="_blank">
                                     <img src="{{ url_for(datei_anzeigen_route, filepath=datei.Dateipfad) }}" 
@@ -46,7 +46,7 @@
                                          alt="{{ datei.Dateiname }}">
                                 </a>
                                 <div class="card-body p-2">
-                                    <small class="text-muted d-block">{{ datei.Dateiname }}</small>
+                                    <small class="text-muted d-block text-break">{{ datei.Dateiname }}</small>
                                     {% if datei.Beschreibung %}
                                         <small class="text-muted d-block mt-1">{{ datei.Beschreibung }}</small>
                                     {% endif %}
@@ -76,7 +76,7 @@
                     {% for datei in bilder %}
                         {% set datei_ext = datei.Dateiname|file_extension %}
                         {% if datei_ext in ['jpg', 'jpeg', 'png', 'gif', 'webp'] %}
-                            <div class="col-md-3 mb-3">
+                            <div class="col-6 col-md-3 mb-3">
                                 <div class="card">
                                     <a href="{{ url_for(datei_anzeigen_route, filepath=datei.Dateipfad) }}" target="_blank">
                                         <img src="{{ url_for(datei_anzeigen_route, filepath=datei.Dateipfad) }}" 
@@ -85,7 +85,7 @@
                                              alt="{{ datei.Dateiname }}">
                                     </a>
                                     <div class="card-body p-2">
-                                        <small class="text-muted d-block">{{ datei.Dateiname }}</small>
+                                        <small class="text-muted d-block text-break">{{ datei.Dateiname }}</small>
                                         {% if datei.Beschreibung %}
                                             <small class="text-muted d-block mt-1">{{ datei.Beschreibung }}</small>
                                         {% endif %}
@@ -115,8 +115,8 @@
                 {% endif %}
                 <div class="list-group">
                     {% for datei in dokumente %}
-                        <div class="list-group-item d-flex justify-content-between align-items-start">
-                            <div class="flex-grow-1">
+                        <div class="list-group-item d-flex flex-wrap justify-content-between align-items-start gap-2">
+                            <div class="flex-grow-1 text-break" style="min-width: 0;">
                                 {% if datei.Dateipfad %}
                                     <a href="{{ url_for(datei_anzeigen_route, filepath=datei.Dateipfad) }}" target="_blank" class="text-decoration-none">
                                         <i class="bi bi-file-earmark"></i> {{ datei.Dateiname if datei.Dateiname else (datei.name if datei.name else 'Unbekannt') }}
@@ -150,10 +150,10 @@
                                 {% set datei_id = datei.ID if datei.ID else (datei.id if datei.id else (datei['ID'] if datei['ID'] else datei['id'])) %}
                                 {% if datei_id %}
                                 <form method="POST" action="{% if datei_loeschen_durchfuehrung_id is not none %}{{ url_for(datei_loeschen_route, durchfuehrung_id=datei_loeschen_durchfuehrung_id, datei_id=datei_id) }}{% else %}{{ url_for(datei_loeschen_route, datei_id=datei_id) }}{% endif %}" 
-                                      onsubmit="return confirm('Datei wirklich löschen?');" class="d-inline ms-2">
+                                      onsubmit="return confirm('Datei wirklich löschen?');" class="d-inline-block flex-shrink-0">
                                     {{ csrf_field() }}
                                     <button type="submit" class="btn btn-sm btn-danger">
-                                        <i class="bi bi-trash"></i>
+                                        <i class="bi bi-trash"></i> <span class="d-none d-sm-inline">Löschen</span>
                                     </button>
                                 </form>
                                 {% endif %}

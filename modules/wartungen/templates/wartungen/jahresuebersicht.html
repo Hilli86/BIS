@@ -7,19 +7,38 @@
     bottom: 0;
     /* Position/Breite per JS an #jahresmatrix-scroll-main (gleiche Viewport-Breite wie die Tabelle) */
     right: auto;
-    height: 18px;
+    height: calc(18px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     overflow-x: auto;
     overflow-y: hidden;
     background-color: var(--bs-body-bg, #fff);
     border-top: 1px solid var(--bs-border-color, #dee2e6);
-    z-index: 1030;
+    z-index: var(--bis-dock-z, 1040);
     box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
   }
   .jahresmatrix-dock-scroll-inner {
     height: 1px;
   }
   body.jahresmatrix-dock-active {
-    padding-bottom: 18px;
+    padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  }
+  /* Touch-Targets in der Matrix (Mobile) */
+  @media (max-width: 786px) {
+    .wartung-matrix-zelle {
+      min-width: 36px;
+      min-height: 36px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .js-jahres-matrix-wartung-cb {
+      width: 1.25rem;
+      height: 1.25rem;
+    }
+    #btn-jahres-matrix-batch {
+      min-width: 40px;
+      min-height: 40px;
+    }
   }
   .jahresmatrix-scroll-main.jahresmatrix-hide-h-scrollbar {
     scrollbar-width: none;
@@ -254,7 +273,7 @@
 {% endif %}
 
 <div class="modal fade" id="wartungJahrModal" tabindex="-1" aria-labelledby="wartungJahrModalTitle" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg modal-fullscreen-sm-down">
     <div class="modal-content">
       <div class="modal-header py-2">
         <h5 class="modal-title text-break" id="wartungJahrModalTitle"></h5>
