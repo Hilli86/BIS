@@ -3,10 +3,33 @@ Diverses Routes
 Routes für verschiedene Funktionen
 """
 
-from flask import render_template, request, jsonify
+from flask import render_template, request, jsonify, session
 from . import diverses_bp
+from utils.database import get_db_connection
 from utils.decorators import permission_required, login_required
-from utils.zebra_client import send_zpl_to_printer
+from utils.zebra_client import dispatch_print, send_zpl_to_printer
+
+
+def _send_admin_zpl_by_ip(printer_ip, zpl_command):
+    """
+    Sendet ZPL ueber den Hybrid-Dispatcher: wenn der Drucker mit dieser IP
+    in zebra_printers existiert und einen Agent zugewiesen hat, geht der
+    Auftrag ueber die Queue; sonst Direkt-TCP wie bisher.
+    Wirft eine Exception bei Fehlern, damit Aufrufer sie melden koennen.
+    """
+    mitarbeiter_id = session.get('user_id')
+    with get_db_connection() as conn:
+        row = conn.execute(
+            'SELECT id FROM zebra_printers WHERE ip_address = ? AND active = 1 LIMIT 1',
+            (printer_ip,),
+        ).fetchone()
+        if row:
+            d = dispatch_print(conn, int(row['id']), zpl_command, mitarbeiter_id)
+            if not d['ok']:
+                raise RuntimeError(d.get('error_message') or 'Druck fehlgeschlagen.')
+            return d
+    send_zpl_to_printer(printer_ip, zpl_command)
+    return {'mode': 'direct', 'ok': True}
 
 # Hardcodierte Druckerliste
 DRUCKER_LISTE = [
@@ -59,7 +82,7 @@ def zebra_drucker_kalibrieren():
         # Format: ^XA (Start), ^JC (Print Config Label), ^XZ (End)
         # Viele Drucker benötigen ein Newline am Ende
         zpl_command = "^XA~JC^XZ"
-        send_zpl_to_printer(printer_ip, zpl_command)
+        _send_admin_zpl_by_ip(printer_ip, zpl_command)
         return jsonify({'success': True, 'message': f'Kalibrierung an {printer_ip} gesendet'})
     except Exception as e:
         return jsonify({'success': False, 'message': f'Fehler beim Senden: {str(e)}'}), 500
@@ -80,7 +103,7 @@ def zebra_drucker_druckerkonfig():
         # Format: ^XA (Start), ^HH (Print Configuration), ^XZ (End)
         # Viele Drucker benötigen ein Newline am Ende
         zpl_command = "^XA~WC^XZ"
-        send_zpl_to_printer(printer_ip, zpl_command)
+        _send_admin_zpl_by_ip(printer_ip, zpl_command)
         return jsonify({'success': True, 'message': f'Druckerkonfig an {printer_ip} gesendet'})
     except Exception as e:
         return jsonify({'success': False, 'message': f'Fehler beim Senden: {str(e)}'}), 500
@@ -101,7 +124,7 @@ def zebra_drucker_netzwerkkonfig():
         # Format: ^XA (Start), ^HW (Print Network Config), ^XZ (End)
         # Viele Drucker benötigen ein Newline am Ende
         zpl_command = "^XA~WL^XZ"
-        send_zpl_to_printer(printer_ip, zpl_command)
+        _send_admin_zpl_by_ip(printer_ip, zpl_command)
         return jsonify({'success': True, 'message': f'Netzwerkkonfig an {printer_ip} gesendet'})
     except Exception as e:
         return jsonify({'success': False, 'message': f'Fehler beim Senden: {str(e)}'}), 500

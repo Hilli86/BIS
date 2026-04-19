@@ -6,7 +6,7 @@ from flask import render_template, request, redirect, url_for, session, flash, j
 from .. import ersatzteile_bp
 from utils import get_db_connection, login_required, permission_required, admin_required, get_sichtbare_abteilungen_fuer_mitarbeiter
 from utils.helpers import build_ersatzteil_zugriff_filter
-from utils.zebra_client import send_zpl_to_printer
+from utils.zebra_client import dispatch_print
 from utils.etikett_druck import (
     FUNKTION_ERSATZTEIL_ETIKETT,
     FUNKTION_LAGERBEHAELTER_ETIKETT,
@@ -880,12 +880,21 @@ def lagerbehaelter_label_druck():
                 allgemein_info=info,
                 **etikett_format_substitution(etikett['zpl_header']),
             )
-            try:
-                send_zpl_to_printer(res['printer_ip'], zpl)
-            except Exception as e:
-                return jsonify({'success': False, 'message': f'Fehler beim Senden an Drucker: {e}'}), 500
+            d = dispatch_print(conn, res['drucker_id'], zpl, mitarbeiter_id)
+            if not d['ok']:
+                return jsonify({
+                    'success': False,
+                    'message': d.get('error_message') or 'Fehler beim Drucken.',
+                }), 500
+            if d['mode'] == 'agent' and d['status'] != 'done':
+                msg = (
+                    f'Lagerbehälter-Label "{titel}" an Druckwarteschlange '
+                    f'uebergeben (Auftrag #{d["job_id"]}).'
+                )
+            else:
+                msg = f'Lagerbehälter-Label mit Titel "{titel}" gedruckt.'
 
-        return jsonify({'success': True, 'message': f'Lagerbehälter-Label mit Titel "{titel}" gedruckt.'})
+        return jsonify({'success': True, 'message': msg})
 
     except Exception as e:
         return jsonify({'success': False, 'message': f'Fehler beim Drucken: {str(e)}'}), 500
@@ -945,10 +954,11 @@ def lagerbehaelter_label_druck_artikel():
                 })
 
             etikett = res['etikett']
-            printer_ip = res['printer_ip']
+            drucker_id = res['drucker_id']
 
             erfolgreich = 0
             fehlgeschlagen = 0
+            in_warteschlange = 0
             fehler_meldungen = []
 
             for ersatzteil_id in ids:
@@ -974,28 +984,39 @@ def lagerbehaelter_label_druck_artikel():
 
                 zpl = zpl_ersatzteil_aus_zeile(et, etikett, 1)
 
-                try:
-                    send_zpl_to_printer(printer_ip, zpl)
-                    erfolgreich += 1
-                except Exception as e:
+                # Bei Batch-Drucken nicht synchron warten, sonst dauert es zu lange.
+                d = dispatch_print(conn, drucker_id, zpl, mitarbeiter_id, wait_seconds=0)
+                if d['ok']:
+                    if d['mode'] == 'agent' and d['status'] != 'done':
+                        in_warteschlange += 1
+                    else:
+                        erfolgreich += 1
+                else:
                     fehlgeschlagen += 1
-                    fehler_meldungen.append(f'ID {ersatzteil_id}: Fehler beim Senden an Drucker ({e})')
+                    fehler_meldungen.append(
+                        f'ID {ersatzteil_id}: {d.get("error_message") or "Druck fehlgeschlagen"}'
+                    )
 
         # Zusammenfassung zurückgeben
-        if fehlgeschlagen == 0:
-            message = f'{erfolgreich} Etikett(e) erfolgreich gedruckt.'
-        else:
-            message = f'{erfolgreich} Etikett(e) erfolgreich, {fehlgeschlagen} fehlgeschlagen.'
-            if fehler_meldungen:
-                message += ' Fehler: ' + '; '.join(fehler_meldungen[:5])
-                if len(fehler_meldungen) > 5:
-                    message += f' (und {len(fehler_meldungen) - 5} weitere)'
+        teile = []
+        if erfolgreich:
+            teile.append(f'{erfolgreich} gedruckt')
+        if in_warteschlange:
+            teile.append(f'{in_warteschlange} an Druckwarteschlange uebergeben')
+        if fehlgeschlagen:
+            teile.append(f'{fehlgeschlagen} fehlgeschlagen')
+        message = ', '.join(teile) + '.' if teile else 'Keine Etiketten gedruckt.'
+        if fehler_meldungen:
+            message += ' Fehler: ' + '; '.join(fehler_meldungen[:5])
+            if len(fehler_meldungen) > 5:
+                message += f' (und {len(fehler_meldungen) - 5} weitere)'
 
         return jsonify({
-            'success': erfolgreich > 0,
+            'success': (erfolgreich + in_warteschlange) > 0,
             'message': message,
             'erfolgreich': erfolgreich,
-            'fehlgeschlagen': fehlgeschlagen
+            'in_warteschlange': in_warteschlange,
+            'fehlgeschlagen': fehlgeschlagen,
         })
 
     except Exception as e:

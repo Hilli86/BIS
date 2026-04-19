@@ -33,7 +33,6 @@ from ..services import (
     get_datei_typ_aus_dateiname
 )
 from ..utils import hat_ersatzteil_zugriff, hat_ersatzteil_bearbeiten_zugriff, get_datei_anzahl, allowed_file
-from utils.zebra_client import send_zpl_to_printer, build_test_label
 
 
 # Feste Kennzeichen-Optionen A-Z für Artikel

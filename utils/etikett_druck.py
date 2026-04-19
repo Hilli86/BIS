@@ -151,15 +151,55 @@ def resolve_printer_ip(conn, drucker_id):
     return r['ip_address'] if r else None
 
 
+def resolve_printer_agent_id(conn, drucker_id):
+    """Liefert die agent_id eines Druckers (oder None bei Direkt-Druck/unbekannt)."""
+    if not drucker_id:
+        return None
+    r = conn.execute(
+        'SELECT agent_id FROM zebra_printers WHERE id = ? AND active = 1', (drucker_id,)
+    ).fetchone()
+    if not r:
+        return None
+    return r['agent_id']
+
+
 def get_active_printers_list(conn):
+    """
+    Liste aller aktiven Drucker fuer UI/Modal.
+    Enthaelt zusaetzlich agent_id und agent_name (NULL bei Direkt-Druck) und einen
+    vorbereiteten ``modus_label``-Suffix (z. B. ``Direkt`` / ``Agent: standort-a``).
+    """
     return conn.execute(
         '''
-        SELECT id, name, ip_address, ort
-        FROM zebra_printers
-        WHERE active = 1
-        ORDER BY COALESCE(ort, ''), name
+        SELECT p.id, p.name, p.ip_address, p.ort, p.agent_id,
+               a.name AS agent_name
+        FROM zebra_printers p
+        LEFT JOIN print_agents a ON p.agent_id = a.id
+        WHERE p.active = 1
+        ORDER BY COALESCE(p.ort, ''), p.name
         '''
     ).fetchall()
+
+
+def _printer_to_dict(p):
+    """Drucker-Zeile zu serialisierbarem Dict (inkl. Hybrid-Modus-Label)."""
+    agent_name = p['agent_name'] if 'agent_name' in p.keys() else None
+    agent_id = p['agent_id'] if 'agent_id' in p.keys() else None
+    if agent_id and agent_name:
+        modus_label = f'Agent: {agent_name}'
+    elif agent_id:
+        modus_label = f'Agent #{agent_id}'
+    else:
+        modus_label = 'Direkt'
+    return {
+        'id': p['id'],
+        'name': p['name'],
+        'ip_address': p['ip_address'],
+        'ort': p['ort'] or '',
+        'agent_id': agent_id,
+        'agent_name': agent_name or '',
+        'modus_label': modus_label,
+    }
 
 
 def build_print_resolution(conn, funktion_code, mitarbeiter_id, drucker_id_override=None):
@@ -168,10 +208,11 @@ def build_print_resolution(conn, funktion_code, mitarbeiter_id, drucker_id_overr
       ok: bool
       error_message: str | None
       needs_printer_choice: bool
-      printers: list[dict] (fuer Modal)
+      printers: list[dict] (fuer Modal; inkl. agent_id, agent_name, modus_label)
       etikett: Row | None (mit zpl_header, druckbefehle)
       printer_ip: str | None
       drucker_id: int | None
+      agent_id: int | None  (None = Direkt-Druck vom Server)
     """
     k = resolve_konfig_row(conn, funktion_code, mitarbeiter_id)
     if not k:
@@ -183,6 +224,7 @@ def build_print_resolution(conn, funktion_code, mitarbeiter_id, drucker_id_overr
             'etikett': None,
             'printer_ip': None,
             'drucker_id': None,
+            'agent_id': None,
         }
 
     et = load_etikett_mit_format(conn, k['etikett_id'])
@@ -195,13 +237,18 @@ def build_print_resolution(conn, funktion_code, mitarbeiter_id, drucker_id_overr
             'etikett': None,
             'printer_ip': None,
             'drucker_id': None,
+            'agent_id': None,
         }
 
     eff_drucker = drucker_id_override if drucker_id_override is not None else k['drucker_id']
 
     if eff_drucker is not None:
-        ip = resolve_printer_ip(conn, eff_drucker)
-        if not ip:
+        row = conn.execute(
+            '''SELECT id, ip_address, agent_id
+               FROM zebra_printers WHERE id = ? AND active = 1''',
+            (eff_drucker,),
+        ).fetchone()
+        if not row:
             return {
                 'ok': False,
                 'error_message': 'Drucker nicht gefunden oder inaktiv.',
@@ -210,6 +257,7 @@ def build_print_resolution(conn, funktion_code, mitarbeiter_id, drucker_id_overr
                 'etikett': et,
                 'printer_ip': None,
                 'drucker_id': eff_drucker,
+                'agent_id': None,
             }
         return {
             'ok': True,
@@ -217,19 +265,12 @@ def build_print_resolution(conn, funktion_code, mitarbeiter_id, drucker_id_overr
             'needs_printer_choice': False,
             'printers': [],
             'etikett': et,
-            'printer_ip': ip,
+            'printer_ip': row['ip_address'],
             'drucker_id': eff_drucker,
+            'agent_id': row['agent_id'],
         }
 
-    printers = [
-        {
-            'id': p['id'],
-            'name': p['name'],
-            'ip_address': p['ip_address'],
-            'ort': p['ort'] or '',
-        }
-        for p in get_active_printers_list(conn)
-    ]
+    printers = [_printer_to_dict(p) for p in get_active_printers_list(conn)]
     if not printers:
         return {
             'ok': False,
@@ -239,6 +280,7 @@ def build_print_resolution(conn, funktion_code, mitarbeiter_id, drucker_id_overr
             'etikett': et,
             'printer_ip': None,
             'drucker_id': None,
+            'agent_id': None,
         }
     return {
         'ok': True,
@@ -248,4 +290,5 @@ def build_print_resolution(conn, funktion_code, mitarbeiter_id, drucker_id_overr
         'etikett': et,
         'printer_ip': None,
         'drucker_id': None,
+        'agent_id': None,
     }

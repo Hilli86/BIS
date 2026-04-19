@@ -9,6 +9,7 @@ import sqlite3
 from . import admin_bp
 from utils import get_db_connection, admin_required
 from utils.zebra_client import (
+    dispatch_print,
     send_zpl_to_printer,
     build_test_label,
     zpl_header_from_dimensions,
@@ -144,9 +145,16 @@ def dashboard():
 
         # Zebra-Drucker und Etikettenformate laden
         zebra_printers = conn.execute('''
-            SELECT id, name, ip_address, description, ort, active
-            FROM zebra_printers
-            ORDER BY COALESCE(ort, ''), name
+            SELECT p.id, p.name, p.ip_address, p.description, p.ort, p.active,
+                   p.agent_id, a.name AS agent_name
+            FROM zebra_printers p
+            LEFT JOIN print_agents a ON p.agent_id = a.id
+            ORDER BY COALESCE(p.ort, ''), p.name
+        ''').fetchall()
+        print_agents_list = conn.execute('''
+            SELECT id, name, standort, active
+            FROM print_agents
+            ORDER BY name
         ''').fetchall()
         label_formats = conn.execute('''
             SELECT id, name, description, width_mm, height_mm, orientation, zpl_header, zpl_zusatz
@@ -204,6 +212,7 @@ def dashboard():
                            firmendaten=firmendaten,
                            berechtigungen=berechtigungen,
                            zebra_printers=zebra_printers,
+                           print_agents_list=print_agents_list,
                            label_formats=label_formats,
                            etiketten=etiketten,
                            etikett_druck_konfigen=etikett_druck_konfigen,
@@ -226,23 +235,33 @@ def zebra_printer_save():
     description = request.form.get('description', '').strip() or None
     ort = request.form.get('ort', '').strip() or None
     active = 1 if request.form.get('active') == 'on' else 0
+    agent_raw = (request.form.get('agent_id') or '').strip()
+    agent_id = int(agent_raw) if agent_raw else None
 
     if not name or not ip_address:
         return ajax_response('Bitte Name und IP-Adresse ausfüllen.', success=False)
 
     try:
         with get_db_connection() as conn:
+            if agent_id is not None:
+                ag = conn.execute(
+                    'SELECT id FROM print_agents WHERE id = ?', (agent_id,)
+                ).fetchone()
+                if not ag:
+                    return ajax_response('Druck-Agent nicht gefunden.', success=False)
             if printer_id:
                 conn.execute('''
                     UPDATE zebra_printers
-                    SET name = ?, ip_address = ?, description = ?, ort = ?, active = ?, updated_at = datetime('now', 'localtime')
+                    SET name = ?, ip_address = ?, description = ?, ort = ?, active = ?,
+                        agent_id = ?, updated_at = datetime('now', 'localtime')
                     WHERE id = ?
-                ''', (name, ip_address, description, ort, active, printer_id))
+                ''', (name, ip_address, description, ort, active, agent_id, printer_id))
             else:
                 conn.execute('''
-                    INSERT INTO zebra_printers (name, ip_address, description, ort, active, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'))
-                ''', (name, ip_address, description, ort, active))
+                    INSERT INTO zebra_printers
+                        (name, ip_address, description, ort, active, agent_id, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'))
+                ''', (name, ip_address, description, ort, active, agent_id))
             conn.commit()
         return ajax_response('Zebra-Drucker gespeichert.')
     except Exception as e:
@@ -264,6 +283,245 @@ def zebra_printer_toggle(pid):
         return ajax_response('Zebra-Drucker-Status aktualisiert.')
     except Exception as e:
         return ajax_response(f'Fehler beim Aktualisieren des Druckerstatus: {str(e)}', success=False, status_code=500)
+
+
+# ========== Druck-Agents Verwaltung ==========
+
+@admin_bp.route('/druck-agents', methods=['GET'])
+@admin_required
+def druck_agents_uebersicht():
+    """Verwaltung der Druck-Agents (Cloudflare-Tunnel-Helfer pro Standort)."""
+    from utils.zebra_client import generate_agent_token  # noqa: F401 (dokumentation)
+    one_time_token = request.args.get('neuer_token') or None
+    one_time_token_for_id = request.args.get('neuer_token_id', type=int)
+    with get_db_connection() as conn:
+        agents = conn.execute('''
+            SELECT a.id, a.name, a.standort, a.active, a.last_seen_at, a.last_ip,
+                   a.created_at, a.updated_at,
+                   (SELECT COUNT(*) FROM zebra_printers p WHERE p.agent_id = a.id) AS drucker_anzahl,
+                   (SELECT COUNT(*) FROM print_jobs j WHERE j.agent_id = a.id AND j.status = 'pending') AS jobs_pending,
+                   (SELECT COUNT(*) FROM print_jobs j WHERE j.agent_id = a.id AND j.status = 'leased') AS jobs_leased
+            FROM print_agents a
+            ORDER BY a.name
+        ''').fetchall()
+    return render_template(
+        'admin_druck_agents.html',
+        agents=agents,
+        neuer_token=one_time_token,
+        neuer_token_id=one_time_token_for_id,
+    )
+
+
+@admin_bp.route('/druck-agents/save', methods=['POST'])
+@admin_required
+def druck_agents_save():
+    """Druck-Agent anlegen oder aktualisieren. Beim Anlegen wird ein Token erzeugt."""
+    from utils.zebra_client import generate_agent_token, hash_agent_token
+
+    aid = request.form.get('id', type=int)
+    name = (request.form.get('name') or '').strip()
+    standort = (request.form.get('standort') or '').strip() or None
+    active = 1 if request.form.get('active') == 'on' else 0
+
+    if not name:
+        flash('Bitte einen Namen für den Agent angeben.', 'danger')
+        return redirect(url_for('admin.druck_agents_uebersicht'))
+
+    try:
+        with get_db_connection() as conn:
+            doppelt = conn.execute(
+                'SELECT id FROM print_agents WHERE name = ? AND id IS NOT ?',
+                (name, aid),
+            ).fetchone()
+            if doppelt:
+                flash(f'Es existiert bereits ein Agent mit dem Namen "{name}".', 'danger')
+                return redirect(url_for('admin.druck_agents_uebersicht'))
+            if aid:
+                conn.execute(
+                    '''UPDATE print_agents
+                          SET name = ?, standort = ?, active = ?, updated_at = datetime('now')
+                        WHERE id = ?''',
+                    (name, standort, active, aid),
+                )
+                conn.commit()
+                flash(f'Druck-Agent "{name}" aktualisiert.', 'success')
+                return redirect(url_for('admin.druck_agents_uebersicht'))
+            new_token = generate_agent_token()
+            cur = conn.execute(
+                '''INSERT INTO print_agents
+                       (name, standort, token_hash, active, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))''',
+                (name, standort, hash_agent_token(new_token), active),
+            )
+            conn.commit()
+            new_id = cur.lastrowid
+            flash(
+                f'Druck-Agent "{name}" angelegt. Bitte Token JETZT sichern '
+                f'(wird nur einmal angezeigt).',
+                'success',
+            )
+            return redirect(url_for(
+                'admin.druck_agents_uebersicht',
+                neuer_token=new_token,
+                neuer_token_id=new_id,
+            ))
+    except Exception as e:
+        flash(f'Fehler beim Speichern des Agents: {e}', 'danger')
+        return redirect(url_for('admin.druck_agents_uebersicht'))
+
+
+@admin_bp.route('/druck-agents/<int:aid>/rotate-token', methods=['POST'])
+@admin_required
+def druck_agents_rotate_token(aid):
+    """Erzeugt einen neuen Token (alter wird ungueltig). Token wird einmalig angezeigt."""
+    from utils.zebra_client import generate_agent_token, hash_agent_token
+    try:
+        with get_db_connection() as conn:
+            row = conn.execute('SELECT id, name FROM print_agents WHERE id = ?', (aid,)).fetchone()
+            if not row:
+                flash('Agent nicht gefunden.', 'danger')
+                return redirect(url_for('admin.druck_agents_uebersicht'))
+            new_token = generate_agent_token()
+            conn.execute(
+                '''UPDATE print_agents
+                      SET token_hash = ?, updated_at = datetime('now')
+                    WHERE id = ?''',
+                (hash_agent_token(new_token), aid),
+            )
+            conn.commit()
+            flash(f'Neuer Token fuer "{row["name"]}" erzeugt.', 'success')
+            return redirect(url_for(
+                'admin.druck_agents_uebersicht',
+                neuer_token=new_token,
+                neuer_token_id=aid,
+            ))
+    except Exception as e:
+        flash(f'Fehler beim Rotieren des Tokens: {e}', 'danger')
+        return redirect(url_for('admin.druck_agents_uebersicht'))
+
+
+@admin_bp.route('/druck-agents/<int:aid>/toggle', methods=['POST'])
+@admin_required
+def druck_agents_toggle(aid):
+    """Aktiviert/Deaktiviert einen Druck-Agent."""
+    try:
+        with get_db_connection() as conn:
+            row = conn.execute('SELECT active FROM print_agents WHERE id = ?', (aid,)).fetchone()
+            if not row:
+                flash('Agent nicht gefunden.', 'danger')
+                return redirect(url_for('admin.druck_agents_uebersicht'))
+            conn.execute(
+                '''UPDATE print_agents
+                      SET active = ?, updated_at = datetime('now')
+                    WHERE id = ?''',
+                (0 if row['active'] else 1, aid),
+            )
+            conn.commit()
+        return redirect(url_for('admin.druck_agents_uebersicht'))
+    except Exception as e:
+        flash(f'Fehler: {e}', 'danger')
+        return redirect(url_for('admin.druck_agents_uebersicht'))
+
+
+# ========== Druck-Queue (Auftragsuebersicht) ==========
+
+@admin_bp.route('/druck-queue', methods=['GET'])
+@admin_required
+def druck_queue_uebersicht():
+    """Uebersicht der Druckauftraege (offene, fehlerhafte, erledigte)."""
+    from utils.zebra_client import recover_expired_leases
+    status_filter = (request.args.get('status') or 'aktiv').strip()
+    agent_filter = request.args.get('agent_id', type=int)
+
+    where = []
+    params = []
+    if status_filter == 'aktiv':
+        where.append("j.status IN ('pending', 'leased', 'error')")
+    elif status_filter and status_filter != 'alle':
+        where.append('j.status = ?')
+        params.append(status_filter)
+    if agent_filter:
+        where.append('j.agent_id = ?')
+        params.append(agent_filter)
+    where_sql = (' WHERE ' + ' AND '.join(where)) if where else ''
+
+    with get_db_connection() as conn:
+        recover_expired_leases(conn)
+        agents = conn.execute(
+            'SELECT id, name, standort FROM print_agents ORDER BY name'
+        ).fetchall()
+        jobs = conn.execute(f'''
+            SELECT j.id, j.agent_id, j.drucker_id, j.status, j.attempts, j.lease_until,
+                   j.error_message, j.created_at, j.completed_at,
+                   a.name AS agent_name, p.name AS drucker_name, p.ip_address AS drucker_ip,
+                   m.Personalnummer AS erstellt_von_pn, m.Vorname AS erstellt_von_vn, m.Nachname AS erstellt_von_nn
+              FROM print_jobs j
+              JOIN print_agents a ON j.agent_id = a.id
+              JOIN zebra_printers p ON j.drucker_id = p.id
+              LEFT JOIN Mitarbeiter m ON m.ID = j.created_by_mitarbeiter_id
+            {where_sql}
+             ORDER BY j.created_at DESC
+             LIMIT 500
+        ''', params).fetchall()
+    return render_template(
+        'admin_druck_queue.html',
+        jobs=jobs,
+        agents=agents,
+        status_filter=status_filter,
+        agent_filter=agent_filter,
+    )
+
+
+@admin_bp.route('/druck-queue/<int:job_id>/requeue', methods=['POST'])
+@admin_required
+def druck_queue_requeue(job_id):
+    """Setzt einen Auftrag zurueck auf pending (z. B. nach Fehler)."""
+    try:
+        with get_db_connection() as conn:
+            cur = conn.execute(
+                '''UPDATE print_jobs
+                      SET status = 'pending', error_message = NULL,
+                          lease_until = NULL, completed_at = NULL
+                    WHERE id = ? AND status IN ('error', 'leased', 'expired')''',
+                (job_id,),
+            )
+            conn.commit()
+        if cur.rowcount == 0:
+            flash('Auftrag konnte nicht erneut zugestellt werden.', 'warning')
+        else:
+            flash('Auftrag wurde erneut in die Warteschlange gestellt.', 'success')
+    except Exception as e:
+        flash(f'Fehler: {e}', 'danger')
+    return redirect(url_for(
+        'admin.druck_queue_uebersicht',
+        status=request.args.get('status') or 'aktiv',
+    ))
+
+
+@admin_bp.route('/druck-queue/<int:job_id>/abbrechen', methods=['POST'])
+@admin_required
+def druck_queue_abbrechen(job_id):
+    """Bricht einen wartenden Auftrag ab (Status = expired)."""
+    try:
+        with get_db_connection() as conn:
+            cur = conn.execute(
+                '''UPDATE print_jobs
+                      SET status = 'expired', completed_at = datetime('now'),
+                          error_message = COALESCE(error_message, 'Manuell abgebrochen')
+                    WHERE id = ? AND status IN ('pending', 'leased', 'error')''',
+                (job_id,),
+            )
+            conn.commit()
+        if cur.rowcount == 0:
+            flash('Auftrag konnte nicht abgebrochen werden.', 'warning')
+        else:
+            flash('Auftrag wurde abgebrochen.', 'success')
+    except Exception as e:
+        flash(f'Fehler: {e}', 'danger')
+    return redirect(url_for(
+        'admin.druck_queue_uebersicht',
+        status=request.args.get('status') or 'aktiv',
+    ))
 
 
 # ========== Etikettenformate Verwaltung ==========
@@ -373,8 +631,26 @@ def zebra_test():
             zpl = build_test_label(label['zpl_header'], label['name'])
 
             try:
-                send_zpl_to_printer(printer['ip_address'], zpl)
-                flash(f"Testetikett '{label['name']}' an Drucker '{printer['name']}' gesendet.", 'success')
+                d = dispatch_print(conn, int(printer['id']), zpl)
+                if d['ok']:
+                    if d['mode'] == 'agent' and d['status'] != 'done':
+                        flash(
+                            f"Testetikett '{label['name']}' an Druckwarteschlange "
+                            f"uebergeben (Auftrag #{d['job_id']}).",
+                            'success',
+                        )
+                    else:
+                        flash(
+                            f"Testetikett '{label['name']}' an Drucker "
+                            f"'{printer['name']}' gesendet.",
+                            'success',
+                        )
+                else:
+                    flash(
+                        f"Fehler beim Senden an den Drucker: "
+                        f"{d.get('error_message') or 'unbekannt'}",
+                        'danger',
+                    )
             except Exception as e:
                 flash(f"Fehler beim Senden an den Drucker: {e}", 'danger')
 
@@ -506,7 +782,8 @@ def zebra_druck_konfig_delete(kid):
 @admin_required
 def zebra_etikett_testdruck():
     """
-    Testdruck eines Etiketts - sendet ZPL direkt an den Drucker.
+    Testdruck eines Etiketts - sendet ZPL ueber Hybrid-Dispatch (Drucker mit
+    agent_id gehen ueber die Queue, sonst Direkt-TCP).
     """
     try:
         data = request.get_json()
@@ -518,10 +795,26 @@ def zebra_etikett_testdruck():
         
         if not ip_address:
             return ajax_response('Keine Drucker-IP-Adresse übermittelt.', success=False)
-        
-        # ZPL an Drucker senden
+
+        with get_db_connection() as conn:
+            row = conn.execute(
+                'SELECT id FROM zebra_printers WHERE ip_address = ? AND active = 1 LIMIT 1',
+                (ip_address,),
+            ).fetchone()
+            if row:
+                d = dispatch_print(conn, int(row['id']), zpl)
+                if not d['ok']:
+                    return ajax_response(
+                        f"Fehler beim Drucken: {d.get('error_message') or 'unbekannt'}",
+                        success=False, status_code=500,
+                    )
+                if d['mode'] == 'agent' and d['status'] != 'done':
+                    return ajax_response(
+                        f"Etikett an Druckwarteschlange uebergeben (Auftrag #{d['job_id']})."
+                    )
+                return ajax_response('Etikett erfolgreich gedruckt.')
+
         send_zpl_to_printer(ip_address, zpl)
-        
         return ajax_response('Etikett erfolgreich gedruckt.')
     except Exception as e:
         return ajax_response(f'Fehler beim Drucken: {str(e)}', success=False, status_code=500)

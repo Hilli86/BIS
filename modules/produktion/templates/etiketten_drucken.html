@@ -146,7 +146,8 @@ function oeffneProduktionEtikettDruckerModal(printers, onPick) {
         const opt = document.createElement('option');
         opt.value = p.id;
         const ort = (p.ort || '').trim();
-        opt.textContent = (ort ? ort + ' \u2014 ' : '') + p.name + ' (' + p.ip_address + ')';
+        const modus = p.modus_label ? ' [' + p.modus_label + ']' : '';
+        opt.textContent = (ort ? ort + ' \u2014 ' : '') + p.name + ' (' + p.ip_address + ')' + modus;
         sel.appendChild(opt);
     });
     document.getElementById('produktionEtikettDruckerOk').onclick = function() {

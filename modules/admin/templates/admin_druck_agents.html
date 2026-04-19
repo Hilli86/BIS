@@ -1,0 +1,135 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <h1 class="mb-0">Druck-Agents</h1>
+    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-link ms-auto">Zurueck zum Admin-Dashboard</a>
+    <a href="{{ url_for('admin.druck_queue_uebersicht') }}" class="btn btn-outline-primary btn-sm">Druck-Queue ansehen</a>
+  </div>
+
+  <p class="text-muted small mb-3">
+    Druck-Agents sind kleine Helfer-Programme, die in einem Standortnetz laufen
+    (z.&nbsp;B. hinter Cloudflare Tunnel) und dort Druckauftraege ausgehend per
+    HTTPS abholen und an die lokalen Zebra-Drucker senden. Drucker im selben Netz
+    wie der Server brauchen keinen Agent (Direkt-TCP wie bisher).
+  </p>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="mb-3">
+        {% for category, message in messages %}
+          <div class="alert alert-{{ 'danger' if category == 'error' else category }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  {% if neuer_token %}
+    <div class="alert alert-warning">
+      <strong>Token einmalig sichtbar!</strong>
+      Bitte jetzt kopieren und sicher hinterlegen � er wird nirgendwo erneut angezeigt.
+      <div class="input-group mt-2">
+        <input type="text" class="form-control font-monospace" value="{{ neuer_token }}" readonly id="neuerTokenInput">
+        <button type="button" class="btn btn-outline-secondary"
+                onclick="navigator.clipboard.writeText(document.getElementById('neuerTokenInput').value)">
+          Kopieren
+        </button>
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="card mb-3">
+    <div class="card-header">Neuen Agent anlegen</div>
+    <div class="card-body">
+      <form method="post" action="{{ url_for('admin.druck_agents_save') }}" class="row g-2">
+        {{ csrf_field() }}
+        <div class="col-md-3">
+          <input name="name" class="form-control" placeholder="Name (eindeutig, z.&nbsp;B. standort-a)" required>
+        </div>
+        <div class="col-md-3">
+          <input name="standort" class="form-control" placeholder="Standort (optional)">
+        </div>
+        <div class="col-md-2 d-flex align-items-center">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="active" id="agentActiveNeu" checked>
+            <label class="form-check-label" for="agentActiveNeu">Aktiv</label>
+          </div>
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-success btn-sm">Anlegen + Token erzeugen</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Druck-Agents</div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-sm table-striped align-middle">
+          <thead class="table-dark">
+            <tr>
+              <th>Name</th>
+              <th>Standort</th>
+              <th>Status</th>
+              <th>Letzter Heartbeat</th>
+              <th>Letzte IP</th>
+              <th>Drucker</th>
+              <th>Pending</th>
+              <th>In Bearbeitung</th>
+              <th>Aktionen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in agents %}
+            <tr>
+              <td>{{ a.name }}</td>
+              <td>{{ a.standort or '�' }}</td>
+              <td>
+                {% if a.active %}
+                  <span class="badge bg-success">aktiv</span>
+                {% else %}
+                  <span class="badge bg-secondary">inaktiv</span>
+                {% endif %}
+              </td>
+              <td>{{ a.last_seen_at or '�' }}</td>
+              <td><code>{{ a.last_ip or '�' }}</code></td>
+              <td>{{ a.drucker_anzahl }}</td>
+              <td>{{ a.jobs_pending }}</td>
+              <td>{{ a.jobs_leased }}</td>
+              <td class="d-flex flex-wrap gap-1">
+                <form method="post" action="{{ url_for('admin.druck_agents_save') }}" class="d-inline-flex gap-1">
+                  {{ csrf_field() }}
+                  <input type="hidden" name="id" value="{{ a.id }}">
+                  <input name="name" value="{{ a.name|e }}" class="form-control form-control-sm" style="width:7rem">
+                  <input name="standort" value="{{ (a.standort or '')|e }}" class="form-control form-control-sm" style="width:8rem" placeholder="Standort">
+                  <label class="form-check form-check-inline mb-0 ms-1">
+                    <input type="checkbox" class="form-check-input" name="active" {% if a.active %}checked{% endif %}>
+                    <span class="form-check-label small">Aktiv</span>
+                  </label>
+                  <button type="submit" class="btn btn-sm btn-outline-primary">Speichern</button>
+                </form>
+                <form method="post" action="{{ url_for('admin.druck_agents_rotate_token', aid=a.id) }}" class="d-inline"
+                      onsubmit="return confirm('Wirklich neuen Token erzeugen? Der alte Token wird sofort ungueltig.');">
+                  {{ csrf_field() }}
+                  <button type="submit" class="btn btn-sm btn-outline-warning">Token neu erzeugen</button>
+                </form>
+                <form method="post" action="{{ url_for('admin.druck_agents_toggle', aid=a.id) }}" class="d-inline">
+                  {{ csrf_field() }}
+                  <button type="submit" class="btn btn-sm btn-outline-secondary">
+                    {% if a.active %}Deaktivieren{% else %}Aktivieren{% endif %}
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="9" class="text-center text-muted">Noch keine Druck-Agents angelegt.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

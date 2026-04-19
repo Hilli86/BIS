@@ -1364,6 +1364,23 @@ def init_database_schema(db_path, verbose=False):
                     ''', (ma['ID'], admin_ber_id))
         
         # ========== 32. Zebra-Drucker und Etikettenformate ==========
+        # Druck-Agents (On-Prem-Helfer pro Standort, holt Druckauftraege per HTTPS ab)
+        create_table_if_not_exists(conn, 'print_agents', '''
+            CREATE TABLE print_agents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                standort TEXT NULL,
+                token_hash TEXT NOT NULL,
+                active INTEGER NOT NULL DEFAULT 1,
+                last_seen_at TEXT NULL,
+                last_ip TEXT NULL,
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now'))
+            )
+        ''', [
+            'CREATE INDEX idx_print_agents_active ON print_agents(active)'
+        ])
+
         # Tabelle für Zebra-Netzwerkdrucker
         created_zebra_printers = create_table_if_not_exists(conn, 'zebra_printers', '''
             CREATE TABLE zebra_printers (
@@ -1372,19 +1389,52 @@ def init_database_schema(db_path, verbose=False):
                 ip_address TEXT NOT NULL,
                 description TEXT NULL,
                 ort TEXT NULL,
+                agent_id INTEGER NULL,
                 active INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT DEFAULT (datetime('now')),
-                updated_at TEXT DEFAULT (datetime('now'))
+                updated_at TEXT DEFAULT (datetime('now')),
+                FOREIGN KEY (agent_id) REFERENCES print_agents(id)
             )
         ''', [
             'CREATE INDEX idx_zebra_printers_active ON zebra_printers(active)',
-            'CREATE INDEX idx_zebra_printers_ip ON zebra_printers(ip_address)'
+            'CREATE INDEX idx_zebra_printers_ip ON zebra_printers(ip_address)',
+            'CREATE INDEX idx_zebra_printers_agent ON zebra_printers(agent_id)'
         ])
         if not created_zebra_printers:
             create_column_if_not_exists(
                 conn, 'zebra_printers', 'ort',
                 'ALTER TABLE zebra_printers ADD COLUMN ort TEXT NULL'
             )
+            create_column_if_not_exists(
+                conn, 'zebra_printers', 'agent_id',
+                'ALTER TABLE zebra_printers ADD COLUMN agent_id INTEGER NULL REFERENCES print_agents(id)'
+            )
+            create_index_if_not_exists(
+                conn, 'idx_zebra_printers_agent',
+                'CREATE INDEX idx_zebra_printers_agent ON zebra_printers(agent_id)'
+            )
+
+        # Druckauftrags-Warteschlange (nur fuer Drucker mit agent_id; sonst Direkt-TCP)
+        create_table_if_not_exists(conn, 'print_jobs', '''
+            CREATE TABLE print_jobs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                agent_id INTEGER NOT NULL,
+                drucker_id INTEGER NOT NULL,
+                zpl TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                attempts INTEGER NOT NULL DEFAULT 0,
+                lease_until TEXT NULL,
+                error_message TEXT NULL,
+                created_by_mitarbeiter_id INTEGER NULL,
+                created_at TEXT DEFAULT (datetime('now')),
+                completed_at TEXT NULL,
+                FOREIGN KEY (agent_id) REFERENCES print_agents(id),
+                FOREIGN KEY (drucker_id) REFERENCES zebra_printers(id)
+            )
+        ''', [
+            'CREATE INDEX idx_print_jobs_agent_status ON print_jobs(agent_id, status)',
+            'CREATE INDEX idx_print_jobs_created ON print_jobs(created_at)'
+        ])
 
         # Tabelle für Etikettenformate
         created_label_formats = create_table_if_not_exists(conn, 'label_formats', '''

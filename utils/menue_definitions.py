@@ -12,6 +12,8 @@ from utils.database import get_db_connection
 MENUE_DEFINITIONEN = [
     {'schluessel': 'dashboard', 'bezeichnung': 'Dashboard', 'gruppe': None, 'berechtigung': None},
     {'schluessel': 'admin', 'bezeichnung': 'Adminbereich', 'gruppe': None, 'berechtigung': ['admin']},
+    {'schluessel': 'admin_druck_agents', 'bezeichnung': 'Druck-Agents', 'gruppe': 'Adminbereich', 'berechtigung': ['admin']},
+    {'schluessel': 'admin_druck_queue', 'bezeichnung': 'Druck-Queue', 'gruppe': 'Adminbereich', 'berechtigung': ['admin']},
     {'schluessel': 'schichtbuch_liste', 'bezeichnung': 'Themenliste', 'gruppe': 'Schichtbuch', 'berechtigung': None},
     {'schluessel': 'schichtbuch_aufgabenlisten', 'bezeichnung': 'Aufgabenlisten', 'gruppe': 'Schichtbuch', 'berechtigung': None},
     {'schluessel': 'bestellwesen_angebote', 'bezeichnung': 'Angebotsanfragen', 'gruppe': 'Bestellwesen', 'berechtigung': None},

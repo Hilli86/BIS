@@ -1,0 +1,109 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <h1 class="mb-0">Druck-Queue</h1>
+    <a href="{{ url_for('admin.druck_agents_uebersicht') }}" class="btn btn-outline-primary btn-sm ms-auto">Druck-Agents</a>
+    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-link">Zurueck zum Admin-Dashboard</a>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="mb-3">
+        {% for category, message in messages %}
+          <div class="alert alert-{{ 'danger' if category == 'error' else category }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <form method="get" action="{{ url_for('admin.druck_queue_uebersicht') }}" class="row g-2 align-items-end mb-3">
+    <div class="col-md-3">
+      <label class="form-label small mb-0">Status</label>
+      <select name="status" class="form-select form-select-sm">
+        {% for code, label in [('aktiv', 'Aktiv (pending/leased/error)'), ('pending', 'Nur pending'), ('leased', 'Nur leased'), ('done', 'Erledigt'), ('error', 'Fehler'), ('expired', 'Abgebrochen'), ('alle', 'Alle')] %}
+          <option value="{{ code }}" {% if status_filter == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small mb-0">Agent</label>
+      <select name="agent_id" class="form-select form-select-sm">
+        <option value="">� Alle Agents �</option>
+        {% for a in agents %}
+          <option value="{{ a.id }}" {% if agent_filter == a.id %}selected{% endif %}>{{ a.name }}{% if a.standort %} ({{ a.standort }}){% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <button type="submit" class="btn btn-primary btn-sm w-100">Filter anwenden</button>
+    </div>
+  </form>
+
+  <div class="card">
+    <div class="card-header">Auftraege ({{ jobs|length }} angezeigt; max. 500)</div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-sm table-striped align-middle">
+          <thead class="table-dark">
+            <tr>
+              <th>#</th>
+              <th>Agent</th>
+              <th>Drucker</th>
+              <th>Status</th>
+              <th>Versuche</th>
+              <th>Lease bis</th>
+              <th>Erstellt</th>
+              <th>Erledigt</th>
+              <th>Erstellt von</th>
+              <th>Fehler</th>
+              <th>Aktionen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for j in jobs %}
+            <tr>
+              <td>{{ j.id }}</td>
+              <td>{{ j.agent_name }}</td>
+              <td>{{ j.drucker_name }} <small class="text-muted">({{ j.drucker_ip }})</small></td>
+              <td>
+                {% if j.status == 'pending' %}<span class="badge bg-info">pending</span>
+                {% elif j.status == 'leased' %}<span class="badge bg-primary">leased</span>
+                {% elif j.status == 'done' %}<span class="badge bg-success">done</span>
+                {% elif j.status == 'error' %}<span class="badge bg-danger">error</span>
+                {% elif j.status == 'expired' %}<span class="badge bg-secondary">expired</span>
+                {% else %}<span class="badge bg-dark">{{ j.status }}</span>{% endif %}
+              </td>
+              <td>{{ j.attempts }}</td>
+              <td>{{ j.lease_until or '�' }}</td>
+              <td>{{ j.created_at }}</td>
+              <td>{{ j.completed_at or '�' }}</td>
+              <td>{% if j.erstellt_von_pn %}{{ j.erstellt_von_vn }} {{ j.erstellt_von_nn }} ({{ j.erstellt_von_pn }}){% else %}�{% endif %}</td>
+              <td><small class="text-danger">{{ (j.error_message or '') }}</small></td>
+              <td class="d-flex gap-1">
+                {% if j.status in ('error', 'leased', 'expired') %}
+                <form method="post" action="{{ url_for('admin.druck_queue_requeue', job_id=j.id) }}?status={{ status_filter }}">
+                  {{ csrf_field() }}
+                  <button type="submit" class="btn btn-sm btn-outline-success">Erneut zustellen</button>
+                </form>
+                {% endif %}
+                {% if j.status in ('pending', 'leased', 'error') %}
+                <form method="post" action="{{ url_for('admin.druck_queue_abbrechen', job_id=j.id) }}?status={{ status_filter }}"
+                      onsubmit="return confirm('Auftrag wirklich abbrechen?');">
+                  {{ csrf_field() }}
+                  <button type="submit" class="btn btn-sm btn-outline-danger">Abbrechen</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="11" class="text-center text-muted">Keine Auftraege gefunden.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

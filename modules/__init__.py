@@ -12,10 +12,11 @@ from .diverses import diverses_bp
 from .search import search_bp
 from .produktion import produktion_bp
 from .wartungen import wartungen_bp
+from .print_agent import print_agent_bp
 # Import-Modul: import ist ein Python-Schlüsselwort, daher verwenden wir importlib
 import importlib
 _import_module = importlib.import_module('modules.import')
 import_bp = _import_module.import_bp
 
-__all__ = ['auth_bp', 'schichtbuch_bp', 'admin_bp', 'ersatzteile_bp', 'dashboard_bp', 'import_bp', 'errors_bp', 'diverses_bp', 'search_bp', 'produktion_bp', 'wartungen_bp']
+__all__ = ['auth_bp', 'schichtbuch_bp', 'admin_bp', 'ersatzteile_bp', 'dashboard_bp', 'import_bp', 'errors_bp', 'diverses_bp', 'search_bp', 'produktion_bp', 'wartungen_bp', 'print_agent_bp']
 

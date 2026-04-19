@@ -6,7 +6,7 @@ Business-Logik für Ersatzteil-Funktionen
 import re
 from utils import get_sichtbare_abteilungen_fuer_mitarbeiter
 from utils.helpers import build_ersatzteil_zugriff_filter
-from utils.zebra_client import send_zpl_to_printer
+from utils.zebra_client import dispatch_print
 from utils.etikett_druck import FUNKTION_ERSATZTEIL_ETIKETT, build_print_resolution, etikett_format_substitution
 
 
@@ -433,14 +433,19 @@ def drucke_ersatzteil_etikett_intern(
         }
 
     etikett = res['etikett']
-    printer_ip = res['printer_ip']
+    drucker_id = res['drucker_id']
     artnr = str(et['ID'])
 
     zpl = zpl_ersatzteil_aus_zeile(et, etikett, anzahl)
 
-    try:
-        send_zpl_to_printer(printer_ip, zpl)
-        return True, f'{anzahl} Etikett{"en" if anzahl > 1 else ""} für Artikel {artnr} gedruckt.'
-    except Exception as e:
-        return False, f'Fehler beim Senden an Drucker: {e}'
+    d = dispatch_print(conn, drucker_id, zpl, mitarbeiter_id)
+    if not d['ok']:
+        return False, d.get('error_message') or 'Fehler beim Drucken.'
+    suffix = 'en' if anzahl > 1 else ''
+    if d['mode'] == 'agent' and d['status'] != 'done':
+        return True, (
+            f'{anzahl} Etikett{suffix} fuer Artikel {artnr} an Druckwarteschlange '
+            f'uebergeben (Auftrag #{d["job_id"]}).'
+        )
+    return True, f'{anzahl} Etikett{suffix} fuer Artikel {artnr} gedruckt.'
 

@@ -21,7 +21,9 @@
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-datenbank">Datenbank</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-etikettendrucker">Etikettendrucker</a></li>
   <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-etiketten">Etiketten</a></li>
-  <li class="nav-item ms-auto"><a class="nav-link" href="{{ url_for('admin.login_logs') }}">Login-Logs</a></li>
+  <li class="nav-item ms-auto"><a class="nav-link" href="{{ url_for('admin.druck_agents_uebersicht') }}">Druck-Agents</a></li>
+  <li class="nav-item"><a class="nav-link" href="{{ url_for('admin.druck_queue_uebersicht') }}">Druck-Queue</a></li>
+  <li class="nav-item"><a class="nav-link" href="{{ url_for('admin.login_logs') }}">Login-Logs</a></li>
   <li class="nav-item"><a class="nav-link" href="{{ url_for('dashboard.dashboard') }}">Zurück zum Dashboard</a></li>
   </ul>
 
@@ -1095,7 +1097,7 @@
               <div class="col-md-3">
                 <input name="name" class="form-control" placeholder="Name" required>
               </div>
-              <div class="col-md-3">
+              <div class="col-md-2">
                 <input name="ip_address" class="form-control" placeholder="IP-Adresse" required>
               </div>
               <div class="col-md-2">
@@ -1103,6 +1105,16 @@
               </div>
               <div class="col-md-2">
                 <input name="description" class="form-control" placeholder="Beschreibung">
+              </div>
+              <div class="col-md-2">
+                <select name="agent_id" class="form-select" id="zebraAgentNew" title="Druck-Agent (leer = Direkt vom Server)">
+                  <option value="">— Direkt (Server &rarr; Drucker) —</option>
+                  {% for ag in print_agents_list %}
+                    {% if ag.active %}
+                    <option value="{{ ag.id }}">Agent: {{ ag.name }}{% if ag.standort %} ({{ ag.standort }}){% endif %}</option>
+                    {% endif %}
+                  {% endfor %}
+                </select>
               </div>
               <div class="col-md-1 d-flex align-items-center">
                 <div class="form-check">
@@ -1114,6 +1126,7 @@
                 <button type="submit" class="btn btn-success btn-sm" id="zebraDruckerSubmitBtn">Drucker anlegen</button>
                 <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="zebraDruckerVerwerfenBtn" onclick="verwerfeZebraDruckerAenderungen()">Änderungen verwerfen</button>
                 <a href="{{ url_for('admin.zebra_test') }}" class="btn btn-outline-primary btn-sm">Testetikett drucken</a>
+                <a href="{{ url_for('admin.druck_agents_uebersicht') }}" class="btn btn-outline-secondary btn-sm">Druck-Agents verwalten</a>
               </div>
             </form>
 
@@ -1125,6 +1138,7 @@
                     <th>IP-Adresse</th>
                     <th>Ort</th>
                     <th>Beschreibung</th>
+                    <th>Druckweg</th>
                     <th>Aktiv</th>
                     <th>Aktionen</th>
                   </tr>
@@ -1136,6 +1150,13 @@
                     <td>{{ p.ip_address }}</td>
                     <td>{{ p.ort or '—' }}</td>
                     <td>{{ p.description or '—' }}</td>
+                    <td>
+                      {% if p.agent_id %}
+                        <span class="badge bg-info" title="Auftrag wird ueber den Druck-Agent zugestellt">Agent: {{ p.agent_name or ('#' ~ p.agent_id) }}</span>
+                      {% else %}
+                        <span class="badge bg-secondary" title="Server stellt direkt per TCP/9100 zu">Direkt</span>
+                      {% endif %}
+                    </td>
                     <td>
                       {% if p.active %}
                         <span class="badge bg-success">aktiv</span>
@@ -1150,6 +1171,7 @@
                         data-ip="{{ p.ip_address|e }}"
                         data-ort="{{ (p.ort or '')|e }}"
                         data-desc="{{ (p.description or '')|e }}"
+                        data-agent="{{ p.agent_id or '' }}"
                         data-active="{{ 1 if p.active else 0 }}">Bearbeiten</button>
                       <form action="{{ url_for('admin.zebra_printer_toggle', pid=p.id) }}" method="post" class="d-inline">
     {{ csrf_field() }}
@@ -2355,6 +2377,8 @@ function bearbeiteZebraDrucker(btn) {
   form.querySelector('input[name="ip_address"]').value = btn.getAttribute('data-ip') || '';
   form.querySelector('input[name="ort"]').value = btn.getAttribute('data-ort') || '';
   form.querySelector('input[name="description"]').value = btn.getAttribute('data-desc') || '';
+  const agentSel = form.querySelector('select[name="agent_id"]');
+  if (agentSel) agentSel.value = btn.getAttribute('data-agent') || '';
   const aktiv = btn.getAttribute('data-active') === '1';
   form.querySelector('#zebraActiveNew').checked = aktiv;
   const sb = document.getElementById('zebraDruckerSubmitBtn');
@@ -2372,6 +2396,8 @@ function verwerfeZebraDruckerAenderungen() {
   form.querySelector('input[name="ip_address"]').value = '';
   form.querySelector('input[name="ort"]').value = '';
   form.querySelector('input[name="description"]').value = '';
+  const agentSel = form.querySelector('select[name="agent_id"]');
+  if (agentSel) agentSel.value = '';
   form.querySelector('#zebraActiveNew').checked = true;
   const sb = document.getElementById('zebraDruckerSubmitBtn');
   if (sb) sb.textContent = 'Drucker anlegen';

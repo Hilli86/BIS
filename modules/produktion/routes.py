@@ -34,7 +34,7 @@ from utils.file_handling import (
     originale_loeschen_aus_formular,
     save_uploaded_file,
 )
-from utils.zebra_client import send_zpl_to_printer
+from utils.zebra_client import dispatch_print
 
 
 def get_artikeleinstellungen_struktur():
@@ -191,15 +191,21 @@ def etiketten_drucken_druck():
                 artikelnummer=artikelnummer,
                 zu_verwenden_am_text=zu_verwenden_text,
             )
-            try:
-                send_zpl_to_printer(res['printer_ip'], zpl)
-            except Exception as e:
-                return jsonify({'success': False, 'message': f'Fehler beim Senden an Drucker: {e}'}), 500
+            d = dispatch_print(conn, res['drucker_id'], zpl, mitarbeiter_id)
+            if not d['ok']:
+                return jsonify({
+                    'success': False,
+                    'message': d.get('error_message') or 'Fehler beim Drucken.',
+                }), 500
+            if d['mode'] == 'agent' and d['status'] != 'done':
+                msg = (
+                    f'{anzahl} Produktion-Etikett(en) an Druckwarteschlange uebergeben '
+                    f'(Auftrag #{d["job_id"]}).'
+                )
+            else:
+                msg = f'{anzahl} Produktion-Etikett(en) gedruckt.'
 
-        return jsonify({
-            'success': True,
-            'message': f'{anzahl} Produktion-Etikett(en) gedruckt.',
-        })
+        return jsonify({'success': True, 'message': msg})
     except Exception as e:
         return jsonify({'success': False, 'message': f'Fehler beim Drucken: {e}'}), 500
 

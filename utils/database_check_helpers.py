@@ -161,6 +161,8 @@ def get_required_tables():
         'Berechtigung',
         'MitarbeiterBerechtigung',
         'zebra_printers',
+        'print_agents',
+        'print_jobs',
         'label_formats',
         'Etikett',
         'etikett_druck_konfig',
