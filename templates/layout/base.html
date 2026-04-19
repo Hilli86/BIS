@@ -35,6 +35,22 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.css') }}">
   <link href="{{ url_for('static', filename='vendor/ibm-plex-sans/ibm-plex-sans.css') }}" rel="stylesheet">
 
+  <script>
+    /* Sidebar-Zustand frühestmöglich aus localStorage wiederherstellen,
+       damit beim Seitenwechsel kein Aufblitzen entsteht.
+       Wirkt nur auf Desktop (siehe CSS-Media-Query weiter unten).
+       Die Klasse 'bis-no-transition' unterdrückt den Slide nur beim Initial-Render
+       und wird nach dem ersten Paint wieder entfernt. */
+    (function () {
+      try {
+        if (localStorage.getItem('bisSidebarCollapsed') === '1') {
+          document.documentElement.setAttribute('data-bis-sidebar', 'collapsed');
+          document.documentElement.classList.add('bis-no-transition');
+        }
+      } catch (e) { /* localStorage nicht verfügbar */ }
+    })();
+  </script>
+
   <style>
     /* --- BIS: Industrie-/Produktivitäts-Theme (Tokens + Bootstrap) --- */
     :root {
@@ -133,6 +149,34 @@
     /* Sidebar bei großen Bildschirmen ausblendbar */
     .sidebar.collapsed {
       transform: translateX(-100%);
+    }
+
+    /* Persistierter Zustand: greift bereits beim ersten Paint (vor JS),
+       damit nach Seitenwechsel kein Aufblitzen der Sidebar entsteht.
+       Nur auf Desktop wirksam – mobile Ansicht hat eigenes Verhalten (open/close). */
+    html.bis-no-transition .sidebar,
+    html.bis-no-transition .main-content {
+      transition: none !important; /* nur beim Initial-Render, danach per JS entfernt */
+    }
+    @media (min-width: 787px) and (min-height: 601px) {
+      html[data-bis-sidebar="collapsed"] .sidebar {
+        transform: translateX(-100%);
+      }
+      html[data-bis-sidebar="collapsed"] .main-content.with-sidebar {
+        margin-left: 0;
+      }
+      /* Desktop-Overlay-Modus: Sidebar ist persistiert "collapsed", aber temporär per Klick als Overlay geöffnet */
+      .sidebar.collapsed.open {
+        transform: translateX(0);
+        box-shadow: 2px 0 12px rgba(0, 0, 0, 0.25);
+      }
+    }
+
+    /* Backdrop für Sidebar-Overlay – auf Mobile UND Desktop sichtbar, sobald .show gesetzt ist */
+    .sidebar-overlay.show {
+      display: block;
+      top: 56px; /* Unter der Header-Leiste starten */
+      height: calc(100vh - 56px);
     }
 
     .sidebar h6 {
@@ -1171,54 +1215,164 @@
         return window.innerWidth <= 786 || window.innerHeight <= 600;
       }
 
-      function toggleMenu() {
-        if (isMobileView()) {
-          // Mobile Verhalten: open-Klasse togglen, Overlay anzeigen
-          sidebar.classList.toggle('open');
-          if (overlay) {
-            overlay.classList.toggle('show');
-          }
-        } else {
-          // Desktop Verhalten: collapsed-Klasse togglen, kein Overlay
-          sidebar.classList.toggle('collapsed');
-          if (mainContent) {
-            mainContent.classList.toggle('sidebar-collapsed');
-          }
-          // Overlay bei Desktop nicht verwenden
-          if (overlay) {
-            overlay.classList.remove('show');
-          }
+      // Persistenter Sidebar-Zustand (nur Desktop)
+      const SIDEBAR_STORAGE_KEY = 'bisSidebarCollapsed';
+
+      function isSidebarCollapsedStored() {
+        try {
+          return localStorage.getItem(SIDEBAR_STORAGE_KEY) === '1';
+        } catch (e) {
+          return false;
         }
       }
 
-      menuToggle.addEventListener('click', toggleMenu);
-      
+      function setSidebarCollapsedStored(collapsed) {
+        try {
+          if (collapsed) {
+            localStorage.setItem(SIDEBAR_STORAGE_KEY, '1');
+          } else {
+            localStorage.removeItem(SIDEBAR_STORAGE_KEY);
+          }
+        } catch (e) { /* ignorieren */ }
+      }
+
+      function syncHtmlAttr(collapsed) {
+        if (collapsed) {
+          document.documentElement.setAttribute('data-bis-sidebar', 'collapsed');
+        } else {
+          document.documentElement.removeAttribute('data-bis-sidebar');
+        }
+      }
+
+      // --- Desktop-Hilfsfunktionen für drei Zustände: fix offen, fix collapsed, temporär als Overlay ---
+
+      function pinSidebarOpen() {
+        // Sidebar fix offen, Overlay zu, Persistenz aus
+        sidebar.classList.remove('collapsed');
+        sidebar.classList.remove('open');
+        if (mainContent) {
+          mainContent.classList.remove('sidebar-collapsed');
+        }
+        if (overlay) {
+          overlay.classList.remove('show');
+        }
+        setSidebarCollapsedStored(false);
+        syncHtmlAttr(false);
+      }
+
+      function pinSidebarCollapsed() {
+        // Sidebar fix eingeklappt, Overlay zu, Persistenz an
+        sidebar.classList.add('collapsed');
+        sidebar.classList.remove('open');
+        if (mainContent) {
+          mainContent.classList.add('sidebar-collapsed');
+        }
+        if (overlay) {
+          overlay.classList.remove('show');
+        }
+        setSidebarCollapsedStored(true);
+        syncHtmlAttr(true);
+      }
+
+      function openDesktopOverlay() {
+        // Persistenz bleibt "collapsed", Sidebar wird temporär als Overlay sichtbar
+        sidebar.classList.add('open');
+        if (overlay) {
+          overlay.classList.add('show');
+        }
+      }
+
+      function closeDesktopOverlay() {
+        sidebar.classList.remove('open');
+        if (overlay) {
+          overlay.classList.remove('show');
+        }
+      }
+
+      function singleClickAction() {
+        if (isMobileView()) {
+          // Mobile: open-Klasse togglen + Overlay anzeigen
+          const isOpen = sidebar.classList.toggle('open');
+          if (overlay) {
+            overlay.classList.toggle('show', isOpen);
+          }
+          return;
+        }
+
+        // Desktop:
+        const isCollapsed = sidebar.classList.contains('collapsed');
+        const isOverlayOpen = sidebar.classList.contains('open');
+
+        if (!isCollapsed) {
+          // Fix offen → einklappen + persistieren
+          pinSidebarCollapsed();
+        } else if (isOverlayOpen) {
+          // Overlay offen → Overlay schließen, bleibt persistiert "collapsed"
+          closeDesktopOverlay();
+        } else {
+          // Eingeklappt → temporär als Overlay öffnen
+          openDesktopOverlay();
+        }
+      }
+
+      function doubleClickAction() {
+        if (isMobileView()) {
+          // Auf Mobile keine Sonderbedeutung – wirkt wie zwei Klicks (Open/Close)
+          return;
+        }
+        // Desktop-Doppelklick: Sidebar wieder fix offen
+        pinSidebarOpen();
+      }
+
+      // Single-/Doubleclick-Erkennung via Verzögerung (nur auf Desktop nötig)
+      const SIDEBAR_CLICK_DELAY = 250;
+      let sidebarClickTimer = null;
+
+      function handleMenuToggleClick() {
+        if (isMobileView()) {
+          // Mobile: sofort handeln, kein Doppelklick-Konzept
+          singleClickAction();
+          return;
+        }
+        if (sidebarClickTimer !== null) {
+          clearTimeout(sidebarClickTimer);
+          sidebarClickTimer = null;
+          doubleClickAction();
+        } else {
+          sidebarClickTimer = setTimeout(() => {
+            sidebarClickTimer = null;
+            singleClickAction();
+          }, SIDEBAR_CLICK_DELAY);
+        }
+      }
+
+      menuToggle.addEventListener('click', handleMenuToggleClick);
+
       if (overlay) {
         overlay.addEventListener('click', () => {
-          if (isMobileView()) {
-            sidebar.classList.remove('open');
-            overlay.classList.remove('show');
-          }
+          // Schließt Sidebar auf Mobile UND Desktop-Overlay-Modus.
+          // Auf Desktop bleibt die persistierte "collapsed"-Klasse erhalten.
+          sidebar.classList.remove('open');
+          overlay.classList.remove('show');
         });
       }
 
-      // Menü schließen bei Klick auf einen Link (nur auf mobilen Geräten)
-      function setupMobileMenuClose() {
+      // Menü schließen bei Klick auf einen Link
+      // (Mobile: kompletter Close; Desktop: nur Overlay-Modus schließen, "collapsed" bleibt)
+      function setupSidebarLinkClose() {
         const sidebarLinks = sidebar.querySelectorAll('a');
         sidebarLinks.forEach(link => {
           link.addEventListener('click', () => {
-            if (isMobileView()) {
-              sidebar.classList.remove('open');
-              if (overlay) {
-                overlay.classList.remove('show');
-              }
+            sidebar.classList.remove('open');
+            if (overlay) {
+              overlay.classList.remove('show');
             }
           });
         });
       }
 
       // Initial setup
-      setupMobileMenuClose();
+      setupSidebarLinkClose();
 
       // Bei Größenänderung neu prüfen
       window.addEventListener('resize', () => {
@@ -1234,16 +1388,36 @@
           if (overlay) {
             overlay.classList.remove('show');
           }
+          // Gespeicherten Desktop-Zustand wiederherstellen
+          const collapsed = isSidebarCollapsedStored();
+          sidebar.classList.toggle('collapsed', collapsed);
+          if (mainContent) {
+            mainContent.classList.toggle('sidebar-collapsed', collapsed);
+          }
+          syncHtmlAttr(collapsed);
         }
       });
 
-      // Initial: Bei Desktop Sidebar standardmäßig einblenden (nicht collapsed)
+      // Initial: Auf Desktop gespeicherten Zustand anwenden, mobil ignorieren
       if (!isMobileView()) {
-        sidebar.classList.remove('collapsed');
+        const collapsed = isSidebarCollapsedStored();
+        sidebar.classList.toggle('collapsed', collapsed);
         if (mainContent) {
-          mainContent.classList.remove('sidebar-collapsed');
+          mainContent.classList.toggle('sidebar-collapsed', collapsed);
         }
+        syncHtmlAttr(collapsed);
+      } else {
+        // Auf Mobile: HTML-Attribut entfernen (nur Desktop-Optik), Storage bleibt erhalten
+        document.documentElement.removeAttribute('data-bis-sidebar');
       }
+
+      // Nach dem ersten Paint Übergangs-Sperre wieder lösen,
+      // damit Klick-Animationen (Sidebar ein-/ausklappen) sauber laufen.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          document.documentElement.classList.remove('bis-no-transition');
+        });
+      });
     }
 
     // Service Worker registrieren
