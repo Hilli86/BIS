@@ -1172,7 +1172,7 @@ def bestellung_smart_add(ersatzteil_id):
             offene_bestellung = conn.execute(
                 '''
                 SELECT ID FROM Bestellung
-                WHERE LieferantID = ? AND Gelöscht = 0 AND Status IN ('Erstellt', 'Zur Freigabe')
+                WHERE LieferantID = ? AND Gelöscht = 0 AND Status = 'Erstellt'
                 ORDER BY ErstelltAm DESC LIMIT 1
                 ''',
                 (lieferant_id,),
