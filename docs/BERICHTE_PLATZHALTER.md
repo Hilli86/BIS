@@ -170,7 +170,8 @@ Diese Dokumentation listet alle verfügbaren Platzhalter für die Word-Vorlagen 
 |------------|-------------|--------|
 | `{{thema_id}}` | ID des Themas | Zahl |
 | `{{thema_bereich}}` | Bereich | Text |
-| `{{thema_gewerk}}` | Gewerk | Text |
+| `{{thema_gewerk}}` | Haupt-Gewerk | Text |
+| `{{thema_zusatz_gewerke}}` | Optionale Zusatz-Gewerke als Komma-Liste (z. B. „Elektrik, Hydraulik") | Text |
 | `{{thema_status}}` | Status | Text |
 | `{{thema_status_farbe}}` | Status-Farbe (Hex) | Text (z.B. "#FF0000") |
 | `{{thema_abteilung}}` | Abteilung | Text |
@@ -191,6 +192,29 @@ Diese Dokumentation listet alle verfügbaren Platzhalter für die Word-Vorlagen 
 
 **Bedingung:**
 - `{{hat_sichtbarkeiten}}` - Boolean, ob Sichtbarkeiten vorhanden sind
+
+### Optionale Zusatz-Gewerke
+
+Zusätzlich zum Haupt-Gewerk (`{{thema_gewerk}}`) können einem Thema weitere
+Gewerke als optionale Zusatz-Gewerke zugeordnet sein.
+
+**Schneller Einsatz (Komma-Liste im Fließtext):**
+- `{{thema_zusatz_gewerke}}` – alle Zusatz-Gewerke als komma-separierter Text
+  (z. B. „Elektrik, Hydraulik"). Leer, wenn keine vorhanden sind.
+
+**Schleife für Zusatz-Gewerke (mit Bereich):**
+```
+{% for zg in zusatz_gewerke %}
+{{zg.bezeichnung}} ({{zg.bereich}}){% if not loop.last %}, {% endif %}
+{% endfor %}
+```
+
+**Felder pro Zusatz-Gewerk:**
+- `{{zg.bezeichnung}}` – Name des Gewerks
+- `{{zg.bereich}}` – Zugehöriger Bereich
+
+**Bedingung:**
+- `{{hat_zusatz_gewerke}}` – Boolean, ob optionale Zusatz-Gewerke vorhanden sind
 
 ### Bemerkungen
 

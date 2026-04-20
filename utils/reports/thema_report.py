@@ -138,6 +138,16 @@ def generate_thema_pdf(thema_id, conn):
         WHERE sv.ThemaID = ?
         ORDER BY a.Sortierung, a.Bezeichnung
     ''', (thema_id,)).fetchall()
+
+    # Optionale Zusatz-Gewerke laden (gleiche Sortierung wie in der UI)
+    zusatz_gewerke = conn.execute('''
+        SELECT g.Bezeichnung, b.Bezeichnung AS Bereich
+        FROM SchichtbuchThemaGewerk tg
+        JOIN Gewerke g ON tg.GewerkID = g.ID
+        JOIN Bereich b ON g.BereichID = b.ID
+        WHERE tg.ThemaID = ?
+        ORDER BY b.Bezeichnung, g.Bezeichnung
+    ''', (thema_id,)).fetchall()
     
     # Bemerkungen laden (chronologisch, älteste zuerst)
     bemerkungen = conn.execute('''
@@ -208,6 +218,17 @@ def generate_thema_pdf(thema_id, conn):
         sichtbarkeiten_liste.append({
             'bezeichnung': sichtbarkeit['Bezeichnung'] or ''
         })
+
+    # Optionale Zusatz-Gewerke für Template vorbereiten
+    zusatz_gewerke_liste = []
+    for zg in zusatz_gewerke:
+        zusatz_gewerke_liste.append({
+            'bezeichnung': zg['Bezeichnung'] or '',
+            'bereich': zg['Bereich'] or '',
+        })
+    thema_zusatz_gewerke_text = ', '.join(
+        zg['bezeichnung'] for zg in zusatz_gewerke_liste if zg['bezeichnung']
+    )
     
     # Bemerkungen für Template vorbereiten
     bemerkungen_liste = []
@@ -292,6 +313,7 @@ def generate_thema_pdf(thema_id, conn):
         'thema_id': thema['ID'],
         'thema_bereich': thema['Bereich'] or '',
         'thema_gewerk': thema['Gewerk'] or '',
+        'thema_zusatz_gewerke': thema_zusatz_gewerke_text,
         'thema_status': thema['Status'] or '',
         'thema_status_farbe': thema['StatusFarbe'] or '',
         'thema_abteilung': thema['Abteilung'] or '',
@@ -301,6 +323,10 @@ def generate_thema_pdf(thema_id, conn):
         # Sichtbarkeiten
         'sichtbarkeiten': sichtbarkeiten_liste,
         'hat_sichtbarkeiten': len(sichtbarkeiten_liste) > 0,
+
+        # Optionale Zusatz-Gewerke
+        'zusatz_gewerke': zusatz_gewerke_liste,
+        'hat_zusatz_gewerke': len(zusatz_gewerke_liste) > 0,
         
         # Bemerkungen
         'bemerkungen': bemerkungen_liste,
