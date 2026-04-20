@@ -226,9 +226,9 @@
     }
 
     .main-content.with-sidebar {
-      margin-left: 260px;
-      /* Abstand Sidebar–Inhalt (260 − 240); für Toolbar-Bleed berechnet */
-      --bis-sidebar-to-content-gap: calc(260px - 240px);
+      margin-left: 250px;
+      /* Abstand Sidebar–Inhalt (250 − 240); für Toolbar-Bleed berechnet */
+      --bis-sidebar-to-content-gap: calc(250px - 240px);
     }
 
     /* Wenn Sidebar ausgeblendet, kein Margin */
@@ -842,6 +842,15 @@
       word-break: break-word;
     }
     
+    /* Flash-/Toast-ähnliche Meldungen, die per position-fixed am oberen
+       Rand angeheftet sind, unter die Kopfleiste schieben, damit sie nicht
+       über der Navigationsleiste liegen. Höhere Spezifität überschreibt
+       Bootstraps `.top-0 { top: 0 !important }`. */
+    .toast-container.position-fixed.top-0,
+    .alert.position-fixed.top-0 {
+      top: 56px !important;
+    }
+
     /* --- Druck-Styles --- */
     @media print {
       /* Navigation komplett ausblenden */
