@@ -42,8 +42,17 @@ flowchart LR
 | Artefakt | Quelle im Container | Im Backup |
 |---|---|---|
 | SQLite-Datenbank | `/data/database_main.db` | `database_main.db` (via `sqlite3 .backup`, konsistent) |
+| Postgres-Datenbank (optional) | via `DATABASE_URL` (`postgresql+psycopg://...`) | `database_main.dump` (via `pg_dump --format=custom`) |
 | Upload-Dateien | `/data/Daten/` | `uploads.tar.gz` |
 | Backup-Metadaten | automatisch erzeugt | `backup_info.txt`, `checksums.sha256` |
+
+Welcher DB-Pfad verwendet wird, bestimmt die Umgebungsvariable `DATABASE_URL`
+am Backup-Container:
+
+- **nicht gesetzt** (oder SQLite-Pfad) -> SQLite-Backup ueber `sqlite3 .backup`
+- **`postgresql+psycopg://user:pw@host/db`** -> Postgres-Backup ueber `pg_dump`
+
+Das Backup-Image enthaelt sowohl `sqlite3` als auch `postgresql-client`.
 
 **Bewusst NICHT im Backup** � diese Artefakte sind rekonstruierbar:
 
@@ -140,7 +149,7 @@ Restore-Zeitpunkt (App-Downtime!).
 docker compose stop Application-Service
 ```
 
-### 7.2a Restore aus lokalem Plain-Backup
+### 7.2a Restore aus lokalem Plain-Backup (SQLite)
 
 ```powershell
 $ts = "20260418_020000"   # gewuenschten Zeitstempel eintragen
@@ -149,6 +158,22 @@ $src = "C:\BIS-Backups\bis_$ts"
 Copy-Item "$src\database_main.db" "C:\BIS-Daten\database_main.db" -Force
 
 # Uploads zuruecksichern (vorher ggf. alten Ordner sichern)
+Rename-Item "C:\BIS-Daten\Daten" "C:\BIS-Daten\Daten.alt-$ts" -ErrorAction SilentlyContinue
+tar -xzf "$src\uploads.tar.gz" -C "C:\BIS-Daten"
+```
+
+### 7.2a-PG Restore aus lokalem Plain-Backup (Postgres)
+
+```powershell
+$ts = "20260418_020000"
+$src = "C:\BIS-Backups\bis_$ts"
+$pgurl = "postgresql://bis_user:GeheimesPasswort@localhost:5432/bis"
+
+# Leere DB vorher anlegen (oder bestehende Objekte per --clean ersetzen)
+pg_restore --clean --if-exists --no-owner --no-privileges `
+    --dbname=$pgurl "$src\database_main.dump"
+
+# Uploads wie bei SQLite zuruecksichern
 Rename-Item "C:\BIS-Daten\Daten" "C:\BIS-Daten\Daten.alt-$ts" -ErrorAction SilentlyContinue
 tar -xzf "$src\uploads.tar.gz" -C "C:\BIS-Daten"
 ```
@@ -169,6 +194,8 @@ New-Item -ItemType Directory -Path $tmp -Force | Out-Null
 
 ### 7.3 Integrit�ts-Check vor dem App-Start
 
+SQLite:
+
 ```powershell
 docker run --rm -v C:\BIS-Daten:/data bis/backup-service:latest `
   sqlite3 /data/database_main.db "PRAGMA integrity_check;"
@@ -176,6 +203,16 @@ docker run --rm -v C:\BIS-Daten:/data bis/backup-service:latest `
 
 Erwartete Ausgabe: `ok` � bei anderem Ergebnis **nicht** starten, n�chsteres
 Backup probieren.
+
+Postgres (nach `pg_restore`):
+
+```powershell
+psql "$pgurl" -c "SELECT 'Mitarbeiter' AS tabelle, COUNT(*) FROM \"Mitarbeiter\";"
+psql "$pgurl" -c "SELECT 'SchichtbuchThema' AS tabelle, COUNT(*) FROM \"SchichtbuchThema\";"
+```
+
+Die Zeilenzahlen sollten zum letzten erfolgreichen Lauf passen (Vergleich mit
+`backup_info.txt` oder der Produktion vor dem Restore).
 
 ### 7.4 App starten und pr�fen
 
@@ -273,3 +310,4 @@ vermerken.
 | Datum | Autor | �nderung |
 |---|---|---|
 | 2026-04-18 | Initial | Backup-Service eingef�hrt, Runbook erstellt |
+| 2026-04-20 | Phase 5 | pg_dump-Pfad f�r Postgres erg�nzt (siehe `docs/POSTGRES_DEPLOYMENT.md`) |

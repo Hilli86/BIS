@@ -13,6 +13,7 @@ beim Anlegen des Agents im Admin EINMAL angezeigt; in der DB wird nur der
 SHA-256-Hash gespeichert.
 """
 
+from datetime import datetime
 from functools import wraps
 
 from flask import g, jsonify, request
@@ -67,12 +68,16 @@ def _resolve_agent_from_token(conn, token):
 
 
 def _update_agent_last_seen(conn, agent_id):
+    # Python-seitiger Zeitstempel statt SQLite-spezifischem ``datetime('now')``,
+    # damit das UPDATE auch unter PostgreSQL dialektneutral funktioniert. Format
+    # analog zu ``utils.zebra_client`` (lokale Zeit, ``YYYY-MM-DD HH:MM:SS``).
+    now_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     conn.execute(
         '''UPDATE print_agents
-              SET last_seen_at = datetime('now'),
+              SET last_seen_at = ?,
                   last_ip = ?
             WHERE id = ?''',
-        ((request.remote_addr or '')[:64], agent_id),
+        (now_ts, (request.remote_addr or '')[:64], agent_id),
     )
     conn.commit()
 

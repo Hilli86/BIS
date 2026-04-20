@@ -1,6 +1,11 @@
-"""Tests fuer utils.abteilungen (Hierarchie-Helfer mit In-Memory-DB)."""
+"""Tests fuer utils.abteilungen (Hierarchie-Helfer).
 
-import sqlite3
+Seit Phase 4 wird die gemeinsame ``connection``-Fixture aus ``conftest.py``
+benutzt: frisch migriertes Schema in einer in-memory-SQLite-DB. Foreign-Keys
+sind im Test-Engine bewusst nicht erzwungen, damit die Hierarchie-Helfer mit
+minimalen Fixtures (nur der relevanten Abteilungs-/Mitarbeiter-Rows)
+getestet werden koennen.
+"""
 
 import pytest
 
@@ -12,36 +17,31 @@ from utils.abteilungen import (
 )
 
 
-@pytest.fixture
-def conn():
-    c = sqlite3.connect(":memory:")
-    c.row_factory = sqlite3.Row
-    c.executescript(
+def _insert_mitarbeiter(conn, mitarbeiter_id, primaer_abteilung_id):
+    """Minimaler Mitarbeiter-Insert fuer die Tests.
+
+    Das Schema erfordert ``Personalnummer``, ``Nachname`` und ``Passwort`` als
+    NOT-NULL-Spalten; wir vergeben synthetische Platzhalter.
+    """
+    conn.execute(
         """
-        CREATE TABLE Abteilung (
-            ID INTEGER PRIMARY KEY,
-            Bezeichnung TEXT,
-            ParentAbteilungID INTEGER,
-            Aktiv INTEGER DEFAULT 1,
-            Sortierung INTEGER DEFAULT 0
-        );
-        CREATE TABLE Mitarbeiter (
-            ID INTEGER PRIMARY KEY,
-            PrimaerAbteilungID INTEGER
-        );
-        CREATE TABLE MitarbeiterAbteilung (
-            MitarbeiterID INTEGER,
-            AbteilungID INTEGER
-        );
-        """
+        INSERT INTO Mitarbeiter (ID, Personalnummer, Nachname, Passwort, PrimaerAbteilungID)
+        VALUES (?, ?, 'Test', 'x', ?)
+        """,
+        (mitarbeiter_id, f'P{mitarbeiter_id}', primaer_abteilung_id),
     )
+
+
+@pytest.fixture
+def conn(connection):
+    """Befuellt die vorhandene Abteilungs-Hierarchie fuer alle Tests."""
     # Hierarchie:
     #   1 Werk
     #     2 Produktion
     #       4 Linie A
     #       5 Linie B (inaktiv)
     #     3 Verwaltung
-    c.executemany(
+    connection.executemany(
         "INSERT INTO Abteilung (ID, Bezeichnung, ParentAbteilungID, Aktiv, Sortierung) "
         "VALUES (?, ?, ?, ?, ?)",
         [
@@ -52,9 +52,8 @@ def conn():
             (5, "Linie B", 2, 0, 2),
         ],
     )
-    c.commit()
-    yield c
-    c.close()
+    connection.commit()
+    return connection
 
 
 # ---------------------------------------------------------------------------
@@ -90,7 +89,7 @@ def test_get_untergeordnete_abteilungen_ignoriert_inaktive_kinder(conn):
 
 
 def test_get_mitarbeiter_abteilungen_primaer_und_zusatz(conn):
-    conn.execute("INSERT INTO Mitarbeiter (ID, PrimaerAbteilungID) VALUES (10, 2)")
+    _insert_mitarbeiter(conn, 10, 2)
     conn.execute(
         "INSERT INTO MitarbeiterAbteilung (MitarbeiterID, AbteilungID) VALUES (10, 3)"
     )
@@ -99,7 +98,7 @@ def test_get_mitarbeiter_abteilungen_primaer_und_zusatz(conn):
 
 
 def test_get_mitarbeiter_abteilungen_dedupliziert_primaer(conn):
-    conn.execute("INSERT INTO Mitarbeiter (ID, PrimaerAbteilungID) VALUES (10, 2)")
+    _insert_mitarbeiter(conn, 10, 2)
     conn.execute(
         "INSERT INTO MitarbeiterAbteilung (MitarbeiterID, AbteilungID) VALUES (10, 2)"
     )
@@ -108,7 +107,7 @@ def test_get_mitarbeiter_abteilungen_dedupliziert_primaer(conn):
 
 
 def test_get_mitarbeiter_abteilungen_ohne_primaer(conn):
-    conn.execute("INSERT INTO Mitarbeiter (ID, PrimaerAbteilungID) VALUES (10, NULL)")
+    _insert_mitarbeiter(conn, 10, None)
     conn.execute(
         "INSERT INTO MitarbeiterAbteilung (MitarbeiterID, AbteilungID) VALUES (10, 4)"
     )
@@ -122,7 +121,7 @@ def test_get_mitarbeiter_abteilungen_ohne_primaer(conn):
 
 
 def test_get_sichtbare_abteilungen_inkl_unterabteilungen(conn):
-    conn.execute("INSERT INTO Mitarbeiter (ID, PrimaerAbteilungID) VALUES (10, 2)")
+    _insert_mitarbeiter(conn, 10, 2)
     result = set(get_sichtbare_abteilungen_fuer_mitarbeiter(10, conn))
     assert 2 in result
     assert 4 in result
@@ -130,7 +129,7 @@ def test_get_sichtbare_abteilungen_inkl_unterabteilungen(conn):
 
 
 def test_get_sichtbare_abteilungen_werk_sieht_alles(conn):
-    conn.execute("INSERT INTO Mitarbeiter (ID, PrimaerAbteilungID) VALUES (10, 1)")
+    _insert_mitarbeiter(conn, 10, 1)
     result = set(get_sichtbare_abteilungen_fuer_mitarbeiter(10, conn))
     assert {1, 2, 3, 4}.issubset(result)
     assert 5 not in result

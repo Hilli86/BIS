@@ -1,8 +1,12 @@
 #!/bin/bash
 # BIS Backup-Skript (Container-Variante)
-# Sichert SQLite-Datenbank + Uploads nach /backup-plain/,
+# Sichert Datenbank (SQLite ODER Postgres) + Uploads nach /backup-plain/,
 # erzeugt eine 7z AES-256 verschluesselte Kopie unter /backup-encrypted/
 # und benachrichtigt Admins ueber notify_admins.sh.
+#
+# DB-Typ wird anhand der Umgebungsvariable DATABASE_URL bestimmt:
+#   - leer oder mit "sqlite"/Dateipfad -> SQLite-Backup via 'sqlite3 .backup'
+#   - "postgresql+psycopg://..."        -> Postgres-Backup via 'pg_dump --format=custom'
 
 set -uo pipefail
 
@@ -11,6 +15,18 @@ PLAIN_DIR="/backup-plain"
 ENC_DIR="/backup-encrypted"
 DB_FILE="${DATA_DIR}/database_main.db"
 UPLOADS_DIR="${DATA_DIR}/Daten"
+
+# DB-Typ bestimmen. Default (leer) = SQLite auf ${DB_FILE}, damit bestehende
+# Installationen ohne DATABASE_URL unveraendert weiterlaufen.
+DATABASE_URL="${DATABASE_URL:-}"
+case "${DATABASE_URL}" in
+    postgres://*|postgresql://*|postgresql+*://*)
+        DB_KIND="postgres"
+        ;;
+    *)
+        DB_KIND="sqlite"
+        ;;
+esac
 
 TS="$(date +'%Y%m%d_%H%M%S')"
 NAME="bis_${TS}"
@@ -46,30 +62,60 @@ fail() {
 
 trap 'fail "${CURRENT_STAGE}" "$?"' ERR
 
-log "===== Starte Backup ${NAME} ====="
+log "===== Starte Backup ${NAME} (db=${DB_KIND}) ====="
 
-if [ ! -f "${DB_FILE}" ]; then
-    CURRENT_STAGE="preflight"
-    log "Datenbank nicht gefunden: ${DB_FILE}"
-    fail "preflight" 2
+CURRENT_STAGE="preflight"
+if [ "${DB_KIND}" = "sqlite" ]; then
+    if [ ! -f "${DB_FILE}" ]; then
+        log "SQLite-Datenbank nicht gefunden: ${DB_FILE}"
+        fail "preflight" 2
+    fi
+else
+    # Postgres: pg_dump vorhanden?
+    if ! command -v pg_dump >/dev/null 2>&1; then
+        log "pg_dump nicht gefunden - Postgres-Backup nicht moeglich."
+        fail "preflight" 2
+    fi
 fi
 
 mkdir -p "${WORK_DIR}"
 
-# 1) SQLite Online-Backup
-CURRENT_STAGE="sqlite_backup"
-log "Erstelle SQLite Online-Backup..."
-sqlite3 "${DB_FILE}" ".backup '${WORK_DIR}/database_main.db'"
+# 1) DB-Dump erzeugen
+if [ "${DB_KIND}" = "sqlite" ]; then
+    CURRENT_STAGE="sqlite_backup"
+    DB_ARTIFACT="database_main.db"
+    log "Erstelle SQLite Online-Backup..."
+    sqlite3 "${DB_FILE}" ".backup '${WORK_DIR}/${DB_ARTIFACT}'"
 
-# 2) Integrity-Check
-CURRENT_STAGE="integrity_check"
-log "Pruefe Integritaet des Backups..."
-INTEGRITY="$(sqlite3 "${WORK_DIR}/database_main.db" 'PRAGMA integrity_check;' | head -n1)"
-if [ "${INTEGRITY}" != "ok" ]; then
-    log "Integrity-Check FEHLGESCHLAGEN: ${INTEGRITY}"
-    fail "integrity_check" 3
+    # 2) Integrity-Check
+    CURRENT_STAGE="integrity_check"
+    log "Pruefe Integritaet des Backups..."
+    INTEGRITY="$(sqlite3 "${WORK_DIR}/${DB_ARTIFACT}" 'PRAGMA integrity_check;' | head -n1)"
+    if [ "${INTEGRITY}" != "ok" ]; then
+        log "Integrity-Check FEHLGESCHLAGEN: ${INTEGRITY}"
+        fail "integrity_check" 3
+    fi
+    log "Integrity: ok"
+else
+    CURRENT_STAGE="pg_backup"
+    DB_ARTIFACT="database_main.dump"
+    # SA-URL ("postgresql+psycopg://...") -> libpq-URL ("postgresql://...")
+    # konvertieren, damit pg_dump sie direkt akzeptiert.
+    PGURL="$(printf '%s' "${DATABASE_URL}" | sed -E 's#^postgresql\+[a-z0-9]+://#postgresql://#')"
+    log "Erstelle Postgres-Dump (custom format)..."
+    # --format=custom ist pg_restore-faehig und bereits komprimiert.
+    pg_dump --format=custom --file="${WORK_DIR}/${DB_ARTIFACT}" "${PGURL}"
+
+    # 2) Integrity-Check: pg_restore -l listet das Inhaltsverzeichnis;
+    # scheitert der Aufruf, ist der Dump unbrauchbar.
+    CURRENT_STAGE="integrity_check"
+    log "Pruefe Integritaet des Dumps (pg_restore -l)..."
+    if ! pg_restore -l "${WORK_DIR}/${DB_ARTIFACT}" >/dev/null 2>&1; then
+        log "Integrity-Check FEHLGESCHLAGEN: pg_restore -l konnte Dump nicht lesen."
+        fail "integrity_check" 3
+    fi
+    log "Integrity: ok"
 fi
-log "Integrity: ok"
 
 # 3) Uploads archivieren
 CURRENT_STAGE="tar"
@@ -85,16 +131,22 @@ CURRENT_STAGE="checksums"
 log "Erstelle Checksums..."
 (
     cd "${WORK_DIR}"
-    sha256sum database_main.db > checksums.sha256
+    sha256sum "${DB_ARTIFACT}" > checksums.sha256
     if [ -f uploads.tar.gz ]; then
         sha256sum uploads.tar.gz >> checksums.sha256
     fi
 )
 
-DB_SIZE="$(du -h "${WORK_DIR}/database_main.db" | cut -f1)"
+DB_SIZE="$(du -h "${WORK_DIR}/${DB_ARTIFACT}" | cut -f1)"
 UP_SIZE="$(du -h "${WORK_DIR}/uploads.tar.gz" 2>/dev/null | cut -f1 || echo '-')"
 PLAIN_SIZE="$(du -sh "${WORK_DIR}" | cut -f1)"
 SHA256_DB="$(awk '{print $1}' "${WORK_DIR}/checksums.sha256" | head -n1)"
+
+if [ "${DB_KIND}" = "sqlite" ]; then
+    DB_INFO_LINE=" - database_main.db       (SQLite, konsistent via .backup)"
+else
+    DB_INFO_LINE=" - database_main.dump     (Postgres, pg_dump --format=custom)"
+fi
 
 cat > "${WORK_DIR}/backup_info.txt" <<EOF
 BIS Backup Information
@@ -102,12 +154,13 @@ BIS Backup Information
 Erstellt:      $(date +'%Y-%m-%d %H:%M:%S %z')
 Hostname:      $(hostname)
 Backup-Name:   ${NAME}
+DB-Typ:        ${DB_KIND}
 Datenbank:     ${DB_SIZE}
 Uploads:       ${UP_SIZE}
 SHA256-DB:     ${SHA256_DB}
 
 Inhalt:
- - database_main.db       (SQLite, konsistent via .backup)
+${DB_INFO_LINE}
  - uploads.tar.gz         (Dateianhaenge)
  - checksums.sha256       (SHA-256 Pruefsummen)
  - backup_info.txt        (diese Datei)

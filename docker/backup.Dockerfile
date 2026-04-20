@@ -10,6 +10,7 @@ FROM alpine:3.20
 RUN apk add --no-cache \
         bash \
         sqlite \
+        postgresql16-client \
         7zip \
         tzdata \
         findutils \

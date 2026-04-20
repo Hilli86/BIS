@@ -72,45 +72,36 @@ def get_menue_sichtbarkeit_fuer_mitarbeiter(mitarbeiter_id, conn=None):
     Returns:
         dict: {menue_schluessel: bool}
     """
-    should_close = False
     if conn is None:
-        from flask import current_app
-        import sqlite3
-        conn = sqlite3.connect(current_app.config['DATABASE_URL'])
-        conn.row_factory = sqlite3.Row
-        should_close = True
-    
-    try:
-        # Berechtigungen des Mitarbeiters laden
-        berechtigungen_rows = conn.execute('''
-            SELECT b.Schluessel
-            FROM MitarbeiterBerechtigung mb
-            JOIN Berechtigung b ON mb.BerechtigungID = b.ID
-            WHERE mb.MitarbeiterID = ? AND b.Aktiv = 1
-        ''', (mitarbeiter_id,)).fetchall()
-        berechtigungen = [r['Schluessel'] for r in berechtigungen_rows]
-        
-        # Explizite Menü-Sichtbarkeit laden
-        sichtbarkeit_rows = conn.execute('''
-            SELECT MenueSchluessel, Sichtbar
-            FROM MitarbeiterMenueSichtbarkeit
-            WHERE MitarbeiterID = ?
-        ''', (mitarbeiter_id,)).fetchall()
-        explizit = {r['MenueSchluessel']: bool(r['Sichtbar']) for r in sichtbarkeit_rows}
-        
-        # Ergebnis für jeden Menüpunkt berechnen
-        result = {}
-        for m in MENUE_DEFINITIONEN:
-            schluessel = m['schluessel']
-            if schluessel in explizit:
-                result[schluessel] = explizit[schluessel]
-            else:
-                result[schluessel] = _standard_sichtbar(schluessel, berechtigungen)
-        
-        return result
-    finally:
-        if should_close:
-            conn.close()
+        with get_db_connection() as conn:
+            return get_menue_sichtbarkeit_fuer_mitarbeiter(mitarbeiter_id, conn)
+
+    # Berechtigungen des Mitarbeiters laden
+    berechtigungen_rows = conn.execute('''
+        SELECT b.Schluessel
+        FROM MitarbeiterBerechtigung mb
+        JOIN Berechtigung b ON mb.BerechtigungID = b.ID
+        WHERE mb.MitarbeiterID = ? AND b.Aktiv = 1
+    ''', (mitarbeiter_id,)).fetchall()
+    berechtigungen = [r['Schluessel'] for r in berechtigungen_rows]
+
+    # Explizite Menü-Sichtbarkeit laden
+    sichtbarkeit_rows = conn.execute('''
+        SELECT MenueSchluessel, Sichtbar
+        FROM MitarbeiterMenueSichtbarkeit
+        WHERE MitarbeiterID = ?
+    ''', (mitarbeiter_id,)).fetchall()
+    explizit = {r['MenueSchluessel']: bool(r['Sichtbar']) for r in sichtbarkeit_rows}
+
+    result = {}
+    for m in MENUE_DEFINITIONEN:
+        schluessel = m['schluessel']
+        if schluessel in explizit:
+            result[schluessel] = explizit[schluessel]
+        else:
+            result[schluessel] = _standard_sichtbar(schluessel, berechtigungen)
+
+    return result
 
 
 def get_alle_menue_definitionen():

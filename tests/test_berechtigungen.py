@@ -1,6 +1,8 @@
-"""Tests fuer utils.berechtigungen (mit In-Memory-DB)."""
+"""Tests fuer utils.berechtigungen.
 
-import sqlite3
+Seit Phase 4 wird die gemeinsame ``connection``-Fixture aus ``conftest.py``
+benutzt (in-memory SQLite mit vollem BIS-Schema, FKs nicht erzwungen).
+"""
 
 import pytest
 
@@ -15,26 +17,8 @@ from utils.berechtigungen import (
 
 
 @pytest.fixture
-def conn():
-    c = sqlite3.connect(":memory:")
-    c.row_factory = sqlite3.Row
-    c.executescript(
-        """
-        CREATE TABLE Berechtigung (
-            ID INTEGER PRIMARY KEY,
-            Schluessel TEXT,
-            Bezeichnung TEXT,
-            Beschreibung TEXT,
-            Aktiv INTEGER DEFAULT 1
-        );
-        CREATE TABLE MitarbeiterBerechtigung (
-            MitarbeiterID INTEGER,
-            BerechtigungID INTEGER,
-            UNIQUE (MitarbeiterID, BerechtigungID)
-        );
-        """
-    )
-    c.executemany(
+def conn(connection):
+    connection.executemany(
         "INSERT INTO Berechtigung (ID, Schluessel, Bezeichnung, Aktiv) VALUES (?, ?, ?, ?)",
         [
             (1, "admin", "Administrator", 1),
@@ -42,9 +26,8 @@ def conn():
             (3, "alt", "Alte Berechtigung", 0),
         ],
     )
-    c.commit()
-    yield c
-    c.close()
+    connection.commit()
+    return connection
 
 
 # ---------------------------------------------------------------------------

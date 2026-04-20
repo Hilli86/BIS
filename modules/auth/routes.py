@@ -14,6 +14,7 @@ from utils.decorators import login_required
 from utils.rate_limit import limiter, login_ratelimit_key
 from utils.security import validate_passwort_policy
 from utils.auth_redirect import resolve_post_login_redirect_url
+from utils.db_sql import upsert_ignore, upsert_replace
 from utils.webauthn import (
     get_fido2_server,
     store_state,
@@ -494,12 +495,13 @@ def webauthn_register_verify():
         from datetime import datetime
 
         with get_db_connection() as conn:
+            sql = upsert_ignore(
+                'WebAuthnCredential',
+                ('MitarbeiterID', 'CredentialID', 'PublicKey', 'SignCount', 'Label', 'ErstelltAm', 'Aktiv'),
+                ('MitarbeiterID', 'CredentialID'),
+            )
             conn.execute(
-                """
-                INSERT OR IGNORE INTO WebAuthnCredential (
-                    MitarbeiterID, CredentialID, PublicKey, SignCount, Label, ErstelltAm, Aktiv
-                ) VALUES (?, ?, ?, ?, ?, ?, 1)
-                """,
+                sql,
                 (
                     user_id,
                     cred_id_b64,
@@ -507,6 +509,7 @@ def webauthn_register_verify():
                     sign_count,
                     label,
                     datetime.utcnow().isoformat(timespec="seconds"),
+                    1,
                 ),
             )
 
@@ -806,13 +809,14 @@ def benachrichtigungen_save():
             ''', (user_id,))
             
             # Aktive Kanäle aktivieren
+            kanal_upsert_sql = upsert_replace(
+                'BenachrichtigungKanal',
+                ('MitarbeiterID', 'KanalTyp', 'Aktiv'),
+                ('MitarbeiterID', 'KanalTyp'),
+                update_cols=('Aktiv',),
+            )
             for kanal_typ in kanale:
-                conn.execute('''
-                    INSERT OR REPLACE INTO BenachrichtigungKanal (
-                        MitarbeiterID, KanalTyp, Aktiv
-                    )
-                    VALUES (?, ?, 1)
-                ''', (user_id, kanal_typ))
+                conn.execute(kanal_upsert_sql, (user_id, kanal_typ, 1))
             
             # Einstellungen löschen
             conn.execute('''

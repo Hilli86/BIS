@@ -5,6 +5,7 @@ Business-Logik für Auswertungen (Bestellungen und Ersatzteilwert)
 
 from datetime import datetime
 from utils.abteilungen import get_untergeordnete_abteilungen
+from utils.db_sql import year_month_expr
 
 
 def get_bestellungen_auswertung(abteilung_ids, lieferant_id, datum_von, datum_bis, conn, is_admin=False, sichtbare_abteilungen=None):
@@ -94,16 +95,17 @@ def get_bestellungen_auswertung(abteilung_ids, lieferant_id, datum_von, datum_bi
         summe = row['summe'] or 0
         gesamt_summen[waehrung] = summe
     
+    jm_expr = year_month_expr('b.BestelltAm')
     # Monatsstatistik - Zuerst Anzahl pro Monat (ohne Währung)
-    query_monat_anzahl = '''
-        SELECT 
-            strftime('%Y-%m', b.BestelltAm) AS jahr_monat,
+    query_monat_anzahl = f'''
+        SELECT
+            {jm_expr} AS jahr_monat,
             COUNT(DISTINCT b.ID) AS anzahl
         FROM Bestellung b
         WHERE b.Gelöscht = 0
         AND b.Status = 'Erledigt'
         AND b.BestelltAm IS NOT NULL
-        AND strftime('%Y-%m', b.BestelltAm) IS NOT NULL
+        AND {jm_expr} IS NOT NULL
         AND DATE(b.BestelltAm) BETWEEN DATE(?) AND DATE(?)
     '''
     params_monat_anzahl = [datum_von.strftime('%Y-%m-%d'), datum_bis.strftime('%Y-%m-%d')]
@@ -134,9 +136,9 @@ def get_bestellungen_auswertung(abteilung_ids, lieferant_id, datum_von, datum_bi
     query_monat_anzahl += ' GROUP BY jahr_monat ORDER BY jahr_monat'
     
     # Monatsstatistik - Summen nach Währung
-    query_monat_summen = '''
-        SELECT 
-            strftime('%Y-%m', b.BestelltAm) AS jahr_monat,
+    query_monat_summen = f'''
+        SELECT
+            {jm_expr} AS jahr_monat,
             bp.Waehrung,
             SUM(bp.Menge * COALESCE(bp.Preis, 0)) AS summe
         FROM Bestellung b
@@ -144,7 +146,7 @@ def get_bestellungen_auswertung(abteilung_ids, lieferant_id, datum_von, datum_bi
         WHERE b.Gelöscht = 0
         AND b.Status = 'Erledigt'
         AND b.BestelltAm IS NOT NULL
-        AND strftime('%Y-%m', b.BestelltAm) IS NOT NULL
+        AND {jm_expr} IS NOT NULL
         AND DATE(b.BestelltAm) BETWEEN DATE(?) AND DATE(?)
     '''
     params_monat_summen = [datum_von.strftime('%Y-%m-%d'), datum_bis.strftime('%Y-%m-%d')]
@@ -175,13 +177,13 @@ def get_bestellungen_auswertung(abteilung_ids, lieferant_id, datum_von, datum_bi
     query_monat_summen += ' GROUP BY jahr_monat, bp.Waehrung ORDER BY jahr_monat'
     
     # Monatsstatistik nach Lieferant (Summen EUR)
-    query_monat_lieferant = '''
-        SELECT 
-            strftime('%Y-%m', b.BestelltAm) AS jahr_monat,
+    query_monat_lieferant = f'''
+        SELECT
+            {jm_expr} AS jahr_monat,
             b.LieferantID,
             l.Name AS LieferantName,
             SUM(
-                CASE 
+                CASE
                     WHEN bp.Waehrung IS NULL OR bp.Waehrung = 'EUR' THEN bp.Menge * COALESCE(bp.Preis, 0)
                     ELSE 0
                 END
@@ -192,7 +194,7 @@ def get_bestellungen_auswertung(abteilung_ids, lieferant_id, datum_von, datum_bi
         WHERE b.Gelöscht = 0
         AND b.Status = 'Erledigt'
         AND b.BestelltAm IS NOT NULL
-        AND strftime('%Y-%m', b.BestelltAm) IS NOT NULL
+        AND {jm_expr} IS NOT NULL
         AND DATE(b.BestelltAm) BETWEEN DATE(?) AND DATE(?)
     '''
     params_monat_lieferant = [datum_von.strftime('%Y-%m-%d'), datum_bis.strftime('%Y-%m-%d')]

@@ -1,0 +1,50 @@
+---
+description: Datenbank-Zugriff (SQLAlchemy Core / get_db_connection) fuer BIS
+globs:
+  - modules/**/*.py
+  - utils/**/*.py
+  - scripts/**/*.py
+  - tests/**/*.py
+alwaysApply: false
+---
+
+# Datenbank-Zugriff (SQLAlchemy Core)
+
+BIS nutzt **SQLAlchemy Core** ueber [`utils/database.py`](utils/database.py) als
+dialektneutrale Fassade. Die DB-URL kommt aus `DATABASE_URL` (SQLite-Default
+`database_main.db`, optional `postgresql+psycopg://user:pw@host/db`). Das
+Schema wird ueber **Alembic** gepflegt (`alembic upgrade head`), deklariert in
+[`utils/db_schema.py`](utils/db_schema.py).
+
+- **Immer** den Context Manager nutzen: `with get_db_connection() as conn:` –
+  damit greifen Commit bei Erfolg und Rollback bei Fehler wie vorgesehen.
+- **Keine** direkten `sqlite3.connect(...)`- oder `psycopg.connect(...)`-Aufrufe
+  in Routen, Services oder Skripten. Auch Utilities gehen ueber die Fassade.
+- **Parametrisiert binden, nicht formatieren:** Fremde Daten immer als Parameter
+  uebergeben, nie per f-String in SQL einfuegen.
+
+```python
+# SCHLECHT
+conn.execute(f"SELECT * FROM X WHERE id = {user_id}")
+
+# GUT (Kompatibilitaets-Shim akzeptiert weiterhin ? als Platzhalter)
+conn.execute("SELECT * FROM X WHERE id = ?", (user_id,))
+
+# GUT (SA Core, dialektneutral)
+from sqlalchemy import select
+from utils.db_schema import mitarbeiter
+row = conn.execute(select(mitarbeiter).where(mitarbeiter.c.ID == user_id)).mappings().first()
+```
+
+- **Dialekt-Unterschiede:** `INSERT OR IGNORE`, `IFNULL`, `GROUP_CONCAT`,
+  `strftime(...)`, `json_extract(...)` sind SQLite-spezifisch. Fuer neue Queries
+  die Helfer aus [`utils/db_sql.py`](utils/db_sql.py) verwenden
+  (`upsert_ignore`, `upsert_replace`, `coalesce`, `string_agg`, `json_get`,
+  `now_sql`) oder direkt SA-Core-Funktionen (`func.coalesce`, `func.now`).
+  Datumswerte bevorzugt als Python-`datetime`/`date` uebergeben.
+- **Schema-Aenderungen:** Neue/geaenderte Tabellen werden in
+  [`utils/db_schema.py`](utils/db_schema.py) deklariert und per
+  `alembic revision --autogenerate -m "..."` eingespielt. Kein handgeschriebenes
+  `CREATE TABLE`/`ALTER TABLE` in Routen oder Init-Skripten.
+- **Exceptions:** `utils.db_errors.IntegrityError` / `OperationalError` statt
+  `sqlite3.IntegrityError`. So bleiben Fehlerpfade backend-neutral.

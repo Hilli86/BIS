@@ -1,6 +1,10 @@
-"""Tests für utils.helpers (reine Funktionen, keine Flask-App nötig)."""
+"""Tests für utils.helpers (reine Funktionen + Row-/DB-Helfer).
 
-import sqlite3
+Die DB-gestuetzten Tests (``safe_get`` mit ``sqlite3.Row``, ``row_to_dict``)
+wurden in Phase 4 auf die ``connection``-Fixture aus ``conftest.py``
+umgezogen. Die Fixture stellt eine DBAPI-kompatible Verbindung bereit, die
+im SQLite-Fall unter der Haube ``sqlite3.Row`` als ``row_factory`` nutzt.
+"""
 
 from utils.helpers import (
     build_ersatzteil_zugriff_filter,
@@ -19,26 +23,20 @@ def test_safe_get_dict():
     assert safe_get(None, "a", 0) == 0
 
 
-def test_safe_get_sqlite_row():
-    conn = sqlite3.connect(":memory:")
-    conn.row_factory = sqlite3.Row
-    conn.execute("CREATE TABLE t (name TEXT, val INTEGER)")
-    conn.execute("INSERT INTO t VALUES ('n', 42)")
-    row = conn.execute("SELECT * FROM t").fetchone()
+def test_safe_get_sqlite_row(connection):
+    connection.execute("CREATE TABLE t (name TEXT, val INTEGER)")
+    connection.execute("INSERT INTO t VALUES ('n', 42)")
+    row = connection.execute("SELECT * FROM t").fetchone()
     assert safe_get(row, "name") == "n"
     assert safe_get(row, "missing", 0) == 0
-    conn.close()
 
 
-def test_row_to_dict():
+def test_row_to_dict(connection):
     assert row_to_dict(None) is None
-    conn = sqlite3.connect(":memory:")
-    conn.row_factory = sqlite3.Row
-    conn.execute("CREATE TABLE t (a TEXT)")
-    conn.execute("INSERT INTO t VALUES ('z')")
-    row = conn.execute("SELECT * FROM t").fetchone()
+    connection.execute("CREATE TABLE t (a TEXT)")
+    connection.execute("INSERT INTO t VALUES ('z')")
+    row = connection.execute("SELECT * FROM t").fetchone()
     assert row_to_dict(row) == {"a": "z"}
-    conn.close()
 
 
 def test_format_file_size():

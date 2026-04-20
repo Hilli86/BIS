@@ -23,5 +23,16 @@ Flask-WTF==1.2.2
 flask-limiter==3.12
 Flask-Talisman==1.1.0
 
+# Datenbank-Abstraktion: SQLAlchemy Core als Fassade, Alembic fuer Schema-
+# Migrationen. Wird sowohl gegen SQLite (Default) als auch Postgres genutzt.
+SQLAlchemy==2.0.49
+alembic==1.18.4
+
+# Postgres-Treiber (Phase 5: Postgres-Readiness). SQLite bleibt der Default;
+# psycopg wird erst geladen, wenn DATABASE_URL auf postgresql+psycopg://...
+# zeigt. Der [binary]-Extra bringt fertige C-Wheels mit, damit kein libpq /
+# pg_config auf dem Zielsystem installiert sein muss.
+psycopg[binary]==3.2.3
+
 # Tests (CI / lokale Qualitätssicherung)
 pytest==9.0.3

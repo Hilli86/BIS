@@ -92,7 +92,7 @@
   }
   #jahresmatrix-scroll-main tbody tr.table-secondary > .jahresmatrix-sticky-first-col {
     z-index: 3;
-    background-color: var(--bs-secondary-bg, #e9ecef);
+    background-color: #e2e3e5;
   }
   #jahresmatrix-scroll-main table.table-hover tbody tr:hover > .jahresmatrix-sticky-first-col {
     background-color: var(--bs-table-hover-bg, rgba(0, 0, 0, 0.075));
@@ -190,8 +190,8 @@
       {% for grp in matrix_groups %}
         <tbody>
           <tr class="table-secondary">
-            <td class="jahresmatrix-sticky-first-col border-end-0 py-2" aria-hidden="true"></td>
-            <td colspan="{{ 4 + monatsnamen|length }}" class="text-start fw-semibold small py-2">{{ grp.bereich }} · {{ grp.gewerk }}</td>
+            <td class="jahresmatrix-sticky-first-col border-end-0 py-2 text-start fw-semibold small text-break">{{ grp.bereich }} · {{ grp.gewerk }}</td>
+            <td colspan="{{ 4 + monatsnamen|length }}" class="py-2" aria-hidden="true"></td>
           </tr>
           {% for row in grp.rows %}
           <tr>

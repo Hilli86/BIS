@@ -35,20 +35,31 @@ def _state_conn():
     return get_db_connection()
 
 
+_state_table_ready = False
+
+
 def _ensure_state_table(conn) -> None:
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS WebAuthnState (
-            state_id TEXT PRIMARY KEY,
-            payload BLOB NOT NULL,
-            created_at INTEGER NOT NULL,
-            expires_at INTEGER NOT NULL
-        )
-        """
-    )
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS IX_WebAuthnState_expires ON WebAuthnState(expires_at)"
-    )
+    """Stellt die WebAuthnState-Tabelle dialektneutral sicher.
+
+    Die Tabellendefinition lebt zentral in ``utils.db_schema``; Alembic erzeugt
+    sie auf frischen Datenbanken. Zur Sicherheit (z. B. wenn die App vor
+    einem Migrationslauf startet) legen wir sie hier lazy ueber die Engine an.
+    """
+    global _state_table_ready
+    if _state_table_ready:
+        return
+    try:
+        from utils.database import get_engine
+        from utils.db_schema import WebAuthnState as _WebAuthnState
+    except Exception:
+        return
+    try:
+        _WebAuthnState.create(get_engine(), checkfirst=True)
+        _state_table_ready = True
+    except Exception:
+        # Falls die Engine (noch) nicht verfuegbar ist, nicht abbrechen -
+        # spaetere Aufrufe versuchen es erneut.
+        pass
 
 
 def _cleanup_expired(conn) -> None:

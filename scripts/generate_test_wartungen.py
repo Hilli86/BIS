@@ -1,15 +1,22 @@
 """
-Plausible Test-Wartungen für BIS (SQLite).
+Plausible Test-Wartungen fuer BIS (via SA-Fassade).
 
-Legt an: Wartung → Wartungsplan → Wartungsdurchführung(en) inkl. Teilnehmer (Mitarbeiter).
-Nutzt bestehende Gewerke, Mitarbeiter und Abteilungen aus der Datenbank.
+Legt an: Wartung -> Wartungsplan -> Wartungsdurchfuehrung(en) inkl.
+Teilnehmer (Mitarbeiter). Nutzt bestehende Gewerke, Mitarbeiter und
+Abteilungen aus der Datenbank.
+
+Seit Phase 4 der SA-Migration laeuft die Verbindung ueber die zentrale
+SA-Fassade (``utils.database.normalize_db_url`` + SQLAlchemy-Engine). Fuer
+Default-SQLite aendert sich faktisch nichts; Postgres-Unterstuetzung waere
+ein separates Thema (Skript nutzt ``INSERT OR IGNORE``).
 
 Aufruf (Projektroot):
     py scripts/generate_test_wartungen.py
     py scripts/generate_test_wartungen.py --anzahl 5 --jahr 2026 --seed 42
     py scripts/generate_test_wartungen.py --dry-run
 
-Umgebung: DATABASE_URL (optional), sonst database_main.db im aktuellen Verzeichnis.
+Umgebung: DATABASE_URL (optional), sonst database_main.db im aktuellen
+Verzeichnis.
 """
 
 from __future__ import annotations
@@ -22,11 +29,15 @@ import sqlite3
 import sys
 from datetime import date, datetime, timedelta
 
-# Projektroot für Importe / konsistente Pfade
+# Projektroot fuer Importe / konsistente Pfade
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.dirname(_SCRIPT_DIR)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
+
+from sqlalchemy import create_engine, event  # noqa: E402
+
+from utils.database import normalize_db_url  # noqa: E402
 
 INTERVALL_EINHEITEN = ('Tag', 'Woche', 'Monat')
 
@@ -64,7 +75,40 @@ BEMERKUNGEN_DF = [
 
 
 def _db_path() -> str:
-    return os.environ.get('DATABASE_URL', 'database_main.db')
+    """Ermittelt einen SQLite-Dateipfad fuer Kompatibilitaetsmeldungen.
+
+    Normalisiert ``DATABASE_URL`` ueber die SA-Fassade und extrahiert im
+    SQLite-Fall den Dateipfad. Fuer Nicht-SQLite-URLs wird die URL unveraendert
+    zurueckgegeben (der Dateiexistenz-Check greift dort nicht).
+    """
+    raw = os.environ.get('DATABASE_URL') or 'database_main.db'
+    url = normalize_db_url(raw)
+    if url.startswith('sqlite:///'):
+        return url[len('sqlite:///'):]
+    return url
+
+
+def _open_connection(db_arg: str | None) -> tuple[sqlite3.Connection, object]:
+    """Oeffnet eine DBAPI-Verbindung ueber die SA-Fassade.
+
+    Rueckgabe: (Verbindung, Engine). Die Engine muss vom Aufrufer via
+    ``engine.dispose()`` freigegeben werden.
+    """
+    if db_arg:
+        # Expliziter Pfad/URL vom CLI-Parameter
+        url = normalize_db_url(db_arg)
+    else:
+        url = normalize_db_url(os.environ.get('DATABASE_URL') or 'database_main.db')
+
+    engine = create_engine(url, future=True, pool_pre_ping=True)
+
+    @event.listens_for(engine, 'connect')
+    def _on_connect(dbapi_conn, _record):  # pragma: no cover - trivial setup
+        if isinstance(dbapi_conn, sqlite3.Connection):
+            dbapi_conn.row_factory = sqlite3.Row
+
+    conn = engine.raw_connection()
+    return conn, engine
 
 
 def add_months(d: date, n: int) -> date:
@@ -244,15 +288,17 @@ def main() -> int:
         help='Nur Wartungen löschen, deren Bezeichnung mit --prefix beginnt (CASCADE), dann beenden',
     )
     args = parser.parse_args()
+
+    # SQLite-Kompatibilitaetsmeldung (bei Datei-URL) – bei Postgres-URLs
+    # ueberspringen wir den Existenzcheck, weil die Engine das selbst prueft.
     db_file = args.db or _db_path()
-    if not os.path.isfile(db_file):
+    if db_file and '://' not in db_file and not os.path.isfile(db_file):
         print(f'[FEHLER] Datenbank nicht gefunden: {db_file}', file=sys.stderr)
         return 1
 
     rng = random.Random(args.seed)
 
-    conn = sqlite3.connect(db_file)
-    conn.row_factory = sqlite3.Row
+    conn, engine = _open_connection(args.db)
     try:
         if args.loeschen_test:
             prefix = args.prefix
@@ -379,6 +425,7 @@ def main() -> int:
         return 1
     finally:
         conn.close()
+        engine.dispose()
 
 
 if __name__ == '__main__':

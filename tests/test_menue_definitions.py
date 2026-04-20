@@ -1,8 +1,8 @@
-"""Tests fuer utils.menue_definitions."""
+"""Tests fuer utils.menue_definitions.
 
-import sqlite3
-
-import pytest
+Seit Phase 4 wird die gemeinsame ``connection``-Fixture aus ``conftest.py``
+benutzt (in-memory SQLite mit vollem BIS-Schema).
+"""
 
 from utils.menue_definitions import (
     _standard_sichtbar,
@@ -46,78 +46,56 @@ def test_get_alle_menue_definitionen_enthaelt_dashboard():
 
 
 # ---------------------------------------------------------------------------
-# get_menue_sichtbarkeit_fuer_mitarbeiter (mit In-Memory-DB)
+# get_menue_sichtbarkeit_fuer_mitarbeiter (mit engine/connection-Fixture)
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture
-def conn():
-    c = sqlite3.connect(":memory:")
-    c.row_factory = sqlite3.Row
-    c.executescript(
-        """
-        CREATE TABLE Berechtigung (
-            ID INTEGER PRIMARY KEY,
-            Schluessel TEXT,
-            Aktiv INTEGER DEFAULT 1
-        );
-        CREATE TABLE MitarbeiterBerechtigung (
-            MitarbeiterID INTEGER,
-            BerechtigungID INTEGER
-        );
-        CREATE TABLE MitarbeiterMenueSichtbarkeit (
-            MitarbeiterID INTEGER,
-            MenueSchluessel TEXT,
-            Sichtbar INTEGER
-        );
-        """
-    )
-    yield c
-    c.close()
-
-
-def test_get_menue_sichtbarkeit_standard_ohne_berechtigungen(conn):
+def test_get_menue_sichtbarkeit_standard_ohne_berechtigungen(connection):
     # Mitarbeiter 1 ohne Berechtigungen: dashboard sichtbar, admin nicht.
-    result = get_menue_sichtbarkeit_fuer_mitarbeiter(1, conn)
+    result = get_menue_sichtbarkeit_fuer_mitarbeiter(1, connection)
     assert result["dashboard"] is True
     assert result["admin"] is False
 
 
-def test_get_menue_sichtbarkeit_admin_sieht_admin(conn):
-    conn.execute("INSERT INTO Berechtigung (ID, Schluessel, Aktiv) VALUES (1, 'admin', 1)")
-    conn.execute(
+def test_get_menue_sichtbarkeit_admin_sieht_admin(connection):
+    connection.execute(
+        "INSERT INTO Berechtigung (ID, Schluessel, Bezeichnung, Aktiv) "
+        "VALUES (1, 'admin', 'Administrator', 1)"
+    )
+    connection.execute(
         "INSERT INTO MitarbeiterBerechtigung (MitarbeiterID, BerechtigungID) VALUES (1, 1)"
     )
-    result = get_menue_sichtbarkeit_fuer_mitarbeiter(1, conn)
+    result = get_menue_sichtbarkeit_fuer_mitarbeiter(1, connection)
     assert result["admin"] is True
 
 
-def test_get_menue_sichtbarkeit_explizit_0_ueberschreibt_standard(conn):
+def test_get_menue_sichtbarkeit_explizit_0_ueberschreibt_standard(connection):
     # dashboard ist standardmaessig sichtbar; explizite Sperre greift
-    conn.execute(
+    connection.execute(
         """INSERT INTO MitarbeiterMenueSichtbarkeit
            (MitarbeiterID, MenueSchluessel, Sichtbar) VALUES (1, 'dashboard', 0)"""
     )
-    result = get_menue_sichtbarkeit_fuer_mitarbeiter(1, conn)
+    result = get_menue_sichtbarkeit_fuer_mitarbeiter(1, connection)
     assert result["dashboard"] is False
 
 
-def test_get_menue_sichtbarkeit_explizit_1_ueberschreibt_default_false(conn):
+def test_get_menue_sichtbarkeit_explizit_1_ueberschreibt_default_false(connection):
     # admin ist standardmaessig unsichtbar; explizites Einblenden greift
-    conn.execute(
+    connection.execute(
         """INSERT INTO MitarbeiterMenueSichtbarkeit
            (MitarbeiterID, MenueSchluessel, Sichtbar) VALUES (1, 'admin', 1)"""
     )
-    result = get_menue_sichtbarkeit_fuer_mitarbeiter(1, conn)
+    result = get_menue_sichtbarkeit_fuer_mitarbeiter(1, connection)
     assert result["admin"] is True
 
 
-def test_get_menue_sichtbarkeit_inaktive_berechtigung_zaehlt_nicht(conn):
-    conn.execute(
-        "INSERT INTO Berechtigung (ID, Schluessel, Aktiv) VALUES (1, 'admin', 0)"
+def test_get_menue_sichtbarkeit_inaktive_berechtigung_zaehlt_nicht(connection):
+    connection.execute(
+        "INSERT INTO Berechtigung (ID, Schluessel, Bezeichnung, Aktiv) "
+        "VALUES (1, 'admin', 'Administrator', 0)"
     )
-    conn.execute(
+    connection.execute(
         "INSERT INTO MitarbeiterBerechtigung (MitarbeiterID, BerechtigungID) VALUES (1, 1)"
     )
-    result = get_menue_sichtbarkeit_fuer_mitarbeiter(1, conn)
+    result = get_menue_sichtbarkeit_fuer_mitarbeiter(1, connection)
     assert result["admin"] is False

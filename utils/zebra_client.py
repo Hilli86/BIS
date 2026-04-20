@@ -11,7 +11,18 @@ dispatch_print() entscheidet anhand zebra_printers.agent_id automatisch.
 
 import socket
 import time
+from datetime import datetime, timedelta
 from typing import Optional
+
+
+def _now_str() -> str:
+    """Aktueller Zeitstempel als ``YYYY-MM-DD HH:MM:SS`` (dialektneutral)."""
+    return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+
+def _offset_str(**kwargs) -> str:
+    """Zeitstempel mit Offset (z. B. ``seconds=60``) als Text-Parameter."""
+    return (datetime.now() + timedelta(**kwargs)).strftime('%Y-%m-%d %H:%M:%S')
 
 # Zebra Standard-Etikettendichte für Dot-Berechnung aus Millimetern
 ZPL_DOTS_PER_MM_203 = 203 / 25.4
@@ -133,8 +144,8 @@ def enqueue_print_job(conn, drucker_id, zpl, mitarbeiter_id=None):
     cur = conn.execute(
         '''INSERT INTO print_jobs
                (agent_id, drucker_id, zpl, status, attempts, created_by_mitarbeiter_id, created_at)
-           VALUES (?, ?, ?, 'pending', 0, ?, datetime('now'))''',
-        (row['agent_id'], drucker_id, zpl, mitarbeiter_id),
+           VALUES (?, ?, ?, 'pending', 0, ?, ?)''',
+        (row['agent_id'], drucker_id, zpl, mitarbeiter_id, _now_str()),
     )
     conn.commit()
     return cur.lastrowid
@@ -243,7 +254,8 @@ def recover_expired_leases(conn, lease_seconds: int = PRINT_JOB_LEASE_SECONDS):
               SET status = 'pending', lease_until = NULL
             WHERE status = 'leased'
               AND lease_until IS NOT NULL
-              AND lease_until < datetime('now')''',
+              AND lease_until < ?''',
+        (_now_str(),),
     )
     conn.commit()
     return cur.rowcount
@@ -251,12 +263,13 @@ def recover_expired_leases(conn, lease_seconds: int = PRINT_JOB_LEASE_SECONDS):
 
 def cleanup_old_jobs(conn, retention_days: int = PRINT_JOB_RETENTION_DAYS):
     """Erledigte/abgebrochene Auftraege aelter als retention_days entfernen."""
+    cutoff = _offset_str(days=-int(retention_days))
     cur = conn.execute(
         '''DELETE FROM print_jobs
             WHERE status IN ('done', 'expired')
               AND completed_at IS NOT NULL
-              AND completed_at < datetime('now', ?)''',
-        (f'-{int(retention_days)} days',),
+              AND completed_at < ?''',
+        (cutoff,),
     )
     conn.commit()
     return cur.rowcount
@@ -282,9 +295,9 @@ def lease_next_job(conn, agent_id: int, lease_seconds: int = PRINT_JOB_LEASE_SEC
         '''UPDATE print_jobs
               SET status = 'leased',
                   attempts = attempts + 1,
-                  lease_until = datetime('now', ?)
+                  lease_until = ?
             WHERE id = ? AND status = 'pending' AND agent_id = ?''',
-        (f'+{int(lease_seconds)} seconds', job_id, agent_id),
+        (_offset_str(seconds=int(lease_seconds)), job_id, agent_id),
     )
     if cur.rowcount == 0:
         conn.commit()
@@ -305,11 +318,11 @@ def mark_job_done(conn, agent_id: int, job_id: int):
     cur = conn.execute(
         '''UPDATE print_jobs
               SET status = 'done',
-                  completed_at = datetime('now'),
+                  completed_at = ?,
                   error_message = NULL,
                   lease_until = NULL
             WHERE id = ? AND agent_id = ?''',
-        (job_id, agent_id),
+        (_now_str(), job_id, agent_id),
     )
     conn.commit()
     return cur.rowcount > 0
@@ -336,11 +349,11 @@ def mark_job_error(
         conn.execute(
             '''UPDATE print_jobs
                   SET status = 'error',
-                      completed_at = datetime('now'),
+                      completed_at = ?,
                       error_message = ?,
                       lease_until = NULL
                 WHERE id = ? AND agent_id = ?''',
-            (error_message[:500] if error_message else None, job_id, agent_id),
+            (_now_str(), error_message[:500] if error_message else None, job_id, agent_id),
         )
     else:
         conn.execute(

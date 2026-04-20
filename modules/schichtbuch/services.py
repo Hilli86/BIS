@@ -4,7 +4,9 @@ Business-Logik für Schichtbuch-Funktionen
 """
 
 from utils import get_sichtbare_abteilungen_fuer_mitarbeiter
+from utils import db_errors
 from utils.abteilungen import get_mitarbeiter_abteilungen
+from utils.db_sql import local_now_str, upsert_ignore
 from utils.helpers import build_sichtbarkeits_filter_query
 
 
@@ -523,8 +525,6 @@ def update_thema_zusatz_gewerke(thema_id, gewerk_ids, conn):
         gewerk_ids: Liste von GewerkIDs (int)
         conn: Datenbankverbindung
     """
-    import sqlite3
-
     hauptgewerk_row = conn.execute(
         'SELECT GewerkID FROM SchichtbuchThema WHERE ID = ?',
         (thema_id,)
@@ -546,13 +546,15 @@ def update_thema_zusatz_gewerke(thema_id, gewerk_ids, conn):
         bereinigt.append(gid_int)
 
     conn.execute('DELETE FROM SchichtbuchThemaGewerk WHERE ThemaID = ?', (thema_id,))
+    sql_insert = upsert_ignore(
+        'SchichtbuchThemaGewerk',
+        ('ThemaID', 'GewerkID'),
+        ('ThemaID', 'GewerkID'),
+    )
     for gid in bereinigt:
         try:
-            conn.execute('''
-                INSERT OR IGNORE INTO SchichtbuchThemaGewerk (ThemaID, GewerkID)
-                VALUES (?, ?)
-            ''', (thema_id, gid))
-        except sqlite3.IntegrityError:
+            conn.execute(sql_insert, (thema_id, gid))
+        except db_errors.IntegrityError:
             pass
 
 
@@ -685,8 +687,7 @@ def create_thema(gewerk_id, status_id, mitarbeiter_id, taetigkeit_id, bemerkung,
     from datetime import datetime
     from utils.helpers import row_to_dict
     from utils.benachrichtigungen import erstelle_benachrichtigung_fuer_neues_thema, thema_sichtbare_abteilung_ids
-    import sqlite3
-    
+
     cur = conn.cursor()
     
     # Primärabteilung des Erstellers ermitteln
@@ -728,8 +729,8 @@ def create_thema(gewerk_id, status_id, mitarbeiter_id, taetigkeit_id, bemerkung,
     else:
         cur.execute('''
             INSERT INTO SchichtbuchBemerkungen (ThemaID, MitarbeiterID, Datum, TaetigkeitID, Bemerkung)
-            VALUES (?, ?, datetime('now', 'localtime'), ?, ?)
-        ''', (thema_id, mitarbeiter_id, taetigkeit_id, bemerkung))
+            VALUES (?, ?, ?, ?, ?)
+        ''', (thema_id, mitarbeiter_id, local_now_str(), taetigkeit_id, bemerkung))
     
     # Sichtbarkeiten speichern: Primärabteilung (ohne Unterabteilungen) + explizit gewählte IDs
     alle_sichtbarkeits_ids = set()
@@ -745,15 +746,15 @@ def create_thema(gewerk_id, status_id, mitarbeiter_id, taetigkeit_id, bemerkung,
             if aid is not None:
                 alle_sichtbarkeits_ids.add(int(aid))
     
-    # Sichtbarkeiten einfügen (INSERT OR IGNORE verhindert Duplikate)
+    sql_sicht_insert = upsert_ignore(
+        'SchichtbuchThemaSichtbarkeit',
+        ('ThemaID', 'AbteilungID'),
+        ('ThemaID', 'AbteilungID'),
+    )
     for abt_id in alle_sichtbarkeits_ids:
         try:
-            cur.execute('''
-                INSERT OR IGNORE INTO SchichtbuchThemaSichtbarkeit (ThemaID, AbteilungID)
-                VALUES (?, ?)
-            ''', (thema_id, abt_id))
-        except sqlite3.IntegrityError:
-            # Duplikat ignorieren
+            cur.execute(sql_sicht_insert, (thema_id, abt_id))
+        except db_errors.IntegrityError:
             pass
 
     # Benachrichtigungen nach persistierter Sichtbarkeit (IDs aus DB wie in check_thema_berechtigung)
@@ -1072,25 +1073,21 @@ def update_thema_sichtbarkeiten(thema_id, sichtbare_abteilungen, conn):
     Returns:
         Tuple (success: bool, message: str)
     """
-    import sqlite3
-    
     if not sichtbare_abteilungen:
         return False, 'Mindestens eine Abteilung muss ausgewählt sein.'
-    
+
     try:
-        # Alte Sichtbarkeiten löschen
         conn.execute('DELETE FROM SchichtbuchThemaSichtbarkeit WHERE ThemaID = ?', (thema_id,))
-        
-        # Neue Sichtbarkeiten einfügen
+
         for abt_id in sichtbare_abteilungen:
             try:
                 conn.execute('''
                     INSERT INTO SchichtbuchThemaSichtbarkeit (ThemaID, AbteilungID)
                     VALUES (?, ?)
                 ''', (thema_id, abt_id))
-            except sqlite3.IntegrityError:
-                pass  # Duplikat ignorieren
-        
+            except db_errors.IntegrityError:
+                pass
+
         conn.commit()
         return True, 'Sichtbarkeit erfolgreich aktualisiert.'
     except Exception as e:

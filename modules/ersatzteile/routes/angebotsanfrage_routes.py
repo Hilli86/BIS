@@ -8,6 +8,7 @@ import os
 from werkzeug.utils import secure_filename
 from .. import ersatzteile_bp
 from utils import get_db_connection, login_required, log_info, log_error, log_warning
+from utils.db_sql import local_now_str
 from utils.file_handling import (
     save_uploaded_file,
     create_upload_folder,
@@ -348,11 +349,10 @@ def angebotsanfrage_smart_add(ersatzteil_id):
                 ).fetchone()
                 abteilung_id = mitarbeiter['PrimaerAbteilungID'] if mitarbeiter else None
                 
-                # Neue Anfrage erstellen
                 cursor = conn.execute('''
                     INSERT INTO Angebotsanfrage (LieferantID, ErstelltVonID, ErstellerAbteilungID, Status, ErstelltAm)
-                    VALUES (?, ?, ?, 'Offen', datetime('now', 'localtime'))
-                ''', (lieferant_id, mitarbeiter_id, abteilung_id))
+                    VALUES (?, ?, ?, 'Offen', ?)
+                ''', (lieferant_id, mitarbeiter_id, abteilung_id, local_now_str()))
                 anfrage_id = cursor.lastrowid
                 
                 # Ersatzteil-Daten laden für Bestellnummer, Bezeichnung, Einheit und Link
@@ -436,11 +436,10 @@ def angebotsanfrage_neu():
                 ).fetchone()
                 abteilung_id = mitarbeiter['PrimaerAbteilungID'] if mitarbeiter else None
                 
-                # Angebotsanfrage erstellen
                 cursor = conn.execute('''
                     INSERT INTO Angebotsanfrage (LieferantID, ErstelltVonID, ErstellerAbteilungID, Status, Bemerkung, ErstelltAm)
-                    VALUES (?, ?, ?, 'Offen', ?, datetime('now', 'localtime'))
-                ''', (lieferant_id, mitarbeiter_id, abteilung_id, bemerkung))
+                    VALUES (?, ?, ?, 'Offen', ?, ?)
+                ''', (lieferant_id, mitarbeiter_id, abteilung_id, bemerkung, local_now_str()))
                 anfrage_id = cursor.lastrowid
                 
                 # Positionen hinzufügen
@@ -912,15 +911,14 @@ def angebotsanfrage_position_artikel_erstellen(angebotsanfrage_id, position_id):
                 if mitarbeiter:
                     stammabteilung_id = mitarbeiter['PrimaerAbteilungID']
             
-            # Neuen Artikel erstellen
             link = position['Link'] if 'Link' in position.keys() else None
             cursor = conn.execute('''
                 INSERT INTO Ersatzteil (
-                    Bestellnummer, Bezeichnung, Beschreibung, LieferantID, 
+                    Bestellnummer, Bezeichnung, Beschreibung, LieferantID,
                     AktuellerBestand, Mindestbestand, Einheit, ErstelltVonID, Aktiv, Gelöscht, Link, ErstelltAm
-                ) VALUES (?, ?, ?, ?, 0, 0, 'Stück', ?, 1, 0, ?, datetime('now', 'localtime'))
-            ''', (position['Bestellnummer'], position['Bezeichnung'], position['Bemerkung'], 
-                  anfrage['LieferantID'], mitarbeiter_id, link))
+                ) VALUES (?, ?, ?, ?, 0, 0, 'Stück', ?, 1, 0, ?, ?)
+            ''', (position['Bestellnummer'], position['Bezeichnung'], position['Bemerkung'],
+                  anfrage['LieferantID'], mitarbeiter_id, link, local_now_str()))
             
             neuer_artikel_id = cursor.lastrowid
             

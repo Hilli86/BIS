@@ -8,6 +8,7 @@ import os
 from werkzeug.utils import secure_filename
 from .. import ersatzteile_bp
 from utils import get_db_connection, login_required, permission_required, get_sichtbare_abteilungen_fuer_mitarbeiter, ist_admin
+from utils.db_sql import local_now_str
 from utils.file_handling import (
     save_uploaded_file,
     validate_file_extension,
@@ -435,11 +436,10 @@ def bestellung_neu():
                 ).fetchone()
                 abteilung_id = mitarbeiter['PrimaerAbteilungID'] if mitarbeiter else None
                 
-                # Bestellung erstellen
                 cursor = conn.execute('''
                     INSERT INTO Bestellung (LieferantID, ErstelltVonID, ErstellerAbteilungID, Status, Bemerkung, Prioritaet, ErstelltAm)
-                    VALUES (?, ?, ?, 'Erstellt', ?, ?, datetime('now', 'localtime'))
-                ''', (lieferant_id, mitarbeiter_id, abteilung_id, bemerkung, prioritaet))
+                    VALUES (?, ?, ?, 'Erstellt', ?, ?, ?)
+                ''', (lieferant_id, mitarbeiter_id, abteilung_id, bemerkung, prioritaet, local_now_str()))
                 bestellung_id = cursor.lastrowid
                 
                 # Positionen hinzufügen
@@ -675,11 +675,10 @@ def bestellung_aus_angebot(angebotsanfrage_id):
                 ).fetchone()
                 abteilung_id = mitarbeiter['PrimaerAbteilungID'] if mitarbeiter else None
                 
-                # Bestellung erstellen
                 cursor = conn.execute('''
                     INSERT INTO Bestellung (AngebotsanfrageID, LieferantID, ErstelltVonID, ErstellerAbteilungID, Status, Bemerkung, Prioritaet, ErstelltAm)
-                    VALUES (?, ?, ?, ?, 'Erstellt', ?, ?, datetime('now', 'localtime'))
-                ''', (angebotsanfrage_id, anfrage['LieferantID'], mitarbeiter_id, abteilung_id, bemerkung, prioritaet))
+                    VALUES (?, ?, ?, ?, 'Erstellt', ?, ?, ?)
+                ''', (angebotsanfrage_id, anfrage['LieferantID'], mitarbeiter_id, abteilung_id, bemerkung, prioritaet, local_now_str()))
                 bestellung_id = cursor.lastrowid
                 
                 # Ausgewählte Positionen hinzufügen
@@ -926,12 +925,11 @@ def bestellung_freigeben(bestellung_id):
             flash('Bestellung kann nur im Status "Zur Freigabe" freigegeben werden.', 'danger')
             return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
         
-        # Unterschrift und Freigabe speichern
         conn.execute('''
-            UPDATE Bestellung 
-            SET Status = ?, FreigegebenAm = datetime('now', 'localtime'), FreigegebenVonID = ?, Unterschrift = ?
+            UPDATE Bestellung
+            SET Status = ?, FreigegebenAm = ?, FreigegebenVonID = ?, Unterschrift = ?
             WHERE ID = ?
-        ''', ('Freigegeben', mitarbeiter_id, unterschrift, bestellung_id))
+        ''', ('Freigegeben', local_now_str(), mitarbeiter_id, unterschrift, bestellung_id))
         conn.commit()
         
         # Alle bestehenden Benachrichtigungen für diese Bestellung löschen (egal ob gelesen oder nicht)
@@ -972,10 +970,10 @@ def bestellung_als_bestellt(bestellung_id):
             return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
         
         conn.execute('''
-            UPDATE Bestellung 
-            SET Status = ?, BestelltAm = datetime('now', 'localtime'), BestelltVonID = ?
+            UPDATE Bestellung
+            SET Status = ?, BestelltAm = ?, BestelltVonID = ?
             WHERE ID = ?
-        ''', ('Bestellt', mitarbeiter_id, bestellung_id))
+        ''', ('Bestellt', local_now_str(), mitarbeiter_id, bestellung_id))
         conn.commit()
         
         # Alle bestehenden Benachrichtigungen für diese Bestellung löschen (egal ob gelesen oder nicht)
@@ -1216,9 +1214,9 @@ def bestellung_smart_add(ersatzteil_id):
             cursor = conn.execute(
                 '''
                 INSERT INTO Bestellung (LieferantID, ErstelltVonID, ErstellerAbteilungID, Status, Bemerkung, Prioritaet, ErstelltAm)
-                VALUES (?, ?, ?, 'Erstellt', ?, ?, datetime('now', 'localtime'))
+                VALUES (?, ?, ?, 'Erstellt', ?, ?, ?)
                 ''',
-                (lieferant_id, mitarbeiter_id, abteilung_id, '', 3),
+                (lieferant_id, mitarbeiter_id, abteilung_id, '', 3, local_now_str()),
             )
             bestellung_id = cursor.lastrowid
 
@@ -1529,7 +1527,7 @@ def bestellung_position_artikel_erstellen(bestellung_id, position_id):
                     Link,
                     ErstelltAm
                 )
-                VALUES (?, ?, ?, ?, ?, ?, 0, 0, 'Stück', ?, 1, 0, ?, datetime('now', 'localtime'))
+                VALUES (?, ?, ?, ?, ?, ?, 0, 0, 'Stück', ?, 1, 0, ?, ?)
                 ''',
                 (
                     position['Bestellnummer'],
@@ -1540,6 +1538,7 @@ def bestellung_position_artikel_erstellen(bestellung_id, position_id):
                     waehrung,
                     mitarbeiter_id,
                     link,
+                    local_now_str(),
                 ),
             )
 

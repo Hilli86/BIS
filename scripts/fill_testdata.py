@@ -1,17 +1,34 @@
 """
-Testdaten-Generator für BIS
-Füllt alle Tabellen mit realistischen Beispieldaten für Tests.
+Testdaten-Generator fuer BIS.
 
-Aufruf: py fill_testdata.py
+Fuellt alle Tabellen mit realistischen Beispieldaten fuer Tests. Seit Phase 4
+der SA-Migration laeuft die Verbindung ueber die zentrale SA-Fassade:
+DATABASE_URL (Standard: ``database_main.db``) wird normalisiert, eine
+SQLAlchemy-Engine erstellt und dann eine DBAPI-kompatible Verbindung
+abgegriffen. Fuer Default-SQLite aendert sich faktisch nichts.
+
+Hinweis: Die vielen ``INSERT OR IGNORE``-Statements sind bewusst
+SQLite-spezifisch und nur zum lokalen Befuellen einer SQLite-Datei gedacht.
+Fuer Postgres-Befuellung ist ein separater Seed-Pfad (z. B. pgloader oder
+ein dediziertes Skript) vorgesehen.
+
+Aufruf aus dem Projektroot: ``py scripts/fill_testdata.py``
 """
 
-import sqlite3
 import os
 import random
+import sys
 from datetime import datetime, timedelta
-from werkzeug.security import generate_password_hash
 
-DB_PATH = 'database_main.db'
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(_SCRIPT_DIR)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from sqlalchemy import create_engine  # noqa: E402
+from werkzeug.security import generate_password_hash  # noqa: E402
+
+from utils.database import normalize_db_url  # noqa: E402
 
 # Beispieldaten
 VORNAMEN = ['Max', 'Anna', 'Thomas', 'Maria', 'Peter', 'Lisa', 'Michael', 'Sabine', 'Andreas', 'Julia',
@@ -542,13 +559,26 @@ def main():
     print("=" * 70)
     print()
     
-    if not os.path.exists(DB_PATH):
-        print(f"[FEHLER] Datenbank '{DB_PATH}' nicht gefunden!")
-        print("Bitte führen Sie zuerst 'py init_database.py' aus.")
-        return
-    
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    db_url = normalize_db_url(os.environ.get('DATABASE_URL') or 'database_main.db')
+    if db_url.startswith('sqlite:///'):
+        sqlite_path = db_url[len('sqlite:///'):]
+        if not os.path.exists(sqlite_path):
+            print(f"[FEHLER] Datenbank '{sqlite_path}' nicht gefunden!")
+            print("Bitte fuehren Sie zuerst 'py scripts/init_database.py' aus.")
+            return
+
+    import sqlite3 as _sqlite3
+
+    from sqlalchemy import event
+
+    engine = create_engine(db_url, future=True, pool_pre_ping=True)
+
+    @event.listens_for(engine, 'connect')
+    def _on_connect(dbapi_conn, _record):  # pragma: no cover - trivial setup
+        if isinstance(dbapi_conn, _sqlite3.Connection):
+            dbapi_conn.row_factory = _sqlite3.Row
+
+    conn = engine.raw_connection()
     
     try:
         # Abteilungen
@@ -633,6 +663,7 @@ def main():
         conn.rollback()
     finally:
         conn.close()
+        engine.dispose()
 
 
 if __name__ == '__main__':

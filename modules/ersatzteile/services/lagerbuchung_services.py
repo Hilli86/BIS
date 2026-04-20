@@ -3,6 +3,8 @@ Lagerbuchung Services
 Business-Logik für Lagerbuchungen
 """
 
+from utils.db_sql import local_now_str
+
 
 def validate_lagerbuchung(ersatzteil_id, typ, menge, aktueller_bestand, conn):
     """
@@ -86,15 +88,15 @@ def create_lagerbuchung(ersatzteil_id, typ, menge, grund, mitarbeiter_id, conn,
     if not is_valid:
         return False, error_message, None
     
-    # Lagerbuchung erstellen
     conn.execute('''
         INSERT INTO Lagerbuchung (
             ErsatzteilID, Typ, Menge, Grund, ThemaID, KostenstelleID,
             WartungsdurchfuehrungID, VerwendetVonID, Bemerkung, Preis, Waehrung, Buchungsdatum
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         ersatzteil_id, typ, buchungsmenge, grund, thema_id, kostenstelle_id,
-        wartungsdurchfuehrung_id, mitarbeiter_id, bemerkung, artikel_preis, artikel_waehrung
+        wartungsdurchfuehrung_id, mitarbeiter_id, bemerkung, artikel_preis, artikel_waehrung,
+        local_now_str()
     ))
     
     # Bestand aktualisieren
@@ -141,10 +143,11 @@ def create_inventur_buchung(ersatzteil_id, neuer_bestand, mitarbeiter_id, conn, 
         INSERT INTO Lagerbuchung (
             ErsatzteilID, Typ, Menge, Grund, ThemaID, KostenstelleID,
             VerwendetVonID, Bemerkung, Preis, Waehrung, Buchungsdatum
-        ) VALUES (?, 'Inventur', ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
+        ) VALUES (?, 'Inventur', ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         ersatzteil_id, neuer_bestand, 'Inventur aus Inventurliste', None, None,
-        mitarbeiter_id, inventur_bemerkung, artikel_preis, artikel_waehrung
+        mitarbeiter_id, inventur_bemerkung, artikel_preis, artikel_waehrung,
+        local_now_str()
     ))
     
     # Bestand aktualisieren

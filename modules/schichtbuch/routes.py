@@ -5,10 +5,11 @@ Schichtbuch Routes - Themenliste, Details, Bemerkungen
 from flask import render_template, request, redirect, url_for, session, jsonify, flash, send_from_directory, current_app, Response, make_response
 from datetime import datetime
 import os
-import sqlite3
 from werkzeug.utils import secure_filename
 from . import schichtbuch_bp
 from utils import get_db_connection, login_required, get_sichtbare_abteilungen_fuer_mitarbeiter
+from utils import db_errors
+from utils.db_sql import local_now_str, upsert_ignore
 from utils.helpers import build_sichtbarkeits_filter_query, row_to_dict
 from utils.reports import generate_thema_pdf
 from . import services
@@ -219,8 +220,8 @@ def add_bemerkung():
         # Neue Bemerkung speichern
         cursor.execute("""
             INSERT INTO SchichtbuchBemerkungen (ThemaID, MitarbeiterID, Bemerkung, Datum, TaetigkeitID)
-            VALUES (?, ?, ?, datetime('now', 'localtime'), ?)
-            """, (thema_id, mitarbeiter_id, bemerkung_text, taetigkeit_id))
+            VALUES (?, ?, ?, ?, ?)
+            """, (thema_id, mitarbeiter_id, bemerkung_text, local_now_str(), taetigkeit_id))
         
         bemerkung_id = cursor.lastrowid
         
@@ -515,8 +516,8 @@ def thema_detail(thema_id):
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO SchichtbuchBemerkungen (ThemaID, MitarbeiterID, Datum, TaetigkeitID, Bemerkung)
-                VALUES (?, ?, datetime('now', 'localtime'), ?, ?)
-            ''', (thema_id, mitarbeiter_id, taetigkeit_id, bemerkung))
+                VALUES (?, ?, ?, ?, ?)
+            ''', (thema_id, mitarbeiter_id, local_now_str(), taetigkeit_id, bemerkung))
             
             bemerkung_id = cursor.lastrowid
             
@@ -701,18 +702,19 @@ def thema_bearbeiten(thema_id):
                     'DELETE FROM SchichtbuchThemaSichtbarkeit WHERE ThemaID = ?',
                     (thema_id,),
                 )
+                sql_sicht_insert = upsert_ignore(
+                    'SchichtbuchThemaSichtbarkeit',
+                    ('ThemaID', 'AbteilungID'),
+                    ('ThemaID', 'AbteilungID'),
+                )
                 for abt_id_raw in sichtbare_abteilungen:
                     try:
                         abt_id = int(abt_id_raw)
                     except (TypeError, ValueError):
                         continue
                     try:
-                        conn.execute(
-                            '''INSERT OR IGNORE INTO SchichtbuchThemaSichtbarkeit (ThemaID, AbteilungID)
-                               VALUES (?, ?)''',
-                            (thema_id, abt_id),
-                        )
-                    except sqlite3.IntegrityError:
+                        conn.execute(sql_sicht_insert, (thema_id, abt_id))
+                    except db_errors.IntegrityError:
                         pass
 
                 conn.commit()

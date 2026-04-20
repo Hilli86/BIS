@@ -8,6 +8,7 @@ from utils.abteilungen import (
     get_mitarbeiter_abteilungen,
     get_sichtbare_abteilungen_fuer_mitarbeiter,
 )
+from utils.db_sql import local_now_str, month_expr, upsert_ignore
 
 INTERVALL_EINHEITEN = ('Tag', 'Woche', 'Monat')
 ERINNERUNG_TAGE_VOR_MAX = 365
@@ -439,25 +440,36 @@ def list_wartungen_fuer_gewerk_sichtbar(conn, gewerk_id, mitarbeiter_id, is_admi
     ''', (gewerk_id,) + tuple(_wartung_sichtbar_params(mitarbeiter_id, sichtbare))).fetchall()
 
 
+def _jahr_bounds(jahr):
+    """Liefert (von, bis_exklusiv) als ``'YYYY-MM-DD HH:MM:SS'``-Strings.
+
+    Dialekt-neutraler Ersatz fuer ``strftime('%Y', col) = ?``: passt sowohl
+    fuer SQLite-TEXT als auch fuer PostgreSQL-TIMESTAMP-Spalten.
+    """
+    j = int(jahr)
+    return (f'{j:04d}-01-01 00:00:00', f'{j + 1:04d}-01-01 00:00:00')
+
+
 def list_durchfuehrungen_fuer_gewerk_jahr(conn, gewerk_id, jahr, mitarbeiter_id, is_admin):
     """
     Alle Wartungsdurchführungen im Gewerk für ein Kalenderjahr (sichtbare Wartungen).
-    Monat 1–12 als Integer-Spalte Monat.
+    Monat 1-12 als Integer-Spalte Monat.
     """
-    jahr_str = str(int(jahr))
+    jahr_von, jahr_bis = _jahr_bounds(jahr)
+    monat_sql = month_expr('d.DurchgefuehrtAm')
     if is_admin:
-        return conn.execute('''
+        return conn.execute(f'''
             SELECT d.ID, d.DurchgefuehrtAm, d.Bemerkung,
                    w.ID AS WartungID, w.Bezeichnung AS WartungBez,
                    p.ID AS PlanID, p.IntervallEinheit, p.IntervallAnzahl,
-                   CAST(strftime('%m', d.DurchgefuehrtAm) AS INTEGER) AS Monat
+                   {monat_sql} AS Monat
             FROM Wartungsdurchfuehrung d
             JOIN Wartungsplan p ON d.WartungsplanID = p.ID
             JOIN Wartung w ON p.WartungID = w.ID
             JOIN Gewerke g ON w.GewerkID = g.ID
-            WHERE g.ID = ? AND strftime('%Y', d.DurchgefuehrtAm) = ?
+            WHERE g.ID = ? AND d.DurchgefuehrtAm >= ? AND d.DurchgefuehrtAm < ?
             ORDER BY w.Bezeichnung, d.DurchgefuehrtAm, d.ID
-        ''', (gewerk_id, jahr_str)).fetchall()
+        ''', (gewerk_id, jahr_von, jahr_bis)).fetchall()
     sichtbare = get_mitarbeiter_abteilungen(mitarbeiter_id, conn)
     if not sichtbare:
         return []
@@ -466,12 +478,12 @@ def list_durchfuehrungen_fuer_gewerk_jahr(conn, gewerk_id, jahr, mitarbeiter_id,
         SELECT d.ID, d.DurchgefuehrtAm, d.Bemerkung,
                w.ID AS WartungID, w.Bezeichnung AS WartungBez,
                p.ID AS PlanID, p.IntervallEinheit, p.IntervallAnzahl,
-               CAST(strftime('%m', d.DurchgefuehrtAm) AS INTEGER) AS Monat
+               {monat_sql} AS Monat
         FROM Wartungsdurchfuehrung d
         JOIN Wartungsplan p ON d.WartungsplanID = p.ID
         JOIN Wartung w ON p.WartungID = w.ID
         JOIN Gewerke g ON w.GewerkID = g.ID
-        WHERE g.ID = ? AND strftime('%Y', d.DurchgefuehrtAm) = ?
+        WHERE g.ID = ? AND d.DurchgefuehrtAm >= ? AND d.DurchgefuehrtAm < ?
           AND w.Aktiv = 1 AND (
             w.ErstelltVonID = ?
             OR w.ID IN (
@@ -480,7 +492,7 @@ def list_durchfuehrungen_fuer_gewerk_jahr(conn, gewerk_id, jahr, mitarbeiter_id,
             )
         )
         ORDER BY w.Bezeichnung, d.DurchgefuehrtAm, d.ID
-    ''', (gewerk_id, jahr_str) + tuple(_wartung_sichtbar_params(mitarbeiter_id, sichtbare))).fetchall()
+    ''', (gewerk_id, jahr_von, jahr_bis) + tuple(_wartung_sichtbar_params(mitarbeiter_id, sichtbare))).fetchall()
 
 
 def list_wartungen_jahresuebersicht(
@@ -531,7 +543,8 @@ def list_durchfuehrungen_jahresuebersicht(
     conn, jahr, mitarbeiter_id, is_admin, bereich_id=None, gewerk_id=None, abteilung_id=None,
 ):
     """Durchführungen eines Jahres, gefiltert wie die Wartungsmatrix (Bereich/Gewerk optional)."""
-    jahr_str = str(int(jahr))
+    jahr_von, jahr_bis = _jahr_bounds(jahr)
+    monat_sql = month_expr('d.DurchgefuehrtAm')
     extra = []
     params_tail = []
     if bereich_id is not None:
@@ -548,15 +561,15 @@ def list_durchfuehrungen_jahresuebersicht(
             SELECT d.ID, d.DurchgefuehrtAm, d.Bemerkung,
                    w.ID AS WartungID, w.Bezeichnung AS WartungBez,
                    p.ID AS PlanID, p.IntervallEinheit, p.IntervallAnzahl,
-                   CAST(strftime('%m', d.DurchgefuehrtAm) AS INTEGER) AS Monat
+                   {monat_sql} AS Monat
             FROM Wartungsdurchfuehrung d
             JOIN Wartungsplan p ON d.WartungsplanID = p.ID
             JOIN Wartung w ON p.WartungID = w.ID
             JOIN Gewerke g ON w.GewerkID = g.ID
             JOIN Bereich b ON g.BereichID = b.ID
-            WHERE strftime('%Y', d.DurchgefuehrtAm) = ?{extra_sql}{abt_sql}
+            WHERE d.DurchgefuehrtAm >= ? AND d.DurchgefuehrtAm < ?{extra_sql}{abt_sql}
             ORDER BY b.Bezeichnung, g.Bezeichnung, w.Bezeichnung, d.DurchgefuehrtAm, d.ID
-        ''', (jahr_str,) + tuple(params_tail) + tuple(abt_params)).fetchall()
+        ''', (jahr_von, jahr_bis) + tuple(params_tail) + tuple(abt_params)).fetchall()
     sichtbare = get_mitarbeiter_abteilungen(mitarbeiter_id, conn)
     if not sichtbare:
         return []
@@ -565,13 +578,13 @@ def list_durchfuehrungen_jahresuebersicht(
         SELECT d.ID, d.DurchgefuehrtAm, d.Bemerkung,
                w.ID AS WartungID, w.Bezeichnung AS WartungBez,
                p.ID AS PlanID, p.IntervallEinheit, p.IntervallAnzahl,
-               CAST(strftime('%m', d.DurchgefuehrtAm) AS INTEGER) AS Monat
+               {monat_sql} AS Monat
         FROM Wartungsdurchfuehrung d
         JOIN Wartungsplan p ON d.WartungsplanID = p.ID
         JOIN Wartung w ON p.WartungID = w.ID
         JOIN Gewerke g ON w.GewerkID = g.ID
         JOIN Bereich b ON g.BereichID = b.ID
-        WHERE strftime('%Y', d.DurchgefuehrtAm) = ?{extra_sql}
+        WHERE d.DurchgefuehrtAm >= ? AND d.DurchgefuehrtAm < ?{extra_sql}
           AND w.Aktiv = 1 AND (
             w.ErstelltVonID = ?
             OR w.ID IN (
@@ -580,7 +593,7 @@ def list_durchfuehrungen_jahresuebersicht(
             )
           ){abt_sql}
         ORDER BY b.Bezeichnung, g.Bezeichnung, w.Bezeichnung, d.DurchgefuehrtAm, d.ID
-    ''', (jahr_str,) + tuple(params_tail) + tuple(_wartung_sichtbar_params(mitarbeiter_id, sichtbare)) + tuple(abt_params)).fetchall()
+    ''', (jahr_von, jahr_bis) + tuple(params_tail) + tuple(_wartung_sichtbar_params(mitarbeiter_id, sichtbare)) + tuple(abt_params)).fetchall()
 
 
 _CHRONO_SORT_SQL_COL = {
@@ -723,7 +736,7 @@ def update_wartung(conn, wartung_id, gewerk_id, bezeichnung, beschreibung, aktiv
     conn.execute(
         '''UPDATE Wartung SET GewerkID = ?, Bezeichnung = ?, Beschreibung = ?,
            DokuSharepointOrdnerUrl = ?, Aktiv = ?,
-           GeaendertAm = datetime('now', 'localtime')
+           GeaendertAm = ?
            WHERE ID = ?''',
         (
             gewerk_id,
@@ -731,6 +744,7 @@ def update_wartung(conn, wartung_id, gewerk_id, bezeichnung, beschreibung, aktiv
             (beschreibung or '').strip() or None,
             doku,
             1 if aktiv else 0,
+            local_now_str(),
             wartung_id,
         ),
     )
@@ -1165,12 +1179,13 @@ def insert_wartungsdurchfuehrung(conn, plan_id, durchgefuehrt_am, bemerkung, tei
         (plan_id, durchgefuehrt_am, (bemerkung or '').strip() or None, protokollierer_id),
     )
     df_id = cur.lastrowid
+    sql_teiln_ma = upsert_ignore(
+        'WartungsdurchfuehrungMitarbeiter',
+        ('WartungsdurchfuehrungID', 'MitarbeiterID'),
+        ('WartungsdurchfuehrungID', 'MitarbeiterID'),
+    )
     for mid in teilnehmer['mitarbeiter_ids']:
-        conn.execute(
-            '''INSERT OR IGNORE INTO WartungsdurchfuehrungMitarbeiter
-               (WartungsdurchfuehrungID, MitarbeiterID) VALUES (?, ?)''',
-            (df_id, mid),
-        )
+        conn.execute(sql_teiln_ma, (df_id, mid))
     for z in teilnehmer['fremdfirma_zeilen']:
         conn.execute(
             '''INSERT INTO WartungsdurchfuehrungFremdfirma

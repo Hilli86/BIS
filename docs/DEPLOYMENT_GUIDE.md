@@ -14,6 +14,12 @@ Vollständige Anleitung zur Einrichtung eines produktiven Servers für das Betri
 9. [Monitoring und Logs](#9-monitoring-und-logs)
 10. [Wartung und Updates](#10-wartung-und-updates)
 
+> **Hinweis (Phase 5):** BIS l�uft standardm��ig gegen SQLite, unterst�tzt aber
+> auch **PostgreSQL** ohne Codeanpassung. Alle Postgres-spezifischen Themen
+> (Docker-Compose-Snippet, Datenumzug via `scripts/migrate_sqlite_to_postgres.py`
+> bzw. `pgloader`, `pg_dump`-Backups) sind in
+> [POSTGRES_DEPLOYMENT.md](POSTGRES_DEPLOYMENT.md) zusammengefasst.
+
 ---
 
 ## 1. LXC-Container erstellen

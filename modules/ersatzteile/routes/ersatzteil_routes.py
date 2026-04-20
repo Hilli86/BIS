@@ -14,6 +14,7 @@ from werkzeug.utils import secure_filename
 from PIL import Image
 from .. import ersatzteile_bp
 from utils import get_db_connection, login_required, get_sichtbare_abteilungen_fuer_mitarbeiter
+from utils.db_sql import local_now_str
 from utils.helpers import build_ersatzteil_zugriff_filter, row_to_dict
 from utils.file_handling import (
     save_uploaded_file,
@@ -454,17 +455,17 @@ def ersatzteil_neu():
                         flash('Nachfolgeartikel nicht gefunden.', 'danger')
                         return redirect(url_for('ersatzteile.ersatzteil_neu'))
                 
-                # Ersatzteil anlegen
                 cursor.execute('''
                     INSERT INTO Ersatzteil (
                         Bestellnummer, Bezeichnung, Beschreibung, KategorieID, Hersteller,
                         LieferantID, Preis, Waehrung, LagerortID, LagerplatzID, Mindestbestand,
                         AktuellerBestand, Einheit, ErstelltVonID, EndOfLife, NachfolgeartikelID,
                         Kennzeichen, ArtikelnummerHersteller, Link, ErstelltAm
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (bestellnummer, bezeichnung, beschreibung, kategorie_id, hersteller,
-                      lieferant_id, preis, waehrung, lagerort_id, lagerplatz_id, mindestbestand, 
-                      einheit, mitarbeiter_id, end_of_life, nachfolgeartikel_id, kennzeichen, artikelnummer_hersteller, link))
+                      lieferant_id, preis, waehrung, lagerort_id, lagerplatz_id, mindestbestand,
+                      einheit, mitarbeiter_id, end_of_life, nachfolgeartikel_id, kennzeichen, artikelnummer_hersteller, link,
+                      local_now_str()))
                 
                 ersatzteil_id = cursor.lastrowid
                 

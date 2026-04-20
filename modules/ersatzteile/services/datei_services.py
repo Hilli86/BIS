@@ -5,6 +5,8 @@ Datei-Services - Einheitliche Dateiverwaltung für alle Bereiche
 from datetime import datetime
 import os
 
+from utils.db_sql import local_now_str
+
 
 def get_dateien_fuer_bereich(bereich_typ, bereich_id, conn):
     """
@@ -58,9 +60,9 @@ def speichere_datei(bereich_typ, bereich_id, dateiname, dateipfad, beschreibung,
     """
     cursor = conn.execute('''
         INSERT INTO Datei (BereichTyp, BereichID, Dateiname, Dateipfad, Beschreibung, Typ, ErstelltVonID, ErstelltAm)
-        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
-    ''', (bereich_typ, bereich_id, dateiname, dateipfad, beschreibung or '', typ or None, mitarbeiter_id))
-    
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (bereich_typ, bereich_id, dateiname, dateipfad, beschreibung or '', typ or None, mitarbeiter_id, local_now_str()))
+
     return cursor.lastrowid
 
 

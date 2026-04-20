@@ -3,7 +3,9 @@ Aufgabenlisten: Sichtbarkeit, Stammdaten, Themen-Zuordnung (Schichtbuch).
 """
 
 from utils import get_sichtbare_abteilungen_fuer_mitarbeiter
+from utils import db_errors
 from utils.berechtigungen import hat_berechtigung
+from utils.db_sql import upsert_ignore
 
 from . import services as schichtbuch_services
 
@@ -154,8 +156,6 @@ def link_thema_zu_aufgabenlisten(thema_id, mitarbeiter_id, aufgabenliste_ids, co
     """
     Fügt Thema zu Listen hinzu (nach Thema-Erstellung). Prüft je Liste Zuordnungsrecht und Sichtbarkeit.
     """
-    import sqlite3
-
     for lid_raw in aufgabenliste_ids or []:
         try:
             lid = int(lid_raw)
@@ -176,7 +176,7 @@ def link_thema_zu_aufgabenlisten(thema_id, mitarbeiter_id, aufgabenliste_ids, co
                    VALUES (?, ?, ?, ?)''',
                 (lid, thema_id, max_sort + 1, mitarbeiter_id),
             )
-        except sqlite3.IntegrityError:
+        except db_errors.IntegrityError:
             pass
 
 
@@ -215,8 +215,6 @@ def set_thema_aufgabenlisten(thema_id, mitarbeiter_id, gewaehlte_liste_ids, conn
     Synchronisiert Zuordnungen: gewaehlte_liste_ids = gewünschte Menge sichtbarer Listen.
     Nur Listen, die der Nutzer bearbeiten darf, werden geändert.
     """
-    import sqlite3
-
     gewaehlt = set()
     for x in gewaehlte_liste_ids or []:
         try:
@@ -259,7 +257,7 @@ def set_thema_aufgabenlisten(thema_id, mitarbeiter_id, gewaehlte_liste_ids, conn
                    VALUES (?, ?, ?, ?)''',
                 (lid, thema_id, max_sort + 1, mitarbeiter_id),
             )
-        except sqlite3.IntegrityError:
+        except db_errors.IntegrityError:
             pass
 
     for lid in to_remove:
@@ -280,24 +278,26 @@ def create_aufgabenliste(bezeichnung, beschreibung, ersteller_id, abteilung_ids,
         ((bezeichnung or '').strip(), (beschreibung or '').strip() or None, ersteller_id),
     )
     lid = cur.lastrowid
+    sql_sicht_abt = upsert_ignore(
+        'AufgabenlisteSichtbarkeitAbteilung',
+        ('AufgabenlisteID', 'AbteilungID'),
+        ('AufgabenlisteID', 'AbteilungID'),
+    )
+    sql_sicht_ma = upsert_ignore(
+        'AufgabenlisteSichtbarkeitMitarbeiter',
+        ('AufgabenlisteID', 'MitarbeiterID'),
+        ('AufgabenlisteID', 'MitarbeiterID'),
+    )
     for abt in abteilung_ids or []:
         try:
             aid = int(abt)
-            cur.execute(
-                '''INSERT OR IGNORE INTO AufgabenlisteSichtbarkeitAbteilung (AufgabenlisteID, AbteilungID)
-                   VALUES (?, ?)''',
-                (lid, aid),
-            )
+            cur.execute(sql_sicht_abt, (lid, aid))
         except (TypeError, ValueError):
             pass
     for mid in mitarbeiter_ids or []:
         try:
             mx = int(mid)
-            cur.execute(
-                '''INSERT OR IGNORE INTO AufgabenlisteSichtbarkeitMitarbeiter (AufgabenlisteID, MitarbeiterID)
-                   VALUES (?, ?)''',
-                (lid, mx),
-            )
+            cur.execute(sql_sicht_ma, (lid, mx))
         except (TypeError, ValueError):
             pass
     return lid
@@ -334,22 +334,27 @@ def update_aufgabenliste_stammdaten(
         'DELETE FROM AufgabenlisteSichtbarkeitMitarbeiter WHERE AufgabenlisteID = ?',
         (aufgabenliste_id,),
     )
+    sql_sicht_abt = upsert_ignore(
+        'AufgabenlisteSichtbarkeitAbteilung',
+        ('AufgabenlisteID', 'AbteilungID'),
+        ('AufgabenlisteID', 'AbteilungID'),
+    )
+    sql_sicht_ma = upsert_ignore(
+        'AufgabenlisteSichtbarkeitMitarbeiter',
+        ('AufgabenlisteID', 'MitarbeiterID'),
+        ('AufgabenlisteID', 'MitarbeiterID'),
+    )
     for abt in abteilung_ids or []:
         try:
             aid = int(abt)
-            conn.execute(
-                '''INSERT OR IGNORE INTO AufgabenlisteSichtbarkeitAbteilung (AufgabenlisteID, AbteilungID)
-                   VALUES (?, ?)''',
-                (aufgabenliste_id, aid),
-            )
+            conn.execute(sql_sicht_abt, (aufgabenliste_id, aid))
         except (TypeError, ValueError):
             pass
     for mid in mitarbeiter_ids or []:
         try:
             mx = int(mid)
             conn.execute(
-                '''INSERT OR IGNORE INTO AufgabenlisteSichtbarkeitMitarbeiter (AufgabenlisteID, MitarbeiterID)
-                   VALUES (?, ?)''',
+                sql_sicht_ma,
                 (aufgabenliste_id, mx),
             )
         except (TypeError, ValueError):
@@ -454,8 +459,6 @@ def remove_thema_from_aufgabenliste(aufgabenliste_id, thema_id, mitarbeiter_id, 
 
 def add_thema_to_aufgabenliste(aufgabenliste_id, thema_id, mitarbeiter_id, conn, is_admin=False):
     """Thema zur Liste hinzufügen (nicht gelöscht, noch nicht zugeordnet)."""
-    import sqlite3
-
     if not mitarbeiter_sieht_aufgabenliste(mitarbeiter_id, aufgabenliste_id, conn, is_admin=is_admin):
         return False, 'Keine Berechtigung für diese Liste.'
     if not darf_themen_zu_aufgabenliste_zuordnen(mitarbeiter_id, aufgabenliste_id, conn, is_admin=is_admin):
@@ -483,7 +486,7 @@ def add_thema_to_aufgabenliste(aufgabenliste_id, thema_id, mitarbeiter_id, conn,
                VALUES (?, ?, ?, ?)''',
             (aufgabenliste_id, thema_id, max_sort + 1, mitarbeiter_id),
         )
-    except sqlite3.IntegrityError:
+    except db_errors.IntegrityError:
         return False, 'Thema ist bereits zugeordnet.'
     return True, 'Thema hinzugefügt.'
 
@@ -559,8 +562,6 @@ def duplicate_aufgabenliste(source_id, mitarbeiter_id, conn, mit_themen=False):
             'SELECT ThemaID, Sortierung FROM AufgabenlisteThema WHERE AufgabenlisteID = ? ORDER BY Sortierung',
             (source_id,),
         ).fetchall()
-        import sqlite3
-
         for r in rows:
             try:
                 conn.execute(
@@ -569,7 +570,7 @@ def duplicate_aufgabenliste(source_id, mitarbeiter_id, conn, mit_themen=False):
                        VALUES (?, ?, ?, ?)''',
                     (new_id, r['ThemaID'], r['Sortierung'], mitarbeiter_id),
                 )
-            except sqlite3.IntegrityError:
+            except db_errors.IntegrityError:
                 pass
     return new_id
 

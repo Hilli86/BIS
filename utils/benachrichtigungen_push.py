@@ -5,6 +5,7 @@ Web Push API Integration
 
 from flask import current_app
 from utils import get_db_connection
+from utils.db_sql import upsert_replace
 import json
 
 
@@ -113,15 +114,15 @@ def speichere_push_subscription(mitarbeiter_id, subscription, conn=None):
     
     try:
         subscription_json = json.dumps(subscription)
-        
-        # Aktualisiere oder erstelle Kanal
-        conn.execute('''
-            INSERT OR REPLACE INTO BenachrichtigungKanal (
-                MitarbeiterID, KanalTyp, Aktiv, Konfiguration
-            )
-            VALUES (?, 'push', 1, ?)
-        ''', (mitarbeiter_id, subscription_json))
-        
+
+        sql = upsert_replace(
+            'BenachrichtigungKanal',
+            ('MitarbeiterID', 'KanalTyp', 'Aktiv', 'Konfiguration'),
+            ('MitarbeiterID', 'KanalTyp'),
+            update_cols=('Aktiv', 'Konfiguration'),
+        )
+        conn.execute(sql, (mitarbeiter_id, 'push', 1, subscription_json))
+
         return True
         
     except Exception as e:

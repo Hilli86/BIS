@@ -5,7 +5,6 @@ Mitarbeiter, Abteilungen, Bereiche, Gewerke, Tätigkeiten, Status
 
 from flask import render_template, request, redirect, url_for, flash, jsonify
 from werkzeug.security import generate_password_hash
-import sqlite3
 from . import admin_bp
 from utils import get_db_connection, admin_required
 from utils.zebra_client import (
@@ -20,6 +19,7 @@ from utils.etikett_druck import FUNKTIONEN_ADMIN
 from utils.helpers import row_to_dict
 from utils.menue_definitions import get_alle_menue_definitionen, get_menue_sichtbarkeit_fuer_mitarbeiter
 from utils.auth_redirect import LOGIN_STARTSEITEN_AUSWAHL, normalisiere_startseite_endpunkt
+from utils.db_sql import upsert_ignore
 from modules.wartungen import services as wartungen_services
 
 
@@ -1055,16 +1055,16 @@ def mitarbeiter_abteilungen(mid):
             
             # Alte zusätzliche Abteilungen löschen
             conn.execute('DELETE FROM MitarbeiterAbteilung WHERE MitarbeiterID = ?', (mid,))
-            
-            # Neue zusätzliche Abteilungen hinzufügen
+
+            # Neue zusätzliche Abteilungen hinzufügen (Duplikate werden per UNIQUE-Constraint ignoriert)
+            abteilung_upsert_sql = upsert_ignore(
+                'MitarbeiterAbteilung',
+                ('MitarbeiterID', 'AbteilungID'),
+                ('MitarbeiterID', 'AbteilungID'),
+            )
             for abt_id in zusaetzliche_ids:
                 if abt_id and abt_id != '' and abt_id != str(primaer_abteilung_id):
-                    try:
-                        conn.execute('INSERT INTO MitarbeiterAbteilung (MitarbeiterID, AbteilungID) VALUES (?, ?)', 
-                                     (mid, abt_id))
-                    except sqlite3.IntegrityError:
-                        # Duplikat - ignorieren
-                        pass
+                    conn.execute(abteilung_upsert_sql, (mid, abt_id))
             
             conn.commit()
         return ajax_response('Mitarbeiter-Abteilungen aktualisiert.')
@@ -2443,14 +2443,22 @@ def berechtigung_add():
     
     try:
         with get_db_connection() as conn:
+            existing = conn.execute(
+                'SELECT ID FROM Berechtigung WHERE Schluessel = ?',
+                (schluessel,),
+            ).fetchone()
+            if existing:
+                return ajax_response(
+                    'Eine Berechtigung mit diesem Schlüssel existiert bereits.',
+                    success=False,
+                    status_code=400,
+                )
             conn.execute(
                 'INSERT INTO Berechtigung (Schluessel, Bezeichnung, Beschreibung, Aktiv) VALUES (?, ?, ?, ?)',
                 (schluessel, bezeichnung, beschreibung, aktiv)
             )
             conn.commit()
         return ajax_response('Berechtigung erfolgreich angelegt.')
-    except sqlite3.IntegrityError:
-        return ajax_response('Eine Berechtigung mit diesem Schlüssel existiert bereits.', success=False, status_code=400)
     except Exception as e:
         return ajax_response(f'Fehler beim Anlegen: {str(e)}', success=False, status_code=500)
 
@@ -2516,20 +2524,18 @@ def mitarbeiter_berechtigungen(mid):
             
             # Alle Berechtigungen für diesen Mitarbeiter löschen
             conn.execute('DELETE FROM MitarbeiterBerechtigung WHERE MitarbeiterID = ?', (mid,))
-            
-            # Neue Berechtigungen hinzufügen
+
+            # Neue Berechtigungen hinzufügen (Duplikate werden per UNIQUE-Constraint ignoriert)
+            berechtigung_upsert_sql = upsert_ignore(
+                'MitarbeiterBerechtigung',
+                ('MitarbeiterID', 'BerechtigungID'),
+                ('MitarbeiterID', 'BerechtigungID'),
+            )
             for berechtigung_id in berechtigung_ids:
                 # Prüfen ob Berechtigung existiert
                 berechtigung = conn.execute('SELECT ID FROM Berechtigung WHERE ID = ?', (berechtigung_id,)).fetchone()
                 if berechtigung:
-                    try:
-                        conn.execute(
-                            'INSERT INTO MitarbeiterBerechtigung (MitarbeiterID, BerechtigungID) VALUES (?, ?)',
-                            (mid, berechtigung_id)
-                        )
-                    except sqlite3.IntegrityError:
-                        # Duplikat - ignorieren
-                        pass
+                    conn.execute(berechtigung_upsert_sql, (mid, berechtigung_id))
             
             conn.commit()
         

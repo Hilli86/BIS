@@ -8,6 +8,7 @@ import os
 from werkzeug.utils import secure_filename
 from .. import ersatzteile_bp
 from utils import get_db_connection, login_required, permission_required, get_sichtbare_abteilungen_fuer_mitarbeiter
+from utils.db_sql import local_now_str
 from utils.file_handling import (
     save_uploaded_file,
     validate_file_extension,
@@ -196,11 +197,10 @@ def wareneingang_bestellung(bestellung_id):
                             # Bestand aktualisieren
                             conn.execute('UPDATE Ersatzteil SET AktuellerBestand = ? WHERE ID = ?', (neuer_bestand, pos['ErsatzteilID']))
                             
-                            # Lagerbuchung erstellen
                             conn.execute('''
                                 INSERT INTO Lagerbuchung (ErsatzteilID, Typ, Menge, VerwendetVonID, Buchungsdatum, Grund, BestellungID)
-                                VALUES (?, 'Eingang', ?, ?, datetime('now', 'localtime'), ?, ?)
-                            ''', (pos['ErsatzteilID'], erhaltene_menge, mitarbeiter_id, f'Wareneingang Bestellung #{bestellung_id}', bestellung_id))
+                                VALUES (?, 'Eingang', ?, ?, ?, ?, ?)
+                            ''', (pos['ErsatzteilID'], erhaltene_menge, mitarbeiter_id, local_now_str(), f'Wareneingang Bestellung #{bestellung_id}', bestellung_id))
                             
                             # Für Etikettendruck merken
                             gebuchte_ersatzteile.append({

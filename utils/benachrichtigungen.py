@@ -5,6 +5,7 @@ Funktionen zum Erstellen und Verwalten von Benachrichtigungen
 
 import json
 import logging
+from datetime import datetime
 from utils import get_db_connection
 from utils.abteilungen import get_sichtbare_abteilungen_fuer_mitarbeiter
 
@@ -775,19 +776,19 @@ def versende_benachrichtigung(benachrichtigung_id, kanal_typ, conn=None):
         logger.error(f"Fehler beim Versenden der Benachrichtigung {benachrichtigung_id} über {kanal_typ}: {e}", exc_info=True)
         erfolg = False
     
-    # Aktualisiere Versand-Status
+    jetzt = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     if erfolg:
         conn.execute('''
             UPDATE BenachrichtigungVersand
-            SET Status = 'sent', VersandAm = datetime('now')
+            SET Status = 'sent', VersandAm = ?
             WHERE BenachrichtigungID = ? AND KanalTyp = ?
-        ''', (benachrichtigung_id, kanal_typ))
+        ''', (jetzt, benachrichtigung_id, kanal_typ))
     else:
         conn.execute('''
             UPDATE BenachrichtigungVersand
-            SET Status = 'failed', VersandAm = datetime('now'), Fehlermeldung = ?
+            SET Status = 'failed', VersandAm = ?, Fehlermeldung = ?
             WHERE BenachrichtigungID = ? AND KanalTyp = ?
-        ''', (f"Fehler beim Versenden über {kanal_typ}", benachrichtigung_id, kanal_typ))
+        ''', (jetzt, f"Fehler beim Versenden über {kanal_typ}", benachrichtigung_id, kanal_typ))
     
     return erfolg
 
