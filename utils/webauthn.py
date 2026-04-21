@@ -143,6 +143,18 @@ def pop_state(state_id: str) -> Any:
         return None
 
 
+def decode_user_handle_to_id(user_handle_b64: str) -> int:
+    """Dekodiert den base64url-kodierten userHandle zurueck in die Mitarbeiter-ID.
+
+    Pendant zu ``build_user_entity``: dort wird ``str(user_row["ID"]).encode("utf-8")``
+    als userHandle verwendet. Beim usernameless/discoverable Login liefert der
+    Authenticator genau diese Bytes zurueck; wir decodieren sie und geben die
+    Mitarbeiter-ID als ``int`` zurueck.
+    """
+    raw = _b64url_decode(user_handle_b64)
+    return int(raw.decode("utf-8"))
+
+
 def build_user_entity(user_row) -> PublicKeyCredentialUserEntity:
     """Erzeugt die UserEntity für WebAuthn basierend auf einem Mitarbeiter-DB-Row."""
     user_id_bytes = str(user_row["ID"]).encode("utf-8")

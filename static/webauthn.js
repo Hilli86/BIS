@@ -87,21 +87,24 @@ window.WebAuthnHelper = {
     return true;
   },
 
-  async loginWithWebAuthn(personalnummer) {
+  async loginWithWebAuthn(personalnummer, extraOptions) {
     if (!window.PublicKeyCredential) {
       throw new Error('WebAuthn wird von diesem Browser nicht unterstützt.');
     }
 
+    const options = extraOptions || {};
+    const usernameless = !personalnummer;
+
     const optionsResp = await _fetchJSON('/webauthn/login/options', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ personalnummer: personalnummer }),
+      body: JSON.stringify(usernameless ? {} : { personalnummer: personalnummer }),
     });
 
     const publicKey = optionsResp.publicKey;
     publicKey.challenge = _b64urlToArrayBuffer(publicKey.challenge);
 
-    if (publicKey.allowCredentials) {
+    if (publicKey.allowCredentials && publicKey.allowCredentials.length > 0) {
       publicKey.allowCredentials = publicKey.allowCredentials.map((cred) => {
         return {
           type: cred.type,
@@ -109,9 +112,20 @@ window.WebAuthnHelper = {
           transports: cred.transports,
         };
       });
+    } else {
+      // Usernameless / Passkey: leere allowCredentials -> Browser zeigt alle discoverable Credentials fuer die Domain
+      delete publicKey.allowCredentials;
     }
 
-    const assertion = await navigator.credentials.get({ publicKey });
+    const getOptions = { publicKey: publicKey };
+    if (options.mediation) {
+      getOptions.mediation = options.mediation;
+    }
+    if (options.signal) {
+      getOptions.signal = options.signal;
+    }
+
+    const assertion = await navigator.credentials.get(getOptions);
     if (!assertion) {
       throw new Error('Keine Antwort vom Authentifikator erhalten.');
     }
@@ -146,6 +160,16 @@ window.WebAuthnHelper = {
     });
 
     return verifyResp.redirect_url || '/';
+  },
+
+  async isConditionalMediationAvailable() {
+    try {
+      if (!window.PublicKeyCredential) return false;
+      if (typeof PublicKeyCredential.isConditionalMediationAvailable !== 'function') return false;
+      return await PublicKeyCredential.isConditionalMediationAvailable();
+    } catch (e) {
+      return false;
+    }
   },
 };
 

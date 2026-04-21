@@ -16,11 +16,11 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="mb-3">
       <label for="personalnummer" class="form-label">Personalnummer</label>
-      <input type="text" name="personalnummer" id="personalnummer" class="form-control" value="{{ personalnummer or '' }}" inputmode="numeric" pattern="[0-9]*" required>
+      <input type="text" name="personalnummer" id="personalnummer" class="form-control" value="{{ personalnummer or '' }}" inputmode="numeric" pattern="[0-9]*" autocomplete="username webauthn" required>
     </div>
     <div class="mb-3">
       <label for="passwort" class="form-label">Passwort</label>
-      <input type="password" name="passwort" id="passwort" class="form-control" required>
+      <input type="password" name="passwort" id="passwort" class="form-control" autocomplete="current-password" required>
     </div>
     <div class="mb-3 form-check">
       <input type="checkbox" name="remember_me" id="remember_me" class="form-check-input" {{ 'checked' if remember_me else '' }}>
@@ -32,7 +32,7 @@
   <hr class="my-3">
 
   <button type="button" id="webauthn-login-btn" class="btn btn-outline-secondary w-100 mb-2">
-    Mit FaceID / Windows Hello anmelden
+    Mit Passkey / FaceID / Windows Hello anmelden
   </button>
 
   <a href="{{ url_for('auth.login_guest') }}" class="btn btn-outline-info w-100">
@@ -45,18 +45,54 @@
   document.addEventListener('DOMContentLoaded', function() {
     const btn = document.getElementById('webauthn-login-btn');
     const personalnummerInput = document.getElementById('personalnummer');
+    const defaultBtnLabel = 'Mit Passkey / FaceID / Windows Hello anmelden';
 
     if (!btn || !personalnummerInput || !window.WebAuthnHelper) {
       return;
     }
 
-    btn.addEventListener('click', async function() {
-      const personalnummer = personalnummerInput.value.trim();
-      if (!personalnummer) {
-        alert('Bitte zuerst Ihre Personalnummer eingeben.');
-        personalnummerInput.focus();
-        return;
+    // Falls WebAuthn im Browser gar nicht vorhanden ist, Button deaktivieren
+    if (!window.PublicKeyCredential) {
+      btn.disabled = true;
+      btn.innerText = 'Biometrische Anmeldung wird nicht unterstützt';
+      return;
+    }
+
+    let conditionalAbortController = null;
+
+    async function startConditionalLogin() {
+      // Conditional UI: Der Browser bietet Passkeys automatisch im Personalnummer-
+      // Feld an (autocomplete="username webauthn"). Der Aufruf laeuft still im
+      // Hintergrund, bis der Benutzer einen Passkey auswaehlt oder wir abbrechen.
+      try {
+        const available = await WebAuthnHelper.isConditionalMediationAvailable();
+        if (!available) return;
+
+        conditionalAbortController = new AbortController();
+        const redirectUrl = await WebAuthnHelper.loginWithWebAuthn(null, {
+          mediation: 'conditional',
+          signal: conditionalAbortController.signal,
+        });
+        if (redirectUrl) {
+          window.location.href = redirectUrl;
+        }
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;
+        console.warn('Conditional WebAuthn-Login:', e);
       }
+    }
+
+    startConditionalLogin();
+
+    btn.addEventListener('click', async function() {
+      // Laufenden Conditional-UI-Request abbrechen, damit der modale Dialog erscheint.
+      if (conditionalAbortController) {
+        try { conditionalAbortController.abort(); } catch (e) { /* ignore */ }
+        conditionalAbortController = null;
+      }
+
+      // Usernameless (Passkey) bevorzugen, bei Bedarf auf Personalnummer-gestuetzten Flow zurueckfallen.
+      const personalnummer = personalnummerInput.value.trim() || null;
 
       try {
         btn.disabled = true;
@@ -68,10 +104,12 @@
         }
       } catch (e) {
         console.error(e);
-        alert(e.message || 'Biometrischer Login fehlgeschlagen.');
+        if (e && e.name !== 'AbortError') {
+          alert(e.message || 'Biometrischer Login fehlgeschlagen.');
+        }
       } finally {
         btn.disabled = false;
-        btn.innerText = 'Mit FaceID / Windows Hello anmelden';
+        btn.innerText = defaultBtnLabel;
       }
     });
   });

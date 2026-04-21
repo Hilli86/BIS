@@ -25,6 +25,7 @@ from utils.webauthn import (
     serialize_registration_options,
     serialize_authentication_options,
     extract_attested_credential,
+    decode_user_handle_to_id,
 )
 
 
@@ -434,8 +435,9 @@ def webauthn_register_options():
     public_key, state = server.register_begin(
         user=user_entity,
         credentials=existing_creds,
-        user_verification="preferred",
+        user_verification="required",
         authenticator_attachment="platform",  # bevorzugt integrierte Authenticatoren (Windows Hello, FaceID, TouchID)
+        resident_key_requirement="required",  # Discoverable Credential (Passkey) -> Login ohne Personalnummer moeglich
     )
 
     state_id = store_state(state)
@@ -524,50 +526,66 @@ def webauthn_register_verify():
 def webauthn_login_options():
     """
     Liefert die Optionen für einen WebAuthn-Login.
-    Erwartet die Personalnummer des Benutzers, um die passenden Credentials zu finden.
+
+    Zwei Betriebsarten:
+
+    * **Mit Personalnummer** (klassisch): Der Server liefert die Liste der
+      zulaessigen Credentials (``allowCredentials``) - passend fuer klassische
+      Non-Resident-Credentials.
+    * **Ohne Personalnummer** (usernameless / Passkey / Conditional UI):
+      ``allowCredentials`` bleibt leer. Der Authenticator waehlt ein
+      discoverable Credential aus und sendet den ``userHandle`` mit. Der
+      eigentliche Benutzer wird dann in ``webauthn_login_verify`` ermittelt.
     """
     data = request.get_json() or {}
-    personalnummer = data.get("personalnummer")
+    personalnummer = (data.get("personalnummer") or "").strip() or None
 
-    if not personalnummer:
-        return jsonify({"success": False, "message": "Personalnummer erforderlich"}), 400
+    user_id: int | None = None
+    existing_creds = []
 
-    with get_db_connection() as conn:
-        user = conn.execute(
-            """
-            SELECT ID, Personalnummer, Vorname, Nachname
-            FROM Mitarbeiter
-            WHERE Personalnummer = ? AND Aktiv = 1
-            """,
-            (personalnummer,),
-        ).fetchone()
+    if personalnummer:
+        with get_db_connection() as conn:
+            user = conn.execute(
+                """
+                SELECT ID, Personalnummer, Vorname, Nachname
+                FROM Mitarbeiter
+                WHERE Personalnummer = ? AND Aktiv = 1
+                """,
+                (personalnummer,),
+            ).fetchone()
 
-        if not user:
-            return jsonify({"success": False, "message": "Benutzer nicht gefunden oder inaktiv"}), 404
+            if not user:
+                return jsonify({"success": False, "message": "Benutzer nicht gefunden oder inaktiv"}), 404
 
-        creds = conn.execute(
-            """
-            SELECT CredentialID
-            FROM WebAuthnCredential
-            WHERE MitarbeiterID = ? AND Aktiv = 1
-            """,
-            (user["ID"],),
-        ).fetchall()
+            creds = conn.execute(
+                """
+                SELECT CredentialID
+                FROM WebAuthnCredential
+                WHERE MitarbeiterID = ? AND Aktiv = 1
+                """,
+                (user["ID"],),
+            ).fetchall()
 
-    if not creds:
-        return jsonify({"success": False, "message": "Für diesen Benutzer ist keine biometrische Anmeldung eingerichtet."}), 400
+        if not creds:
+            return jsonify({"success": False, "message": "Für diesen Benutzer ist keine biometrische Anmeldung eingerichtet."}), 400
+
+        user_id = user["ID"]
+        existing_creds = build_existing_credentials(creds)
 
     server = get_fido2_server()
-    existing_creds = build_existing_credentials(creds)
 
     public_key, state = server.authenticate_begin(
-        credentials=existing_creds,
+        credentials=existing_creds or None,
         user_verification="preferred",
     )
 
     state_id = store_state(state)
     session["webauthn_login_state_id"] = state_id
-    session["webauthn_login_user_id"] = user["ID"]
+    if user_id is not None:
+        session["webauthn_login_user_id"] = user_id
+    else:
+        # Im usernameless-Flow ermitteln wir den Benutzer erst in /verify aus dem userHandle.
+        session.pop("webauthn_login_user_id", None)
 
     return jsonify(
         {
@@ -591,8 +609,21 @@ def webauthn_login_verify():
     state_id = session.get("webauthn_login_state_id")
     user_id = session.get("webauthn_login_user_id")
 
-    if not state_id or not user_id:
+    if not state_id:
         return jsonify({"success": False, "message": "Login-Zustand nicht gefunden"}), 400
+
+    # Usernameless / Conditional UI: Benutzer aus dem userHandle ableiten, den der Authenticator zurueckgibt.
+    if not user_id:
+        user_handle_b64 = data.get("userHandle")
+        if not user_handle_b64:
+            return jsonify({
+                "success": False,
+                "message": "Kein Benutzer zugeordnet. Bitte Personalnummer eingeben oder biometrische Anmeldung neu einrichten."
+            }), 400
+        try:
+            user_id = decode_user_handle_to_id(user_handle_b64)
+        except Exception:
+            return jsonify({"success": False, "message": "Ungültige Authenticator-Antwort (userHandle)."}), 400
 
     state = pop_state(state_id)
     if state is None:
@@ -741,6 +772,9 @@ def webauthn_login_verify():
 
         # Vorherige Flash-Messages (z.B. "Abgemeldet", "Bitte zuerst anmelden") entfernen
         session.pop("_flashes", None)
+        # Zwischenschritte des WebAuthn-Handshakes aufraeumen
+        session.pop("webauthn_login_state_id", None)
+        session.pop("webauthn_login_user_id", None)
 
         return jsonify({"success": True, "redirect_url": redirect_url})
     except Exception as e:
