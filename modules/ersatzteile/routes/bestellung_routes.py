@@ -356,7 +356,14 @@ def bestellung_detail(bestellung_id):
             bestellung['Status'] == 'Bestellt'
             and (is_admin or has_bestellungen_erstellen or kann_freigeben or ist_ersteller)
         )
-    
+
+        # Teilweise erledigte Bestellung manuell abschließen: nur im Status "Teilweise erhalten",
+        # erlaubt für Admin und Benutzer mit Buchungsrecht (analog Wareneingang)
+        kann_teilweise_abschliessen = (
+            bestellung['Status'] == 'Teilweise erhalten'
+            and (is_admin or kann_buchen)
+        )
+
     return render_template(
         'bestellung_detail.html',
         bestellung=bestellung,
@@ -372,6 +379,7 @@ def bestellung_detail(bestellung_id):
         kann_freigabebemerkung_bearbeiten=kann_freigabebemerkung_bearbeiten,
         kann_anfrage_zurueckziehen=kann_anfrage_zurueckziehen,
         kann_bestellstatus_zuruecksetzen=kann_bestellstatus_zuruecksetzen,
+        kann_teilweise_abschliessen=kann_teilweise_abschliessen,
         is_admin=is_admin,
         status_filter_list=status_filter_list,
         lieferant_filter=lieferant_filter,
@@ -1111,6 +1119,57 @@ def bestellung_stornieren(bestellung_id):
         
         flash('Bestellung wurde storniert.', 'success')
     
+    return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/teilweise-abschliessen', methods=['POST'])
+@login_required
+@permission_required('artikel_buchen')
+def bestellung_teilweise_abschliessen(bestellung_id):
+    """Teilweise gelieferte Bestellung manuell auf 'Erledigt' setzen.
+
+    Offene (nicht gelieferte) Restmengen bleiben unverändert gespeichert
+    (ErhalteneMenge < Menge), werden aber in den Auswertungen nicht mehr
+    berücksichtigt, da dort nur die tatsächlich erhaltene Menge gewertet wird.
+    """
+    try:
+        with get_db_connection() as conn:
+            bestellung = conn.execute(
+                'SELECT Status FROM Bestellung WHERE ID = ? AND Gelöscht = 0',
+                (bestellung_id,),
+            ).fetchone()
+            if not bestellung:
+                flash('Bestellung nicht gefunden.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_liste'))
+
+            if bestellung['Status'] != 'Teilweise erhalten':
+                flash(
+                    'Nur Bestellungen im Status "Teilweise erhalten" können vorzeitig als erledigt markiert werden.',
+                    'danger',
+                )
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+            conn.execute(
+                "UPDATE Bestellung SET Status = 'Erledigt' WHERE ID = ?",
+                (bestellung_id,),
+            )
+            conn.commit()
+
+            try:
+                from utils.benachrichtigungen import erstelle_benachrichtigung_fuer_wareneingang
+                erstelle_benachrichtigung_fuer_wareneingang(bestellung_id, conn)
+            except Exception as e:
+                print(f"Fehler beim Erstellen von Benachrichtigungen: {e}")
+
+        flash(
+            'Bestellung wurde als erledigt markiert. Offene Restmengen werden in den Auswertungen nicht mitgewertet.',
+            'success',
+        )
+    except Exception as e:
+        import traceback
+        print(f"Fehler beim vorzeitigen Abschließen der Bestellung: {traceback.format_exc()}")
+        flash(f'Fehler beim Abschließen: {str(e)}', 'danger')
+
     return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
 
 

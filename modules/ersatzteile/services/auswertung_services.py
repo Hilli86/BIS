@@ -41,11 +41,14 @@ def get_bestellungen_auswertung(abteilung_ids, lieferant_id, datum_von, datum_bi
     """
     # Basis-Query für Bestellungen mit Gruppierung nach Jahr/Monat
     # Zuerst Gesamtstatistik
+    # Hinweis: Gewertet werden nur die tatsächlich gelieferten Mengen
+    # (ErhalteneMenge), damit vorzeitig als „Erledigt“ markierte
+    # Teillieferungen nicht mit ihrer Bestellmenge in die Auswertungen einfließen.
     query_gesamt = '''
         SELECT 
             COUNT(DISTINCT b.ID) AS anzahl,
             bp.Waehrung,
-            SUM(bp.Menge * COALESCE(bp.Preis, 0)) AS summe
+            SUM(COALESCE(bp.ErhalteneMenge, 0) * COALESCE(bp.Preis, 0)) AS summe
         FROM Bestellung b
         LEFT JOIN BestellungPosition bp ON b.ID = bp.BestellungID
         WHERE b.Gelöscht = 0
@@ -86,7 +89,7 @@ def get_bestellungen_auswertung(abteilung_ids, lieferant_id, datum_von, datum_bi
     anzahl_bestellungen = 0
     
     # Anzahl aus separater Query (da GROUP BY die Anzahl pro Währung gibt)
-    query_anzahl = query_gesamt.replace('COUNT(DISTINCT b.ID) AS anzahl, bp.Waehrung, SUM(bp.Menge * COALESCE(bp.Preis, 0)) AS summe', 'COUNT(DISTINCT b.ID) AS anzahl').replace(' GROUP BY bp.Waehrung', '')
+    query_anzahl = query_gesamt.replace('COUNT(DISTINCT b.ID) AS anzahl, bp.Waehrung, SUM(COALESCE(bp.ErhalteneMenge, 0) * COALESCE(bp.Preis, 0)) AS summe', 'COUNT(DISTINCT b.ID) AS anzahl').replace(' GROUP BY bp.Waehrung', '')
     anzahl_row = conn.execute(query_anzahl, params_gesamt).fetchone()
     anzahl_bestellungen = anzahl_row['anzahl'] if anzahl_row else 0
     
@@ -140,7 +143,7 @@ def get_bestellungen_auswertung(abteilung_ids, lieferant_id, datum_von, datum_bi
         SELECT
             {jm_expr} AS jahr_monat,
             bp.Waehrung,
-            SUM(bp.Menge * COALESCE(bp.Preis, 0)) AS summe
+            SUM(COALESCE(bp.ErhalteneMenge, 0) * COALESCE(bp.Preis, 0)) AS summe
         FROM Bestellung b
         LEFT JOIN BestellungPosition bp ON b.ID = bp.BestellungID
         WHERE b.Gelöscht = 0
@@ -184,7 +187,7 @@ def get_bestellungen_auswertung(abteilung_ids, lieferant_id, datum_von, datum_bi
             l.Name AS LieferantName,
             SUM(
                 CASE
-                    WHEN bp.Waehrung IS NULL OR bp.Waehrung = 'EUR' THEN bp.Menge * COALESCE(bp.Preis, 0)
+                    WHEN bp.Waehrung IS NULL OR bp.Waehrung = 'EUR' THEN COALESCE(bp.ErhalteneMenge, 0) * COALESCE(bp.Preis, 0)
                     ELSE 0
                 END
             ) AS summe_eur

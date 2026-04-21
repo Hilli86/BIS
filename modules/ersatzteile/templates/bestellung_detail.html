@@ -336,12 +336,24 @@
             {% endif %}
             {% endif %}
             
-            {% if bestellung.Status == 'Bestellt' and kann_buchen %}
+            {% if bestellung.Status in ['Bestellt', 'Teilweise erhalten'] and kann_buchen %}
             <a href="{{ url_for('ersatzteile.wareneingang_bestellung', bestellung_id=bestellung.ID) }}" class="btn btn-success">
                 <i class="bi bi-box-arrow-in-down"></i> Wareneingang buchen
             </a>
             {% endif %}
-            
+
+            {% if kann_teilweise_abschliessen %}
+            <form method="POST"
+                  action="{{ url_for('ersatzteile.bestellung_teilweise_abschliessen', bestellung_id=bestellung.ID) }}"
+                  class="d-inline"
+                  onsubmit="return confirm('Bestellung trotz offener Restmengen als „Erledigt“ markieren?\n\nOffene Positionen bleiben unbebucht. In den Auswertungen werden nur die tatsächlich gelieferten Mengen gewertet.');">
+                {{ csrf_field() }}
+                <button type="submit" class="btn btn-outline-dark" title="Bestellung trotz offener Restmengen als erledigt markieren">
+                    <i class="bi bi-check2-all"></i> Als erledigt markieren
+                </button>
+            </form>
+            {% endif %}
+
             {% if bestellung.Status == 'Erledigt' %}
             <form method="POST" action="{{ url_for('ersatzteile.bestellung_stornieren', bestellung_id=bestellung.ID) }}" class="d-inline" 
                   onsubmit="return confirm('Möchten Sie diese Bestellung wirklich stornieren?');">
