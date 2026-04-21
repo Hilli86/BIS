@@ -1248,6 +1248,11 @@ def init_database_schema(db_path, verbose=False):
         ''')
         conn.execute('''
             INSERT OR IGNORE INTO Berechtigung (Schluessel, Bezeichnung, Beschreibung, Aktiv)
+            VALUES ('darf_Wartungsdurchführung_löschen', 'Darf Wartungsdurchführung löschen',
+                    'Erlaubt das Löschen protokollierter Wartungsdurchführungen inkl. Serviceberichten', 1)
+        ''')
+        conn.execute('''
+            INSERT OR IGNORE INTO Berechtigung (Schluessel, Bezeichnung, Beschreibung, Aktiv)
             VALUES ('darf_aufgabenliste_themen_verwalten', 'Darf Aufgabenliste-Themen verwalten',
                     'Erlaubt Zuordnung und Entfernen von Themen in Aufgabenlisten (nicht Stammdaten der Liste)', 1)
         ''')

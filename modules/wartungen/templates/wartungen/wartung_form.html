@@ -10,7 +10,7 @@
     <label class="form-label">Gewerk</label>
     <select name="gewerk_id" class="form-select" required {% if wartung and not kann_edit %}disabled{% endif %}>
       {% for g in gewerke %}
-      <option value="{{ g.ID }}" {% if wartung and wartung.GewerkID == g.ID %}selected{% endif %}>{{ g.Bereich }} – {{ g.Bezeichnung }}</option>
+      <option value="{{ g.ID }}" {% if wartung and wartung.GewerkID == g.ID %}selected{% elif not wartung and vorauswahl_gewerk_id is defined and vorauswahl_gewerk_id == g.ID %}selected{% endif %}>{{ g.Bereich }} – {{ g.Bezeichnung }}</option>
       {% endfor %}
     </select>
   </div>
@@ -20,7 +20,7 @@
   </div>
   <div class="mb-3">
     <label class="form-label">Beschreibung</label>
-    <textarea name="beschreibung" class="form-control" rows="4" {% if wartung and not kann_edit %}readonly{% endif %}>{{ wartung.Beschreibung if wartung else '' }}</textarea>
+    <textarea name="beschreibung" class="form-control" rows="4" {% if wartung and not kann_edit %}readonly{% endif %}>{% if wartung and wartung.Beschreibung %}{{ wartung.Beschreibung }}{% endif %}</textarea>
   </div>
   <div class="mb-3">
     <label class="form-label" for="doku_sharepoint_ordner_url">Doku (Link zum SharePoint-Ordner)</label>

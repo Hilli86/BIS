@@ -31,6 +31,11 @@ def kann_wartung_protokollieren():
     )
 
 
+def kann_wartungsdurchfuehrung_loeschen():
+    """Protokollierte Wartungsdurchführung löschen."""
+    return is_admin() or 'darf_Wartungsdurchführung_löschen' in user_perms()
+
+
 def hat_wartung_zugriff(mitarbeiter_id, wartung_id, conn):
     if is_admin():
         return True

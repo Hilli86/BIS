@@ -42,6 +42,7 @@ from .helpers import (
     kann_wartung_stamm_anlegen,
     kann_wartungsplan_pflegen,
     kann_wartung_protokollieren,
+    kann_wartungsdurchfuehrung_loeschen,
     is_admin,
 )
 
@@ -438,6 +439,7 @@ def wartung_neu():
         abteilungen = conn.execute(
             'SELECT ID, Bezeichnung FROM Abteilung WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung'
         ).fetchall()
+        vorauswahl_gewerk_id = None
         if request.method == 'POST':
             gewerk_id = request.form.get('gewerk_id', type=int)
             bez = request.form.get('bezeichnung', '')
@@ -475,16 +477,24 @@ def wartung_neu():
                     flash('Wartung angelegt.', 'success')
                     aktion = request.form.get('speichern_aktion', 'liste')
                     if aktion == 'naechste':
-                        return redirect(url_for('wartungen.wartung_neu'))
+                        return redirect(
+                            url_for('wartungen.wartung_neu', gewerk_id=gewerk_id)
+                        )
                     return redirect(url_for('wartungen.wartung_liste'))
                 except Exception as e:
                     flash(f'Fehler: {e}', 'danger')
+            vorauswahl_gewerk_id = gewerk_id
+        else:
+            vorauswahl_gewerk_id = _query_int_arg('gewerk_id')
+            if vorauswahl_gewerk_id is not None and vorauswahl_gewerk_id not in {g['ID'] for g in gewerke}:
+                vorauswahl_gewerk_id = None
     return render_template(
         'wartungen/wartung_form.html',
         gewerke=gewerke,
         abteilungen=abteilungen,
         wartung=None,
         gewaehlte_abteilungen=[],
+        vorauswahl_gewerk_id=vorauswahl_gewerk_id,
         title='Neue Wartung',
     )
 
@@ -525,6 +535,7 @@ def wartung_detail(wartung_id):
         kann_edit=kann_edit,
         kann_plan=kann_wartungsplan_pflegen(),
         kann_protokollieren=kann_wartung_protokollieren(),
+        kann_durchfuehrung_loeschen=kann_wartungsdurchfuehrung_loeschen(),
         sichtbare_abteilungen_text=sichtbar_labels,
         is_admin=adm,
         highlight_plan_id=highlight_plan_id,
@@ -1307,7 +1318,9 @@ def durchfuehrung_neu(plan_id):
                                 and kontext.get('herkunft') == PROTOKOLL_HERKUNFT_PLAENE_UEBERSICHT
                             ):
                                 return redirect(_url_plaene_uebersicht_mit_protokoll_kontext(kontext))
-                            return redirect(url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=dfid))
+                            return redirect(
+                                url_for('wartungen.wartung_detail', wartung_id=p['WartungID'])
+                            )
                         except Exception as e:
                             conn.rollback()
                             flash(f'Fehler: {e}', 'danger')
@@ -1649,7 +1662,47 @@ def durchfuehrung_detail(durchfuehrung_id):
         serviceberichte=serviceberichte,
         kostenstellen=kostenstellen,
         kann_protokollieren=kann_wartung_protokollieren(),
+        kann_loeschen=kann_wartungsdurchfuehrung_loeschen(),
     )
+
+
+@wartungen_bp.route('/durchfuehrung/<int:durchfuehrung_id>/loeschen', methods=['POST'])
+@login_required
+def durchfuehrung_loeschen(durchfuehrung_id):
+    """Protokollierte Wartungsdurchführung löschen (inkl. Serviceberichten)."""
+    if not kann_wartungsdurchfuehrung_loeschen():
+        flash('Keine Berechtigung zum Löschen der Wartungsdurchführung.', 'danger')
+        return redirect(
+            url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=durchfuehrung_id)
+        )
+    mitarbeiter_id = session.get('user_id')
+    with get_db_connection() as conn:
+        if not hat_wartungsdurchfuehrung_zugriff(mitarbeiter_id, durchfuehrung_id, conn):
+            flash('Kein Zugriff auf diese Wartungsdurchführung.', 'danger')
+            return redirect(url_for('wartungen.wartung_liste'))
+        wartung_id = services.get_wartung_id_fuer_durchfuehrung(conn, durchfuehrung_id)
+        if wartung_id is None:
+            flash('Wartungsdurchführung nicht gefunden.', 'danger')
+            return redirect(url_for('wartungen.wartung_liste'))
+        try:
+            dateipfade = services.delete_wartungsdurchfuehrung(conn, durchfuehrung_id)
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            flash(f'Fehler beim Löschen: {e}', 'danger')
+            return redirect(
+                url_for('wartungen.durchfuehrung_detail', durchfuehrung_id=durchfuehrung_id)
+            )
+    base = current_app.config['UPLOAD_BASE_FOLDER']
+    for rel in dateipfade:
+        fp = os.path.join(base, rel.replace('/', os.sep))
+        if os.path.exists(fp):
+            try:
+                os.remove(fp)
+            except OSError:
+                pass
+    flash('Wartungsdurchführung gelöscht.', 'success')
+    return redirect(url_for('wartungen.wartung_detail', wartung_id=wartung_id))
 
 
 @wartungen_bp.route('/durchfuehrung-datei/<path:filepath>')

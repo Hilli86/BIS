@@ -3,8 +3,14 @@
 {% from 'components/datei_liste.html' import datei_liste %}
 {% block content %}
 <div class="card mb-4 shadow-sm">
-  <div class="card-header bg-primary text-white">
+  <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
     <h5 class="mb-0">Wartungsinformation</h5>
+    {% if kann_loeschen %}
+    <button type="button" class="btn btn-sm btn-outline-light"
+            data-bs-toggle="modal" data-bs-target="#modalDurchfuehrungLoeschen">
+      <i class="bi bi-trash"></i> Durchführung löschen
+    </button>
+    {% endif %}
   </div>
   <div class="card-body">
     <table class="table table-sm table-borderless mb-3">
@@ -252,6 +258,37 @@
         </div>
       </div>
     </form>
+  </div>
+</div>
+{% endif %}
+
+{% if kann_loeschen %}
+<div class="modal fade" id="modalDurchfuehrungLoeschen" tabindex="-1" aria-labelledby="modalDurchfuehrungLoeschenLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('wartungen.durchfuehrung_loeschen', durchfuehrung_id=d.ID) }}">
+        {{ csrf_field() }}
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalDurchfuehrungLoeschenLabel">Wartungsdurchführung löschen?</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">
+            Diese Wartungsdurchführung wird unwiderruflich gelöscht – inklusive aller zugehörigen
+            <strong>Serviceberichte</strong> und Teilnehmer-Zuordnungen.
+          </p>
+          <p class="mb-0 small text-muted">
+            Bereits gebuchte Ersatzteil-Lagerbuchungen bleiben erhalten; deren Verweis auf diese
+            Durchführung wird jedoch entfernt. Die nächste Fälligkeit des Wartungsplans wird
+            <em>nicht</em> automatisch neu berechnet.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+          <button type="submit" class="btn btn-danger"><i class="bi bi-trash"></i> Endgültig löschen</button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 {% endif %}

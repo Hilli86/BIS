@@ -249,6 +249,9 @@
             <th class="text-center">Dateien</th>
             <th>Protokolliert von</th>
             <th>Bemerkung</th>
+            {% if kann_durchfuehrung_loeschen %}
+            <th class="text-nowrap" style="width: 1%;">Aktionen</th>
+            {% endif %}
           </tr>
         </thead>
         <tbody>
@@ -266,6 +269,17 @@
             </td>
             <td>{{ x.ProtokolliertVon or '–' }}</td>
             <td class="text-break">{{ x.Bemerkung or '–' }}</td>
+            {% if kann_durchfuehrung_loeschen %}
+            <td class="text-nowrap" onclick="event.stopPropagation();">
+              <button type="button" class="btn btn-sm btn-outline-danger" title="Durchführung löschen"
+                data-bs-toggle="modal" data-bs-target="#modalDurchfuehrungLoeschenWartung"
+                data-action-url="{{ url_for('wartungen.durchfuehrung_loeschen', durchfuehrung_id=x.ID) }}"
+                data-df-id="{{ x.ID }}"
+                data-df-datum="{% if x.DurchgefuehrtAm %}{{ x.DurchgefuehrtAm[:16] }}{% endif %}">
+                <i class="bi bi-trash"></i>
+              </button>
+            </td>
+            {% endif %}
           </tr>
           {% endfor %}
         </tbody>
@@ -283,6 +297,17 @@
         <div class="bis-mc-row"><span class="bis-mc-label">Plan</span><span class="bis-mc-value">{% if x.IntervallAnzahl == 0 %}Ohne Intervall{% else %}Alle {{ x.IntervallAnzahl }} {{ x.IntervallEinheit }}(e){% endif %}</span></div>
         <div class="bis-mc-row"><span class="bis-mc-label">Von</span><span class="bis-mc-value">{{ x.ProtokolliertVon or '–' }}</span></div>
         {% if x.Bemerkung %}<div class="mt-2 small text-break">{{ x.Bemerkung }}</div>{% endif %}
+        {% if kann_durchfuehrung_loeschen %}
+        <div class="d-flex flex-wrap gap-2 mt-2 bis-actions-touch" onclick="event.stopPropagation();">
+          <button type="button" class="btn btn-sm btn-outline-danger"
+            data-bs-toggle="modal" data-bs-target="#modalDurchfuehrungLoeschenWartung"
+            data-action-url="{{ url_for('wartungen.durchfuehrung_loeschen', durchfuehrung_id=x.ID) }}"
+            data-df-id="{{ x.ID }}"
+            data-df-datum="{% if x.DurchgefuehrtAm %}{{ x.DurchgefuehrtAm[:16] }}{% endif %}">
+            <i class="bi bi-trash"></i> Löschen
+          </button>
+        </div>
+        {% endif %}
       </div>
       {% endfor %}
     </div>
@@ -295,6 +320,37 @@
     {% endif %}
   </div>
 </div>
+
+{% if kann_durchfuehrung_loeschen and durchfuehrungen %}
+<div class="modal fade" id="modalDurchfuehrungLoeschenWartung" tabindex="-1" aria-labelledby="modalDurchfuehrungLoeschenWartungLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form id="formDurchfuehrungLoeschenWartung" method="post" action="">
+        {{ csrf_field() }}
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalDurchfuehrungLoeschenWartungLabel">Wartungsdurchführung löschen?</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">
+            Die Durchführung <strong id="modalDurchfuehrungLoeschenHinweis"></strong> wird unwiderruflich gelöscht –
+            inklusive aller zugehörigen <strong>Serviceberichte</strong> und Teilnehmer-Zuordnungen.
+          </p>
+          <p class="mb-0 small text-muted">
+            Bereits gebuchte Ersatzteil-Lagerbuchungen bleiben erhalten; deren Verweis auf diese
+            Durchführung wird jedoch entfernt. Die nächste Fälligkeit des Wartungsplans wird
+            <em>nicht</em> automatisch neu berechnet.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+          <button type="submit" class="btn btn-danger"><i class="bi bi-trash"></i> Endgültig löschen</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 {% if kann_plan and plaene %}
 <div class="modal fade bis-modal-mobile-full" id="modalWartungsterminPlan" tabindex="-1" aria-labelledby="modalWartungsterminPlanLabel" aria-hidden="true">
@@ -430,6 +486,22 @@ document.addEventListener('DOMContentLoaded', function () {
       if (inp) inp.value = btn.getAttribute('data-termin-datum') || '';
       var hint = document.getElementById('modalWartungsterminIntervall');
       if (hint) hint.textContent = btn.getAttribute('data-intervall-hint') || '';
+    });
+  }
+  var modalDel = document.getElementById('modalDurchfuehrungLoeschenWartung');
+  var formDel = document.getElementById('formDurchfuehrungLoeschenWartung');
+  if (modalDel && formDel && typeof bootstrap !== 'undefined') {
+    modalDel.addEventListener('show.bs.modal', function (ev) {
+      var btn = ev.relatedTarget;
+      if (!btn || !btn.getAttribute) return;
+      var url = btn.getAttribute('data-action-url');
+      if (url) formDel.setAttribute('action', url);
+      var info = document.getElementById('modalDurchfuehrungLoeschenHinweis');
+      if (info) {
+        var dfId = btn.getAttribute('data-df-id') || '';
+        var datum = btn.getAttribute('data-df-datum') || '';
+        info.textContent = '#' + dfId + (datum ? ' (' + datum + ')' : '');
+      }
     });
   }
 });

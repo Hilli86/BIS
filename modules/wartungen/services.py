@@ -1197,6 +1197,47 @@ def insert_wartungsdurchfuehrung(conn, plan_id, durchgefuehrt_am, bemerkung, tei
     return df_id, naechste
 
 
+def get_wartung_id_fuer_durchfuehrung(conn, durchfuehrung_id):
+    """WartungID für eine Durchführung, oder None, wenn nicht gefunden."""
+    r = conn.execute(
+        '''SELECT p.WartungID FROM Wartungsdurchfuehrung d
+           JOIN Wartungsplan p ON d.WartungsplanID = p.ID
+           WHERE d.ID = ?''',
+        (durchfuehrung_id,),
+    ).fetchone()
+    return r['WartungID'] if r else None
+
+
+def delete_wartungsdurchfuehrung(conn, durchfuehrung_id):
+    """Löscht eine Wartungsdurchführung inklusive Teilnehmer- und Datei-Zuordnungen.
+
+    - Serviceberichte (Datei-Einträge zum Bereichstyp 'Wartungsdurchfuehrung') werden entfernt;
+      die physischen Dateipfade (relativ zum Upload-Basisordner) werden als Liste zurückgegeben,
+      damit der Aufrufer sie auf der Festplatte löschen kann.
+    - Verknüpfte Lagerbuchungen bleiben erhalten; deren Verweis wird jedoch geleert
+      (WartungsdurchfuehrungID = NULL), um Dangling-References zu vermeiden.
+    - Teilnehmer- und Fremdfirma-Zeilen hängen per ON DELETE CASCADE am Eintrag.
+    """
+    datei_rows = conn.execute(
+        "SELECT ID, Dateipfad FROM Datei WHERE BereichTyp = ? AND BereichID = ?",
+        ('Wartungsdurchfuehrung', durchfuehrung_id),
+    ).fetchall()
+    dateipfade = [r['Dateipfad'] for r in datei_rows if r['Dateipfad']]
+    conn.execute(
+        "DELETE FROM Datei WHERE BereichTyp = ? AND BereichID = ?",
+        ('Wartungsdurchfuehrung', durchfuehrung_id),
+    )
+    conn.execute(
+        'UPDATE Lagerbuchung SET WartungsdurchfuehrungID = NULL WHERE WartungsdurchfuehrungID = ?',
+        (durchfuehrung_id,),
+    )
+    conn.execute(
+        'DELETE FROM Wartungsdurchfuehrung WHERE ID = ?',
+        (durchfuehrung_id,),
+    )
+    return dateipfade
+
+
 def list_durchfuehrungen_fuer_plan(conn, plan_id):
     return conn.execute('''
         SELECT d.ID, d.DurchgefuehrtAm, d.Bemerkung, d.ErstelltAm,
