@@ -13,7 +13,7 @@ docxtpl==0.19.1
 docx2pdf==0.1.8
 pywebpush==2.0.3
 fido2==2.2.0
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 
 # Transitive Abhängigkeit (pywebpush u.a.); Pin fuer pip-audit / CVE-Fixes
 cryptography==46.0.7
