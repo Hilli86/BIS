@@ -1204,18 +1204,51 @@
       });
     });
 
-    // Native Kalender bzw. Datum/Uhrzeit-Popup: nach bestätigter Auswahl Fokus entfernen (hilft, das Overlay in Chromium, Edge und Firefox zu schließen)
-    document.addEventListener(
-      'change',
-      function (e) {
-        var el = e.target;
-        if (!el || (el.type !== 'date' && el.type !== 'datetime-local')) return;
-        requestAnimationFrame(function () {
-          el.blur();
-        });
-      },
-      true,
-    );
+    // Native Kalender bzw. Datum/Uhrzeit-Popup: nach bestätigter Auswahl per Maus/Touch
+    // Fokus entfernen, damit das Overlay in Chromium/Edge/Firefox sicher schließt.
+    // WICHTIG: Bei reiner Tastatureingabe nicht blurren – sonst springt der Fokus weg,
+    // während der Nutzer noch Ziffern (z. B. Jahr) tippt, weil Chromium schon bei
+    // Zwischenzuständen (z. B. "0002") ein change-Event feuert.
+    (function () {
+      var dateTypes = { date: 1, 'datetime-local': 1, month: 1, week: 1, time: 1 };
+      // Merkt sich je Feld, ob die letzte Interaktion von der Tastatur kam.
+      var keyboardFields = new WeakSet();
+
+      document.addEventListener(
+        'keydown',
+        function (e) {
+          var el = e.target;
+          if (!el || !dateTypes[el.type]) return;
+          // Tab/Enter/Escape schließen das Popup ohnehin – hier nicht als Tastatureingabe merken.
+          if (e.key === 'Tab' || e.key === 'Enter' || e.key === 'Escape') return;
+          keyboardFields.add(el);
+        },
+        true,
+      );
+
+      document.addEventListener(
+        'blur',
+        function (e) {
+          var el = e.target;
+          if (!el || !dateTypes[el.type]) return;
+          keyboardFields.delete(el);
+        },
+        true,
+      );
+
+      document.addEventListener(
+        'change',
+        function (e) {
+          var el = e.target;
+          if (!el || !dateTypes[el.type]) return;
+          if (keyboardFields.has(el)) return;
+          requestAnimationFrame(function () {
+            el.blur();
+          });
+        },
+        true,
+      );
+    })();
 
     // Mobile Menü Toggle (nur wenn Elemente vorhanden sind)
     const menuToggle = document.getElementById('menuToggle');
