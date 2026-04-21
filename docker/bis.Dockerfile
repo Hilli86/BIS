@@ -7,10 +7,16 @@ FROM python:3.11-slim-bookworm
 # LibreOffice fuer DOCX->PDF-Konvertierung (Berichte), curl fuer HEALTHCHECK
 # und gosu, um im Entrypoint nach dem chown auf den nicht-root Benutzer
 # "bis" zu droppen (privilege drop ohne setuid-Root-Skripte).
+# tzdata liefert die Zoneinfo-Daten (fehlen im slim-Image); /etc/localtime
+# wird zusaetzlich auf Europe/Berlin verlinkt, damit Subprozesse (z. B.
+# LibreOffice) und Tools ohne TZ-Env die korrekte Lokalzeit erhalten.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libreoffice-writer libreoffice-common \
     curl \
     gosu \
+    tzdata \
+    && ln -sf /usr/share/zoneinfo/Europe/Berlin /etc/localtime \
+    && echo "Europe/Berlin" > /etc/timezone \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONUNBUFFERED=1 \

@@ -17,6 +17,7 @@ services:
       - "5000:5000"
     environment:
       FLASK_ENV: production
+      TZ: Europe/Berlin
       # SECRET_KEY MUSS von aussen gesetzt werden (docker-compose bricht sonst ab).
       # Erzeugen z. B. mit:  python -c "import secrets; print(secrets.token_urlsafe(48))"
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY muss als Umgebungsvariable gesetzt sein}
