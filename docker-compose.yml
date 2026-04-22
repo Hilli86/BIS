@@ -27,10 +27,14 @@ services:
       REMEMBER_COOKIE_SECURE: "true"
       # Typische Docker-Bridge-Netze: damit X-Forwarded-* vom Nginx-Container vertrauenswürdig sind
       TRUSTED_PROXIES: "172.16.0.0/12,127.0.0.1"
-      # Optional: WEBAUTHN_ORIGIN/RP_ID/RP_NAME anpassen, wenn ueber Hostname/IP zugegriffen wird
-      # WEBAUTHN_ORIGIN: https://bis.example.com
-      # WEBAUTHN_RP_ID: bis.example.com
-      # WEBAUTHN_RP_NAME: BIS
+      # WebAuthn / Passkeys (FaceID, Windows Hello, TouchID):
+      # WEBAUTHN_ORIGIN = exakte Basis-URL, die im Browser aufgerufen wird (https:// + Hostname, ohne Pfad).
+      # WEBAUTHN_RP_ID  = Hostname ohne Schema und ohne Port (muss mit dem Origin uebereinstimmen).
+      # Werden die Variablen nicht gesetzt, schlagen die WebAuthn-Endpunkte mit 503 fehl.
+      # Uebliche Wege: Werte in einer .env neben docker-compose.yml setzen oder hier fest eintragen.
+      WEBAUTHN_ORIGIN: ${WEBAUTHN_ORIGIN:-}
+      WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:-}
+      WEBAUTHN_RP_NAME: ${WEBAUTHN_RP_NAME:-BIS – Betriebsinformationssystem}
     volumes:
       # Persistente Daten (Datenbank + Uploads)
       - C:\BIS-Daten:/data

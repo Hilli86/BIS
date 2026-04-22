@@ -428,7 +428,17 @@ def webauthn_register_options():
             (user_id,),
         ).fetchall()
 
-    server = get_fido2_server()
+    try:
+        server = get_fido2_server()
+    except RuntimeError as e:
+        current_app.logger.error("WebAuthn nicht konfiguriert: %s", e)
+        return jsonify({
+            "success": False,
+            "message": (
+                "Biometrische Anmeldung ist auf diesem Server nicht konfiguriert. "
+                "Ein Administrator muss WEBAUTHN_RP_ID und WEBAUTHN_ORIGIN setzen."
+            ),
+        }), 503
     user_entity = build_user_entity(user)
     existing_creds = build_existing_credentials(existing)
 
@@ -572,7 +582,17 @@ def webauthn_login_options():
         user_id = user["ID"]
         existing_creds = build_existing_credentials(creds)
 
-    server = get_fido2_server()
+    try:
+        server = get_fido2_server()
+    except RuntimeError as e:
+        current_app.logger.error("WebAuthn nicht konfiguriert: %s", e)
+        return jsonify({
+            "success": False,
+            "message": (
+                "Biometrische Anmeldung ist auf diesem Server nicht konfiguriert. "
+                "Ein Administrator muss WEBAUTHN_RP_ID und WEBAUTHN_ORIGIN setzen."
+            ),
+        }), 503
 
     public_key, state = server.authenticate_begin(
         credentials=existing_creds or None,
