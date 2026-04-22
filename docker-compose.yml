@@ -77,7 +77,7 @@ services:
       # Lokales Backup-Ziel (unverschluesselt, schneller Restore).
       - C:\BIS-Backups:/backup-plain
       # Verschluesselte Offsite-Kopie (OneDrive synchronisiert in die Cloud).
-      - C:\Users\hilli\OneDrive\Apps\BIS\Backups:/backup-encrypted
+      - C:\Users\MartinHilbert\OneDrive - Binca Handels GmbH\Apps\BIS\Backups:/backup-encrypted
     depends_on:
       - Application-Service
     restart: unless-stopped
