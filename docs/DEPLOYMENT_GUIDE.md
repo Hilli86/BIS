@@ -310,48 +310,35 @@ gunicorn -w 2 -b 127.0.0.1:8000 app:app
 
 ## 5. Gunicorn konfigurieren
 
-### Gunicorn-Konfiguration erstellen:
+Die Gunicorn-Konfiguration liegt als Datei [`gunicorn_config.py`](../gunicorn_config.py)
+im Projekt-Root und wird sowohl von Docker als auch vom systemd-Service genutzt.
+Sie muss **nicht** manuell erzeugt werden.
 
-```bash
-# Als bis-Benutzer
-cd /opt/bis
-nano gunicorn_config.py
-```
+Wichtige Eigenschaften:
 
-Inhalt von `gunicorn_config.py`:
+- `preload_app = True` – `app.py` wird einmal im Master importiert. Startup-
+  Aufgaben (Alembic-Migration, Benachrichtigungs-Cleanup, Nachversand) laufen
+  dadurch genau einmal, nicht pro Worker.
+- `worker_class = "gthread"` mit konfigurierbaren Threads (LibreOffice-
+  Konvertierungen sind I/O-/Subprozess-bound).
+- `post_fork`-Hook ruft `utils.database.dispose_all_engines()` auf, damit jeder
+  Worker einen eigenen SQLAlchemy-Pool bekommt (Fork-Sicherheit).
 
-```python
-import multiprocessing
+Tuning per Umgebungsvariable (z. B. in `/opt/bis/.env`):
 
-# Bind-Adresse
-bind = "127.0.0.1:8000"
+| Variable | Default | Beschreibung |
+| --- | --- | --- |
+| `GUNICORN_BIND` | `0.0.0.0:5000` | Bind-Adresse. Hinter nginx z. B. `127.0.0.1:8000`. |
+| `GUNICORN_WORKERS` | `2` | Anzahl Worker-Prozesse. Empfohlen 2–4 bei SQLite+WAL. |
+| `GUNICORN_THREADS` | `4` | Threads pro Worker. |
+| `GUNICORN_TIMEOUT` | `120` | Request-Timeout (LibreOffice kann lange brauchen). |
+| `GUNICORN_LOGLEVEL` | `info` | Log-Level (`debug`/`info`/`warning`/`error`). |
+| `RATELIMIT_STORAGE_URI` | `memory://` | Bei Multi-Worker zwingend ein geteilter Store (z. B. `redis://127.0.0.1:6379/0`). |
 
-# Worker-Prozesse
-# Regel: (2 x CPU-Kerne) + 1
-workers = multiprocessing.cpu_count() * 2 + 1
-
-# Worker-Typ
-worker_class = "sync"
-
-# Timeout
-timeout = 120
-
-# Logging
-accesslog = "/var/log/bis/access.log"
-errorlog = "/var/log/bis/error.log"
-loglevel = "info"
-
-# Prozess-Name
-proc_name = "bis-app"
-
-# Daemon-Modus (wird von systemd verwaltet)
-daemon = False
-
-# Umgebungsvariablen
-raw_env = [
-    "FLASK_ENV=production",
-]
-```
+> **Hinweis Multi-Worker:** Der In-Memory-Rate-Limiter (`memory://`) zählt nur
+> pro Prozess. Für mehrere Worker einen **Redis-Dienst** bereitstellen und
+> `RATELIMIT_STORAGE_URI` entsprechend setzen. Im Docker-Compose-Stack ist ein
+> `Redis-Service` bereits enthalten.
 
 ### Systemd Service erstellen:
 
@@ -983,9 +970,17 @@ chmod -R 755 /var/www/bis-data/Daten
 
 ### Gunicorn Worker anpassen:
 
-```python
-# In gunicorn_config.py
-workers = 4  # Anpassen je nach Last und CPU-Kerne
+Per Umgebungsvariable in `/opt/bis/.env` (wirkt nach `systemctl restart bis`):
+
+```bash
+GUNICORN_WORKERS=4
+GUNICORN_THREADS=4
+```
+
+Bei mehreren Workern Rate-Limiter auf einen geteilten Store umstellen:
+
+```bash
+RATELIMIT_STORAGE_URI=redis://127.0.0.1:6379/0
 ```
 
 ### Nginx Caching (optional):

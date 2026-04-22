@@ -35,9 +35,28 @@ services:
       WEBAUTHN_ORIGIN: ${WEBAUTHN_ORIGIN:-}
       WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:-}
       WEBAUTHN_RP_NAME: ${WEBAUTHN_RP_NAME:-BIS – Betriebsinformationssystem}
+      # Gunicorn: Worker/Threads konfigurierbar. Default (2 Worker, 4 Threads)
+      # ist konservativ und passt zu SQLite+WAL. Bei Bedarf in .env erhoehen
+      # (z. B. GUNICORN_WORKERS=4). Preload-Master laedt app.py einmal, Workers
+      # erben den Zustand per fork() (siehe gunicorn_config.py).
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
+      GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
+      # Rate-Limiter-Storage: gemeinsamer Store ueber Redis-Service, damit
+      # Limits prozessuebergreifend zaehlen.
+      RATELIMIT_STORAGE_URI: redis://Redis-Service:6379/0
     volumes:
       # Persistente Daten (Datenbank + Uploads)
       - C:\BIS-Daten:/data
+    depends_on:
+      Redis-Service:
+        condition: service_started
+    restart: unless-stopped
+
+  Redis-Service:
+    image: redis:7-alpine
+    container_name: bis-redis-service
+    # Rate-Limits brauchen keine Persistenz; AOF/RDB bewusst aus.
+    command: ["redis-server", "--appendonly", "no", "--save", ""]
     restart: unless-stopped
 
   Proxy-Service:

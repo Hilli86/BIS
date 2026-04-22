@@ -28,6 +28,7 @@ from flask import current_app
 from sqlalchemy import create_engine, event
 
 __all__ = [
+    'dispose_all_engines',
     'get_db_connection',
     'get_engine',
     'normalize_db_url',
@@ -91,6 +92,16 @@ def _install_engine_listeners(engine, app):
                 dbapi_conn.execute('PRAGMA foreign_keys = ON')
             except Exception:
                 pass
+            # WAL: parallele Reader + ein Writer (notwendig fuer Gunicorn
+            # Multi-Worker). synchronous=NORMAL ist bei WAL sicher und deutlich
+            # schneller als FULL. busy_timeout laesst Writer kurz warten statt
+            # sofort "database is locked" zu werfen.
+            try:
+                dbapi_conn.execute('PRAGMA journal_mode = WAL')
+                dbapi_conn.execute('PRAGMA synchronous = NORMAL')
+                dbapi_conn.execute('PRAGMA busy_timeout = 5000')
+            except Exception:
+                pass
             if app.config.get('SQL_TRACING', False):
                 def _tracer(stmt, _logger=logger):
                     try:
@@ -132,6 +143,24 @@ def get_engine():
     """Gibt die SA-Engine fuer die aktuelle Flask-App zurueck (gecached)."""
     app = current_app._get_current_object()
     return _get_engine_for_app(app)
+
+
+def dispose_all_engines() -> None:
+    """Schliesst alle gecachten SA-Engines und leert den Cache.
+
+    Unverzichtbar nach ``os.fork()`` (Gunicorn ``post_fork``): der Master legt
+    mit ``preload_app=True`` u. U. bereits eine Engine mit offenem
+    Connection-Pool an, der in die Worker vererbt wuerde. Diese geerbten
+    DBAPI-Verbindungen sind fork-unsicher (SQLite/psycopg). Nach ``dispose()``
+    erzeugt jeder Worker einen frischen Pool mit eigenen Verbindungen.
+    """
+    with _ENGINE_LOCK:
+        for engine in list(_ENGINE_CACHE.values()):
+            try:
+                engine.dispose()
+            except Exception:
+                pass
+        _ENGINE_CACHE.clear()
 
 
 @contextmanager

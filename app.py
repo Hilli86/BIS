@@ -99,30 +99,41 @@ limiter.init_app(app)
 # Security-Header (Flask-Talisman)
 init_security_headers(app)
 
-# Datenbank-Prüfung beim Start
-with app.app_context():
-    from utils.database_check import initialize_database_on_startup
-    initialize_database_on_startup(app)
-    
-    # Automatische Bereinigung alter Benachrichtigungen
-    try:
-        from utils.benachrichtigungen_cleanup import bereinige_benachrichtigungen_automatisch
-        bereinige_benachrichtigungen_automatisch(app)
-    except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.warning(f"Fehler beim automatischen Cleanup von Benachrichtigungen: {str(e)}")
+def run_startup_tasks(app):
+    """Einmalige Startup-Aufgaben: Alembic-Migration, Cleanup, Nachversand.
 
-    # Ausstehende E-Mail/Push-Versände (ältere pending-Einträge) einmal abarbeiten
-    try:
-        from utils.benachrichtigungen import versende_alle_benachrichtigungen
-        versende_alle_benachrichtigungen()
-    except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.warning(f"Fehler beim Nachversand ausstehender Benachrichtigungen: {str(e)}")
+    Wird im Single-Process-Betrieb (Dev-Server) direkt beim Modul-Import
+    aufgerufen und unter Gunicorn mit ``preload_app=True`` genau einmal im
+    Master-Prozess – Workers erben den migrierten Zustand per fork() und
+    fuehren den Block nicht erneut aus. Gesteuert wird das ueber die
+    Umgebungsvariable ``BIS_RUN_STARTUP_TASKS`` (siehe Aufruf unten).
+    """
+    with app.app_context():
+        from utils.database_check import initialize_database_on_startup
+        initialize_database_on_startup(app)
 
-# Upload-Ordner erstellen falls nicht vorhanden
+        try:
+            from utils.benachrichtigungen_cleanup import bereinige_benachrichtigungen_automatisch
+            bereinige_benachrichtigungen_automatisch(app)
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Fehler beim automatischen Cleanup von Benachrichtigungen: {str(e)}")
+
+        try:
+            from utils.benachrichtigungen import versende_alle_benachrichtigungen
+            versende_alle_benachrichtigungen()
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Fehler beim Nachversand ausstehender Benachrichtigungen: {str(e)}")
+
+
+# Unter Gunicorn (preload_app=True) setzt gunicorn_config.py diese Variable vor
+# dem App-Import auf "1" im Master und auf "0" in Worker-Prozessen. Dev-Server
+# ohne gesetzte Variable (Default "1") behalten das alte Verhalten.
+if os.environ.get('BIS_RUN_STARTUP_TASKS', '1') == '1':
+    run_startup_tasks(app)
+
+# Upload-Ordner erstellen falls nicht vorhanden (idempotent, pro Worker unproblematisch)
 from utils.folder_setup import create_all_upload_folders
 create_all_upload_folders(app)
 

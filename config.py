@@ -63,6 +63,11 @@ class Config:
     
     # SQL-Tracing (nur für Entwicklung)
     SQL_TRACING = os.environ.get('SQL_TRACING', 'False').lower() == 'true'
+
+    # Rate-Limiter Storage: im Single-Process-Betrieb (Dev) reicht memory://.
+    # Bei Gunicorn-Multi-Worker muss ein geteilter Store genutzt werden,
+    # z. B. redis://Redis-Service:6379/0 (Docker-Compose-Dienstname).
+    RATELIMIT_STORAGE_URI = os.environ.get('RATELIMIT_STORAGE_URI', 'memory://')
     
     # E-Mail-Konfiguration für Benachrichtigungen
     MAIL_ENABLED = os.environ.get('MAIL_ENABLED', 'False').lower() == 'true'

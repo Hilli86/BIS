@@ -52,9 +52,14 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 
 # Der Entrypoint startet als root, macht /data fuer den bis-Benutzer
 # schreibbar und fuehrt dann per gosu das eigentliche Kommando als bis aus.
-# Gunicorn: 0.0.0.0 damit von aussen erreichbar.
-# Nur 1 Worker, dafuer mehrere Threads: SQLite-Backend (Schema-Init/Migration in app.py)
-# und In-Memory-Rate-Limiter (utils/rate_limit.py) vertragen keinen Multi-Worker-Betrieb.
-# Parallele Requests werden ueber Threads bedient (App ist I/O-/Subprocess-bound).
+#
+# Gunicorn-Konfiguration liegt in /app/gunicorn_config.py (preload_app=True,
+# Workers/Threads aus ENV). Multi-Worker ist unterstuetzt, weil:
+#   - Startup-Tasks (Alembic, Cleanup, Nachversand) laufen nur im Master
+#     (siehe app.run_startup_tasks + BIS_RUN_STARTUP_TASKS in gunicorn_config.py)
+#   - SQLite ist per WAL + busy_timeout fork-sicher (utils/database.py)
+#   - Rate-Limiter liest RATELIMIT_STORAGE_URI aus der App-Config (Redis im
+#     Compose-Setup, siehe docker-compose.yml)
+# Worker-Zahl und Threads per ENV steuerbar (GUNICORN_WORKERS, GUNICORN_THREADS).
 ENTRYPOINT ["/usr/local/bin/bis-entrypoint.sh"]
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "8", "app:app"]
+CMD ["gunicorn", "-c", "gunicorn_config.py", "app:app"]

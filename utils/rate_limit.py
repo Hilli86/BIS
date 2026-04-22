@@ -9,6 +9,12 @@ Schlüssel:
 - `login_ratelimit_key`: IP + Personalnummer (Form- oder JSON-Body),
   damit parallele Angriffe gegen verschiedene Nutzer aus derselben IP
   einzeln gezählt werden.
+
+Storage-Backend: Standard ist `memory://` (pro Prozess). Für Multi-Worker-
+Betrieb (Gunicorn) muss ein geteilter Store genutzt werden, typischerweise
+Redis. Konfiguration über `RATELIMIT_STORAGE_URI` in der App-Config (z. B.
+`redis://Redis-Service:6379/0`). `Limiter.init_app(app)` liest diesen Wert
+automatisch aus `app.config`.
 """
 
 from flask import request
@@ -31,6 +37,5 @@ def login_ratelimit_key() -> str:
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=[],
-    storage_uri='memory://',
     strategy='fixed-window',
 )

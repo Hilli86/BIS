@@ -23,6 +23,10 @@ Flask-WTF==1.2.2
 flask-limiter==3.12
 Flask-Talisman==1.1.0
 
+# Redis-Client fuer flask-limiter in Multi-Worker-Setups (Gunicorn).
+# Ohne gesetzte RATELIMIT_STORAGE_URI wird weiterhin memory:// genutzt.
+redis==5.0.8
+
 # Datenbank-Abstraktion: SQLAlchemy Core als Fassade, Alembic fuer Schema-
 # Migrationen. Wird sowohl gegen SQLite (Default) als auch Postgres genutzt.
 SQLAlchemy==2.0.49

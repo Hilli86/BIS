@@ -57,7 +57,4 @@ Daten/
 *.tar.gz
 /opt/backups/
 
-# Gunicorn
-gunicorn_config.py
-
 start.bat

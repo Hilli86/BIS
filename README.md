@@ -61,8 +61,15 @@ flask --app app run
 
 Produktion (Gunicorn hinter Reverse-Proxy, z. B. nginx):
 ```bash
-gunicorn --workers 1 --threads 8 --bind 127.0.0.1:8000 app:app
+gunicorn -c gunicorn_config.py app:app
 ```
+- Worker/Threads konfigurierbar per `GUNICORN_WORKERS` (Default 2) und
+  `GUNICORN_THREADS` (Default 4). Die mitgelieferte `gunicorn_config.py`
+  nutzt `preload_app=True`, damit Startup-Tasks (Alembic-Migration,
+  Benachrichtigungs-Cleanup, Nachversand) nur einmal im Master laufen.
+- Bei mehreren Workern zwingend einen geteilten Rate-Limiter-Store setzen:
+  `RATELIMIT_STORAGE_URI=redis://<host>:6379/0`. Im Docker-Compose-Stack
+  ist ein `Redis-Service` bereits enthalten.
 - `python app.py` bzw. Debug-Modus sind **nicht** für den produktiven
   Betrieb gedacht.
 - Siehe `deployment/bis.service`, `docker/bis.Dockerfile` und `docker-compose.yml` für fertige Setups.
