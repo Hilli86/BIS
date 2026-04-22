@@ -11,8 +11,9 @@
 #   2. SECRET_KEY unten setzen (mind. 32 Zeichen, kein Platzhalter).
 #   3. Optional: WebAuthn/Mail/VAPID erg�nzen � siehe Hinweise am Ende.
 #
-# Pfade zur Datenbank und zu Uploads sind im Compose-File fest auf den
-# Volume-Mount `/data` im Container gelegt (Windows-Host z.B. `C:\BIS-Daten:/data`).
+# Host-Pfade fuer Docker-Volumes (BIS_DATA_HOST, BIS_BACKUP_PLAIN_HOST,
+# BIS_BACKUP_ENCRYPTED_HOST): siehe `.env.example` und in Ihrer `.env` setzen.
+# Im Container bleibt der Mount unter `/data` (Datenbank + Uploads).
 # FLASK_ENV, SESSION_COOKIE_SECURE, TRUSTED_PROXIES usw. stehen ebenfalls in
 # `docker-compose.yml`; dort anpassen, wenn Sie etwas davon �ndern wollen.
 #

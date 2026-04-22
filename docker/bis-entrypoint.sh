@@ -2,7 +2,7 @@
 # BIS - Application-Service Entrypoint
 #
 # Stellt sicher, dass das gemountete Datenvolumen (/data) dem nicht-root
-# Benutzer "bis" gehoert. Noetig, weil Bind-Mounts (z. B. C:\BIS-Daten:/data
+# Benutzer "bis" gehoert. Noetig, weil Bind-Mounts (Host-Pfad aus BIS_DATA_HOST -> :/data
 # unter Docker Desktop/WSL2) das im Dockerfile gesetzte Ownership zur Laufzeit
 # wieder mit Host-Rechten (typischerweise root:root) ueberlagern und der
 # Anwendungsbenutzer dann im Volume keine Unterordner anlegen kann

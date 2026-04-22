@@ -8,7 +8,7 @@
     - Fuehrt `docker compose up -d --build` aus (Images Application-Service + Proxy-Service).
 
     Voraussetzungen: Git im PATH, Docker Desktop / Docker CLI, im Projektroot eine `.env` mit SECRET_KEY
-    (siehe env_docker_example.txt), damit docker-compose die Substitution erfuellt.
+    und den Host-Pfaden aus `.env.example` (siehe auch env_docker_example.txt), damit docker-compose die Substitution erfuellt.
 
 .PARAMETER RepoRoot
     Absoluter Pfad zum BIS-Repository (Ordner mit docker-compose.yml).

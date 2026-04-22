@@ -45,8 +45,8 @@ services:
       # Limits prozessuebergreifend zaehlen.
       RATELIMIT_STORAGE_URI: redis://Redis-Service:6379/0
     volumes:
-      # Persistente Daten (Datenbank + Uploads)
-      - C:\BIS-Daten:/data
+      # Persistente Daten (Datenbank + Uploads); Host-Pfad in .env: BIS_DATA_HOST
+      - ${BIS_DATA_HOST:?BIS_DATA_HOST fehlt in .env siehe .env.example}:/data
     depends_on:
       Redis-Service:
         condition: service_started
@@ -92,11 +92,11 @@ services:
       NOTIFY_ON_SUCCESS: "true"
     volumes:
       # Gleicher Datenpfad wie Application-Service (DB + Uploads). rw noetig fuer Benachrichtigungs-Insert.
-      - C:\BIS-Daten:/data
+      - ${BIS_DATA_HOST:?BIS_DATA_HOST fehlt in .env siehe .env.example}:/data
       # Lokales Backup-Ziel (unverschluesselt, schneller Restore).
-      - C:\BIS-Backups:/backup-plain
-      # Verschluesselte Offsite-Kopie (OneDrive synchronisiert in die Cloud).
-      - C:\Users\MartinHilbert\OneDrive - Binca Handels GmbH\Apps\BIS\Backups:/backup-encrypted
+      - ${BIS_BACKUP_PLAIN_HOST:?BIS_BACKUP_PLAIN_HOST fehlt in .env siehe .env.example}:/backup-plain
+      # Verschluesselte Offsite-Kopie (z. B. OneDrive synchronisiert in die Cloud).
+      - ${BIS_BACKUP_ENCRYPTED_HOST:?BIS_BACKUP_ENCRYPTED_HOST fehlt in .env siehe .env.example}:/backup-encrypted
     depends_on:
       - Application-Service
     restart: unless-stopped
