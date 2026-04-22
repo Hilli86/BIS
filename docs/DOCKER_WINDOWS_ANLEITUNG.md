@@ -82,9 +82,9 @@ Für Produktion sollten Sie mindestens einen eigenen **SECRET_KEY** setzen. Daf�
    Copy-Item env_docker_example.txt .env
    ```
 
-   Alternativ allgemeine Vorlage: `Copy-Item env_example.txt .env` – dann `FLASK_ENV` und Pfade aus der Datei ignorieren; im Container setzt `docker-compose.yml` bereits `FLASK_ENV=production` und die Datenpfade unter `/data`.
+   Alternativ allgemeine Vorlage: `Copy-Item env_example.txt .env` – dann `FLASK_ENV` und Pfade aus der Datei ignorieren; im Container setzt `docker-compose.yml` bereits `FLASK_ENV=production` und die Datenpfade unter `/data`. Für Compose müssen Sie zusätzlich die **Host-Pfade** `BIS_DATA_HOST`, `BIS_BACKUP_PLAIN_HOST` und `BIS_BACKUP_ENCRYPTED_HOST` setzen (siehe Kommentare in `env_docker_example.txt`).
 
-2. Öffnen Sie `.env` und setzen Sie mindestens einen starken **SECRET_KEY** (mind. 32 Zeichen). Ohne gültigen `SECRET_KEY` bricht `docker compose` beim Start mit einer Fehlermeldung ab (`${SECRET_KEY:?}` in der Compose-Datei).
+2. Öffnen Sie `.env` und setzen Sie mindestens einen starken **SECRET_KEY** (mind. 32 Zeichen), die **BIS_*-Hostpfade** und **BACKUP_ENCRYPTION_PASSWORD** wie in `env_docker_example.txt` beschrieben. Ohne gültigen `SECRET_KEY` bricht `docker compose` beim Start mit einer Fehlermeldung ab (`${SECRET_KEY:?}` in der Compose-Datei).
 
 ---
 

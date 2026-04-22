@@ -7,13 +7,12 @@
 # `${SECRET_KEY}` im Compose-File.
 #
 # Vorgehen:
-#   1. Diese Datei nach `.env` kopieren (Name exakt `.env`).
-#   2. SECRET_KEY unten setzen (mind. 32 Zeichen, kein Platzhalter).
-#   3. Optional: WebAuthn/Mail/VAPID erg�nzen � siehe Hinweise am Ende.
+#   1. Diese Datei nach `.env` kopieren (Name exakt `.env`, nicht committen).
+#   2. SECRET_KEY und BIS_*-Hostpfade unten anpassen (Pflicht fuer compose).
+#   3. Optional: WebAuthn/Mail/VAPID ergaenzen -- siehe Hinweise am Ende.
 #
-# Host-Pfade fuer Docker-Volumes (BIS_DATA_HOST, BIS_BACKUP_PLAIN_HOST,
-# BIS_BACKUP_ENCRYPTED_HOST): siehe `.env.example` und in Ihrer `.env` setzen.
-# Im Container bleibt der Mount unter `/data` (Datenbank + Uploads).
+# `.env` bleibt nach git pull lokal erhalten. BIS_*-Platzhalter im Abschnitt
+# „Pflicht“ unten durch echte Host-Pfade ersetzen (Volume-Mounts in compose).
 # FLASK_ENV, SESSION_COOKIE_SECURE, TRUSTED_PROXIES usw. stehen ebenfalls in
 # `docker-compose.yml`; dort anpassen, wenn Sie etwas davon �ndern wollen.
 #
@@ -26,6 +25,34 @@
 # Erzeugen z.B. mit:
 #   python -c "import secrets; print(secrets.token_urlsafe(48))"
 SECRET_KEY=bitte-durch-eigenen-langen-zufaelligen-wert-ersetzen-min-32-zeichen
+
+# Lokaler Ordner fuer SQLite + Uploads (Host-Pfad). Im Container: /data
+BIS_DATA_HOST=C:/Pfade/anpassen/bis-daten
+
+# Lokaler Ordner fuer unverschluesselte Backups (Host). Im Container: /backup-plain
+BIS_BACKUP_PLAIN_HOST=C:/Pfade/anpassen/bis-backups-plain
+
+# Lokaler OneDrive- oder anderer Offsite-Ordner fuer verschluesselte Backups (Host).
+# Im Container: /backup-encrypted
+BIS_BACKUP_ENCRYPTED_HOST=C:/Pfade/anpassen/bis-backups-encrypted
+
+# -----------------------------------------------------------------------------
+# Optional: Gunicorn (Worker / Threads im Application-Service)
+# -----------------------------------------------------------------------------
+#
+# In docker-compose.yml werden GUNICORN_WORKERS und GUNICORN_THREADS per
+# ${GUNICORN_WORKERS:-2} bzw. ${GUNICORN_THREADS:-4} gesetzt. Ueberschreiben
+# Sie die Werte hier in `.env` und starten Sie die Container neu.
+#
+# Auswertung: gunicorn_config.py (dort auch GUNICORN_BIND, GUNICORN_TIMEOUT,
+# GUNICORN_LOGLEVEL, GUNICORN_GRACEFUL_TIMEOUT, GUNICORN_KEEPALIVE, ...).
+# Bei SQLite+WAL sind viele Worker kontraproduktiv; typisch 2-4 Worker.
+#
+# GUNICORN_WORKERS=4
+# GUNICORN_THREADS=4
+#
+# Rate-Limiting (flask-limiter) nutzt im Docker-Stack Redis (Dienst
+# Redis-Service); siehe RATELIMIT_STORAGE_URI in docker-compose.yml.
 
 # -----------------------------------------------------------------------------
 # Optional: WebAuthn / Passkeys (FLASK_ENV=production)

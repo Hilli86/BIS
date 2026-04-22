@@ -1,5 +1,19 @@
 # Umgebungsvariablen für die Flask-Anwendung
 # Kopieren Sie diese Datei zu .env und passen Sie die Werte an
+#
+# Docker Compose (Projektroot, gleicher Dateiname `.env` neben docker-compose.yml):
+# Vollständige Vorlage inkl. SECRET_KEY, BACKUP_ENCRYPTION_PASSWORD, WebAuthn: env_docker_example.txt
+# Folgende Variablen wertet nur Compose aus (nicht Flask):
+#
+# Lokaler Ordner für SQLite + Uploads (Host). Im Container: /data
+# BIS_DATA_HOST=C:/Pfade/anpassen/bis-daten
+#
+# Lokaler Ordner für unverschlüsselte Backups (Host). Im Container: /backup-plain
+# BIS_BACKUP_PLAIN_HOST=C:/Pfade/anpassen/bis-backups-plain
+#
+# Lokaler OneDrive- oder anderer Offsite-Ordner für verschlüsselte Backups (Host).
+# Im Container: /backup-encrypted
+# BIS_BACKUP_ENCRYPTED_HOST=C:/Pfade/anpassen/bis-backups-encrypted
 
 # Flask-Konfiguration
 FLASK_ENV=development
@@ -18,6 +32,17 @@ UPLOAD_BASE_FOLDER=C:\Users\hilli\Pictures\BIS
 
 # SQL-Tracing (nur für Entwicklung)
 SQL_TRACING=True
+
+# Gunicorn (nur wenn Sie die App so starten: gunicorn -c gunicorn_config.py app:app)
+# Nicht für `flask run`. Defaults und alle Variablennamen: gunicorn_config.py
+# Im Docker-Stack: docker-compose.yml (${GUNICORN_WORKERS:-2} usw., in `.env` überschreibbar).
+# GUNICORN_WORKERS=2
+# GUNICORN_THREADS=4
+# GUNICORN_TIMEOUT=120
+#
+# Rate-Limiter (mehrere Gunicorn-Worker): Standard ist memory:// (config.py).
+# Für gemeinsame Zähler Redis starten und z. B. setzen:
+# RATELIMIT_STORAGE_URI=redis://127.0.0.1:6379/0
 
 # Web-Push (VAPID) – Schlüssel z. B. mit: flask --app app vapid-generate
 # Prüfen: flask --app app vapid-verify

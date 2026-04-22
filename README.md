@@ -39,7 +39,7 @@ pip install -r requirements.txt
 4. **Umgebungsvariablen konfigurieren:**
 Erstellen Sie eine `.env` basierend auf `env_example.txt` und passen Sie
 mindestens `SECRET_KEY`, `DATABASE_URL` und `UPLOAD_BASE_FOLDER` an.
-Für **Docker Compose** eignet sich `env_docker_example.txt` als Vorlage (u.a. Hinweise zu `SECRET_KEY`, WebAuthn hinter Nginx und optional Mail/VAPID).
+Für **Docker Compose** eignet sich `env_docker_example.txt` als Vorlage (u.a. `SECRET_KEY`, Host-Pfade `BIS_DATA_HOST` / `BIS_BACKUP_*`, WebAuthn hinter Nginx und optional Mail/VAPID).
 
 5. **Datenbank:**
 - Standard-Datei ist `database_main.db` (Pfad konfigurierbar über `DATABASE_URL`).
