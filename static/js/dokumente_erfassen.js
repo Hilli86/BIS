@@ -10,6 +10,9 @@
   const boot = document.getElementById('dokumente-erfassen-boot');
   const UPLOAD_URL = boot && boot.dataset.uploadUrl ? boot.dataset.uploadUrl : '/api/import/hochladen';
 
+  /** Freiraum um die Vorschau im Bereich „Dokumentrand anpassen“ (px je Seite), sichtbar als grauer Rand. */
+  const ADJUST_VIEW_PADDING = 28;
+
   /** Lokal (/static/vendor/…) zuerst (offline); sonst CDN-Fallbacks. data-opencv-local kommt aus dem Template. */
   const OPENCV_SCRIPT_URLS = (function () {
     const urls = [];
@@ -207,12 +210,13 @@
   }
 
   function defaultCorners(w, h) {
-    const m = 0.03;
+    const xmax = Math.max(0, w - 1);
+    const ymax = Math.max(0, h - 1);
     return [
-      [w * m, h * m],
-      [w * (1 - m), h * m],
-      [w * (1 - m), h * (1 - m)],
-      [w * m, h * (1 - m)],
+      [0, 0],
+      [xmax, 0],
+      [xmax, ymax],
+      [0, ymax],
     ];
   }
 
@@ -642,7 +646,10 @@
     const wrap = el.adjustWrap;
     const maxW = wrap.clientWidth || 800;
     const maxH = 420;
-    const scale = Math.min(maxW / c.width, maxH / c.height, 1);
+    const pad = ADJUST_VIEW_PADDING;
+    const innerW = Math.max(64, maxW - 2 * pad);
+    const innerH = Math.max(64, maxH - 2 * pad);
+    const scale = Math.min(innerW / c.width, innerH / c.height, 1);
     state.adjustScale = scale;
     state.adjustOffsetX = (maxW - c.width * scale) / 2;
     state.adjustOffsetY = (maxH - c.height * scale) / 2;
