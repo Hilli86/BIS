@@ -33,15 +33,19 @@ LOGIN_STARTSEITEN_AUSWAHL = [
     ('wartungen.jahresuebersicht', 'Wartungen: Jahresübersicht'),
     ('wartungen.durchfuehrungen_chronologisch', 'Wartungen: Protokolle'),
     ('wartungen.durchfuehrung_mehrere', 'Wartungen: Mehrere protokollieren'),
-    ('diverses.dokumente_erfassen', 'Diverses: Dokumente erfassen'),
-    ('diverses.zebra_drucker', 'Diverses: Zebra-Drucker'),
+    ('diverses.dokumente_erfassen', 'Dashboard: Dokumente erfassen'),
     ('produktion.etikettierung', 'Produktion: Etikettierung'),
-    ('produktion.etiketten_drucken', 'Produktion: Etiketten drucken'),
+    ('produktion.etiketten_drucken', 'Produktion: Verpackung'),
     ('search.search', 'Globale Suche'),
     ('auth.profil', 'Mein Profil'),
 ]
 
 ERLAUBTE_LOGIN_STARTSEITEN = frozenset(ep for ep, _ in LOGIN_STARTSEITEN_AUSWAHL)
+
+# Frühere Endpunktnamen → gültiges Ziel (z. B. nach Umzug einer Seite)
+_STARTSEITE_ENDPUNKT_ALIAS = {
+    'diverses.zebra_drucker': 'produktion.etikettierung',
+}
 
 
 def normalisiere_startseite_endpunkt(wert):
@@ -49,6 +53,7 @@ def normalisiere_startseite_endpunkt(wert):
     if not wert:
         return None
     s = (wert or '').strip()
+    s = _STARTSEITE_ENDPUNKT_ALIAS.get(s, s)
     if not s or s not in ERLAUBTE_LOGIN_STARTSEITEN:
         return None
     return s

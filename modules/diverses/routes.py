@@ -3,7 +3,7 @@ Diverses Routes
 Routes für verschiedene Funktionen
 """
 
-from flask import render_template, request, jsonify, session
+from flask import redirect, render_template, request, jsonify, session, url_for
 from . import diverses_bp
 from utils.database import get_db_connection
 from utils.decorators import permission_required, login_required
@@ -63,8 +63,8 @@ def dokumente_erfassen():
 @diverses_bp.route('/zebra-drucker')
 @permission_required('zebra_drucker_produktion')
 def zebra_drucker():
-    """Zebra-Drucker Seite"""
-    return render_template('zebra_drucker.html', drucker_liste=DRUCKER_LISTE)
+    """Redirect: Inhalt liegt unter Produktion → Etikettierung (Abschnitt Zebra-Drucker)."""
+    return redirect(url_for('produktion.etikettierung') + '#zebra-drucker')
 
 
 @diverses_bp.route('/zebra-drucker/kalibrieren', methods=['POST'])

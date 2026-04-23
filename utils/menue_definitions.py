@@ -37,9 +37,9 @@ MENUE_DEFINITIONEN = [
         'berechtigung': ['admin', 'wartung_erstellen', 'wartung_nur_Plan_erstellen', 'wartung_protokollieren'],
     },
     {'schluessel': 'diverses_zebra', 'bezeichnung': 'Zebra-Drucker', 'gruppe': 'Diverses', 'berechtigung': ['zebra_drucker_produktion']},
-    {'schluessel': 'diverses_dokumente', 'bezeichnung': 'Dokumente erfassen', 'gruppe': 'Diverses', 'berechtigung': None},
+    {'schluessel': 'diverses_dokumente', 'bezeichnung': 'Dokumente erfassen', 'gruppe': 'Dashboard', 'berechtigung': None},
     {'schluessel': 'produktion_etikettierung', 'bezeichnung': 'Etikettierung', 'gruppe': 'Produktion', 'berechtigung': None},
-    {'schluessel': 'produktion_etiketten_drucken', 'bezeichnung': 'Etiketten drucken', 'gruppe': 'Produktion', 'berechtigung': None},
+    {'schluessel': 'produktion_etiketten_drucken', 'bezeichnung': 'Verpackung', 'gruppe': 'Produktion', 'berechtigung': None},
 ]
 
 

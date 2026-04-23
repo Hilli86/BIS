@@ -72,6 +72,7 @@ ENDPOINT_BREADCRUMB_LABEL: dict[str, str] = {
     'search.search': 'Suche',
     'admin.index': 'Admin',
     'produktion.etikettierung': 'Etikettierung',
+    'produktion.etiketten_drucken': 'Verpackung',
 }
 
 

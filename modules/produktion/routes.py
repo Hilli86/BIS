@@ -36,6 +36,8 @@ from utils.file_handling import (
 )
 from utils.zebra_client import dispatch_print
 
+from modules.diverses.routes import DRUCKER_LISTE
+
 
 def get_artikeleinstellungen_struktur():
     """
@@ -218,7 +220,21 @@ def etikettierung():
     struktur = get_artikeleinstellungen_struktur()
     user_berechtigungen = session.get('user_berechtigungen', [])
     kann_foto_aendern = 'foto_artikeleinstellungen_aendern' in user_berechtigungen or 'admin' in user_berechtigungen
-    return render_template('etikettierung.html', struktur=struktur, kann_foto_aendern=kann_foto_aendern)
+    zebra_panel_sichtbar = (
+        not session.get('is_guest')
+        and (
+            'zebra_drucker_produktion' in user_berechtigungen
+            or 'admin' in user_berechtigungen
+        )
+    )
+    return render_template(
+        'etikettierung.html',
+        title='Etikettierung',
+        struktur=struktur,
+        kann_foto_aendern=kann_foto_aendern,
+        zebra_panel_sichtbar=zebra_panel_sichtbar,
+        drucker_liste=DRUCKER_LISTE,
+    )
 
 
 @produktion_bp.route('/etikettierung/foto/upload', methods=['POST'])
