@@ -17,7 +17,11 @@
       <tbody>
         <tr>
           <td class="text-muted align-top" style="width: 11rem;"><strong>Wartung</strong></td>
-          <td><strong class="fs-5">{{ d.WartungBez }}</strong></td>
+          <td>
+            <strong class="fs-5">
+              <a href="{{ url_for('wartungen.wartung_detail', wartung_id=d.WartungID) }}" class="link-primary text-decoration-none">{{ d.WartungBez }}</a>
+            </strong>
+          </td>
         </tr>
         <tr>
           <td class="text-muted"><strong>Bereich / Gewerk</strong></td>

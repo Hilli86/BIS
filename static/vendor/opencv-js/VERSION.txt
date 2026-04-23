@@ -1,0 +1,2 @@
+@techstark/opencv-js@4.12.0-release.1
+Quelle: registry.npmjs.org (package/dist/opencv.js, ca. 10,4 MB)

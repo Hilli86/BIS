@@ -3,6 +3,7 @@
 {% block content %}
 <h1 class="mb-4">Neue Bestellung</h1>
 
+{% set prio_sel = form_prefill.prioritaet if form_prefill else 3 %}
 <form method="post" id="bestellungForm">
     {{ csrf_field() }}
     <div class="card mb-4 shadow-sm">
@@ -16,23 +17,23 @@
                     <select name="lieferant_id" class="form-select" required id="lieferantSelect">
                         <option value="">-- Bitte wählen --</option>
                         {% for l in lieferanten %}
-                        <option value="{{ l.ID }}">{{ l.Name }}</option>
+                        <option value="{{ l.ID }}" {% if form_prefill and form_prefill.lieferant_id == l.ID %}selected{% endif %}>{{ l.Name }}</option>
                         {% endfor %}
                     </select>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label"><strong>Priorität:</strong></label>
                     <select name="prioritaet" class="form-select" required>
-                        <option value="1">1 - Sehr niedrig</option>
-                        <option value="2">2 - Niedrig</option>
-                        <option value="3" selected>3 - Normal</option>
-                        <option value="4">4 - Hoch</option>
-                        <option value="5">5 - Sehr hoch</option>
+                        <option value="1" {% if prio_sel == 1 %}selected{% endif %}>1 - Sehr niedrig</option>
+                        <option value="2" {% if prio_sel == 2 %}selected{% endif %}>2 - Niedrig</option>
+                        <option value="3" {% if prio_sel == 3 %}selected{% endif %}>3 - Normal</option>
+                        <option value="4" {% if prio_sel == 4 %}selected{% endif %}>4 - Hoch</option>
+                        <option value="5" {% if prio_sel == 5 %}selected{% endif %}>5 - Sehr hoch</option>
                     </select>
                 </div>
                 <div class="col-md-12">
                     <label class="form-label"><strong>Bemerkung:</strong></label>
-                    <textarea name="bemerkung" class="form-control" rows="2" placeholder="Optionale Bemerkung zur Bestellung"></textarea>
+                    <textarea name="bemerkung" class="form-control" rows="2" placeholder="Optionale Bemerkung zur Bestellung">{{ form_prefill.bemerkung if form_prefill else '' }}</textarea>
                 </div>
             </div>
         </div>
@@ -69,7 +70,9 @@
                            name="sichtbare_abteilungen" 
                            value="{{ gruppe.parent.ID }}" 
                            id="abt_{{ gruppe.parent.ID }}"
-                           {% if gruppe.parent.is_primaer %}checked{% endif %}>
+                           {% if form_prefill %}
+                           {% if gruppe.parent.ID|string in form_prefill.sichtbare_abteilungen %}checked{% endif %}
+                           {% elif gruppe.parent.is_primaer %}checked{% endif %}>
                     <label class="form-check-label fw-bold" for="abt_{{ gruppe.parent.ID }}">
                         {{ gruppe.parent.Bezeichnung }}
                     </label>
@@ -84,7 +87,8 @@
                         <input class="form-check-input" type="checkbox" 
                                name="sichtbare_abteilungen" 
                                value="{{ child.ID }}" 
-                               id="abt_{{ child.ID }}">
+                               id="abt_{{ child.ID }}"
+                               {% if form_prefill and child.ID|string in form_prefill.sichtbare_abteilungen %}checked{% endif %}>
                         <label class="form-check-label" for="abt_{{ child.ID }}">
                             {% for i in range(child.level + 1) %}↳{% endfor %} {{ child.Bezeichnung }}
                         </label>
@@ -109,8 +113,35 @@
 
 <script>
 const KOSTENSTELLEN = {{ (kostenstellen or [])|tojson|safe }};
+const PREFILL_POSITIONEN = {{ (form_prefill.positionen if form_prefill else [])|tojson|safe }};
 
-function addPosition() {
+function applyPrefillToRow(row, prefill) {
+    if (!prefill || !row) return;
+    const ei = row.querySelector('.ersatzteil-id-input');
+    const bn = row.querySelector('.bestellnummer-display');
+    const bez = row.querySelector('.bezeichnung-display');
+    const ein = row.querySelector('.einheit-display');
+    const linkEl = row.querySelector('.link-display');
+    const mengeInput = row.querySelector('input[name="menge[]"]');
+    const preisInput = row.querySelector('input[name="preis[]"]');
+    const waehrungSelect = row.querySelector('select[name="waehrung[]"]');
+    const posBem = row.querySelector('input[name="position_bemerkung[]"]');
+    const ksSelect = row.querySelector('select[name="kostenstelle_id[]"]');
+    if (ei && prefill.ersatzteil_id !== undefined && prefill.ersatzteil_id !== '') ei.value = prefill.ersatzteil_id;
+    if (bn && prefill.bestellnummer !== undefined) bn.value = prefill.bestellnummer || '';
+    if (bez && prefill.bezeichnung !== undefined) bez.value = prefill.bezeichnung || '';
+    if (ein && prefill.einheit !== undefined) ein.value = prefill.einheit || '';
+    if (linkEl && prefill.link !== undefined) linkEl.value = prefill.link || '';
+    if (mengeInput && prefill.menge !== undefined && prefill.menge !== '') mengeInput.value = prefill.menge;
+    if (preisInput && prefill.preis !== undefined && prefill.preis !== '') preisInput.value = prefill.preis;
+    if (waehrungSelect && prefill.waehrung) waehrungSelect.value = prefill.waehrung;
+    if (posBem && prefill.position_bemerkung !== undefined) posBem.value = prefill.position_bemerkung || '';
+    if (ksSelect && prefill.kostenstelle_id !== undefined && prefill.kostenstelle_id !== '') {
+        ksSelect.value = String(prefill.kostenstelle_id);
+    }
+}
+
+function addPosition(prefill) {
     const container = document.getElementById('positionenContainer');
     const emptyMessage = document.getElementById('emptyMessage');
     
@@ -186,6 +217,9 @@ function addPosition() {
     
     container.appendChild(positionRow);
     emptyMessage.style.display = 'none';
+    if (prefill) {
+        applyPrefillToRow(positionRow, prefill);
+    }
 }
 
 function removePosition(button) {
@@ -506,6 +540,13 @@ function selectErsatzteil(id, bestellnummer, bezeichnung, preis, waehrung, event
 
 // Enter-Taste für ErsatzteilID-Inputs
 document.addEventListener('DOMContentLoaded', function() {
+    if (PREFILL_POSITIONEN && PREFILL_POSITIONEN.length > 0) {
+        const emptyMessage = document.getElementById('emptyMessage');
+        if (emptyMessage) emptyMessage.style.display = 'none';
+        PREFILL_POSITIONEN.forEach(function(pref) {
+            addPosition(pref);
+        });
+    }
     // Event-Delegation für dynamisch hinzugefügte Positionen
     document.getElementById('positionenContainer').addEventListener('keypress', function(e) {
         if (e.target.classList.contains('ersatzteil-id-input') && e.key === 'Enter') {

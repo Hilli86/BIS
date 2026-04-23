@@ -4,11 +4,28 @@
 (function () {
   'use strict';
 
-  const OPENCV_CDN =
-    'https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.12.0-release.1/dist/opencv.js';
+  /** @type {Promise<void>|null} */
+  let opencvLoadingPromise = null;
 
   const boot = document.getElementById('dokumente-erfassen-boot');
   const UPLOAD_URL = boot && boot.dataset.uploadUrl ? boot.dataset.uploadUrl : '/api/import/hochladen';
+
+  /** Lokal (/static/vendor/…) zuerst (offline); sonst CDN-Fallbacks. data-opencv-local kommt aus dem Template. */
+  const OPENCV_SCRIPT_URLS = (function () {
+    const urls = [];
+    const local =
+      boot && typeof boot.dataset.opencvLocal === 'string'
+        ? boot.dataset.opencvLocal.trim()
+        : '';
+    if (local) {
+      urls.push(local);
+    }
+    urls.push(
+      'https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.12.0-release.1/dist/opencv.js',
+      'https://unpkg.com/@techstark/opencv-js@4.12.0-release.1/dist/opencv.js'
+    );
+    return urls;
+  })();
 
   /** POST-URL mit Dateiname in der Query (zuverlässiger als nur multipart auf iOS/Android). */
   function buildImportUploadUrl(filenameEncoded) {
@@ -134,23 +151,44 @@
         };
       });
     }
-    return new Promise(function (resolve, reject) {
-      const script = document.createElement('script');
-      script.src = OPENCV_CDN;
-      script.async = true;
-      script.onload = function () {
-        cv['onRuntimeInitialized'] = function () {
-          state.cvReady = true;
-          setOpencvStatus('Bildverarbeitung bereit.');
-          resolve();
-        };
-      };
-      script.onerror = function () {
-        setOpencvStatus('OpenCV.js konnte nicht geladen werden. Zuschnitt mit Standardrahmen möglich.', true);
+    if (opencvLoadingPromise) {
+      return opencvLoadingPromise;
+    }
+    opencvLoadingPromise = new Promise(function (resolve, reject) {
+      function failAll() {
+        opencvLoadingPromise = null;
+        setOpencvStatus(
+          'OpenCV.js konnte nicht geladen werden (Netzwerk oder Sicherheitsrichtlinie). Zuschnitt mit Standardrahmen möglich.',
+          true
+        );
         reject(new Error('opencv load'));
-      };
-      document.head.appendChild(script);
+      }
+      function tryUrl(index) {
+        if (index >= OPENCV_SCRIPT_URLS.length) {
+          failAll();
+          return;
+        }
+        const script = document.createElement('script');
+        script.src = OPENCV_SCRIPT_URLS[index];
+        script.async = true;
+        script.onload = function () {
+          cv['onRuntimeInitialized'] = function () {
+            state.cvReady = true;
+            setOpencvStatus('Bildverarbeitung bereit.');
+            resolve();
+          };
+        };
+        script.onerror = function () {
+          if (script.parentNode) {
+            script.parentNode.removeChild(script);
+          }
+          tryUrl(index + 1);
+        };
+        document.head.appendChild(script);
+      }
+      tryUrl(0);
     });
+    return opencvLoadingPromise;
   }
 
   function orderPoints(pts) {
@@ -1142,7 +1180,7 @@
     );
   })();
 
-  loadOpenCv().catch(function () {});
+  /* OpenCV (~10 MB) erst bei erster Erkennung/Zuschneiden laden – vermeidet Timeout beim Seitenstart. */
 
   startCamera();
 })();

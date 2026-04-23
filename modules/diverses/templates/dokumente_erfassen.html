@@ -190,6 +190,7 @@
   id="dokumente-erfassen-boot"
   src="{{ url_for('static', filename='js/dokumente_erfassen.js') }}"
   data-upload-url="{{ url_for('import.import_hochladen') }}"
+  data-opencv-local="{{ url_for('static', filename='vendor/opencv-js/opencv.js') }}"
   defer
 ></script>
 {% endblock %}

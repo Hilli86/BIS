@@ -28,6 +28,9 @@
   {% if protokoll_kontext.abteilung_id is not none %}
   <input type="hidden" name="abteilung_id" value="{{ protokoll_kontext.abteilung_id }}">
   {% endif %}
+  {% if protokoll_kontext.nur_faellig %}
+  <input type="hidden" name="nur_faellig" value="1">
+  {% endif %}
   {% elif protokoll_kontext and protokoll_kontext.herkunft == 'plaene_uebersicht' %}
   <input type="hidden" name="protokoll_herkunft" value="plaene_uebersicht">
   <input type="hidden" name="plan_order" value="{{ protokoll_kontext.plan_order or 'stamm' }}">
@@ -143,6 +146,9 @@
   {% endif %}
   {% if protokoll_kontext.abteilung_id is not none %}
   <input type="hidden" name="abteilung_id" value="{{ protokoll_kontext.abteilung_id }}">
+  {% endif %}
+  {% if protokoll_kontext.nur_faellig %}
+  <input type="hidden" name="nur_faellig" value="1">
   {% endif %}
   {% elif protokoll_kontext and protokoll_kontext.herkunft == 'plaene_uebersicht' %}
   <input type="hidden" name="protokoll_herkunft" value="plaene_uebersicht">

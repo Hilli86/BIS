@@ -106,11 +106,11 @@ PROTOKOLL_HERKUNFT_PLAENE_UEBERSICHT = 'plaene_uebersicht'
 def _empty_protokoll_kontext():
     return {
         'herkunft': '', 'jahr': None, 'bereich_id': None, 'gewerk_id': None,
-        'abteilung_id': None, 'plan_order': None,
+        'abteilung_id': None, 'plan_order': None, 'nur_faellig': False,
     }
 
 
-def _jahresuebersicht_protokoll_query_args(jahr, bereich_id, gewerk_id, abteilung_id=None):
+def _jahresuebersicht_protokoll_query_args(jahr, bereich_id, gewerk_id, abteilung_id=None, nur_faellig=False):
     """Query-Parameter für durchfuehrung_neu, wenn der Aufruf von der Jahresübersicht kommt."""
     q = {'herkunft': PROTOKOLL_HERKUNFT_JAHRESUEBERSICHT, 'jahr': jahr}
     if bereich_id is not None:
@@ -119,7 +119,28 @@ def _jahresuebersicht_protokoll_query_args(jahr, bereich_id, gewerk_id, abteilun
         q['gewerk_id'] = gewerk_id
     if abteilung_id is not None:
         q['abteilung_id'] = abteilung_id
+    if nur_faellig:
+        q['nur_faellig'] = 1
     return q
+
+
+def _jahresmatrix_row_hat_faelligkeit(row):
+    """Mind. ein aktiver Plan mit nächster Fälligkeit in den Badge-Stufen (innerhalb 7 Tage oder überfällig)."""
+    for pm in row.get('aktive_plaene_meta') or []:
+        nf = pm.get('NaechsteFaelligkeit')
+        if nf and services.naechste_faelligkeit_stufe(nf) >= 1:
+            return True
+    return False
+
+
+def _jahresmatrix_filter_nur_faellig(matrix_groups):
+    """Entfernt Zeilen ohne fällige Pläne (nach map_wartung_aktive_plaene_metadaten)."""
+    out = []
+    for g in matrix_groups:
+        rows = [r for r in g['rows'] if _jahresmatrix_row_hat_faelligkeit(r)]
+        if rows:
+            out.append({**g, 'rows': rows})
+    return out
 
 
 def _parse_protokoll_kontext_args(args):
@@ -133,9 +154,10 @@ def _parse_protokoll_kontext_args(args):
         bid = args.get('bereich_id', type=int)
         gid = args.get('gewerk_id', type=int)
         aid = args.get('abteilung_id', type=int)
+        nur_faellig = args.get('nur_faellig') == '1'
         return {
             'herkunft': h, 'jahr': jahr, 'bereich_id': bid, 'gewerk_id': gid,
-            'abteilung_id': aid, 'plan_order': None,
+            'abteilung_id': aid, 'plan_order': None, 'nur_faellig': nur_faellig,
         }
     if h == PROTOKOLL_HERKUNFT_PLAENE_UEBERSICHT:
         bid = args.get('bereich_id', type=int)
@@ -177,9 +199,10 @@ def _parse_protokoll_kontext_form(form):
             aid = int(aid) if aid not in (None, '') else None
         except (TypeError, ValueError):
             aid = None
+        nur_faellig = form.get('nur_faellig') == '1'
         return {
             'herkunft': h, 'jahr': jahr, 'bereich_id': bid, 'gewerk_id': gid,
-            'abteilung_id': aid, 'plan_order': None,
+            'abteilung_id': aid, 'plan_order': None, 'nur_faellig': nur_faellig,
         }
     if h == PROTOKOLL_HERKUNFT_PLAENE_UEBERSICHT:
         bid = form.get('bereich_id')
@@ -218,6 +241,8 @@ def _url_jahresuebersicht_mit_protokoll_kontext(kontext):
         q['gewerk_id'] = kontext['gewerk_id']
     if kontext.get('abteilung_id') is not None:
         q['abteilung_id'] = kontext['abteilung_id']
+    if kontext.get('nur_faellig'):
+        q['nur_faellig'] = 1
     return url_for('wartungen.jahresuebersicht', **q)
 
 
@@ -943,6 +968,8 @@ def jahresuebersicht():
     if jahr not in jahre:
         jahre = sorted(set(jahre + [jahr]), reverse=True)
 
+    nur_faellig = request.args.get('nur_faellig') == '1'
+
     with get_db_connection() as conn:
         abteilung_id = _query_int_arg('abteilung_id')
         abteilungen = services.list_abteilungen_fuer_wartung_liste_filter(conn, mitarbeiter_id, adm)
@@ -968,11 +995,13 @@ def jahresuebersicht():
                 matrix_groups=[],
                 kann_protokollieren=kann_wartung_protokollieren(),
                 title='Wartungen – Jahresübersicht',
+                nur_faellig=nur_faellig,
                 jahresuebersicht_protokoll_query=_jahresuebersicht_protokoll_query_args(
                     jahr,
                     _query_int_arg('bereich_id'),
                     _query_int_arg('gewerk_id'),
                     abteilung_id,
+                    nur_faellig=nur_faellig,
                 ),
             )
 
@@ -1037,6 +1066,9 @@ def jahresuebersicht():
                     row['aktive_plan_ids'] = plan_map.get(wid, [])
                     row['aktive_plaene_meta'] = plan_meta_map.get(wid, [])
 
+            if nur_faellig:
+                matrix_groups = _jahresmatrix_filter_nur_faellig(matrix_groups)
+
     return render_template(
         'wartungen/jahresuebersicht.html',
         bereiche=bereiche,
@@ -1051,8 +1083,9 @@ def jahresuebersicht():
         matrix_groups=matrix_groups,
         kann_protokollieren=kann_wartung_protokollieren(),
         title='Wartungen – Jahresübersicht',
+        nur_faellig=nur_faellig,
         jahresuebersicht_protokoll_query=_jahresuebersicht_protokoll_query_args(
-            jahr, bereich_id, gewerk_id, abteilung_id,
+            jahr, bereich_id, gewerk_id, abteilung_id, nur_faellig=nur_faellig,
         ),
     )
 

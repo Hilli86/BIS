@@ -20,6 +20,116 @@ from utils.reports import generate_bestellung_pdf, generate_bestellung_csv_bytes
 from ..services import get_dateien_fuer_bereich
 
 
+def _normalize_artikelnummer_key(value):
+    """Vergleich von Artikel-/Bestellnummern: trimmen, ohne Groß-/Kleinschreibung."""
+    if value is None:
+        return None
+    s = str(value).strip()
+    return s.lower() if s else None
+
+
+def _position_duplikat_keys(ersatzteil_id, bestellnummer):
+    """Schlüssel für Duplikatprüfung: gleiches Ersatzteil und/oder gleiche Artikelnummer."""
+    keys = set()
+    if ersatzteil_id is not None:
+        keys.add(('e', int(ersatzteil_id)))
+    nk = _normalize_artikelnummer_key(bestellnummer)
+    if nk:
+        keys.add(('b', nk))
+    return keys
+
+
+def _bestellung_position_konflikt_bestehend(ersatzteil_id, bestellnummer, bestehende_zeilen):
+    """True, wenn eine neue Position mit einer bestehenden kollidiert."""
+    neu = _position_duplikat_keys(ersatzteil_id, bestellnummer)
+    if not neu:
+        return False
+    for row in bestehende_zeilen:
+        alt = _position_duplikat_keys(row['ErsatzteilID'], row['Bestellnummer'])
+        if neu & alt:
+            return True
+    return False
+
+
+def _prefill_dict_bestellung_neu(request):
+    """POST-Daten für erneutes Anzeigen der Seite „Neue Bestellung“ (ohne Datenverlust)."""
+    prioritaet = request.form.get('prioritaet', type=int, default=3)
+    if prioritaet < 1 or prioritaet > 5:
+        prioritaet = 3
+    ersatzteil_ids = request.form.getlist('ersatzteil_id[]')
+    mengen = request.form.getlist('menge[]')
+    einheiten = request.form.getlist('einheit[]')
+    bestellnummern = request.form.getlist('bestellnummer[]')
+    bezeichnungen = request.form.getlist('bezeichnung[]')
+    preise = request.form.getlist('preis[]')
+    waehrungen = request.form.getlist('waehrung[]')
+    positionen_bemerkungen = request.form.getlist('position_bemerkung[]')
+    links = request.form.getlist('link[]')
+    kostenstelle_ids = request.form.getlist('kostenstelle_id[]')
+    listen = (
+        ersatzteil_ids,
+        mengen,
+        einheiten,
+        bestellnummern,
+        bezeichnungen,
+        preise,
+        waehrungen,
+        positionen_bemerkungen,
+        links,
+        kostenstelle_ids,
+    )
+    n = max((len(lst) for lst in listen), default=0)
+
+    def take(lst, i):
+        return lst[i] if i < len(lst) else ''
+
+    positionen = []
+    for i in range(n):
+        positionen.append(
+            {
+                'ersatzteil_id': take(ersatzteil_ids, i).strip(),
+                'menge': take(mengen, i),
+                'einheit': take(einheiten, i),
+                'bestellnummer': take(bestellnummern, i),
+                'bezeichnung': take(bezeichnungen, i),
+                'preis': take(preise, i),
+                'waehrung': take(waehrungen, i) or 'EUR',
+                'position_bemerkung': take(positionen_bemerkungen, i),
+                'link': take(links, i),
+                'kostenstelle_id': take(kostenstelle_ids, i),
+            }
+        )
+
+    return {
+        'lieferant_id': request.form.get('lieferant_id', type=int),
+        'bemerkung': request.form.get('bemerkung', ''),
+        'prioritaet': prioritaet,
+        'sichtbare_abteilungen': request.form.getlist('sichtbare_abteilungen'),
+        'positionen': positionen,
+    }
+
+
+def _render_bestellung_neu_mit_prefill(mitarbeiter_id, form_prefill):
+    with get_db_connection() as conn:
+        lieferanten = conn.execute(
+            'SELECT ID, Name FROM Lieferant WHERE Aktiv = 1 AND Gelöscht = 0 ORDER BY Name'
+        ).fetchall()
+        kostenstellen = conn.execute(
+            'SELECT ID, Bezeichnung FROM Kostenstelle WHERE Aktiv = 1 ORDER BY Sortierung, Bezeichnung'
+        ).fetchall()
+        from utils import get_abteilungsbaum_fuer_sichtbarkeit
+
+        auswaehlbare_abteilungen = get_abteilungsbaum_fuer_sichtbarkeit(mitarbeiter_id, conn)
+
+    return render_template(
+        'bestellung_neu.html',
+        lieferanten=lieferanten,
+        kostenstellen=kostenstellen,
+        auswaehlbare_abteilungen=auswaehlbare_abteilungen,
+        form_prefill=form_prefill,
+    )
+
+
 @ersatzteile_bp.route('/bestellungen')
 @login_required
 def bestellung_liste():
@@ -420,8 +530,8 @@ def bestellung_neu():
         
         if not lieferant_id:
             flash('Bitte wählen Sie einen Lieferanten aus.', 'danger')
-            return redirect(url_for('ersatzteile.bestellung_neu'))
-        
+            return _render_bestellung_neu_mit_prefill(mitarbeiter_id, _prefill_dict_bestellung_neu(request))
+
         # Mindestens eine Position muss vorhanden sein
         has_positions = False
         for i in range(max(len(ersatzteil_ids), len(bestellnummern))):
@@ -430,31 +540,18 @@ def bestellung_neu():
             if (ersatzteil_id_str and ersatzteil_id_str.strip()) or bestellnummer:
                 has_positions = True
                 break
-        
+
         if not has_positions:
             flash('Bitte fügen Sie mindestens eine Position hinzu.', 'danger')
-            return redirect(url_for('ersatzteile.bestellung_neu'))
+            return _render_bestellung_neu_mit_prefill(mitarbeiter_id, _prefill_dict_bestellung_neu(request))
         
         try:
             with get_db_connection() as conn:
-                # Primärabteilung des Mitarbeiters ermitteln
-                mitarbeiter = conn.execute(
-                    'SELECT PrimaerAbteilungID FROM Mitarbeiter WHERE ID = ?',
-                    (mitarbeiter_id,)
-                ).fetchone()
-                abteilung_id = mitarbeiter['PrimaerAbteilungID'] if mitarbeiter else None
-                
-                cursor = conn.execute('''
-                    INSERT INTO Bestellung (LieferantID, ErstelltVonID, ErstellerAbteilungID, Status, Bemerkung, Prioritaet, ErstelltAm)
-                    VALUES (?, ?, ?, 'Erstellt', ?, ?, ?)
-                ''', (lieferant_id, mitarbeiter_id, abteilung_id, bemerkung, prioritaet, local_now_str()))
-                bestellung_id = cursor.lastrowid
-                
-                # Positionen hinzufügen
+                zeilen = []
                 for i, ersatzteil_id_str in enumerate(ersatzteil_ids):
                     if not ersatzteil_id_str and (i >= len(bestellnummern) or not bestellnummern[i] or not bestellnummern[i].strip()):
                         continue
-                    
+
                     try:
                         ersatzteil_id = int(ersatzteil_id_str) if ersatzteil_id_str and ersatzteil_id_str.strip() else None
                         menge = int(mengen[i]) if i < len(mengen) and mengen[i] else 1
@@ -468,10 +565,12 @@ def bestellung_neu():
                         link = links[i].strip() if i < len(links) and links[i] else None
                         ks_id_str = kostenstelle_ids[i].strip() if i < len(kostenstelle_ids) and kostenstelle_ids[i] else ''
                         kostenstelle_id = int(ks_id_str) if ks_id_str else None
-                        
-                        # Wenn ErsatzteilID vorhanden, aber Bestellnummer/Bezeichnung/Einheit fehlen, aus Ersatzteil laden
+
                         if ersatzteil_id and (not bestellnummer or not bezeichnung or not einheit):
-                            ersatzteil = conn.execute('SELECT Bestellnummer, Bezeichnung, Einheit, Link FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
+                            ersatzteil = conn.execute(
+                                'SELECT Bestellnummer, Bezeichnung, Einheit, Link FROM Ersatzteil WHERE ID = ?',
+                                (ersatzteil_id,),
+                            ).fetchone()
                             if ersatzteil:
                                 if not bestellnummer:
                                     bestellnummer = ersatzteil['Bestellnummer']
@@ -479,26 +578,86 @@ def bestellung_neu():
                                     bezeichnung = ersatzteil['Bezeichnung']
                                 if not einheit:
                                     einheit = ersatzteil['Einheit'] if ersatzteil['Einheit'] else 'Stück'
-                                # Link nur aus Ersatzteil übernehmen, wenn kein Link im Formular vorhanden
                                 if not link and 'Link' in ersatzteil.keys() and ersatzteil['Link']:
                                     link = ersatzteil['Link']
                         elif ersatzteil_id:
-                            # Auch wenn alle anderen Felder vorhanden sind, Link aus Ersatzteil laden, wenn kein Link im Formular
                             if not link:
                                 ersatzteil = conn.execute('SELECT Link FROM Ersatzteil WHERE ID = ?', (ersatzteil_id,)).fetchone()
                                 if ersatzteil and 'Link' in ersatzteil.keys() and ersatzteil['Link']:
                                     link = ersatzteil['Link']
-                        
+
                         if not einheit:
                             einheit = 'Stück'
-                        
-                        conn.execute('''
-                            INSERT INTO BestellungPosition (BestellungID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung, Preis, Waehrung, Link, KostenstelleID)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ''', (bestellung_id, ersatzteil_id, menge, einheit, bestellnummer, bezeichnung, pos_bemerkung, preis, waehrung, link, kostenstelle_id))
+
+                        zeilen.append(
+                            {
+                                'ersatzteil_id': ersatzteil_id,
+                                'menge': menge,
+                                'einheit': einheit,
+                                'bestellnummer': bestellnummer,
+                                'bezeichnung': bezeichnung,
+                                'pos_bemerkung': pos_bemerkung,
+                                'preis': preis,
+                                'waehrung': waehrung,
+                                'link': link,
+                                'kostenstelle_id': kostenstelle_id,
+                            }
+                        )
                     except (ValueError, IndexError):
                         continue
-                
+
+                if not zeilen:
+                    flash('Bitte fügen Sie mindestens eine gültige Position hinzu.', 'danger')
+                    return _render_bestellung_neu_mit_prefill(mitarbeiter_id, _prefill_dict_bestellung_neu(request))
+
+                seen_keys = set()
+                for z in zeilen:
+                    for k in _position_duplikat_keys(z['ersatzteil_id'], z['bestellnummer']):
+                        if k in seen_keys:
+                            flash(
+                                'Eine Artikelnummer (oder dasselbe Ersatzteil) ist mehrfach angegeben. '
+                                'Bitte doppelte Positionen entfernen oder die Mengen zusammenfassen.',
+                                'danger',
+                            )
+                            return _render_bestellung_neu_mit_prefill(
+                                mitarbeiter_id, _prefill_dict_bestellung_neu(request)
+                            )
+                        seen_keys.add(k)
+
+                # Primärabteilung des Mitarbeiters ermitteln
+                mitarbeiter = conn.execute(
+                    'SELECT PrimaerAbteilungID FROM Mitarbeiter WHERE ID = ?',
+                    (mitarbeiter_id,)
+                ).fetchone()
+                abteilung_id = mitarbeiter['PrimaerAbteilungID'] if mitarbeiter else None
+
+                cursor = conn.execute('''
+                    INSERT INTO Bestellung (LieferantID, ErstelltVonID, ErstellerAbteilungID, Status, Bemerkung, Prioritaet, ErstelltAm)
+                    VALUES (?, ?, ?, 'Erstellt', ?, ?, ?)
+                ''', (lieferant_id, mitarbeiter_id, abteilung_id, bemerkung, prioritaet, local_now_str()))
+                bestellung_id = cursor.lastrowid
+
+                for z in zeilen:
+                    conn.execute(
+                        '''
+                        INSERT INTO BestellungPosition (BestellungID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung, Preis, Waehrung, Link, KostenstelleID)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ''',
+                        (
+                            bestellung_id,
+                            z['ersatzteil_id'],
+                            z['menge'],
+                            z['einheit'],
+                            z['bestellnummer'],
+                            z['bezeichnung'],
+                            z['pos_bemerkung'],
+                            z['preis'],
+                            z['waehrung'],
+                            z['link'],
+                            z['kostenstelle_id'],
+                        ),
+                    )
+
                 # Sichtbarkeiten setzen (optional - wenn keine ausgewählt, wird Primärabteilung verwendet)
                 if sichtbare_abteilungen:
                     for abt_id in sichtbare_abteilungen:
@@ -536,7 +695,8 @@ def bestellung_neu():
             print(f"Bestellung neu Fehler: {e}")
             import traceback
             traceback.print_exc()
-    
+            return _render_bestellung_neu_mit_prefill(mitarbeiter_id, _prefill_dict_bestellung_neu(request))
+
     # GET: Formular anzeigen
     with get_db_connection() as conn:
         lieferanten = conn.execute('SELECT ID, Name FROM Lieferant WHERE Aktiv = 1 AND Gelöscht = 0 ORDER BY Name').fetchall()
@@ -550,7 +710,8 @@ def bestellung_neu():
         'bestellung_neu.html',
         lieferanten=lieferanten,
         kostenstellen=kostenstellen,
-        auswaehlbare_abteilungen=auswaehlbare_abteilungen
+        auswaehlbare_abteilungen=auswaehlbare_abteilungen,
+        form_prefill=None,
     )
 
 
@@ -676,6 +837,29 @@ def bestellung_aus_angebot(angebotsanfrage_id):
         
         try:
             with get_db_connection() as conn:
+                ausgewaehlte_zeilen = []
+                for pos_id in ausgewaehlte_positionen:
+                    pos = next((p for p in positionen if str(p['ID']) == pos_id), None)
+                    if pos:
+                        ausgewaehlte_zeilen.append(pos)
+
+                seen_angebot = set()
+                for pos in ausgewaehlte_zeilen:
+                    for k in _position_duplikat_keys(pos['ErsatzteilID'], pos['Bestellnummer']):
+                        if k in seen_angebot:
+                            flash(
+                                'Unter den ausgewählten Positionen kommt dieselbe Artikelnummer '
+                                '(oder dasselbe Ersatzteil) mehrfach vor.',
+                                'danger',
+                            )
+                            return redirect(
+                                url_for(
+                                    'ersatzteile.bestellung_aus_angebot',
+                                    angebotsanfrage_id=angebotsanfrage_id,
+                                )
+                            )
+                        seen_angebot.add(k)
+
                 # Primärabteilung des Mitarbeiters ermitteln
                 mitarbeiter = conn.execute(
                     'SELECT PrimaerAbteilungID FROM Mitarbeiter WHERE ID = ?',
@@ -1237,18 +1421,17 @@ def bestellung_smart_add(ersatzteil_id):
 
             if offene_bestellung:
                 bestellung_id = offene_bestellung['ID']
-                vorhanden = conn.execute(
-                    '''
-                    SELECT ID FROM BestellungPosition
-                    WHERE BestellungID = ? AND ErsatzteilID = ?
-                    ''',
-                    (bestellung_id, ersatzteil_id),
-                ).fetchone()
-                if vorhanden:
+                bestehend_smart = conn.execute(
+                    'SELECT ErsatzteilID, Bestellnummer FROM BestellungPosition WHERE BestellungID = ?',
+                    (bestellung_id,),
+                ).fetchall()
+                if _bestellung_position_konflikt_bestehend(
+                    ersatzteil_id, ersatzteil['Bestellnummer'], bestehend_smart
+                ):
                     return jsonify(
                         {
                             'success': True,
-                            'message': 'Dieses Ersatzteil ist bereits in der offenen Bestellung enthalten.',
+                            'message': 'Dieses Ersatzteil bzw. diese Artikelnummer ist bereits in der offenen Bestellung enthalten.',
                             'bestellung_id': bestellung_id,
                             'action': 'bereits_vorhanden',
                         }
@@ -1373,12 +1556,25 @@ def bestellung_position_hinzufuegen(bestellung_id):
             
             if not einheit:
                 einheit = 'Stück'
-            
-            # Position hinzufügen
-            conn.execute('''
+
+            bestehend = conn.execute(
+                'SELECT ErsatzteilID, Bestellnummer FROM BestellungPosition WHERE BestellungID = ?',
+                (bestellung_id,),
+            ).fetchall()
+            if _bestellung_position_konflikt_bestehend(ersatzteil_id, bestellnummer, bestehend):
+                flash(
+                    'Diese Artikelnummer (oder dasselbe Ersatzteil) ist in der Bestellung bereits vorhanden.',
+                    'danger',
+                )
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+            conn.execute(
+                '''
                 INSERT INTO BestellungPosition (BestellungID, ErsatzteilID, Menge, Einheit, Bestellnummer, Bezeichnung, Bemerkung, Preis, Waehrung, Link, KostenstelleID)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (bestellung_id, ersatzteil_id, menge, einheit, bestellnummer, bezeichnung, bemerkung, preis, waehrung, link, kostenstelle_id))
+                ''',
+                (bestellung_id, ersatzteil_id, menge, einheit, bestellnummer, bezeichnung, bemerkung, preis, waehrung, link, kostenstelle_id),
+            )
             conn.commit()
             flash('Position erfolgreich hinzugefügt.', 'success')
             
@@ -1434,13 +1630,39 @@ def bestellung_position_bearbeiten(bestellung_id, position_id):
             
             if not einheit:
                 einheit = 'Stück'
-            
-            # Position aktualisieren
-            conn.execute('''
-                UPDATE BestellungPosition 
+
+            aktuelle_position = conn.execute(
+                'SELECT ErsatzteilID FROM BestellungPosition WHERE ID = ? AND BestellungID = ?',
+                (position_id, bestellung_id),
+            ).fetchone()
+            if not aktuelle_position:
+                flash('Position nicht gefunden.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+            andere = conn.execute(
+                '''
+                SELECT ErsatzteilID, Bestellnummer FROM BestellungPosition
+                WHERE BestellungID = ? AND ID != ?
+                ''',
+                (bestellung_id, position_id),
+            ).fetchall()
+            if _bestellung_position_konflikt_bestehend(
+                aktuelle_position['ErsatzteilID'], bestellnummer, andere
+            ):
+                flash(
+                    'Diese Artikelnummer (oder dasselbe Ersatzteil) ist bereits in einer anderen Position dieser Bestellung vorhanden.',
+                    'danger',
+                )
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+            conn.execute(
+                '''
+                UPDATE BestellungPosition
                 SET Menge = ?, Einheit = ?, Bestellnummer = ?, Bezeichnung = ?, Bemerkung = ?, Preis = ?, Waehrung = ?, Link = ?, KostenstelleID = ?
                 WHERE ID = ? AND BestellungID = ?
-            ''', (menge, einheit, bestellnummer, bezeichnung, bemerkung, preis, waehrung, link, kostenstelle_id, position_id, bestellung_id))
+                ''',
+                (menge, einheit, bestellnummer, bezeichnung, bemerkung, preis, waehrung, link, kostenstelle_id, position_id, bestellung_id),
+            )
             conn.commit()
             flash('Position erfolgreich aktualisiert.', 'success')
             

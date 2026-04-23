@@ -12,10 +12,12 @@ from __future__ import annotations
 from flask_talisman import Talisman
 
 
-# Externe Quelle ausschliesslich fuer das (lazy geladene) OpenCV.js der
-# Dokumenterfassung – alle anderen Vendor-Assets liegen lokal unter
-# /static/vendor/.
-_OPENCV_CDN = 'https://cdn.jsdelivr.net'
+# Externe Quellen fuer OpenCV.js (Skript + WASM/Fetch vom selben CDN) der
+# Dokumenterfassung - alle anderen Vendor-Assets liegen lokal unter /static/vendor/.
+_OPENCV_CDNS = (
+    'https://cdn.jsdelivr.net',
+    'https://unpkg.com',
+)
 
 
 def init_security_headers(app) -> Talisman:
@@ -23,7 +25,7 @@ def init_security_headers(app) -> Talisman:
     is_prod = app.config.get('FLASK_ENV_EFFECTIVE') == 'production' or not app.debug
 
     # HINWEIS: Die Templates enthalten zahlreiche inline-<script>-Bloecke und
-    # inline-Event-Handler (onclick, onsubmit, onchange, ...) – insbesondere in
+    # inline-Event-Handler (onclick, onsubmit, onchange, ...)  insbesondere in
     # den Listen-Templates fuer Zeilennavigation. Damit diese weiterhin
     # funktionieren, wird 'unsafe-inline' fuer `script-src` zugelassen und
     # bewusst KEIN Nonce eingesetzt: Aktiviert man Nonces, ignorieren moderne
@@ -36,7 +38,7 @@ def init_security_headers(app) -> Talisman:
             "'self'",
             "'unsafe-inline'",
             "'unsafe-eval'",
-            _OPENCV_CDN,
+            *_OPENCV_CDNS,
         ],
         'script-src-attr': ["'unsafe-inline'"],
         'style-src': [
@@ -45,12 +47,14 @@ def init_security_headers(app) -> Talisman:
         ],
         'img-src': ["'self'", 'data:', 'blob:'],
         'font-src': ["'self'", 'data:'],
-        'connect-src': ["'self'"],
+        # OpenCV.js laedt WASM per fetch() vom CDN - Hosts in connect-src erlauben.
+        'connect-src': ["'self'", *_OPENCV_CDNS],
         'frame-ancestors': "'self'",
         'base-uri': "'self'",
         'form-action': "'self'",
         'object-src': "'none'",
-        'worker-src': ["'self'"],
+        # Emscripten/OpenCV nutzt haefig Worker mit blob:-URLs
+        'worker-src': ["'self'", "'blob:'"],
         'manifest-src': "'self'",
     }
 
