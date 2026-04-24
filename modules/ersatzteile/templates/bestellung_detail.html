@@ -5,8 +5,16 @@
 {% block content %}
 <h1 class="mb-4">Bestellung #{{ bestellung.ID }}</h1>
 {% if bestellung.Gelöscht %}
-<div class="alert alert-secondary mb-3">
-    <i class="bi bi-archive"></i> Diese Bestellung wurde gelöscht und ist nur zur Einsicht verfügbar.
+<div class="alert alert-secondary mb-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <span><i class="bi bi-archive"></i> Diese Bestellung wurde gelöscht und ist nur zur Einsicht verfügbar.</span>
+    {% if 'admin' in session.get('user_berechtigungen', []) %}
+    <form method="POST" action="{{ url_for('ersatzteile.bestellung_wiederherstellen', bestellung_id=bestellung.ID) }}" class="d-inline m-0" onsubmit="return confirm('Gelöschte Bestellung wirklich wiederherstellen? Sie erscheint wieder in den normalen Listen.');">
+        {{ csrf_field() }}
+        <button type="submit" class="btn btn-sm btn-success">
+            <i class="bi bi-arrow-counterclockwise"></i> Wiederherstellen
+        </button>
+    </form>
+    {% endif %}
 </div>
 {% endif %}
 

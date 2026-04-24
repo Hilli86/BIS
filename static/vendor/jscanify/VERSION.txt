@@ -1,0 +1,8 @@
+jscanify@1.4.2 (Browser-Client src/jscanify.js)
+Quelle: https://www.npmjs.com/package/jscanify
+Lizenz: MIT (Copyright siehe jscanify.js)
+
+BIS-Anpassungen in jscanify.js:
+- Canny auf Graustufen, falls Eingabe mehrkanalig (OpenCV.js).
+- Größte Kontur per clone() vor MatVector.delete (stabile Referenz).
+- THRESH_BINARY + THRESH_OTSU; MORPH_CLOSE 5×5 vor findContours (Außenrand).

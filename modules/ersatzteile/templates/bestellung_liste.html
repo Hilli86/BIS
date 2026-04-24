@@ -229,7 +229,11 @@
                                     <i class="bi bi-file-earmark-pdf"></i>
                                 </button>
                                 {% endif %}
-                                {% if ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) and not b.Gelöscht and b.Status in ['Erstellt', 'Zur Freigabe', 'Freigegeben', 'Bestellt'] %}
+                                {% if 'admin' in session.get('user_berechtigungen', []) and b.Gelöscht %}
+                                <button type="button" class="btn btn-sm btn-outline-success" onclick="event.stopPropagation(); wiederherstelleBestellung({{ b.ID }})" title="Wiederherstellen (Admin)">
+                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                </button>
+                                {% elif ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) and not b.Gelöscht and b.Status in ['Erstellt', 'Zur Freigabe', 'Freigegeben', 'Bestellt'] %}
                                 <button type="button" class="btn btn-sm btn-outline-danger" onclick="loescheBestellung({{ b.ID }})" title="Bestellung löschen">
                                     <i class="bi bi-trash"></i>
                                 </button>
@@ -510,7 +514,11 @@
                                 <i class="bi bi-file-earmark-pdf"></i>
                             </button>
                             {% endif %}
-                            {% if ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) and not b.Gelöscht and b.Status in ['Erstellt', 'Zur Freigabe', 'Freigegeben', 'Bestellt'] %}
+                            {% if 'admin' in session.get('user_berechtigungen', []) and b.Gelöscht %}
+                            <button type="button" class="btn btn-sm btn-outline-success" onclick="event.stopPropagation(); wiederherstelleBestellung({{ b.ID }})" title="Wiederherstellen (Admin)">
+                                <i class="bi bi-arrow-counterclockwise"></i> Wiederherstellen
+                            </button>
+                            {% elif ('admin' in session.get('user_berechtigungen', []) or 'bestellungen_erstellen' in session.get('user_berechtigungen', [])) and not b.Gelöscht and b.Status in ['Erstellt', 'Zur Freigabe', 'Freigegeben', 'Bestellt'] %}
                             <button type="button" class="btn btn-sm btn-outline-danger" onclick="loescheBestellung({{ b.ID }})" title="Bestellung löschen">
                                 <i class="bi bi-trash"></i> Löschen
                             </button>
@@ -701,6 +709,22 @@ function loescheBestellung(bestellungId) {
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = '{{ url_for("ersatzteile.bestellung_loeschen", bestellung_id=0) }}'.replace('/0', `/${bestellungId}`);
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrf_token';
+    csrfInput.value = (window.BIS && window.BIS.csrfToken) || '';
+    form.appendChild(csrfInput);
+    document.body.appendChild(form);
+    form.submit();
+}
+
+function wiederherstelleBestellung(bestellungId) {
+    if (!confirm('Gelöschte Bestellung wirklich wiederherstellen? Sie erscheint wieder in den normalen Listen.')) {
+        return;
+    }
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '{{ url_for("ersatzteile.bestellung_wiederherstellen", bestellung_id=0) }}'.replace('/0', `/${bestellungId}`);
     const csrfInput = document.createElement('input');
     csrfInput.type = 'hidden';
     csrfInput.name = 'csrf_token';

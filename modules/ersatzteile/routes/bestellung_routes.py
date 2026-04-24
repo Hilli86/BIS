@@ -346,6 +346,36 @@ def bestellung_loeschen(bestellung_id):
     return redirect(url_for('ersatzteile.bestellung_liste'))
 
 
+@ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/wiederherstellen', methods=['POST'])
+@login_required
+def bestellung_wiederherstellen(bestellung_id):
+    """Soft-Delete rückgängig machen (nur Admin)."""
+    is_admin = 'admin' in session.get('user_berechtigungen', [])
+    if not is_admin:
+        flash('Nur Administratoren können gelöschte Bestellungen wiederherstellen.', 'danger')
+        return redirect(url_for('ersatzteile.bestellung_liste'))
+
+    try:
+        with get_db_connection() as conn:
+            row = conn.execute(
+                'SELECT ID, Gelöscht FROM Bestellung WHERE ID = ?',
+                (bestellung_id,),
+            ).fetchone()
+            if not row:
+                flash('Bestellung nicht gefunden.', 'danger')
+                return redirect(url_for('ersatzteile.bestellung_liste'))
+            if not row['Gelöscht']:
+                flash('Die Bestellung ist nicht gelöscht.', 'info')
+                return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+            conn.execute('UPDATE Bestellung SET Gelöscht = 0 WHERE ID = ?', (bestellung_id,))
+            conn.commit()
+        flash('Bestellung wurde wiederhergestellt.', 'success')
+    except Exception as e:
+        flash(f'Fehler beim Wiederherstellen: {str(e)}', 'danger')
+
+    return redirect(url_for('ersatzteile.bestellung_detail', bestellung_id=bestellung_id))
+
+
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>')
 @login_required
 def bestellung_detail(bestellung_id):
