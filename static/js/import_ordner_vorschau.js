@@ -7,9 +7,64 @@
 
   var ANZEIGEN_BASE = '/api/import/anzeigen/';
 
-  function previewUrl(filename) {
-    return ANZEIGEN_BASE + encodeURIComponent(filename);
+  function previewUrl(filename, importQuelle) {
+    var u = ANZEIGEN_BASE + encodeURIComponent(filename);
+    if (importQuelle === 'personal') {
+      u += (u.indexOf('?') >= 0 ? '&' : '?') + 'quelle=personal';
+    }
+    return u;
   }
+
+  /** Kombiniert gemeinsame und persönliche Import-Listen (API GET /api/import/dateien). */
+  window.bisImportOrdnerMergeLists = function (data) {
+    var a = (data.dateien || []).map(function (d) {
+      return {
+        name: d.name,
+        size: d.size,
+        size_bytes: d.size_bytes,
+        import_quelle: 'import',
+      };
+    });
+    var b = (data.dateien_personal || []).map(function (d) {
+      return {
+        name: d.name,
+        size: d.size,
+        size_bytes: d.size_bytes,
+        import_quelle: 'personal',
+      };
+    });
+    return a.concat(b);
+  };
+
+  /**
+   * HTML für zwei Abschnitte (gemeinsam / persönlich). buildRowHtml(datei) → ein list-group-item.
+   */
+  window.bisImportOrdnerSectionenHtml = function (gefiltert, buildRowHtml) {
+    var imp = gefiltert.filter(function (d) {
+      return d.import_quelle !== 'personal';
+    });
+    var per = gefiltert.filter(function (d) {
+      return d.import_quelle === 'personal';
+    });
+    var out = '';
+    if (imp.length) {
+      out +=
+        '<h6 class="text-muted small text-uppercase mb-2">Gemeinsamer Import-Ordner</h6><div class="list-group mb-3">';
+      imp.forEach(function (d) {
+        out += buildRowHtml(d);
+      });
+      out += '</div>';
+    }
+    if (per.length) {
+      out +=
+        '<h6 class="text-muted small text-uppercase mb-2">Persönlicher Import-Ordner</h6><div class="list-group">';
+      per.forEach(function (d) {
+        out += buildRowHtml(d);
+      });
+      out += '</div>';
+    }
+    return out;
+  };
 
   function escapeHtml(s) {
     var d = document.createElement('div');
@@ -24,17 +79,22 @@
 
   /**
    * Linker Block: Vorschaubild/Icon + Dateiname + Größe (für list-group-item).
+   * importQuelle: 'import' (default) oder 'personal' für Vorschau-URL.
    */
-  window.importOrdnerRowLeftHtml = function (filename, sizeText) {
+  window.importOrdnerRowLeftHtml = function (filename, sizeText, importQuelle) {
+    var q = importQuelle === 'personal' ? 'personal' : 'import';
     var fnEsc = JSON.stringify(filename);
+    var qEsc = JSON.stringify(q);
     var ext = extOf(filename);
-    var url = previewUrl(filename);
+    var url = previewUrl(filename, q);
     var imgExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
     var thumb = '';
     if (imgExts.indexOf(ext) !== -1) {
       thumb =
         '<div class="import-ordner-thumb-wrap flex-shrink-0" role="button" tabindex="0" title="Vorschau" onclick="openImportOrdnerVorschau(' +
         fnEsc +
+        ',' +
+        qEsc +
         ')">' +
         '<img src="' +
         url +
@@ -44,11 +104,15 @@
       thumb =
         '<div class="import-ordner-thumb-wrap flex-shrink-0 rounded border bg-danger bg-opacity-10 d-flex align-items-center justify-content-center" style="width:56px;height:56px;cursor:pointer" title="PDF anzeigen" onclick="openImportOrdnerVorschau(' +
         fnEsc +
+        ',' +
+        qEsc +
         ')"><i class="bi bi-file-earmark-pdf text-danger fs-3"></i></div>';
     } else {
       thumb =
         '<div class="import-ordner-thumb-wrap flex-shrink-0 rounded border bg-secondary bg-opacity-10 d-flex align-items-center justify-content-center" style="width:56px;height:56px;cursor:pointer" title="Vorschau" onclick="openImportOrdnerVorschau(' +
         fnEsc +
+        ',' +
+        qEsc +
         ')"><i class="bi bi-file-earmark fs-3 text-secondary"></i></div>';
     }
     return (
@@ -67,8 +131,9 @@
     );
   };
 
-  window.openImportOrdnerVorschau = function (filename) {
-    var url = previewUrl(filename);
+  window.openImportOrdnerVorschau = function (filename, importQuelle) {
+    var q = importQuelle === 'personal' ? 'personal' : 'import';
+    var url = previewUrl(filename, q);
     var ext = extOf(filename);
     var modalImg = document.getElementById('importOrdnerVorschauBild');
     var modalIframe = document.getElementById('importOrdnerVorschauPdf');

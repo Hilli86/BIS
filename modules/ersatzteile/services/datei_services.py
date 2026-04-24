@@ -87,7 +87,17 @@ def loesche_datei(datei_id, conn):
     return True, datei['Dateipfad']
 
 
-def importiere_datei_aus_ordner(bereich_typ, bereich_id, dateiname, ziel_ordner, beschreibung, mitarbeiter_id, conn, upload_base_folder):
+def importiere_datei_aus_ordner(
+    bereich_typ,
+    bereich_id,
+    dateiname,
+    ziel_ordner,
+    beschreibung,
+    mitarbeiter_id,
+    conn,
+    upload_base_folder,
+    mitarbeiter_personalnummer=None,
+):
     """
     Importiert eine Datei aus dem Import-Ordner und erstellt einen Datenbankeintrag
     
@@ -104,15 +114,23 @@ def importiere_datei_aus_ordner(bereich_typ, bereich_id, dateiname, ziel_ordner,
     Returns:
         Tuple (erfolg, dateipfad, fehlermeldung)
     """
+    from utils.import_personal import pfad_personlicher_import
+
     import_folder = os.path.join(upload_base_folder, 'Import')
     ziel_pfad = os.path.join(upload_base_folder, ziel_ordner)
-    
-    # Quell- und Zieldateipfade
+
+    # Quell- und Zieldateipfade (gemeinsamer Ordner, sonst persönlicher Unterordner)
     quelle = os.path.join(import_folder, dateiname)
+    if not os.path.isfile(quelle) and mitarbeiter_personalnummer:
+        pdir = pfad_personlicher_import(import_folder, mitarbeiter_personalnummer)
+        if pdir:
+            q2 = os.path.join(pdir, dateiname)
+            if os.path.isfile(q2):
+                quelle = q2
     ziel = os.path.join(ziel_pfad, dateiname)
-    
+
     # Prüfen ob Datei existiert
-    if not os.path.exists(quelle):
+    if not os.path.isfile(quelle):
         return False, None, f"Datei '{dateiname}' nicht im Import-Ordner gefunden"
     
     # Zielordner erstellen

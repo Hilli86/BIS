@@ -54,7 +54,7 @@
 
   <p class="text-muted mb-4">
     Dokument mit der Kamera fotografieren oder ein vorhandenes Bild wählen. Anschließend wird das Dokument erkannt und zugeschnitten.
-    Über die Regler können Sie das Ergebnis anpassen. Die Datei wird im <strong>Import-Ordner</strong> gespeichert und steht dort für weitere Schritte zur Verfügung.
+    Über die Regler können Sie das Ergebnis anpassen. Die Datei wird in Ihrem <strong>persönlichen Import-Ordner</strong> (unterhalb des Import-Ordners, nach Personalnummer) gespeichert und steht zusammen mit dem gemeinsamen Import-Ordner in den Upload-Bereichen zur Verfügung.
   </p>
 
   <div class="row g-4 mb-4">
@@ -175,7 +175,7 @@
           <h5 class="mb-0"><i class="bi bi-cloud-upload me-1"></i> Speichern</h5>
         </div>
         <div class="card-body">
-          <p class="small text-muted">Speichert die bearbeitete Vorschau als JPEG im zentralen Import-Ordner.</p>
+          <p class="small text-muted">Speichert die bearbeitete Vorschau als JPEG in Ihrem persönlichen Import-Ordner.</p>
           <button type="button" class="visually-hidden" id="filename-focus-sink" tabindex="-1" aria-hidden="true">.</button>
           <div class="mb-3">
             <label for="save-filename" class="form-label mb-1">Dateiname</label>
@@ -183,12 +183,29 @@
             <div class="form-text">Ohne Endung oder mit .jpg / .jpeg – Speicherung erfolgt als JPEG.</div>
           </div>
           <button type="button" class="btn btn-primary w-100 mb-2" id="btn-save-import" disabled>
-            <i class="bi bi-save"></i> Im Import-Ordner speichern
+            <i class="bi bi-save"></i> Im persönlichen Import-Ordner speichern
           </button>
           <button type="button" class="btn btn-outline-secondary w-100 mb-3" id="btn-download-local" disabled>
             <i class="bi bi-download"></i> Lokal herunterladen
           </button>
           <div id="save-message" class="small"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4 mt-1">
+    <div class="col-12">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-secondary text-white d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <h5 class="mb-0"><i class="bi bi-folder2-open me-1"></i> Persönlicher Import-Ordner</h5>
+          <button type="button" class="btn btn-sm btn-outline-light" id="btn-dokumente-personal-import-refresh" title="Liste aktualisieren">
+            <i class="bi bi-arrow-clockwise"></i> Aktualisieren
+          </button>
+        </div>
+        <div class="card-body">
+          <p class="small text-muted mb-3">Dateien aus „Dokumente erfassen“ und weitere Ablagen in Ihrem Unterordner. Umbenennen und Löschen wirkt nur hier, nicht im gemeinsamen Import-Ordner.</p>
+          <div id="dokumente-personal-import-liste"></div>
         </div>
       </div>
     </div>

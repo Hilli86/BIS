@@ -30,10 +30,16 @@
     return urls;
   })();
 
-  /** POST-URL mit Dateiname in der Query (zuverlässiger als nur multipart auf iOS/Android). */
+  /** POST-URL mit Dateiname in der Query (zuverlässiger als nur multipart auf iOS/Android). Im persönlichen Import-Unterordner (Personalnummer). */
   function buildImportUploadUrl(filenameEncoded) {
     const sep = UPLOAD_URL.indexOf('?') >= 0 ? '&' : '?';
-    return UPLOAD_URL + sep + 'filename=' + encodeURIComponent(filenameEncoded);
+    return (
+      UPLOAD_URL +
+      sep +
+      'filename=' +
+      encodeURIComponent(filenameEncoded) +
+      '&personal=1'
+    );
   }
 
   const el = {
@@ -66,6 +72,8 @@
     cameraTapHint: document.getElementById('camera-tap-hint'),
     filenameFocusSink: document.getElementById('filename-focus-sink'),
     collapseBearbeitung: document.getElementById('collapse-bearbeitung'),
+    personalImportListe: document.getElementById('dokumente-personal-import-liste'),
+    btnPersonalImportRefresh: document.getElementById('btn-dokumente-personal-import-refresh'),
   };
 
   const state = {
@@ -1045,6 +1053,7 @@
                 el.saveMessage.textContent = body.message || 'Gespeichert.';
                 el.saveMessage.classList.remove('text-danger');
                 el.saveMessage.classList.add('text-success');
+                refreshDokumentePersonalImportListe();
               } else {
                 el.saveMessage.textContent = (body && body.message) || 'Fehler beim Speichern.';
                 el.saveMessage.classList.add('text-danger');
@@ -1188,6 +1197,161 @@
   })();
 
   /* OpenCV (~10 MB) erst bei erster Erkennung/Zuschneiden laden – vermeidet Timeout beim Seitenstart. */
+
+  function escapeHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+  }
+
+  function escapeAttr(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;');
+  }
+
+  function refreshDokumentePersonalImportListe() {
+    var wrap = el.personalImportListe;
+    if (!wrap) return;
+    wrap.innerHTML =
+      '<div class="text-center py-2"><div class="spinner-border spinner-border-sm text-secondary" role="status"></div></div>';
+    fetch('/api/import/dateien', { credentials: 'same-origin' })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data.success) {
+          wrap.innerHTML =
+            '<div class="alert alert-danger mb-0">' + escapeHtml(data.message || 'Fehler beim Laden') + '</div>';
+          return;
+        }
+        var files = data.dateien_personal || [];
+        if (files.length === 0) {
+          wrap.innerHTML =
+            '<p class="text-muted small mb-0">Noch keine Dateien in Ihrem persönlichen Import-Ordner.</p>';
+          return;
+        }
+        var rows = files
+          .map(function (f) {
+            var name = f.name;
+            var left =
+              typeof importOrdnerRowLeftHtml === 'function'
+                ? importOrdnerRowLeftHtml(name, f.size, 'personal')
+                : '<div><strong>' + escapeHtml(name) + '</strong></div>';
+            return (
+              '<div class="list-group-item py-2">' +
+              '<div class="d-flex flex-wrap align-items-center gap-2 justify-content-between">' +
+              '<div class="flex-grow-1 min-w-0">' +
+              left +
+              '</div>' +
+              '<div class="d-flex flex-wrap gap-1 align-items-center">' +
+              '<button type="button" class="btn btn-sm btn-outline-secondary btn-dokumente-pers-rename" data-filename="' +
+              escapeAttr(name) +
+              '">Umbenennen</button>' +
+              '<button type="button" class="btn btn-sm btn-outline-danger btn-dokumente-pers-delete" data-filename="' +
+              escapeAttr(name) +
+              '">Löschen</button>' +
+              '</div></div>' +
+              '<div class="dokumente-pers-rename-row mt-2 d-none">' +
+              '<div class="input-group input-group-sm">' +
+              '<input type="text" class="form-control dokumente-pers-rename-input" data-original-filename="' +
+              escapeAttr(name) +
+              '" value="' +
+              escapeAttr(name) +
+              '" aria-label="Neuer Dateiname">' +
+              '<button type="button" class="btn btn-success dokumente-pers-rename-save">Speichern</button>' +
+              '<button type="button" class="btn btn-outline-secondary dokumente-pers-rename-cancel">Abbrechen</button>' +
+              '</div></div></div>'
+            );
+          })
+          .join('');
+        wrap.innerHTML = '<div class="list-group list-group-flush border rounded">' + rows + '</div>';
+      })
+      .catch(function () {
+        wrap.innerHTML = '<div class="alert alert-danger mb-0">Netzwerkfehler beim Laden.</div>';
+      });
+  }
+
+  if (el.personalImportListe) {
+    if (el.btnPersonalImportRefresh) {
+      el.btnPersonalImportRefresh.addEventListener('click', refreshDokumentePersonalImportListe);
+    }
+    el.personalImportListe.addEventListener('click', function (ev) {
+      var t = ev.target;
+      if (!t || !t.closest) return;
+      var delBtn = t.closest('.btn-dokumente-pers-delete');
+      if (delBtn) {
+        var fn = delBtn.getAttribute('data-filename');
+        if (!fn || !confirm('Datei „' + fn + '“ unwiderruflich löschen?')) return;
+        fetch('/api/import/personal/loeschen', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          body: JSON.stringify({ filename: fn }),
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, body: j };
+            });
+          })
+          .then(function (x) {
+            if (x.ok && x.body.success) refreshDokumentePersonalImportListe();
+            else alert((x.body && x.body.message) || 'Löschen fehlgeschlagen');
+          })
+          .catch(function () {
+            alert('Netzwerkfehler');
+          });
+        return;
+      }
+      var renBtn = t.closest('.btn-dokumente-pers-rename');
+      if (renBtn) {
+        var item = renBtn.closest('.list-group-item');
+        if (!item) return;
+        var row = item.querySelector('.dokumente-pers-rename-row');
+        if (row) {
+          row.classList.toggle('d-none');
+          var inp = row.querySelector('.dokumente-pers-rename-input');
+          if (inp && !row.classList.contains('d-none')) inp.focus();
+        }
+        return;
+      }
+      var cancelBtn = t.closest('.dokumente-pers-rename-cancel');
+      if (cancelBtn) {
+        var grp = cancelBtn.closest('.dokumente-pers-rename-row');
+        if (grp) grp.classList.add('d-none');
+        return;
+      }
+      var saveBtn = t.closest('.dokumente-pers-rename-save');
+      if (saveBtn) {
+        var grp2 = saveBtn.closest('.dokumente-pers-rename-row');
+        if (!grp2) return;
+        var inp2 = grp2.querySelector('.dokumente-pers-rename-input');
+        var alt = inp2 ? inp2.getAttribute('data-original-filename') : '';
+        var neu = inp2 ? inp2.value.trim() : '';
+        if (!alt || !neu) return;
+        fetch('/api/import/personal/umbenennen', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          body: JSON.stringify({ alt: alt, neu: neu }),
+        })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              return { ok: r.ok, body: j };
+            });
+          })
+          .then(function (x) {
+            if (x.ok && x.body.success) refreshDokumentePersonalImportListe();
+            else alert((x.body && x.body.message) || 'Umbenennen fehlgeschlagen');
+          })
+          .catch(function () {
+            alert('Netzwerkfehler');
+          });
+      }
+    });
+    refreshDokumentePersonalImportListe();
+  }
 
   startCamera();
 })();

@@ -194,16 +194,33 @@ def save_uploaded_file(file, target_folder, allowed_extensions=None, create_uniq
         return False, None, f"Fehler beim Speichern: {str(e)}"
 
 
-def speichere_in_import_ordner(file_storage, allowed_extensions=None, create_unique_name=True, dateiname_vorgabe=None):
+def speichere_in_import_ordner(
+    file_storage,
+    allowed_extensions=None,
+    create_unique_name=True,
+    dateiname_vorgabe=None,
+    unterordner_personalnummer=None,
+):
     """
     Speichert eine hochgeladene Datei im konfigurierten Import-Ordner (IMPORT_FOLDER).
     Wiederverwendbar für Scan-Upload und andere Upload-Blöcke.
 
     dateiname_vorgabe: optionaler Dateiname (z. B. multipart-Feld „filename“), zuverlässiger als nur Blob-Name.
+    unterordner_personalnummer: wenn gesetzt, Ablage in IMPORT_FOLDER/<Personalnummer>/ (nach Validierung).
     """
+    from utils.import_personal import ordnername_personlicher_import
+
     import_folder = current_app.config.get('IMPORT_FOLDER')
     if not import_folder:
         return False, None, "Import-Ordner nicht konfiguriert"
+    target_folder = import_folder
+    if unterordner_personalnummer is not None and str(unterordner_personalnummer).strip():
+        seg = ordnername_personlicher_import(unterordner_personalnummer)
+        if not seg:
+            return False, None, "Ungültige Personalnummer für den persönlichen Import-Ordner"
+        target_folder = os.path.join(import_folder, seg)
+        if not create_upload_folder(target_folder):
+            return False, None, "Persönlicher Import-Ordner konnte nicht angelegt werden"
     if allowed_extensions is None:
         allowed_extensions = current_app.config.get('ALLOWED_EXTENSIONS', set())
     override = None
@@ -211,7 +228,7 @@ def speichere_in_import_ordner(file_storage, allowed_extensions=None, create_uni
         override = str(dateiname_vorgabe).strip()
     return save_uploaded_file(
         file_storage,
-        import_folder,
+        target_folder,
         allowed_extensions=allowed_extensions,
         create_unique_name=create_unique_name,
         override_filename=override,

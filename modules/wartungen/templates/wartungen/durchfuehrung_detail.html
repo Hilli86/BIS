@@ -332,12 +332,17 @@ async function ladeImportDateienWartungsdurchfuehrung(durchfuehrungId) {
   try {
     const response = await fetch('/api/import/dateien');
     const data = await response.json();
-    if (!data.success || !data.dateien || data.dateien.length === 0) {
+    const merged = typeof bisImportOrdnerMergeLists === 'function'
+      ? bisImportOrdnerMergeLists(data)
+      : (data.dateien || []).map(function (d) {
+          return { name: d.name, size: d.size, size_bytes: d.size_bytes, import_quelle: 'import' };
+        });
+    if (!data.success || merged.length === 0) {
       liste.innerHTML = '<div class="alert alert-info">Keine Dateien im Import-Ordner vorhanden.</div>';
       return;
     }
     const erlaubteEndungen = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt'];
-    const gefilterteDateien = data.dateien.filter(function (datei) {
+    const gefilterteDateien = merged.filter(function (datei) {
       const ext = '.' + datei.name.split('.').pop().toLowerCase();
       return erlaubteEndungen.some(function (e) { return ext === e; });
     });
@@ -345,26 +350,28 @@ async function ladeImportDateienWartungsdurchfuehrung(durchfuehrungId) {
       liste.innerHTML = '<div class="alert alert-warning">Keine passenden Dateien im Import-Ordner.</div>';
       return;
     }
-    let html = '<div class="list-group">';
-    gefilterteDateien.forEach(function (datei) {
+    const rowHtml = function (datei) {
       const links = typeof importOrdnerRowLeftHtml === 'function'
-        ? importOrdnerRowLeftHtml(datei.name, datei.size)
+        ? importOrdnerRowLeftHtml(datei.name, datei.size, datei.import_quelle)
         : '<div><strong>' + datei.name + '</strong><br><small class="text-muted">' + datei.size + '</small></div>';
-      html += '<div class="list-group-item d-flex justify-content-between align-items-center gap-2">' +
+      const iq = datei.import_quelle === 'personal' ? 'personal' : 'import';
+      return '<div class="list-group-item d-flex justify-content-between align-items-center gap-2">' +
         links +
-        '<button type="button" class="btn btn-sm btn-success flex-shrink-0" onclick="verschiebeAusImportWartungsdurchfuehrung(' + JSON.stringify(datei.name) + ', ' + durchfuehrungId + ')">' +
+        '<button type="button" class="btn btn-sm btn-success flex-shrink-0" onclick="verschiebeAusImportWartungsdurchfuehrung(' + JSON.stringify(datei.name) + ', ' + durchfuehrungId + ', ' + JSON.stringify(iq) + ')">' +
         '<i class="bi bi-arrow-right"></i> Verwenden</button></div>';
-    });
-    html += '</div>';
-    liste.innerHTML = html;
+    };
+    liste.innerHTML = typeof bisImportOrdnerSectionenHtml === 'function'
+      ? bisImportOrdnerSectionenHtml(gefilterteDateien, rowHtml)
+      : '<div class="list-group">' + gefilterteDateien.map(rowHtml).join('') + '</div>';
   } catch (err) {
     console.error(err);
     liste.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Dateien.</div>';
   }
 }
 
-async function verschiebeAusImportWartungsdurchfuehrung(filename, durchfuehrungId) {
+async function verschiebeAusImportWartungsdurchfuehrung(filename, durchfuehrungId, importQuelle) {
   const zielOrdner = 'Wartungen/durchfuehrung/' + durchfuehrungId + '/serviceberichte';
+  const iq = importQuelle === 'personal' ? 'personal' : 'import';
   if (!confirm('Die Datei „' + filename + '“ aus dem Import-Ordner verwenden? Sie wird verschoben.')) {
     return;
   }
@@ -383,6 +390,7 @@ async function verschiebeAusImportWartungsdurchfuehrung(filename, durchfuehrungI
         bereich_id: durchfuehrungId,
         beschreibung: beschreibung,
         typ: typ,
+        import_quelle: iq,
       }),
     });
     const data = await response.json();

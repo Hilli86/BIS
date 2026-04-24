@@ -257,64 +257,73 @@ async function ladeImportDateienLieferschein() {
     try {
         const response = await fetch('/api/import/dateien');
         const data = await response.json();
-        
-        if (!data.success || data.dateien.length === 0) {
+
+        const merged = typeof bisImportOrdnerMergeLists === 'function'
+            ? bisImportOrdnerMergeLists(data)
+            : (data.dateien || []).map(function (d) {
+                return { name: d.name, size: d.size, size_bytes: d.size_bytes, import_quelle: 'import' };
+            });
+
+        if (!data.success || merged.length === 0) {
             liste.innerHTML = '<div class="alert alert-info">Keine Dateien im Import-Ordner vorhanden.</div>';
             return;
         }
-        
+
         // Erlaubte Dateitypen für Lieferscheine
         const erlaubteEndungen = ['.pdf', '.jpeg', '.jpg', '.png'];
-        
-        const gefilterteDateien = data.dateien.filter(datei => {
+
+        const gefilterteDateien = merged.filter(datei => {
             const ext = '.' + datei.name.split('.').pop().toLowerCase();
             return erlaubteEndungen.some(e => ext === e);
         });
-        
+
         if (gefilterteDateien.length === 0) {
             liste.innerHTML = '<div class="alert alert-warning">Keine passenden Dateien im Import-Ordner (erlaubt: PDF, JPEG, JPG, PNG).</div>';
             return;
         }
-        
-        let html = '<div class="list-group">';
-        gefilterteDateien.forEach(datei => {
+
+        const rowHtml = function (datei) {
             const links = typeof importOrdnerRowLeftHtml === 'function'
-                ? importOrdnerRowLeftHtml(datei.name, datei.size)
+                ? importOrdnerRowLeftHtml(datei.name, datei.size, datei.import_quelle)
                 : `<div><strong>${datei.name}</strong><br><small class="text-muted">${datei.size}</small></div>`;
-            html += `
+            const q = (datei.import_quelle === 'personal') ? 'personal' : 'import';
+            return `
                 <div class="list-group-item d-flex justify-content-between align-items-center gap-2">
                     ${links}
-                    <button type="button" class="btn btn-sm btn-primary flex-shrink-0" onclick="verschiebeAusImportLieferschein('${datei.name.replace(/'/g, "\\'")}')">
+                    <button type="button" class="btn btn-sm btn-primary flex-shrink-0" onclick="verschiebeAusImportLieferschein('${datei.name.replace(/'/g, "\\'")}', '${q}')">
                         <i class="bi bi-arrow-right"></i> Verwenden
                     </button>
                 </div>
             `;
-        });
-        html += '</div>';
-        liste.innerHTML = html;
+        };
+        liste.innerHTML = typeof bisImportOrdnerSectionenHtml === 'function'
+            ? bisImportOrdnerSectionenHtml(gefilterteDateien, rowHtml)
+            : '<div class="list-group">' + gefilterteDateien.map(rowHtml).join('') + '</div>';
     } catch (error) {
         console.error('Fehler beim Laden der Dateien:', error);
         liste.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Dateien.</div>';
     }
 }
 
-async function verschiebeAusImportLieferschein(filename) {
+async function verschiebeAusImportLieferschein(filename, importQuelle) {
     const bestellungId = {{ bestellung.ID }};
     const zielOrdner = `Bestellwesen/Lieferscheine/${bestellungId}`;
-    
+    const iq = importQuelle === 'personal' ? 'personal' : 'import';
+
     if (!confirm(`Möchten Sie die Datei "${filename}" aus dem Import-Ordner verwenden? Die Datei wird verschoben.`)) {
         return;
     }
-    
+
     try {
         const response = await fetch('/api/import/verschieben', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-                filename: filename, 
+                filename: filename,
                 ziel_ordner: zielOrdner,
                 bereich_typ: 'Lieferschein',
-                bereich_id: {{ bestellung.ID }}
+                bereich_id: {{ bestellung.ID }},
+                import_quelle: iq
             })
         });
         

@@ -91,6 +91,8 @@ def login():
                     _log_login_attempt(conn, personalnummer, user['ID'], True, request, None)
                     
                     session['user_id'] = user['ID']
+                    # Row-Objekt (SQLite/SQLAlchemy) hat kein .get() wie dict
+                    session['user_personalnummer'] = user['Personalnummer']
                     session['user_name'] = f"{user['Vorname']} {user['Nachname']}"
                     session['user_abteilung'] = user['AbteilungName'] if user['AbteilungName'] else None
                     
@@ -194,6 +196,7 @@ def login_guest():
     """Gast-Login - ermöglicht eingeschränkten Zugriff ohne Anmeldung"""
     # Session-Variablen für Gast-Benutzer setzen
     session['user_id'] = None
+    session.pop('user_personalnummer', None)
     session['is_guest'] = True
     session['user_name'] = 'Gast'
     session['user_abteilung'] = None
@@ -731,6 +734,7 @@ def webauthn_login_verify():
 
             # Session wie beim Passwort-Login setzen
             session["user_id"] = user["ID"]
+            session["user_personalnummer"] = user["Personalnummer"]
             session["user_name"] = f"{user['Vorname']} {user['Nachname']}"
             session["user_abteilung"] = (
                 user["AbteilungName"] if user["AbteilungName"] else None
