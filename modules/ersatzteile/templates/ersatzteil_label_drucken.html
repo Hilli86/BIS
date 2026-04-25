@@ -167,7 +167,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (printerId != null && !isNaN(printerId)) {
                 body.printer_id = printerId;
             }
-            fetch('{{ url_for("ersatzteile.lagerbehaelter_label_druck") }}', {
+            fetch('{{ url_for("ersatzteile.lageretiketten_druck") }}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -235,7 +235,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (printerId != null && !isNaN(printerId)) {
                 body.printer_id = printerId;
             }
-            fetch('{{ url_for("ersatzteile.lagerbehaelter_label_druck_artikel") }}', {
+            fetch('{{ url_for("ersatzteile.lageretiketten_druck_artikel") }}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

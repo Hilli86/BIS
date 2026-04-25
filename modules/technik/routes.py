@@ -4,7 +4,7 @@ Routen für Technik (SVG-Übersichten).
 
 from flask import abort, render_template, request, url_for
 
-from utils.decorators import login_required
+from utils.decorators import login_required, menue_zugriff_erforderlich
 
 from . import technik_bp
 
@@ -115,6 +115,7 @@ def _diagram_by_id(diagram_id: str):
 
 @technik_bp.route('/uebersichten')
 @login_required
+@menue_zugriff_erforderlich('technik_uebersichten')
 def uebersichten():
     if not TECHNIK_DIAGRAMME:
         abort(404)

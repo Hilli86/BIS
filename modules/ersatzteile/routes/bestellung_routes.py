@@ -7,7 +7,14 @@ from datetime import datetime, date, timedelta
 import os
 from werkzeug.utils import secure_filename
 from .. import ersatzteile_bp
-from utils import get_db_connection, login_required, permission_required, get_sichtbare_abteilungen_fuer_mitarbeiter, ist_admin
+from utils import (
+    get_db_connection,
+    login_required,
+    permission_required,
+    get_sichtbare_abteilungen_fuer_mitarbeiter,
+    ist_admin,
+    menue_zugriff_erforderlich,
+)
 from utils.db_sql import local_now_str
 from utils.file_handling import (
     save_uploaded_file,
@@ -132,6 +139,7 @@ def _render_bestellung_neu_mit_prefill(mitarbeiter_id, form_prefill):
 
 @ersatzteile_bp.route('/bestellungen')
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_liste():
     """Liste aller Bestellungen mit Filter"""
     mitarbeiter_id = session.get('user_id')
@@ -294,6 +302,7 @@ def bestellung_liste():
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/loeschen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_loeschen(bestellung_id):
     """Bestellung löschen (nur in ausgewählten Status, u. a. bis 'Bestellt')."""
     mitarbeiter_id = session.get('user_id')
@@ -348,6 +357,7 @@ def bestellung_loeschen(bestellung_id):
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/wiederherstellen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_wiederherstellen(bestellung_id):
     """Soft-Delete rückgängig machen (nur Admin)."""
     is_admin = 'admin' in session.get('user_berechtigungen', [])
@@ -378,6 +388,7 @@ def bestellung_wiederherstellen(bestellung_id):
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>')
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_detail(bestellung_id):
     """Detailansicht einer Bestellung"""
     mitarbeiter_id = session.get('user_id')
@@ -532,6 +543,7 @@ def bestellung_detail(bestellung_id):
 @ersatzteile_bp.route('/bestellungen/neu', methods=['GET', 'POST'])
 @login_required
 @permission_required('bestellungen_erstellen')
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_neu():
     """Neue Bestellung manuell erstellen"""
     mitarbeiter_id = session.get('user_id')
@@ -747,6 +759,7 @@ def bestellung_neu():
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/anfrage-zurueckziehen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_anfrage_zurueckziehen(bestellung_id):
     """Freigabe-Anfrage für eine Bestellung zurückziehen (Status wieder auf 'Erstellt' setzen)."""
     mitarbeiter_id = session.get('user_id')
@@ -811,6 +824,7 @@ def bestellung_anfrage_zurueckziehen(bestellung_id):
 @ersatzteile_bp.route('/bestellungen/aus-angebot/<int:angebotsanfrage_id>', methods=['GET', 'POST'])
 @login_required
 @permission_required('bestellungen_erstellen')
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_aus_angebot(angebotsanfrage_id):
     """Bestellung aus Angebot erstellen"""
     mitarbeiter_id = session.get('user_id')
@@ -977,6 +991,7 @@ def bestellung_aus_angebot(angebotsanfrage_id):
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/zur-freigabe', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_zur_freigabe(bestellung_id):
     """Bestellung zur Freigabe markieren"""
     freigabe_bemerkung = request.form.get('freigabe_bemerkung', '').strip()
@@ -1009,6 +1024,7 @@ def bestellung_zur_freigabe(bestellung_id):
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/freigabebemerkung/bearbeiten', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_freigabebemerkung_bearbeiten(bestellung_id):
     """Freigabebemerkung einer Bestellung bearbeiten (nur für Ersteller, solange nicht freigegeben)"""
     mitarbeiter_id = session.get('user_id')
@@ -1045,6 +1061,7 @@ def bestellung_freigabebemerkung_bearbeiten(bestellung_id):
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/prioritaet/bearbeiten', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_prioritaet_bearbeiten(bestellung_id):
     """Priorität einer Bestellung bearbeiten (nur wenn Status 'Erstellt')"""
     mitarbeiter_id = session.get('user_id')
@@ -1080,6 +1097,7 @@ def bestellung_prioritaet_bearbeiten(bestellung_id):
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/lieferdatum', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_lieferdatum_bearbeiten(bestellung_id):
     """Erwartetes Lieferdatum setzen oder leeren (wie Detail-Sichtbarkeit: nur sichtbare Abteilungen)."""
     mitarbeiter_id = session.get('user_id')
@@ -1127,6 +1145,7 @@ def bestellung_lieferdatum_bearbeiten(bestellung_id):
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/freigeben', methods=['POST'])
 @login_required
 @permission_required('bestellungen_freigeben')
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_freigeben(bestellung_id):
     """Bestellung freigeben mit Unterschrift"""
     mitarbeiter_id = session.get('user_id')
@@ -1177,6 +1196,7 @@ def bestellung_freigeben(bestellung_id):
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/als-bestellt', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_als_bestellt(bestellung_id):
     """Bestellung als bestellt markieren"""
     mitarbeiter_id = session.get('user_id')
@@ -1221,6 +1241,7 @@ def bestellung_als_bestellt(bestellung_id):
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/bestellstatus-zuruecksetzen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_bestellstatus_zuruecksetzen(bestellung_id):
     """Status von 'Bestellt' auf 'Erstellt' setzen; Freigabe- und Bestelldaten löschen."""
     mitarbeiter_id = session.get('user_id')
@@ -1303,6 +1324,7 @@ def bestellung_bestellstatus_zuruecksetzen(bestellung_id):
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/stornieren', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_stornieren(bestellung_id):
     """Bestellung stornieren"""
     mitarbeiter_id = session.get('user_id')
@@ -1339,6 +1361,7 @@ def bestellung_stornieren(bestellung_id):
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/teilweise-abschliessen', methods=['POST'])
 @login_required
 @permission_required('artikel_buchen')
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_teilweise_abschliessen(bestellung_id):
     """Teilweise gelieferte Bestellung manuell auf 'Erledigt' setzen.
 
@@ -1390,6 +1413,7 @@ def bestellung_teilweise_abschliessen(bestellung_id):
 @ersatzteile_bp.route('/bestellungen/smart-add/<int:ersatzteil_id>')
 @login_required
 @permission_required('bestellungen_erstellen')
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_smart_add(ersatzteil_id):
     """Smart-Link: Offene Bestellung pro Lieferant oder neue Bestellung; Ersatzteil als Position (JSON)."""
     mitarbeiter_id = session.get('user_id')
@@ -1533,6 +1557,7 @@ def bestellung_smart_add(ersatzteil_id):
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/position-hinzufuegen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_position_hinzufuegen(bestellung_id):
     """Position zu bestehender Bestellung hinzufügen"""
     mitarbeiter_id = session.get('user_id')
@@ -1617,6 +1642,7 @@ def bestellung_position_hinzufuegen(bestellung_id):
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/position/<int:position_id>/bearbeiten', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_position_bearbeiten(bestellung_id, position_id):
     """Position einer Bestellung bearbeiten"""
     menge = request.form.get('menge', type=int)
@@ -1705,6 +1731,7 @@ def bestellung_position_bearbeiten(bestellung_id, position_id):
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/position/<int:position_id>/loeschen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_position_loeschen(bestellung_id, position_id):
     """Position einer Bestellung löschen"""
     try:
@@ -1733,6 +1760,7 @@ def bestellung_position_loeschen(bestellung_id, position_id):
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/position/<int:position_id>/artikel-erstellen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_position_artikel_erstellen(bestellung_id, position_id):
     """Erstellt einen neuen Artikel aus einer Bestellposition (wenn keine ErsatzteilID vorhanden).
 
@@ -1893,6 +1921,7 @@ def bestellung_position_artikel_erstellen(bestellung_id, position_id):
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/sichtbarkeit', methods=['GET'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def get_bestellung_sichtbarkeit(bestellung_id):
     """AJAX: Sichtbarkeiten einer Bestellung laden"""
     mitarbeiter_id = session.get('user_id')
@@ -1980,6 +2009,7 @@ def get_bestellung_sichtbarkeit(bestellung_id):
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/sichtbarkeit', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def update_bestellung_sichtbarkeit(bestellung_id):
     """AJAX: Sichtbarkeiten einer Bestellung aktualisieren"""
     sichtbare_abteilungen = request.form.getlist('sichtbare_abteilungen')
@@ -2026,6 +2056,7 @@ def update_bestellung_sichtbarkeit(bestellung_id):
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/pdf')
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_pdf_export(bestellung_id):
     """PDF-/DOCX-Export für eine Bestellung mit docx-Vorlage.
 
@@ -2067,6 +2098,7 @@ def bestellung_pdf_export(bestellung_id):
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/csv')
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_csv_export(bestellung_id):
     """CSV-Export der Bestellpositionen (Reihenfolge pro Lieferant konfigurierbar)."""
     mitarbeiter_id = session.get('user_id')
@@ -2116,6 +2148,7 @@ def bestellung_csv_export(bestellung_id):
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/datei/upload', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_datei_upload(bestellung_id):
     """Datei-Upload für Bestellung"""
     mitarbeiter_id = session.get('user_id')
@@ -2184,6 +2217,7 @@ def bestellung_datei_upload(bestellung_id):
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/auftragsbestätigung/upload', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_auftragsbestätigung_upload(bestellung_id):
     """Auftragsbestätigung-Upload für Bestellung"""
     mitarbeiter_id = session.get('user_id')
@@ -2265,6 +2299,7 @@ def bestellung_auftragsbestätigung_upload(bestellung_id):
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/lieferschein/upload', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_lieferschein_upload(bestellung_id):
     """Lieferschein-Upload für Bestellung (analog zu Auftragsbestätigungen)"""
     mitarbeiter_id = session.get('user_id')
@@ -2353,6 +2388,7 @@ def bestellung_lieferschein_upload(bestellung_id):
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/rechnung/upload', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_rechnung_upload(bestellung_id):
     """Rechnung-Upload für Bestellung (analog zu Lieferscheinen)"""
     mitarbeiter_id = session.get('user_id')
@@ -2441,6 +2477,7 @@ def bestellung_rechnung_upload(bestellung_id):
 
 @ersatzteile_bp.route('/rechnung/<path:filepath>')
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def rechnung_anzeigen(filepath):
     """Rechnung-Datei anzeigen/herunterladen (PDF oder Bild) - für alle angemeldeten Benutzer"""
     filepath = filepath.replace('\\', '/')
@@ -2485,6 +2522,7 @@ def rechnung_anzeigen(filepath):
 
 @ersatzteile_bp.route('/bestellungen/<int:bestellung_id>/datei/<path:filepath>')
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def bestellung_datei_anzeigen(bestellung_id, filepath):
     """Bestellungs-Datei anzeigen/herunterladen (PDF)"""
     mitarbeiter_id = session.get('user_id')
@@ -2548,6 +2586,7 @@ def bestellung_datei_anzeigen(bestellung_id, filepath):
 
 @ersatzteile_bp.route('/auftragsbestätigung/<path:filepath>')
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_bestellungen')
 def auftragsbestätigung_anzeigen(filepath):
     """Auftragsbestätigung-Datei anzeigen/herunterladen (PDF, JPEG, JPG, PNG) - für alle angemeldeten Benutzer"""
     mitarbeiter_id = session.get('user_id')

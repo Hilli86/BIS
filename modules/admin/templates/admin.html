@@ -200,6 +200,9 @@
     {{ csrf_field() }}
                     <label class="form-label fw-bold">Sichtbarkeit der Menüpunkte</label>
                     <p class="small text-muted mb-2">
+                      Steuert sowohl die Sidebar als auch den direkten Seitenzugriff: ein ausgeblendeter Menüpunkt ist per URL nicht mehr erreichbar (zusätzlich gelten weiter die jeweiligen Berechtigungen, z.&nbsp;B. Admin).
+                    </p>
+                    <p class="small text-muted mb-2">
                       <strong>Aktuell (Sidebar):</strong> tatsächliche Anzeige nach Berechtigungen und Override.
                       <strong>Override:</strong> Standard = wie von den Berechtigungen vorgesehen; Einblenden/Ausblenden = fest vorgeben.
                     </p>

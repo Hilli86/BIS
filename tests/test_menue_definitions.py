@@ -8,7 +8,10 @@ from utils.menue_definitions import (
     _standard_sichtbar,
     get_alle_menue_definitionen,
     get_menue_sichtbarkeit_fuer_mitarbeiter,
+    ist_menue_zugriff_erlaubt,
 )
+
+from app import app
 
 
 # ---------------------------------------------------------------------------
@@ -43,6 +46,16 @@ def test_get_alle_menue_definitionen_enthaelt_dashboard():
     schluessel = [m["schluessel"] for m in defs]
     assert "dashboard" in schluessel
     assert "admin" in schluessel
+
+
+def test_ist_menue_zugriff_liest_session_schluessel_user_menue_sichtbarkeit():
+    """Session-Key muss user_menue_sichtbarkeit heissen (sonst erscheint alles gesperrt)."""
+    with app.test_request_context("/"):
+        from flask import session
+
+        assert ist_menue_zugriff_erlaubt("dashboard") is False
+        session["user_menue_sichtbarkeit"] = {"dashboard": True}
+        assert ist_menue_zugriff_erlaubt("dashboard") is True
 
 
 # ---------------------------------------------------------------------------

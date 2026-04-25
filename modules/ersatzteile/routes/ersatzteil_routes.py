@@ -13,7 +13,7 @@ from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 from PIL import Image
 from .. import ersatzteile_bp
-from utils import get_db_connection, login_required, get_sichtbare_abteilungen_fuer_mitarbeiter
+from utils import get_db_connection, login_required, get_sichtbare_abteilungen_fuer_mitarbeiter, menue_zugriff_erforderlich
 from utils.db_sql import local_now_str
 from utils.helpers import build_ersatzteil_zugriff_filter, row_to_dict
 from utils.file_handling import (
@@ -67,8 +67,13 @@ KENNZEICHEN_OPTIONEN = [
 ]
 
 
+
+# Menue: Artikelliste / -detail (nicht Suche-Startseite)
+_MENUE_ERSATZTEILE_LISTE = "ersatzteile_liste"
+
 @ersatzteile_bp.route('/')
 @login_required
+@menue_zugriff_erforderlich(_MENUE_ERSATZTEILE_LISTE)
 def ersatzteil_liste():
     """Ersatzteil-Liste mit Filtern"""
     mitarbeiter_id = session.get('user_id')
@@ -145,6 +150,7 @@ def ersatzteil_liste():
 
 @ersatzteile_bp.route('/load_more')
 @login_required
+@menue_zugriff_erforderlich(_MENUE_ERSATZTEILE_LISTE)
 def ersatzteil_liste_load_more():
     """AJAX-Route zum Nachladen weiterer Ersatzteile (Lazy Load)"""
     mitarbeiter_id = session.get('user_id')
@@ -210,6 +216,7 @@ def ersatzteil_liste_load_more():
 
 @ersatzteile_bp.route('/<int:ersatzteil_id>/druck_label', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_ERSATZTEILE_LISTE)
 def ersatzteil_druck_label(ersatzteil_id):
     """Druckt ein 30x30-Etikett für ein Ersatzteil über Zebra."""
     mitarbeiter_id = session.get('user_id')
@@ -263,6 +270,7 @@ def ersatzteil_druck_label(ersatzteil_id):
 
 @ersatzteile_bp.route('/<int:ersatzteil_id>')
 @login_required
+@menue_zugriff_erforderlich(_MENUE_ERSATZTEILE_LISTE)
 def ersatzteil_detail(ersatzteil_id):
     """Ersatzteil-Detailansicht"""
     mitarbeiter_id = session.get('user_id')
@@ -357,6 +365,7 @@ def ersatzteil_detail(ersatzteil_id):
 
 @ersatzteile_bp.route('/neu', methods=['GET', 'POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_ERSATZTEILE_LISTE)
 def ersatzteil_neu():
     """Neues Ersatzteil anlegen"""
     mitarbeiter_id = session.get('user_id')
@@ -511,6 +520,7 @@ def ersatzteil_neu():
 
 @ersatzteile_bp.route('/api/suche-vorlage', methods=['GET'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_ERSATZTEILE_LISTE)
 def api_suche_vorlage():
     """AJAX-Endpoint: Suche nach Ersatzteilen für Vorlage"""
     query = request.args.get('q', '').strip()
@@ -586,6 +596,7 @@ def api_suche_vorlage():
 
 @ersatzteile_bp.route('/<int:ersatzteil_id>/bearbeiten', methods=['GET', 'POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_ERSATZTEILE_LISTE)
 def ersatzteil_bearbeiten(ersatzteil_id):
     """Ersatzteil bearbeiten"""
     mitarbeiter_id = session.get('user_id')
@@ -827,6 +838,7 @@ def ersatzteil_bearbeiten(ersatzteil_id):
 
 @ersatzteile_bp.route('/<int:ersatzteil_id>/loeschen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_ERSATZTEILE_LISTE)
 def ersatzteil_loeschen(ersatzteil_id):
     """Ersatzteil soft-delete"""
     mitarbeiter_id = session.get('user_id')
@@ -849,6 +861,7 @@ def ersatzteil_loeschen(ersatzteil_id):
 
 @ersatzteile_bp.route('/<int:ersatzteil_id>/datei/upload', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_ERSATZTEILE_LISTE)
 def ersatzteil_datei_upload(ersatzteil_id):
     """Datei(en) (Bild oder Dokument) für Ersatzteil hochladen - unterstützt mehrere Dateien"""
     mitarbeiter_id = session.get('user_id')
@@ -971,6 +984,7 @@ def ersatzteil_datei_upload(ersatzteil_id):
 
 @ersatzteile_bp.route('/<int:ersatzteil_id>/artikelfoto/upload', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_ERSATZTEILE_LISTE)
 def ersatzteil_artikelfoto_upload(ersatzteil_id):
     """Artikelfoto für Ersatzteil hochladen"""
     mitarbeiter_id = session.get('user_id')
@@ -1123,6 +1137,7 @@ def _artikelfoto_ext_aus_bytes_url_ct(data: bytes, image_url: str, content_type:
 
 @ersatzteile_bp.route('/<int:ersatzteil_id>/artikelfoto/seite-bilder', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_ERSATZTEILE_LISTE)
 def ersatzteil_artikelfoto_seite_bilder(ersatzteil_id):
     """JSON: Bild-URLs aus einer Artikel-/Seiten-URL extrahieren."""
     mitarbeiter_id = session.get('user_id')
@@ -1155,6 +1170,7 @@ def ersatzteil_artikelfoto_seite_bilder(ersatzteil_id):
 
 @ersatzteile_bp.route('/<int:ersatzteil_id>/artikelfoto/upload-von-url', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_ERSATZTEILE_LISTE)
 def ersatzteil_artikelfoto_upload_von_url(ersatzteil_id):
     """Artikelfoto von einer Bild-URL herunterladen und speichern."""
     mitarbeiter_id = session.get('user_id')
@@ -1264,6 +1280,7 @@ def ersatzteil_artikelfoto_upload_von_url(ersatzteil_id):
 
 @ersatzteile_bp.route('/<int:ersatzteil_id>/artikelfoto/kopieren-von-artikel', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_ERSATZTEILE_LISTE)
 def ersatzteil_artikelfoto_kopieren_von_artikel(ersatzteil_id):
     """Artikelfoto von einem anderen Ersatzteil (gleiche Bestellnummer oder Herst.-Art.-Nr.) kopieren."""
     mitarbeiter_id = session.get('user_id')
@@ -1396,6 +1413,7 @@ def ersatzteil_artikelfoto_kopieren_von_artikel(ersatzteil_id):
 
 @ersatzteile_bp.route('/<int:ersatzteil_id>/artikelfoto/loeschen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_ERSATZTEILE_LISTE)
 def ersatzteil_artikelfoto_loeschen(ersatzteil_id):
     """Artikelfoto für Ersatzteil löschen"""
     mitarbeiter_id = session.get('user_id')
@@ -1469,6 +1487,7 @@ def ersatzteil_artikelfoto_loeschen(ersatzteil_id):
 
 @ersatzteile_bp.route('/datei/<int:datei_id>/loeschen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_ERSATZTEILE_LISTE)
 def datei_loeschen(datei_id):
     """Datei löschen (einheitlich für alle Dateitypen)"""
     mitarbeiter_id = session.get('user_id')
@@ -1531,6 +1550,7 @@ def datei_loeschen(datei_id):
 # Alte Routen für Rückwärtskompatibilität (werden später entfernt)
 @ersatzteile_bp.route('/<int:ersatzteil_id>/bild/<int:bild_id>/loeschen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_ERSATZTEILE_LISTE)
 def bild_loeschen(ersatzteil_id, bild_id):
     """Bild löschen (Legacy - Weiterleitung zu neuer Route)"""
     # Versuche Datei in Datei-Tabelle zu finden
@@ -1551,6 +1571,7 @@ def bild_loeschen(ersatzteil_id, bild_id):
 
 @ersatzteile_bp.route('/<int:ersatzteil_id>/dokument/<int:dokument_id>/loeschen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_ERSATZTEILE_LISTE)
 def dokument_loeschen(ersatzteil_id, dokument_id):
     """Dokument löschen (Legacy - Weiterleitung zu neuer Route)"""
     # Versuche Datei in Datei-Tabelle zu finden
@@ -1571,6 +1592,7 @@ def dokument_loeschen(ersatzteil_id, dokument_id):
 
 @ersatzteile_bp.route('/datei/<path:filepath>')
 @login_required
+@menue_zugriff_erforderlich(_MENUE_ERSATZTEILE_LISTE)
 def datei_anzeigen(filepath):
     """Datei anzeigen/herunterladen"""
     mitarbeiter_id = session.get('user_id')
@@ -1614,6 +1636,7 @@ def datei_anzeigen(filepath):
 
 @ersatzteile_bp.route('/api/ersatzteil/<int:ersatzteil_id>')
 @login_required
+@menue_zugriff_erforderlich(_MENUE_ERSATZTEILE_LISTE)
 def api_ersatzteil_info(ersatzteil_id):
     """API-Endpunkt: Gibt Ersatzteil-Informationen zurück (für AJAX)"""
     mitarbeiter_id = session.get('user_id')
@@ -1680,6 +1703,7 @@ def api_ersatzteil_info(ersatzteil_id):
 
 @ersatzteile_bp.route('/api/ersatzteil/<int:ersatzteil_id>/angebote-bestellungen')
 @login_required
+@menue_zugriff_erforderlich(_MENUE_ERSATZTEILE_LISTE)
 def api_ersatzteil_angebote_bestellungen(ersatzteil_id):
     """API: Liefert alle Angebotsanfragen und Bestellungen, die dieses Ersatzteil enthalten (Lazy-Load für Detailansicht)."""
     mitarbeiter_id = session.get('user_id')
@@ -1787,6 +1811,7 @@ def api_ersatzteil_angebote_bestellungen(ersatzteil_id):
 
 @ersatzteile_bp.route('/api/ersatzteile/alle')
 @login_required
+@menue_zugriff_erforderlich(_MENUE_ERSATZTEILE_LISTE)
 def api_ersatzteile_alle():
     """API: Alle Ersatzteile abrufen (mit Berechtigungsfilter)"""
     mitarbeiter_id = session.get('user_id')
@@ -1858,6 +1883,7 @@ def api_ersatzteile_alle():
 
 @ersatzteile_bp.route('/suche')
 @login_required
+@menue_zugriff_erforderlich('ersatzteile_suche')
 def suche_artikel():
     """Suche nach Artikelnummer (Bestellnummer oder ID)"""
     mitarbeiter_id = session.get('user_id')

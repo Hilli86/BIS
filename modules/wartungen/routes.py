@@ -17,7 +17,7 @@ from flask import (
 )
 from werkzeug.utils import secure_filename
 
-from utils import get_db_connection, login_required
+from utils import get_db_connection, login_required, menue_zugriff_erforderlich
 from utils.file_handling import (
     save_uploaded_file,
     create_upload_folder,
@@ -402,6 +402,7 @@ def _collect_fremdfirma_zeilen_from_form():
 
 @wartungen_bp.route('/')
 @login_required
+@menue_zugriff_erforderlich('wartungen_liste')
 def wartung_liste():
     mitarbeiter_id = session.get('user_id')
     adm = is_admin()
@@ -449,6 +450,7 @@ def wartung_liste():
 
 @wartungen_bp.route('/neu', methods=['GET', 'POST'])
 @login_required
+@menue_zugriff_erforderlich('wartungen_liste')
 def wartung_neu():
     if not kann_wartung_stamm_anlegen():
         flash('Keine Berechtigung zum Anlegen von Wartungen.', 'danger')
@@ -526,6 +528,7 @@ def wartung_neu():
 
 @wartungen_bp.route('/<int:wartung_id>')
 @login_required
+@menue_zugriff_erforderlich('wartungen_liste')
 def wartung_detail(wartung_id):
     mitarbeiter_id = session.get('user_id')
     adm = 'admin' in session.get('user_berechtigungen', [])
@@ -569,6 +572,7 @@ def wartung_detail(wartung_id):
 
 @wartungen_bp.route('/<int:wartung_id>/datei/upload', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('wartungen_liste')
 def wartung_datei_upload(wartung_id):
     mitarbeiter_id = session.get('user_id')
     if 'file' not in request.files:
@@ -681,6 +685,7 @@ def wartung_datei_upload(wartung_id):
 
 @wartungen_bp.route('/<int:wartung_id>/bearbeiten', methods=['GET', 'POST'])
 @login_required
+@menue_zugriff_erforderlich('wartungen_liste')
 def wartung_bearbeiten(wartung_id):
     mitarbeiter_id = session.get('user_id')
     with get_db_connection() as conn:
@@ -734,6 +739,7 @@ def wartung_bearbeiten(wartung_id):
 
 @wartungen_bp.route('/plaene')
 @login_required
+@menue_zugriff_erforderlich('wartungen_plaene')
 def plaene_uebersicht():
     mitarbeiter_id = session.get('user_id')
     adm = is_admin()
@@ -792,6 +798,7 @@ def plaene_uebersicht():
 
 @wartungen_bp.route('/durchfuehrungen')
 @login_required
+@menue_zugriff_erforderlich('wartungen_protokolle')
 def durchfuehrungen_chronologisch():
     mitarbeiter_id = session.get('user_id')
     adm = is_admin()
@@ -950,6 +957,7 @@ def _jahresmatrix_grouped(wartungen, drows):
 
 @wartungen_bp.route('/jahresuebersicht')
 @login_required
+@menue_zugriff_erforderlich('wartungen_jahresuebersicht')
 def jahresuebersicht():
     mitarbeiter_id = session.get('user_id')
     adm = is_admin()
@@ -1092,6 +1100,7 @@ def jahresuebersicht():
 
 @wartungen_bp.route('/<int:wartung_id>/plan/neu', methods=['GET', 'POST'])
 @login_required
+@menue_zugriff_erforderlich('wartungen_plaene')
 def plan_neu(wartung_id):
     if not kann_wartungsplan_pflegen():
         flash('Keine Berechtigung für Wartungspläne.', 'danger')
@@ -1139,6 +1148,7 @@ def plan_neu(wartung_id):
 
 @wartungen_bp.route('/plan/<int:plan_id>', methods=['GET'])
 @login_required
+@menue_zugriff_erforderlich('wartungen_plaene')
 def plan_detail(plan_id):
     """Kompatibilität: leitet auf die Wartungsdetailseite mit Hervorhebung des Plans weiter."""
     mitarbeiter_id = session.get('user_id')
@@ -1156,6 +1166,7 @@ def plan_detail(plan_id):
 
 @wartungen_bp.route('/plan/<int:plan_id>/bearbeiten', methods=['GET', 'POST'])
 @login_required
+@menue_zugriff_erforderlich('wartungen_plaene')
 def plan_bearbeiten(plan_id):
     if not kann_wartungsplan_pflegen():
         flash('Keine Berechtigung.', 'danger')
@@ -1207,6 +1218,7 @@ def plan_bearbeiten(plan_id):
 
 @wartungen_bp.route('/plan/<int:plan_id>/wartungstermin', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('wartungen_plaene')
 def plan_wartungstermin(plan_id):
     """Schnellpflege Wartungstermin (Modal auf Wartungsdetail)."""
     if not kann_wartungsplan_pflegen():
@@ -1246,6 +1258,7 @@ def plan_wartungstermin(plan_id):
 
 @wartungen_bp.route('/plan/<int:plan_id>/durchfuehrung/neu', methods=['GET', 'POST'])
 @login_required
+@menue_zugriff_erforderlich('wartungen_protokolle')
 def durchfuehrung_neu(plan_id):
     if not kann_wartung_protokollieren():
         flash('Keine Berechtigung zum Protokollieren von Wartungen.', 'danger')
@@ -1375,6 +1388,7 @@ def durchfuehrung_neu(plan_id):
 
 @wartungen_bp.route('/durchfuehrung/mehrere', methods=['GET', 'POST'])
 @login_required
+@menue_zugriff_erforderlich('wartungen_mehrere')
 def durchfuehrung_mehrere():
     if not kann_wartung_protokollieren():
         flash('Keine Berechtigung zum Protokollieren von Wartungen.', 'danger')
@@ -1559,6 +1573,7 @@ def durchfuehrung_mehrere():
 
 @wartungen_bp.route('/durchfuehrung/<int:durchfuehrung_id>/ersatzteil-verknuepfen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('wartungen_protokolle')
 def durchfuehrung_ersatzteil_verknuepfen(durchfuehrung_id):
     mitarbeiter_id = session.get('user_id')
     adm = is_admin()
@@ -1593,6 +1608,7 @@ def durchfuehrung_ersatzteil_verknuepfen(durchfuehrung_id):
 
 @wartungen_bp.route('/api/angebotsanfrage/<int:angebotsanfrage_id>')
 @login_required
+@menue_zugriff_erforderlich('wartungen_protokolle')
 def api_angebotsanfrage_wartung(angebotsanfrage_id):
     if not kann_wartung_protokollieren():
         return jsonify(success=False, message='Keine Berechtigung.'), 403
@@ -1609,6 +1625,7 @@ def api_angebotsanfrage_wartung(angebotsanfrage_id):
 
 @wartungen_bp.route('/api/angebotsanfragen-abgeschlossen')
 @login_required
+@menue_zugriff_erforderlich('wartungen_protokolle')
 def api_angebotsanfragen_abgeschlossen_wartung():
     if not kann_wartung_protokollieren():
         return jsonify(success=False, message='Keine Berechtigung.', angebote=[]), 403
@@ -1629,6 +1646,7 @@ def api_angebotsanfragen_abgeschlossen_wartung():
 
 @wartungen_bp.route('/durchfuehrung/<int:durchfuehrung_id>/angebot-kosten', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('wartungen_protokolle')
 def durchfuehrung_angebot_kosten_speichern(durchfuehrung_id):
     if not kann_wartung_protokollieren():
         flash('Keine Berechtigung.', 'danger')
@@ -1669,6 +1687,7 @@ def durchfuehrung_angebot_kosten_speichern(durchfuehrung_id):
 
 @wartungen_bp.route('/durchfuehrung/<int:durchfuehrung_id>', methods=['GET'])
 @login_required
+@menue_zugriff_erforderlich('wartungen_protokolle')
 def durchfuehrung_detail(durchfuehrung_id):
     mitarbeiter_id = session.get('user_id')
     adm = is_admin()
@@ -1701,6 +1720,7 @@ def durchfuehrung_detail(durchfuehrung_id):
 
 @wartungen_bp.route('/durchfuehrung/<int:durchfuehrung_id>/loeschen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('wartungen_protokolle')
 def durchfuehrung_loeschen(durchfuehrung_id):
     """Protokollierte Wartungsdurchführung löschen (inkl. Serviceberichten)."""
     if not kann_wartungsdurchfuehrung_loeschen():
@@ -1740,6 +1760,7 @@ def durchfuehrung_loeschen(durchfuehrung_id):
 
 @wartungen_bp.route('/durchfuehrung-datei/<path:filepath>')
 @login_required
+@menue_zugriff_erforderlich('wartungen_protokolle')
 def durchfuehrung_datei(filepath):
     filepath = filepath.replace('\\', '/')
     if not filepath.startswith('Wartungen/durchfuehrung/'):
@@ -1783,6 +1804,7 @@ def durchfuehrung_datei(filepath):
     methods=['POST'],
 )
 @login_required
+@menue_zugriff_erforderlich('wartungen_protokolle')
 def durchfuehrung_servicebericht_loeschen(durchfuehrung_id, datei_id):
     if not kann_wartung_protokollieren():
         flash('Keine Berechtigung.', 'danger')
@@ -1813,6 +1835,7 @@ def durchfuehrung_servicebericht_loeschen(durchfuehrung_id, datei_id):
 
 @wartungen_bp.route('/durchfuehrung/<int:durchfuehrung_id>/servicebericht/upload', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('wartungen_protokolle')
 def durchfuehrung_servicebericht_upload(durchfuehrung_id):
     if not kann_wartung_protokollieren():
         flash('Keine Berechtigung zum Hochladen.', 'danger')
@@ -1841,6 +1864,7 @@ def durchfuehrung_servicebericht_upload(durchfuehrung_id):
 
 @wartungen_bp.route('/datei/<path:filepath>')
 @login_required
+@menue_zugriff_erforderlich('wartungen_liste')
 def wartung_datei(filepath):
     filepath = filepath.replace('\\', '/')
     if not filepath.startswith('Wartungen/'):
@@ -1871,6 +1895,7 @@ def wartung_datei(filepath):
 
 @wartungen_bp.route('/datei-loeschen/<int:datei_id>', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('wartungen_liste')
 def wartung_datei_loeschen(datei_id):
     mitarbeiter_id = session.get('user_id')
     with get_db_connection() as conn:

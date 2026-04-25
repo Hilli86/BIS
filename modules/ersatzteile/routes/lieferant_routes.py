@@ -4,11 +4,12 @@ Lieferant Routes - Lieferanten-Verwaltung
 
 from flask import render_template, request, redirect, url_for, session, flash, jsonify
 from .. import ersatzteile_bp
-from utils import get_db_connection, login_required, get_sichtbare_abteilungen_fuer_mitarbeiter
+from utils import get_db_connection, login_required, get_sichtbare_abteilungen_fuer_mitarbeiter, menue_zugriff_erforderlich
 
 
 @ersatzteile_bp.route('/lieferanten')
 @login_required
+@menue_zugriff_erforderlich('ersatzteile_lieferanten')
 def lieferanten_liste():
     """Lieferanten-Liste (für alle Benutzer sichtbar, keine Abteilungsfilterung)"""
     with get_db_connection() as conn:
@@ -37,6 +38,7 @@ def lieferanten_liste():
 
 @ersatzteile_bp.route('/lieferanten/<int:lieferant_id>')
 @login_required
+@menue_zugriff_erforderlich('ersatzteile_lieferanten')
 def lieferant_detail(lieferant_id):
     """Lieferant-Detailansicht mit zugehörigen Ersatzteilen"""
     with get_db_connection() as conn:
@@ -98,6 +100,7 @@ def lieferant_detail(lieferant_id):
 
 @ersatzteile_bp.route('/api/ersatzteile/lieferant/<int:lieferant_id>')
 @login_required
+@menue_zugriff_erforderlich('ersatzteile_lieferanten')
 def api_ersatzteile_lieferant(lieferant_id):
     """API: Alle Ersatzteile eines Lieferanten abrufen"""
     mitarbeiter_id = session.get('user_id')

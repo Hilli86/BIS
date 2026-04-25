@@ -6,7 +6,7 @@ Routes für verschiedene Funktionen
 from flask import redirect, render_template, request, jsonify, session, url_for
 from . import diverses_bp
 from utils.database import get_db_connection
-from utils.decorators import permission_required, login_required
+from utils.decorators import permission_required, login_required, menue_zugriff_erforderlich
 from utils.zebra_client import dispatch_print, send_zpl_to_printer
 
 
@@ -55,20 +55,25 @@ DRUCKER_LISTE = [
 
 @diverses_bp.route('/dokumente-erfassen')
 @login_required
+@menue_zugriff_erforderlich('diverses_dokumente')
 def dokumente_erfassen():
     """Dokumente mit Kamera erfassen, zuschneiden und im Import-Ordner speichern."""
     return render_template('dokumente_erfassen.html')
 
 
 @diverses_bp.route('/zebra-drucker')
+@login_required
 @permission_required('zebra_drucker_produktion')
+@menue_zugriff_erforderlich('diverses_zebra')
 def zebra_drucker():
     """Redirect: Inhalt liegt unter Produktion → Etikettierung (Abschnitt Zebra-Drucker)."""
     return redirect(url_for('produktion.etikettierung') + '#zebra-drucker')
 
 
 @diverses_bp.route('/zebra-drucker/kalibrieren', methods=['POST'])
+@login_required
 @permission_required('zebra_drucker_produktion')
+@menue_zugriff_erforderlich('diverses_zebra')
 def zebra_drucker_kalibrieren():
     """Kalibrierung an Zebra-Drucker senden"""
     data = request.get_json()
@@ -89,7 +94,9 @@ def zebra_drucker_kalibrieren():
 
 
 @diverses_bp.route('/zebra-drucker/druckerkonfig', methods=['POST'])
+@login_required
 @permission_required('zebra_drucker_produktion')
+@menue_zugriff_erforderlich('diverses_zebra')
 def zebra_drucker_druckerkonfig():
     """Druckerkonfiguration an Zebra-Drucker senden"""
     data = request.get_json()
@@ -110,7 +117,9 @@ def zebra_drucker_druckerkonfig():
 
 
 @diverses_bp.route('/zebra-drucker/netzwerkkonfig', methods=['POST'])
+@login_required
 @permission_required('zebra_drucker_produktion')
+@menue_zugriff_erforderlich('diverses_zebra')
 def zebra_drucker_netzwerkkonfig():
     """Netzwerkkonfiguration an Zebra-Drucker senden"""
     data = request.get_json()

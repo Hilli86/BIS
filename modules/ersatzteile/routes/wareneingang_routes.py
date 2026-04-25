@@ -7,7 +7,13 @@ from datetime import datetime
 import os
 from werkzeug.utils import secure_filename
 from .. import ersatzteile_bp
-from utils import get_db_connection, login_required, permission_required, get_sichtbare_abteilungen_fuer_mitarbeiter
+from utils import (
+    get_db_connection,
+    login_required,
+    permission_required,
+    get_sichtbare_abteilungen_fuer_mitarbeiter,
+    menue_zugriff_erforderlich,
+)
 from utils.db_sql import local_now_str
 from utils.file_handling import (
     save_uploaded_file,
@@ -60,6 +66,7 @@ def get_lieferschein_dateien(bestellung_id):
 @ersatzteile_bp.route('/wareneingang')
 @login_required
 @permission_required('artikel_buchen')
+@menue_zugriff_erforderlich('bestellwesen_wareneingang')
 def wareneingang():
     """Übersichtsseite für Wareneingang - Liste aller bestellten Bestellungen"""
     mitarbeiter_id = session.get('user_id')
@@ -109,6 +116,7 @@ def wareneingang():
 @ersatzteile_bp.route('/wareneingang/bestellung/<int:bestellung_id>', methods=['GET', 'POST'])
 @login_required
 @permission_required('artikel_buchen')
+@menue_zugriff_erforderlich('bestellwesen_wareneingang')
 def wareneingang_bestellung(bestellung_id):
     """Wareneingang für eine spezifische Bestellung"""
     mitarbeiter_id = session.get('user_id')
@@ -315,6 +323,7 @@ def wareneingang_bestellung(bestellung_id):
 @ersatzteile_bp.route('/lieferschein/<int:bestellung_id>/upload', methods=['POST'])
 @login_required
 @permission_required('artikel_buchen')
+@menue_zugriff_erforderlich('bestellwesen_wareneingang')
 def lieferschein_upload(bestellung_id):
     """Lieferschein-Upload für Wareneingang (PDF, JPEG, JPG, PNG) - unterstützt mehrere Dateien"""
     mitarbeiter_id = session.get('user_id')
@@ -401,6 +410,7 @@ def lieferschein_upload(bestellung_id):
 
 @ersatzteile_bp.route('/lieferschein/<path:filepath>')
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_wareneingang')
 def lieferschein_anzeigen(filepath):
     """Lieferschein-Datei anzeigen/herunterladen (PDF oder Bild) - für alle angemeldeten Benutzer"""
     mitarbeiter_id = session.get('user_id')

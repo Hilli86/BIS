@@ -149,6 +149,50 @@ def permission_required(berechtigung_schluessel):
     return decorator
 
 
+def menue_zugriff_erforderlich(menue_schluessel_oder_schluessel_tupel):
+    """
+    Decorator: Route nur bei effektiv sichtbarem Menüpunkt (session['user_menue_sichtbarkeit']).
+    Muss NACH @login_required / @admin_required / @permission_required stehen, die zuerst greifen sollen
+    (also in der Quelltext-Reihenfolge UNTER dem jeweils engeren Decorator, damit der äußerste
+    zuerst ausgeführt wird: z. B. @login_required, dann @menue_zugriff_erforderlich).
+
+    Arg: ein Menü-Schlüssel (str) ODER Tupel/Liste (mindestens einer muss sichtbar sein, OR-Logik).
+
+    Gast: wie bei fehlendem Recht; für erlaubte Gast-Routen muss user_menue_sichtarkeit
+    den passenden Schluessel auf True setzen (z. B. produktion_etikettierung) in user_menue_sichtbarkeit.
+    """
+    from utils.menue_definitions import ist_menue_zugriff_erlaubt
+
+    if isinstance(menue_schluessel_oder_schluessel_tupel, (list, tuple)):
+        schluessel_kandidaten = tuple(menue_schluessel_oder_schluessel_tupel)
+    else:
+        schluessel_kandidaten = (menue_schluessel_oder_schluessel_tupel,)
+
+    def _zulaessig() -> bool:
+        return any(ist_menue_zugriff_erlaubt(s) for s in schluessel_kandidaten)
+
+    def decorator(view_func):
+        @wraps(view_func)
+        def wrapper(*args, **kwargs):
+            is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+            if not _zulaessig():
+                if is_ajax:
+                    return jsonify({
+                        'success': False,
+                        'message': 'Zugriff verweigert. Diese Funktion steht Ihnen nicht zur Verfügung.',
+                    }), 403
+                flash('Zugriff verweigert. Diese Funktion steht Ihnen nicht zur Verfügung.', 'danger')
+                if session.get('is_guest'):
+                    return redirect(url_for('produktion.etikettierung'))
+                # Nicht auf dashboard umleiten: die Dashboard-Route nutzt ggf. dieselbe Menue-Pruefung
+                # (Redirect-Schleife ERR_TOO_MANY_REDIRECTS). Profil ist nur login_geschuetzt.
+                return redirect(url_for('auth.profil'))
+            return view_func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
 def guest_allowed(view_func):
     """
     Decorator: Markiert eine Route als für Gast-Benutzer zugänglich

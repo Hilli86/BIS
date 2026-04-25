@@ -4,7 +4,14 @@ Lagerbuchungs-Routen - Verwaltung von Lagerbuchungen
 
 from flask import render_template, request, redirect, url_for, session, flash, jsonify
 from .. import ersatzteile_bp
-from utils import get_db_connection, login_required, permission_required, admin_required, get_sichtbare_abteilungen_fuer_mitarbeiter
+from utils import (
+    get_db_connection,
+    login_required,
+    permission_required,
+    admin_required,
+    get_sichtbare_abteilungen_fuer_mitarbeiter,
+    menue_zugriff_erforderlich,
+)
 from utils.helpers import build_ersatzteil_zugriff_filter
 from utils.zebra_client import dispatch_print
 from utils.etikett_druck import (
@@ -21,6 +28,7 @@ from modules.schichtbuch.services import get_thema_info_fuer_lagerbuchung
 
 @ersatzteile_bp.route('/lagerbuchungen')
 @login_required
+@menue_zugriff_erforderlich('ersatzteile_lagerbuchungen')
 def lagerbuchungen_liste():
     """Liste aller Lagerbuchungen mit Filtern"""
     mitarbeiter_id = session.get('user_id')
@@ -166,6 +174,7 @@ def lagerbuchungen_liste():
 @ersatzteile_bp.route('/lagerbuchungen/admin-thema', methods=['POST'])
 @login_required
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def lagerbuchung_admin_thema():
     """Thema-ID einer bestehenden Lagerbuchung setzen oder entfernen (nur Admin)."""
     lagerbuchung_id = request.form.get('lagerbuchung_id', type=int)
@@ -228,6 +237,7 @@ def lagerbuchung_admin_thema():
 @ersatzteile_bp.route('/lagerbuchungen/admin-wartung', methods=['POST'])
 @login_required
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def lagerbuchung_admin_wartung():
     """Wartungsdurchführung-ID einer bestehenden Lagerbuchung setzen oder entfernen (nur Admin)."""
     lagerbuchung_id = request.form.get('lagerbuchung_id', type=int)
@@ -302,6 +312,7 @@ def lagerbuchung_admin_wartung():
 @ersatzteile_bp.route('/lagerbuchungen/schnellbuchung', methods=['POST'])
 @login_required
 @permission_required('artikel_buchen')
+@menue_zugriff_erforderlich('ersatzteile_lagerbuchungen')
 def schnellbuchung():
     """Schnelle Lagerbuchung durch Eingabe der Ersatzteil-ID"""
     mitarbeiter_id = session.get('user_id')
@@ -399,6 +410,7 @@ def schnellbuchung():
 @ersatzteile_bp.route('/<int:ersatzteil_id>/lagerbuchung', methods=['POST'])
 @login_required
 @permission_required('artikel_buchen')
+@menue_zugriff_erforderlich('ersatzteile_lagerbuchungen')
 def lagerbuchung(ersatzteil_id):
     """Lagerbuchung durchführen (Eingang/Ausgang)"""
     mitarbeiter_id = session.get('user_id')
@@ -493,6 +505,7 @@ def lagerbuchung(ersatzteil_id):
 
 @ersatzteile_bp.route('/thema/<int:thema_id>/verknuepfen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('ersatzteile_lagerbuchungen')
 def thema_verknuepfen(thema_id):
     """Ersatzteil mit Thema verknüpfen (mit automatischer Lagerbuchung)"""
     mitarbeiter_id = session.get('user_id')
@@ -564,6 +577,7 @@ def thema_verknuepfen(thema_id):
 
 @ersatzteile_bp.route('/inventurliste')
 @login_required
+@menue_zugriff_erforderlich('ersatzteile_inventur')
 def inventurliste():
     """Inventurliste - Gruppiert nach Lagerort + Lagerplatz, sortiert nach Artikel-ID"""
     mitarbeiter_id = session.get('user_id')
@@ -669,6 +683,7 @@ def inventurliste():
 @ersatzteile_bp.route('/inventurliste/buchung', methods=['POST'])
 @login_required
 @permission_required('artikel_buchen')
+@menue_zugriff_erforderlich('ersatzteile_inventur')
 def inventurliste_buchung():
     """Inventur-Buchung direkt aus der Inventurliste"""
     mitarbeiter_id = session.get('user_id')
@@ -729,6 +744,7 @@ def inventurliste_buchung():
 @ersatzteile_bp.route('/inventurliste/buchung/batch', methods=['POST'])
 @login_required
 @permission_required('artikel_buchen')
+@menue_zugriff_erforderlich('ersatzteile_inventur')
 def inventurliste_buchung_batch():
     """Batch-Inventur-Buchung - Mehrere Buchungen auf einmal"""
     mitarbeiter_id = session.get('user_id')
@@ -835,14 +851,24 @@ def inventurliste_buchung_batch():
 
 @ersatzteile_bp.route('/lagerbehaelter_label')
 @login_required
-def lagerbehaelter_label():
-    """Seite zum Drucken von Lagerbehälter-Labels"""
+@menue_zugriff_erforderlich('ersatzteile_etiketten')
+def lagerbehaelter_label_redirect():
+    """Alte URL; Weiterleitung auf /lageretiketten."""
+    return redirect(url_for('ersatzteile.lageretiketten'), code=301)
+
+
+@ersatzteile_bp.route('/lageretiketten')
+@login_required
+@menue_zugriff_erforderlich('ersatzteile_etiketten')
+def lageretiketten():
+    """Seite zum Drucken von Lager- und Artikel-Etiketten"""
     return render_template('ersatzteil_label_drucken.html')
 
 
-@ersatzteile_bp.route('/lagerbehaelter_label/druck', methods=['POST'])
+@ersatzteile_bp.route('/lageretiketten/druck', methods=['POST'])
 @login_required
-def lagerbehaelter_label_druck():
+@menue_zugriff_erforderlich('ersatzteile_etiketten')
+def lageretiketten_druck():
     """Druckt ein Lagerbehälter-Label mit manuell eingegebenen Titel und Info"""
     mitarbeiter_id = session.get('user_id')
     titel = request.json.get('titel', '').strip()
@@ -900,9 +926,10 @@ def lagerbehaelter_label_druck():
         return jsonify({'success': False, 'message': f'Fehler beim Drucken: {str(e)}'}), 500
 
 
-@ersatzteile_bp.route('/lagerbehaelter_label/druck_artikel', methods=['POST'])
+@ersatzteile_bp.route('/lageretiketten/druck_artikel', methods=['POST'])
 @login_required
-def lagerbehaelter_label_druck_artikel():
+@menue_zugriff_erforderlich('ersatzteile_etiketten')
+def lageretiketten_druck_artikel():
     """Druckt für mehrere Artikel-IDs das Ersatzteil-Label (ErsatzteilLabel)."""
     mitarbeiter_id = session.get('user_id')
 

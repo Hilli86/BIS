@@ -3,7 +3,12 @@ Utils Package - Hilfsfunktionen für BIS
 """
 
 from .database import get_db_connection
-from .decorators import login_required, admin_required, permission_required
+from .decorators import (
+    login_required,
+    admin_required,
+    permission_required,
+    menue_zugriff_erforderlich,
+)
 from .abteilungen import (
     get_untergeordnete_abteilungen,
     get_mitarbeiter_abteilungen,
@@ -50,6 +55,7 @@ __all__ = [
     'login_required',
     'admin_required',
     'permission_required',
+    'menue_zugriff_erforderlich',
     'get_untergeordnete_abteilungen',
     'get_mitarbeiter_abteilungen',
     'get_sichtbare_abteilungen_fuer_mitarbeiter',

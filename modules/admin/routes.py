@@ -6,7 +6,7 @@ Mitarbeiter, Abteilungen, Bereiche, Gewerke, Tätigkeiten, Status
 from flask import render_template, request, redirect, url_for, flash, jsonify
 from werkzeug.security import generate_password_hash
 from . import admin_bp
-from utils import get_db_connection, admin_required
+from utils import get_db_connection, admin_required, menue_zugriff_erforderlich
 from utils.zebra_client import (
     dispatch_print,
     send_zpl_to_printer,
@@ -38,6 +38,7 @@ def ajax_response(message, success=True, status_code=None, **extra):
 
 @admin_bp.route('/')
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def dashboard():
     """Admin Dashboard - Übersicht aller Stammdaten"""
     with get_db_connection() as conn:
@@ -224,6 +225,7 @@ def dashboard():
 
 @admin_bp.route('/zebra/printers', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def zebra_printer_save():
     """
     Zebra-Drucker anlegen oder aktualisieren.
@@ -270,6 +272,7 @@ def zebra_printer_save():
 
 @admin_bp.route('/zebra/printers/toggle/<int:pid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def zebra_printer_toggle(pid):
     """Aktiv-Status eines Zebra-Druckers umschalten."""
     try:
@@ -289,6 +292,7 @@ def zebra_printer_toggle(pid):
 
 @admin_bp.route('/druck-agents', methods=['GET'])
 @admin_required
+@menue_zugriff_erforderlich('admin_druck_agents')
 def druck_agents_uebersicht():
     """Verwaltung der Druck-Agents (Cloudflare-Tunnel-Helfer pro Standort)."""
     from utils.zebra_client import generate_agent_token  # noqa: F401 (dokumentation)
@@ -314,6 +318,7 @@ def druck_agents_uebersicht():
 
 @admin_bp.route('/druck-agents/save', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin_druck_agents')
 def druck_agents_save():
     """Druck-Agent anlegen oder aktualisieren. Beim Anlegen wird ein Token erzeugt."""
     from utils.zebra_client import generate_agent_token, hash_agent_token
@@ -372,6 +377,7 @@ def druck_agents_save():
 
 @admin_bp.route('/druck-agents/<int:aid>/rotate-token', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin_druck_agents')
 def druck_agents_rotate_token(aid):
     """Erzeugt einen neuen Token (alter wird ungueltig). Token wird einmalig angezeigt."""
     from utils.zebra_client import generate_agent_token, hash_agent_token
@@ -402,6 +408,7 @@ def druck_agents_rotate_token(aid):
 
 @admin_bp.route('/druck-agents/<int:aid>/toggle', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin_druck_agents')
 def druck_agents_toggle(aid):
     """Aktiviert/Deaktiviert einen Druck-Agent."""
     try:
@@ -427,6 +434,7 @@ def druck_agents_toggle(aid):
 
 @admin_bp.route('/druck-queue', methods=['GET'])
 @admin_required
+@menue_zugriff_erforderlich('admin_druck_queue')
 def druck_queue_uebersicht():
     """Uebersicht der Druckauftraege (offene, fehlerhafte, erledigte)."""
     from utils.zebra_client import recover_expired_leases
@@ -474,6 +482,7 @@ def druck_queue_uebersicht():
 
 @admin_bp.route('/druck-queue/<int:job_id>/requeue', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin_druck_queue')
 def druck_queue_requeue(job_id):
     """Setzt einen Auftrag zurueck auf pending (z. B. nach Fehler)."""
     try:
@@ -500,6 +509,7 @@ def druck_queue_requeue(job_id):
 
 @admin_bp.route('/druck-queue/<int:job_id>/abbrechen', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin_druck_queue')
 def druck_queue_abbrechen(job_id):
     """Bricht einen wartenden Auftrag ab (Status = expired)."""
     try:
@@ -528,6 +538,7 @@ def druck_queue_abbrechen(job_id):
 
 @admin_bp.route('/zebra/labels', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def zebra_label_save():
     """
     Etikettenformat anlegen oder aktualisieren.
@@ -568,6 +579,7 @@ def zebra_label_save():
 
 @admin_bp.route('/zebra/label-format/preview', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def zebra_label_format_preview():
     """Vorschau-ZPL für ein Etikettenformat aus Maßen und optionalem ZPL-Zusatz (ohne DB-Zugriff)."""
     width_mm = request.form.get('width_mm', type=int)
@@ -595,6 +607,7 @@ def zebra_label_format_preview():
 
 @admin_bp.route('/zebra/test', methods=['GET', 'POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def zebra_test():
     """
     Testseite für Zebra-Drucker:
@@ -663,6 +676,7 @@ def zebra_test():
 
 @admin_bp.route('/zebra/etiketten/save', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def zebra_etikett_save():
     """
     Etikett anlegen oder aktualisieren.
@@ -709,6 +723,7 @@ def zebra_etikett_save():
 
 @admin_bp.route('/zebra/druck_konfig/save', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def zebra_druck_konfig_save():
     """Druckfunktion-Konfiguration anlegen oder aktualisieren."""
     kid = request.form.get('id', type=int)
@@ -767,6 +782,7 @@ def zebra_druck_konfig_save():
 
 @admin_bp.route('/zebra/druck_konfig/delete/<int:kid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def zebra_druck_konfig_delete(kid):
     try:
         with get_db_connection() as conn:
@@ -780,6 +796,7 @@ def zebra_druck_konfig_delete(kid):
 
 @admin_bp.route('/zebra/etiketten/testdruck', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def zebra_etikett_testdruck():
     """
     Testdruck eines Etiketts - sendet ZPL ueber Hybrid-Dispatch (Drucker mit
@@ -824,6 +841,7 @@ def zebra_etikett_testdruck():
 
 @admin_bp.route('/mitarbeiter/add', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def mitarbeiter_add():
     """Mitarbeiter anlegen"""
     personalnummer = request.form.get('personalnummer')
@@ -877,6 +895,7 @@ def mitarbeiter_add():
 
 @admin_bp.route('/mitarbeiter/update/<int:mid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def mitarbeiter_update(mid):
     """Mitarbeiter aktualisieren"""
     vorname = request.form.get('vorname')
@@ -918,6 +937,7 @@ def mitarbeiter_update(mid):
 
 @admin_bp.route('/mitarbeiter/deactivate/<int:mid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def mitarbeiter_deactivate(mid):
     """Mitarbeiter deaktivieren"""
     try:
@@ -931,6 +951,7 @@ def mitarbeiter_deactivate(mid):
 
 @admin_bp.route('/mitarbeiter/reset-password/<int:mid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def mitarbeiter_reset_password(mid):
     """Passwort des Mitarbeiters auf ein Zufalls-Passwort zuruecksetzen (Wechsel-Zwang)."""
     from utils.security import generiere_zufalls_passwort
@@ -973,6 +994,7 @@ def mitarbeiter_reset_password(mid):
 
 @admin_bp.route('/abteilung/add', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def abteilung_add():
     """Abteilung anlegen"""
     bezeichnung = request.form.get('bezeichnung')
@@ -997,6 +1019,7 @@ def abteilung_add():
 
 @admin_bp.route('/abteilung/update/<int:aid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def abteilung_update(aid):
     """Abteilung aktualisieren"""
     bezeichnung = request.form.get('bezeichnung')
@@ -1023,6 +1046,7 @@ def abteilung_update(aid):
 
 @admin_bp.route('/abteilung/delete/<int:aid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def abteilung_delete(aid):
     """Abteilung deaktivieren"""
     try:
@@ -1038,6 +1062,7 @@ def abteilung_delete(aid):
 
 @admin_bp.route('/mitarbeiter/<int:mid>/abteilungen', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def mitarbeiter_abteilungen(mid):
     """Mitarbeiter-Abteilungen zuweisen"""
     primaer_abteilung_id = request.form.get('primaer_abteilung_id')
@@ -1076,6 +1101,7 @@ def mitarbeiter_abteilungen(mid):
 
 @admin_bp.route('/bereich/add', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def bereich_add():
     """Bereich anlegen"""
     bezeichnung = request.form.get('bezeichnung')
@@ -1092,6 +1118,7 @@ def bereich_add():
 
 @admin_bp.route('/bereich/update/<int:bid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def bereich_update(bid):
     """Bereich aktualisieren"""
     bezeichnung = request.form.get('bezeichnung')
@@ -1107,6 +1134,7 @@ def bereich_update(bid):
 
 @admin_bp.route('/bereich/delete/<int:bid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def bereich_delete(bid):
     """Bereich deaktivieren"""
     try:
@@ -1122,6 +1150,7 @@ def bereich_delete(bid):
 
 @admin_bp.route('/gewerk/add', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def gewerk_add():
     """Gewerk anlegen"""
     bezeichnung = request.form.get('bezeichnung')
@@ -1139,6 +1168,7 @@ def gewerk_add():
 
 @admin_bp.route('/gewerk/update/<int:gid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def gewerk_update(gid):
     """Gewerk aktualisieren"""
     bezeichnung = request.form.get('bezeichnung')
@@ -1155,6 +1185,7 @@ def gewerk_update(gid):
 
 @admin_bp.route('/gewerk/delete/<int:gid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def gewerk_delete(gid):
     """Gewerk deaktivieren"""
     try:
@@ -1170,6 +1201,7 @@ def gewerk_delete(gid):
 
 @admin_bp.route('/taetigkeit/add', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def taetigkeit_add():
     """Tätigkeit anlegen"""
     bezeichnung = request.form.get('bezeichnung')
@@ -1187,6 +1219,7 @@ def taetigkeit_add():
 
 @admin_bp.route('/taetigkeit/update/<int:tid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def taetigkeit_update(tid):
     """Tätigkeit aktualisieren"""
     bezeichnung = request.form.get('bezeichnung')
@@ -1203,6 +1236,7 @@ def taetigkeit_update(tid):
 
 @admin_bp.route('/taetigkeit/delete/<int:tid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def taetigkeit_delete(tid):
     """Tätigkeit deaktivieren"""
     try:
@@ -1218,6 +1252,7 @@ def taetigkeit_delete(tid):
 
 @admin_bp.route('/status/add', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def status_add():
     """Status anlegen"""
     bezeichnung = request.form.get('bezeichnung')
@@ -1236,6 +1271,7 @@ def status_add():
 
 @admin_bp.route('/status/update/<int:sid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def status_update(sid):
     """Status aktualisieren"""
     bezeichnung = request.form.get('bezeichnung')
@@ -1253,6 +1289,7 @@ def status_update(sid):
 
 @admin_bp.route('/status/delete/<int:sid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def status_delete(sid):
     """Status deaktivieren"""
     try:
@@ -1268,6 +1305,7 @@ def status_delete(sid):
 
 @admin_bp.route('/ersatzteil-kategorie/add', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def ersatzteil_kategorie_add():
     """ErsatzteilKategorie anlegen"""
     bezeichnung = request.form.get('bezeichnung')
@@ -1289,6 +1327,7 @@ def ersatzteil_kategorie_add():
 
 @admin_bp.route('/ersatzteil-kategorie/update/<int:kid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def ersatzteil_kategorie_update(kid):
     """ErsatzteilKategorie aktualisieren"""
     bezeichnung = request.form.get('bezeichnung')
@@ -1311,6 +1350,7 @@ def ersatzteil_kategorie_update(kid):
 
 @admin_bp.route('/ersatzteil-kategorie/delete/<int:kid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def ersatzteil_kategorie_delete(kid):
     """ErsatzteilKategorie deaktivieren"""
     try:
@@ -1326,6 +1366,7 @@ def ersatzteil_kategorie_delete(kid):
 
 @admin_bp.route('/kostenstelle/add', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def kostenstelle_add():
     """Kostenstelle anlegen"""
     bezeichnung = request.form.get('bezeichnung')
@@ -1347,6 +1388,7 @@ def kostenstelle_add():
 
 @admin_bp.route('/kostenstelle/update/<int:kid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def kostenstelle_update(kid):
     """Kostenstelle aktualisieren"""
     bezeichnung = request.form.get('bezeichnung')
@@ -1369,6 +1411,7 @@ def kostenstelle_update(kid):
 
 @admin_bp.route('/kostenstelle/delete/<int:kid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def kostenstelle_delete(kid):
     """Kostenstelle deaktivieren"""
     try:
@@ -1384,6 +1427,7 @@ def kostenstelle_delete(kid):
 
 @admin_bp.route('/lagerort/add', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def lagerort_add():
     """Lagerort anlegen"""
     bezeichnung = request.form.get('bezeichnung')
@@ -1405,6 +1449,7 @@ def lagerort_add():
 
 @admin_bp.route('/lagerort/update/<int:lid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def lagerort_update(lid):
     """Lagerort aktualisieren"""
     bezeichnung = request.form.get('bezeichnung')
@@ -1427,6 +1472,7 @@ def lagerort_update(lid):
 
 @admin_bp.route('/lagerort/delete/<int:lid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def lagerort_delete(lid):
     """Lagerort deaktivieren"""
     try:
@@ -1442,6 +1488,7 @@ def lagerort_delete(lid):
 
 @admin_bp.route('/lagerplatz/add', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def lagerplatz_add():
     """Lagerplatz anlegen"""
     bezeichnung = request.form.get('bezeichnung')
@@ -1463,6 +1510,7 @@ def lagerplatz_add():
 
 @admin_bp.route('/lagerplatz/update/<int:lid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def lagerplatz_update(lid):
     """Lagerplatz aktualisieren"""
     bezeichnung = request.form.get('bezeichnung')
@@ -1485,6 +1533,7 @@ def lagerplatz_update(lid):
 
 @admin_bp.route('/lagerplatz/delete/<int:lid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def lagerplatz_delete(lid):
     """Lagerplatz deaktivieren"""
     try:
@@ -1500,6 +1549,7 @@ def lagerplatz_delete(lid):
 
 @admin_bp.route('/lieferant/add', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def lieferant_add():
     """Lieferant anlegen"""
     name = request.form.get('name')
@@ -1526,6 +1576,7 @@ def lieferant_add():
 
 @admin_bp.route('/lieferant/update/<int:lid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def lieferant_update(lid):
     """Lieferant aktualisieren"""
     name = request.form.get('name')
@@ -1554,6 +1605,7 @@ def lieferant_update(lid):
 
 @admin_bp.route('/lieferant/delete/<int:lid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def lieferant_delete(lid):
     """Lieferant soft-delete"""
     try:
@@ -1569,6 +1621,7 @@ def lieferant_delete(lid):
 
 @admin_bp.route('/fremdfirma/add', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def fremdfirma_add():
     """Fremdfirma anlegen (nur Admin)."""
     name = (request.form.get('firmenname') or '').strip()
@@ -1587,6 +1640,7 @@ def fremdfirma_add():
 
 @admin_bp.route('/fremdfirma/update/<int:fid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def fremdfirma_update(fid):
     """Fremdfirma aktualisieren."""
     name = (request.form.get('firmenname') or '').strip()
@@ -1941,6 +1995,7 @@ DATABASE_SCHEMA = {
 
 @admin_bp.route('/database/check', methods=['GET'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def database_check():
     """Überprüft die Datenbankstruktur"""
     try:
@@ -2000,6 +2055,7 @@ def database_check():
 
 @admin_bp.route('/benachrichtigungen/cleanup', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def benachrichtigungen_cleanup():
     """Manuelles Auslösen der Bereinigung alter Benachrichtigungen"""
     try:
@@ -2021,6 +2077,7 @@ def benachrichtigungen_cleanup():
 
 @admin_bp.route('/database/repair', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def database_repair():
     """Fügt fehlende Tabellen, Spalten und Indizes zur Datenbank hinzu"""
     try:
@@ -2245,6 +2302,7 @@ def database_repair():
 
 @admin_bp.route('/login-logs')
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def login_logs():
     """Anzeige der Login-Logs"""
     # Filter-Parameter
@@ -2346,6 +2404,7 @@ def login_logs():
 
 @admin_bp.route('/firmendaten', methods=['GET', 'POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def firmendaten():
     """Firmendaten anzeigen und bearbeiten"""
     if request.method == 'POST':
@@ -2431,6 +2490,7 @@ def firmendaten():
 
 @admin_bp.route('/berechtigung/add', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def berechtigung_add():
     """Berechtigung anlegen"""
     schluessel = request.form.get('schluessel', '').strip()
@@ -2465,6 +2525,7 @@ def berechtigung_add():
 
 @admin_bp.route('/berechtigung/update/<int:bid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def berechtigung_update(bid):
     """Berechtigung aktualisieren"""
     bezeichnung = request.form.get('bezeichnung', '').strip()
@@ -2488,6 +2549,7 @@ def berechtigung_update(bid):
 
 @admin_bp.route('/berechtigung/toggle/<int:bid>', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def berechtigung_toggle(bid):
     """Berechtigung aktivieren/deaktivieren"""
     try:
@@ -2508,6 +2570,7 @@ def berechtigung_toggle(bid):
 
 @admin_bp.route('/mitarbeiter/<int:mid>/berechtigungen', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def mitarbeiter_berechtigungen(mid):
     """Mitarbeiter-Berechtigungen zuweisen (alle auf einmal)"""
     berechtigung_ids = request.form.getlist('berechtigungen')
@@ -2546,6 +2609,7 @@ def mitarbeiter_berechtigungen(mid):
 
 @admin_bp.route('/mitarbeiter/<int:mid>/menue-sichtbarkeit', methods=['POST'])
 @admin_required
+@menue_zugriff_erforderlich('admin')
 def mitarbeiter_menue_sichtbarkeit(mid):
     """Menü-Sichtbarkeit für einen Mitarbeiter speichern"""
     try:

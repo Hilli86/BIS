@@ -7,7 +7,7 @@ from datetime import datetime
 import os
 from werkzeug.utils import secure_filename
 from .. import ersatzteile_bp
-from utils import get_db_connection, login_required, log_info, log_error, log_warning
+from utils import get_db_connection, login_required, log_info, log_error, log_warning, menue_zugriff_erforderlich
 from utils.db_sql import local_now_str
 from utils.file_handling import (
     save_uploaded_file,
@@ -193,6 +193,7 @@ def get_angebotsanfrage_dateien(angebotsanfrage_id):
 
 @ersatzteile_bp.route('/angebotsanfragen')
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_angebote')
 def angebotsanfrage_liste():
     """Liste aller Angebotsanfragen mit Filter"""
     mitarbeiter_id = session.get('user_id')
@@ -267,6 +268,7 @@ def angebotsanfrage_liste():
 
 @ersatzteile_bp.route('/angebotsanfragen/smart-add/<int:ersatzteil_id>')
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_angebote')
 def angebotsanfrage_smart_add(ersatzteil_id):
     """Smart-Link: Prüft ob offene Anfrage existiert, sonst erstellt neue (JSON Response)"""
     mitarbeiter_id = session.get('user_id')
@@ -387,6 +389,7 @@ def angebotsanfrage_smart_add(ersatzteil_id):
 
 @ersatzteile_bp.route('/angebotsanfragen/neu', methods=['GET', 'POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_angebote')
 def angebotsanfrage_neu():
     """Neue Angebotsanfrage erstellen"""
     mitarbeiter_id = session.get('user_id')
@@ -536,6 +539,7 @@ def angebotsanfrage_neu():
 
 @ersatzteile_bp.route('/angebotsanfragen/<int:angebotsanfrage_id>')
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_angebote')
 def angebotsanfrage_detail(angebotsanfrage_id):
     """Detailansicht einer Angebotsanfrage"""
     mitarbeiter_id = session.get('user_id')
@@ -637,6 +641,7 @@ def angebotsanfrage_detail(angebotsanfrage_id):
 
 @ersatzteile_bp.route('/angebotsanfragen/<int:angebotsanfrage_id>/bearbeiten', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_angebote')
 def angebotsanfrage_bearbeiten(angebotsanfrage_id):
     """Status einer Angebotsanfrage ändern"""
     mitarbeiter_id = session.get('user_id')
@@ -689,6 +694,7 @@ def angebotsanfrage_bearbeiten(angebotsanfrage_id):
 
 @ersatzteile_bp.route('/angebotsanfragen/<int:angebotsanfrage_id>/position-hinzufuegen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_angebote')
 def angebotsanfrage_position_hinzufuegen(angebotsanfrage_id):
     """Position zu bestehender Angebotsanfrage hinzufügen"""
     mitarbeiter_id = session.get('user_id')
@@ -762,6 +768,7 @@ def angebotsanfrage_position_hinzufuegen(angebotsanfrage_id):
 
 @ersatzteile_bp.route('/angebotsanfragen/<int:angebotsanfrage_id>/position/<int:position_id>/bearbeiten', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_angebote')
 def angebotsanfrage_position_bearbeiten(angebotsanfrage_id, position_id):
     """Position in Angebotsanfrage bearbeiten"""
     mitarbeiter_id = session.get('user_id')
@@ -853,6 +860,7 @@ def angebotsanfrage_position_bearbeiten(angebotsanfrage_id, position_id):
 
 @ersatzteile_bp.route('/angebotsanfragen/<int:angebotsanfrage_id>/position/<int:position_id>/artikel-erstellen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_angebote')
 def angebotsanfrage_position_artikel_erstellen(angebotsanfrage_id, position_id):
     """Erstellt einen neuen Artikel aus einer Position (wenn keine ErsatzteilID vorhanden)"""
     mitarbeiter_id = session.get('user_id')
@@ -952,6 +960,7 @@ def angebotsanfrage_position_artikel_erstellen(angebotsanfrage_id, position_id):
 
 @ersatzteile_bp.route('/angebotsanfragen/<int:angebotsanfrage_id>/position/<int:position_id>/loeschen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_angebote')
 def angebotsanfrage_position_loeschen(angebotsanfrage_id, position_id):
     """Position aus Angebotsanfrage löschen (nur wenn Status 'Offen')"""
     mitarbeiter_id = session.get('user_id')
@@ -994,6 +1003,7 @@ def angebotsanfrage_position_loeschen(angebotsanfrage_id, position_id):
 
 @ersatzteile_bp.route('/angebotsanfragen/<int:angebotsanfrage_id>/loeschen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_angebote')
 def angebotsanfrage_loeschen(angebotsanfrage_id):
     """Angebotsanfrage löschen (unabhängig vom Status)"""
     mitarbeiter_id = session.get('user_id')
@@ -1041,6 +1051,7 @@ def angebotsanfrage_loeschen(angebotsanfrage_id):
 
 @ersatzteile_bp.route('/angebotsanfragen/<int:angebotsanfrage_id>/preise-eingeben', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_angebote')
 def angebotsanfrage_preise_eingeben(angebotsanfrage_id):
     """Preise eingeben und in Ersatzteile übernehmen"""
     mitarbeiter_id = session.get('user_id')
@@ -1152,6 +1163,7 @@ def angebotsanfrage_preise_eingeben(angebotsanfrage_id):
 
 @ersatzteile_bp.route('/angebotsanfragen/<int:angebotsanfrage_id>/datei/upload', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_angebote')
 def angebotsanfrage_datei_upload(angebotsanfrage_id):
     """PDF-Datei für Angebotsanfrage hochladen"""
     mitarbeiter_id = session.get('user_id')
@@ -1229,6 +1241,7 @@ def angebotsanfrage_datei_upload(angebotsanfrage_id):
 
 @ersatzteile_bp.route('/angebotsanfragen/datei/<path:filepath>')
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_angebote')
 def angebotsanfrage_datei_anzeigen(filepath):
     """PDF-Datei anzeigen/herunterladen"""
     mitarbeiter_id = session.get('user_id')
@@ -1275,6 +1288,7 @@ def angebotsanfrage_datei_anzeigen(filepath):
 
 @ersatzteile_bp.route('/angebotsanfragen/<int:angebotsanfrage_id>/pdf')
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_angebote')
 def angebotsanfrage_pdf_export(angebotsanfrage_id):
     """PDF-/DOCX-Export für eine Angebotsanfrage mit docx-Vorlage.
 

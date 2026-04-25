@@ -5,7 +5,8 @@ Routes für Dashboard-Übersicht und API-Endpunkte
 
 from flask import render_template, request, redirect, url_for, session, jsonify, current_app
 from . import dashboard_bp
-from utils import get_db_connection, get_sichtbare_abteilungen_fuer_mitarbeiter, login_required
+from utils import get_db_connection, get_sichtbare_abteilungen_fuer_mitarbeiter, login_required, menue_zugriff_erforderlich
+from utils.menue_definitions import ist_menue_zugriff_erlaubt
 from utils.auth_guards import is_authenticated_user
 from utils.helpers import row_to_dict
 from utils.benachrichtigungen import (
@@ -17,6 +18,7 @@ from . import services
 
 @dashboard_bp.route('/')
 @login_required
+@menue_zugriff_erforderlich('dashboard')
 def dashboard():
     """Dashboard - Übersicht (schnelles Rendern, Daten werden per AJAX nachgeladen)"""
     # URL-Parameter (z.B. personalnummer) an Login-Route weitergeben
@@ -32,6 +34,9 @@ def dashboard():
 @dashboard_bp.route('/api/dashboard')
 def api_dashboard():
     """API-Endpunkt für Dashboard-Daten"""
+    if session.get('user_id') and not ist_menue_zugriff_erlaubt('dashboard'):
+        return jsonify({'error': 'Zugriff verweigert.'}), 403
+
     # Gast-Benutzer erhalten leere Daten
     if session.get('is_guest'):
         return jsonify({
@@ -88,6 +93,7 @@ def api_dashboard():
 
 @dashboard_bp.route('/benachrichtigungen')
 @login_required
+@menue_zugriff_erforderlich('dashboard')
 def benachrichtigungen():
     """Seite mit allen Benachrichtigungen"""
     return render_template('dashboard/benachrichtigungen.html')
@@ -95,6 +101,7 @@ def benachrichtigungen():
 
 @dashboard_bp.route('/api/benachrichtigungen/ungelesen')
 @login_required
+@menue_zugriff_erforderlich('dashboard')
 def api_benachrichtigungen_ungelesen():
     """Ungelesene Benachrichtigungen für Glocke/Toasts (alle Module, inkl. ziel_url)."""
     user_id = session.get('user_id')
@@ -105,6 +112,7 @@ def api_benachrichtigungen_ungelesen():
 
 @dashboard_bp.route('/api/benachrichtigungen')
 @login_required
+@menue_zugriff_erforderlich('dashboard')
 def api_benachrichtigungen():
     """API-Endpoint für Benachrichtigungen"""
     if not is_authenticated_user(session):
@@ -143,6 +151,7 @@ def api_benachrichtigungen():
 
 @dashboard_bp.route('/api/benachrichtigungen/<int:benachrichtigung_id>/gelesen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('dashboard')
 def api_benachrichtigung_gelesen(benachrichtigung_id):
     """API: Benachrichtigung als gelesen markieren"""
     user_id = session.get('user_id')
@@ -169,6 +178,7 @@ def api_benachrichtigung_gelesen(benachrichtigung_id):
 
 @dashboard_bp.route('/api/benachrichtigungen/alle-gelesen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('dashboard')
 def api_alle_benachrichtigungen_gelesen():
     """API: Alle Benachrichtigungen als gelesen markieren"""
     user_id = session.get('user_id')
@@ -185,6 +195,7 @@ def api_alle_benachrichtigungen_gelesen():
 
 @dashboard_bp.route('/api/benachrichtigungen/<int:benachrichtigung_id>/loeschen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('dashboard')
 def api_benachrichtigung_loeschen(benachrichtigung_id):
     """API: Einzelne Benachrichtigung löschen"""
     user_id = session.get('user_id')
@@ -211,6 +222,7 @@ def api_benachrichtigung_loeschen(benachrichtigung_id):
 
 @dashboard_bp.route('/api/benachrichtigungen/alle-gelesenen-loeschen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('dashboard')
 def api_alle_gelesenen_benachrichtigungen_loeschen():
     """API: Alle gelesenen Benachrichtigungen löschen"""
     user_id = session.get('user_id')

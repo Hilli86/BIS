@@ -108,3 +108,19 @@ def get_menue_sichtbarkeit_fuer_mitarbeiter(mitarbeiter_id, conn=None):
 def get_alle_menue_definitionen():
     """Gibt alle Menü-Definitionen zurück (für Admin-UI)."""
     return MENUE_DEFINITIONEN
+
+
+def ist_menue_zugriff_erlaubt(menue_schluessel: str) -> bool:
+    """
+    Prüft, ob der aktuelle Benutzer den Menüpunkt effektiv nutzen darf
+    (Spiegel von get_menue_sichtbarkeit in session['user_menue_sichtbarkeit']).
+    Fehlender Schlüssel: False (fail-closed), außer bewusst anders geregelt.
+    """
+    from flask import session
+
+    if not menue_schluessel:
+        return False
+    sicht = session.get('user_menue_sichtbarkeit', {})
+    if not isinstance(sicht, dict):
+        return False
+    return bool(sicht.get(menue_schluessel))

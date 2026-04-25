@@ -22,7 +22,12 @@ from flask import (
 
 from . import produktion_bp
 from utils.database import get_db_connection
-from utils.decorators import guest_allowed, login_required, permission_required
+from utils.decorators import (
+    guest_allowed,
+    login_required,
+    menue_zugriff_erforderlich,
+    permission_required,
+)
 from utils.etikett_druck import (
     FUNKTION_PRODUKTION_ETIKETT,
     build_print_resolution,
@@ -119,6 +124,7 @@ def get_artikeleinstellungen_struktur():
 
 @produktion_bp.route('/etiketten-drucken')
 @login_required
+@menue_zugriff_erforderlich('produktion_etiketten_drucken')
 def etiketten_drucken():
     """Freitext-Produktion-Etikett (optional Artikelnummer, Produkt, Datum, zu verwenden am, Stück)."""
     heute = datetime.now().date()
@@ -134,6 +140,7 @@ def etiketten_drucken():
 
 @produktion_bp.route('/etiketten-drucken/druck', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('produktion_etiketten_drucken')
 def etiketten_drucken_druck():
     """Druckt Produktion-Etikett gemäß Admin-Konfiguration ``produktion_etikett``."""
     mitarbeiter_id = session.get('user_id')
@@ -215,6 +222,7 @@ def etiketten_drucken_druck():
 @produktion_bp.route('/etikettierung')
 @guest_allowed  # Muss ZUERST stehen, damit Attribut gesetzt wird
 @login_required  # Prüft dann das Attribut
+@menue_zugriff_erforderlich('produktion_etikettierung')
 def etikettierung():
     """Etikettierung-Seite mit Artikeleinstellungen"""
     struktur = get_artikeleinstellungen_struktur()
@@ -240,6 +248,7 @@ def etikettierung():
 @produktion_bp.route('/etikettierung/foto/upload', methods=['POST'])
 @login_required
 @permission_required('foto_artikeleinstellungen_aendern')
+@menue_zugriff_erforderlich('produktion_etikettierung')
 def etikettierung_foto_upload():
     """bizerba.jpg für einen Artikel in den Artikeleinstellungen ersetzen"""
     linie = (request.form.get('linie') or '').strip()
@@ -308,6 +317,7 @@ def etikettierung_foto_upload():
 @produktion_bp.route('/etikettierung/bild/<path:filepath>')
 @guest_allowed
 @login_required
+@menue_zugriff_erforderlich('produktion_etikettierung')
 def etikettierung_bild(filepath):
     """Serviert Bilder aus dem Artikeleinstellungen-Ordner"""
     # Normalisiere den Pfad: Backslashes zu Forward-Slashes

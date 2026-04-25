@@ -11,11 +11,15 @@ aus Sidebar/Menü (siehe utils.menue_definitions).
 from flask import url_for
 
 from utils.decorators import is_safe_url
+from utils.menue_definitions import ist_menue_zugriff_erlaubt
+from utils.menue_endpunkt_zuordnung import STARTSEITEN_ENDPUNKT_MENUE_SCHLUESSEL
 
 # Admin-Dropdown: (endpoint, Anzeigename) — Reihenfolge wie im Menü
 LOGIN_STARTSEITEN_AUSWAHL = [
     ('dashboard.dashboard', 'Dashboard'),
     ('admin.dashboard', 'Adminbereich'),
+    ('admin.druck_agents_uebersicht', 'Admin: Druck-Agents'),
+    ('admin.druck_queue_uebersicht', 'Admin: Druck-Queue'),
     ('schichtbuch.themaliste', 'Schichtbuch: Themenliste'),
     ('schichtbuch.aufgabenlisten_liste', 'Schichtbuch: Aufgabenlisten'),
     ('ersatzteile.angebotsanfrage_liste', 'Bestellwesen: Angebotsanfragen'),
@@ -27,15 +31,17 @@ LOGIN_STARTSEITEN_AUSWAHL = [
     ('ersatzteile.inventurliste', 'Ersatzteile: Inventurliste'),
     ('ersatzteile.lieferanten_liste', 'Ersatzteile: Lieferanten'),
     ('ersatzteile.lagerbuchungen_liste', 'Ersatzteile: Lagerbuchungen'),
-    ('ersatzteile.lagerbehaelter_label', 'Ersatzteile: Etiketten drucken'),
+    ('ersatzteile.lageretiketten', 'Ersatzteile: Etiketten drucken'),
     ('wartungen.wartung_liste', 'Wartungen: Wartungen'),
     ('wartungen.plaene_uebersicht', 'Wartungen: Wartungspläne'),
     ('wartungen.jahresuebersicht', 'Wartungen: Jahresübersicht'),
     ('wartungen.durchfuehrungen_chronologisch', 'Wartungen: Protokolle'),
     ('wartungen.durchfuehrung_mehrere', 'Wartungen: Mehrere protokollieren'),
     ('diverses.dokumente_erfassen', 'Dashboard: Dokumente erfassen'),
+    ('diverses.zebra_drucker', 'Diverses: Zebra-Drucker (Weiterleitung)'),
     ('produktion.etikettierung', 'Produktion: Etikettierung'),
     ('produktion.etiketten_drucken', 'Produktion: Verpackung'),
+    ('technik.uebersichten', 'Technik: Übersichten'),
     ('search.search', 'Globale Suche'),
     ('auth.profil', 'Mein Profil'),
 ]
@@ -64,9 +70,19 @@ def resolve_post_login_redirect_url(startseite_endpunkt_gespeichert, next_param)
     Target URL for redirect() after successful login.
     startseite_endpunkt_gespeichert: Mitarbeiter.StartseiteNachLoginEndpunkt or None.
     next_param: request.args.get('next') or from WebAuthn JSON.
+    session muss user_menue_sichtbarkeit ggf. bereits enthalten (normal nach Session-Befüllung beim Login).
     """
+    from flask import flash
+
     ep = normalisiere_startseite_endpunkt(startseite_endpunkt_gespeichert)
     if ep:
+        mkey = STARTSEITEN_ENDPUNKT_MENUE_SCHLUESSEL.get(ep)
+        if mkey and not ist_menue_zugriff_erlaubt(mkey):
+            flash(
+                'Die gespeicherte Startseite steht Ihnen derzeit nicht zur Verfügung. Es wurde das Dashboard geöffnet.',
+                'warning',
+            )
+            return url_for('dashboard.dashboard')
         return url_for(ep)
 
     if next_param and is_safe_url(next_param):

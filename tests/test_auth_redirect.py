@@ -30,6 +30,9 @@ def test_normalisiere_startseite_whitespace_wird_getrimmt():
 
 def test_resolve_post_login_gespeicherter_endpunkt_gewinnt():
     with app.test_request_context("/login", base_url="http://localhost:5000/"):
+        from flask import session
+
+        session["user_menue_sichtbarkeit"] = {"dashboard": True}
         url = resolve_post_login_redirect_url("dashboard.dashboard", "/other")
         assert url.rstrip("/").endswith("/dashboard")
 

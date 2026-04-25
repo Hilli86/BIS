@@ -246,7 +246,7 @@ def menue_sichtbar(schluessel):
     Nutzt session['user_menue_sichtbarkeit'].
     """
     sichtbarkeit = session.get('user_menue_sichtbarkeit', {})
-    return sichtbarkeit.get(schluessel, True)
+    return bool(sichtbarkeit.get(schluessel, False))
 
 
 @app.template_global('csrf_field')

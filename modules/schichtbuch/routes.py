@@ -7,7 +7,12 @@ from datetime import datetime
 import os
 from werkzeug.utils import secure_filename
 from . import schichtbuch_bp
-from utils import get_db_connection, login_required, get_sichtbare_abteilungen_fuer_mitarbeiter
+from utils import (
+    get_db_connection,
+    login_required,
+    get_sichtbare_abteilungen_fuer_mitarbeiter,
+    menue_zugriff_erforderlich,
+)
 from utils import db_errors
 from utils.db_sql import local_now_str, upsert_ignore
 from utils.helpers import build_sichtbarkeits_filter_query, row_to_dict
@@ -38,8 +43,12 @@ def get_datei_anzahl(thema_id):
         return 0
 
 
+# Themenlisten-Routen vs. Aufgabenlisten; gemeinsame Thema-/Datei-Routen: OR-Logik
+_MENUE_SCHICHTBUCH_THEMA_ODER = ('schichtbuch_liste', 'schichtbuch_aufgabenlisten')
+
 @schichtbuch_bp.route('/themaliste')
 @login_required
+@menue_zugriff_erforderlich('schichtbuch_liste')
 def themaliste():
     """Themenliste mit Filtern"""
     # Filterparameter aus der URL lesen
@@ -121,6 +130,7 @@ def themaliste():
 
 @schichtbuch_bp.route('/themaliste/load_more')
 @login_required
+@menue_zugriff_erforderlich('schichtbuch_liste')
 def themaliste_load_more():
     """AJAX-Route zum Nachladen weiterer Themen"""
     offset = request.args.get('offset', 0, type=int)
@@ -179,6 +189,7 @@ def themaliste_load_more():
 
 @schichtbuch_bp.route('/api/gewerke')
 @login_required
+@menue_zugriff_erforderlich('schichtbuch_liste')
 def api_gewerke():
     """API: Gewerke nach Bereich"""
     bereich = request.args.get('bereich')
@@ -198,6 +209,7 @@ def api_gewerke():
 
 @schichtbuch_bp.route('/themaliste/add', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('schichtbuch_liste')
 def add_bemerkung():
     """Bemerkung hinzufügen"""
     thema_id = request.form.get('thema_id')
@@ -311,6 +323,7 @@ def add_bemerkung():
 
 @schichtbuch_bp.route('/themaneu', methods=['GET', 'POST'])
 @login_required
+@menue_zugriff_erforderlich('schichtbuch_liste')
 def themaneu():
     """Neues Thema + erste Bemerkung"""
     mitarbeiter_id = session.get('user_id')
@@ -375,6 +388,7 @@ def themaneu():
 
 @schichtbuch_bp.route('/themaneu/aktuelle_themen')
 @login_required
+@menue_zugriff_erforderlich('schichtbuch_liste')
 def aktuelle_themen():
     """AJAX-Route: Letzte Themen des angemeldeten Mitarbeiters"""
     user_id = session.get('user_id')
@@ -406,6 +420,7 @@ def aktuelle_themen():
 
 @schichtbuch_bp.route('/themaneu/themen_nach_gewerk')
 @login_required
+@menue_zugriff_erforderlich('schichtbuch_liste')
 def themen_nach_gewerk():
     """API: Offene Themen zu einem Gewerk (Status != Erledigt)"""
     gewerk_id = request.args.get('gewerk_id', type=int)
@@ -492,6 +507,7 @@ def themen_nach_gewerk():
 
 @schichtbuch_bp.route('/thema/<int:thema_id>', methods=['GET', 'POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_SCHICHTBUCH_THEMA_ODER)
 def thema_detail(thema_id):
     """Thema-Detail-Seite"""
     mitarbeiter_id = session.get('user_id')
@@ -583,6 +599,7 @@ def thema_detail(thema_id):
 
 @schichtbuch_bp.route('/thema/<int:thema_id>/gewerk', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_SCHICHTBUCH_THEMA_ODER)
 def thema_gewerk_aendern(thema_id):
     """Gewerk eines Themas ändern (Berechtigung darf_Thema_Gewerk_ändern oder Admin)."""
     mitarbeiter_id = session.get('user_id')
@@ -641,6 +658,7 @@ def thema_gewerk_aendern(thema_id):
 
 @schichtbuch_bp.route('/thema/<int:thema_id>/bearbeiten', methods=['GET', 'POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_SCHICHTBUCH_THEMA_ODER)
 def thema_bearbeiten(thema_id):
     """Kombiniertes Bearbeiten von Hauptgewerk, Zusatz-Gewerken und Sichtbarkeit."""
     mitarbeiter_id = session.get('user_id')
@@ -742,6 +760,7 @@ def thema_bearbeiten(thema_id):
 
 @schichtbuch_bp.route('/edit_bemerkung/<int:bemerkung_id>', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_SCHICHTBUCH_THEMA_ODER)
 def edit_bemerkung(bemerkung_id):
     """Bemerkung bearbeiten (nur eigener Nutzer)"""
     user_id = session.get('user_id')
@@ -780,6 +799,7 @@ def edit_bemerkung(bemerkung_id):
 
 @schichtbuch_bp.route('/delete_thema/<int:thema_id>', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_SCHICHTBUCH_THEMA_ODER)
 def delete_thema(thema_id):
     """Thema löschen (Soft-Delete), optional Lager-Gegenbuchungen."""
     mitarbeiter_id = session.get('user_id')
@@ -834,6 +854,7 @@ def delete_thema(thema_id):
 
 @schichtbuch_bp.route('/delete_bemerkung/<int:bemerkung_id>', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_SCHICHTBUCH_THEMA_ODER)
 def delete_bemerkung(bemerkung_id):
     """Bemerkung löschen (Soft-Delete)"""
     with get_db_connection() as conn:
@@ -846,6 +867,7 @@ def delete_bemerkung(bemerkung_id):
 
 @schichtbuch_bp.route('/thema/<int:thema_id>/sichtbarkeit', methods=['GET'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_SCHICHTBUCH_THEMA_ODER)
 def get_thema_sichtbarkeit(thema_id):
     """AJAX: Sichtbarkeiten eines Themas laden"""
     mitarbeiter_id = session.get('user_id')
@@ -857,6 +879,7 @@ def get_thema_sichtbarkeit(thema_id):
 
 @schichtbuch_bp.route('/thema/<int:thema_id>/sichtbarkeit', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_SCHICHTBUCH_THEMA_ODER)
 def update_thema_sichtbarkeit(thema_id):
     """AJAX: Sichtbarkeiten eines Themas aktualisieren"""
     sichtbare_abteilungen = request.form.getlist('sichtbare_abteilungen')
@@ -875,6 +898,7 @@ def update_thema_sichtbarkeit(thema_id):
 
 @schichtbuch_bp.route('/aufgabenlisten')
 @login_required
+@menue_zugriff_erforderlich('schichtbuch_aufgabenlisten')
 def aufgabenlisten_liste():
     mitarbeiter_id = session.get('user_id')
     is_admin = 'admin' in session.get('user_berechtigungen', [])
@@ -887,6 +911,7 @@ def aufgabenlisten_liste():
 
 @schichtbuch_bp.route('/aufgabenlisten/neu', methods=['GET', 'POST'])
 @login_required
+@menue_zugriff_erforderlich('schichtbuch_aufgabenlisten')
 def aufgabenliste_neu():
     mitarbeiter_id = session.get('user_id')
     from utils import get_abteilungsbaum_fuer_sichtbarkeit
@@ -923,6 +948,7 @@ def aufgabenliste_neu():
 
 @schichtbuch_bp.route('/aufgabenlisten/<int:liste_id>')
 @login_required
+@menue_zugriff_erforderlich('schichtbuch_aufgabenlisten')
 def aufgabenliste_detail(liste_id):
     mitarbeiter_id = session.get('user_id')
     is_admin = 'admin' in session.get('user_berechtigungen', [])
@@ -988,6 +1014,7 @@ def aufgabenliste_detail(liste_id):
 
 @schichtbuch_bp.route('/aufgabenlisten/<int:liste_id>/bearbeiten', methods=['GET', 'POST'])
 @login_required
+@menue_zugriff_erforderlich('schichtbuch_aufgabenlisten')
 def aufgabenliste_bearbeiten(liste_id):
     mitarbeiter_id = session.get('user_id')
     is_admin = 'admin' in session.get('user_berechtigungen', [])
@@ -1036,6 +1063,7 @@ def aufgabenliste_bearbeiten(liste_id):
 
 @schichtbuch_bp.route('/aufgabenlisten/<int:liste_id>/duplizieren', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('schichtbuch_aufgabenlisten')
 def aufgabenliste_duplizieren(liste_id):
     mitarbeiter_id = session.get('user_id')
     is_admin = 'admin' in session.get('user_berechtigungen', [])
@@ -1065,6 +1093,7 @@ def aufgabenliste_duplizieren(liste_id):
 
 @schichtbuch_bp.route('/aufgabenlisten/<int:liste_id>/archivieren', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('schichtbuch_aufgabenlisten')
 def aufgabenliste_archivieren(liste_id):
     mitarbeiter_id = session.get('user_id')
     is_admin = 'admin' in session.get('user_berechtigungen', [])
@@ -1089,6 +1118,7 @@ def aufgabenliste_archivieren(liste_id):
 
 @schichtbuch_bp.route('/aufgabenlisten/<int:liste_id>/sortierung', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('schichtbuch_aufgabenlisten')
 def aufgabenliste_sortierung(liste_id):
     mitarbeiter_id = session.get('user_id')
     is_admin = 'admin' in session.get('user_berechtigungen', [])
@@ -1106,6 +1136,7 @@ def aufgabenliste_sortierung(liste_id):
 
 @schichtbuch_bp.route('/aufgabenlisten/<int:liste_id>/thema/<int:thema_id>/entfernen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('schichtbuch_aufgabenlisten')
 def aufgabenliste_thema_entfernen(liste_id, thema_id):
     mitarbeiter_id = session.get('user_id')
     is_admin = 'admin' in session.get('user_berechtigungen', [])
@@ -1124,6 +1155,7 @@ def aufgabenliste_thema_entfernen(liste_id, thema_id):
 
 @schichtbuch_bp.route('/aufgabenlisten/<int:liste_id>/api/offene-themen', methods=['GET'])
 @login_required
+@menue_zugriff_erforderlich('schichtbuch_aufgabenlisten')
 def aufgabenliste_api_offene_themen(liste_id):
     mitarbeiter_id = session.get('user_id')
     is_admin = 'admin' in session.get('user_berechtigungen', [])
@@ -1149,6 +1181,7 @@ def aufgabenliste_api_offene_themen(liste_id):
 
 @schichtbuch_bp.route('/aufgabenlisten/<int:liste_id>/thema-hinzufuegen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich('schichtbuch_aufgabenlisten')
 def aufgabenliste_thema_hinzufuegen(liste_id):
     mitarbeiter_id = session.get('user_id')
     is_admin = 'admin' in session.get('user_berechtigungen', [])
@@ -1195,6 +1228,7 @@ def aufgabenliste_thema_hinzufuegen(liste_id):
 
 @schichtbuch_bp.route('/thema/<int:thema_id>/aufgabenlisten', methods=['GET'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_SCHICHTBUCH_THEMA_ODER)
 def get_thema_aufgabenlisten(thema_id):
     mitarbeiter_id = session.get('user_id')
     is_admin = 'admin' in session.get('user_berechtigungen', [])
@@ -1209,6 +1243,7 @@ def get_thema_aufgabenlisten(thema_id):
 
 @schichtbuch_bp.route('/thema/<int:thema_id>/aufgabenlisten', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_SCHICHTBUCH_THEMA_ODER)
 def update_thema_aufgabenlisten(thema_id):
     mitarbeiter_id = session.get('user_id')
     is_admin = 'admin' in session.get('user_berechtigungen', [])
@@ -1228,6 +1263,7 @@ def update_thema_aufgabenlisten(thema_id):
 
 @schichtbuch_bp.route('/thema/<int:thema_id>/dateien')
 @login_required
+@menue_zugriff_erforderlich(_MENUE_SCHICHTBUCH_THEMA_ODER)
 def thema_dateien(thema_id):
     """Liste alle Dateien für ein Thema"""
     user_id = session.get('user_id')
@@ -1284,6 +1320,7 @@ def thema_dateien(thema_id):
 
 @schichtbuch_bp.route('/thema/<int:thema_id>/datei/<path:filename>')
 @login_required
+@menue_zugriff_erforderlich(_MENUE_SCHICHTBUCH_THEMA_ODER)
 def thema_datei_download(thema_id, filename):
     """Stelle eine Datei zum Download/Anzeigen bereit"""
     user_id = session.get('user_id')
@@ -1323,6 +1360,7 @@ def thema_datei_download(thema_id, filename):
 
 @schichtbuch_bp.route('/thema/<int:thema_id>/upload', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_SCHICHTBUCH_THEMA_ODER)
 def thema_datei_upload(thema_id):
     """Lade eine Datei für ein Thema hoch"""
     user_id = session.get('user_id')
@@ -1396,6 +1434,7 @@ def thema_datei_upload(thema_id):
 
 @schichtbuch_bp.route('/thema/<int:thema_id>/datei/<int:datei_id>/loeschen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_SCHICHTBUCH_THEMA_ODER)
 def thema_datei_loeschen(thema_id, datei_id):
     """Datei für ein Thema löschen"""
     user_id = session.get('user_id')
@@ -1444,6 +1483,7 @@ def thema_datei_loeschen(thema_id, datei_id):
 
 @schichtbuch_bp.route('/api/benachrichtigungen')
 @login_required
+@menue_zugriff_erforderlich(_MENUE_SCHICHTBUCH_THEMA_ODER)
 def api_benachrichtigungen():
     """API: Ungelesene Benachrichtigungen (delegiert an zentrale Logik, alle Module)."""
     from utils.benachrichtigungen import build_ungelesen_benachrichtigungen_api_dict
@@ -1456,6 +1496,7 @@ def api_benachrichtigungen():
 
 @schichtbuch_bp.route('/api/benachrichtigungen/<int:benachrichtigung_id>/gelesen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_SCHICHTBUCH_THEMA_ODER)
 def api_benachrichtigung_gelesen(benachrichtigung_id):
     """API: Benachrichtigung als gelesen markieren"""
     mitarbeiter_id = session.get('user_id')
@@ -1482,6 +1523,7 @@ def api_benachrichtigung_gelesen(benachrichtigung_id):
 
 @schichtbuch_bp.route('/api/benachrichtigungen/alle-gelesen', methods=['POST'])
 @login_required
+@menue_zugriff_erforderlich(_MENUE_SCHICHTBUCH_THEMA_ODER)
 def api_alle_benachrichtigungen_gelesen():
     """API: Alle Benachrichtigungen als gelesen markieren"""
     mitarbeiter_id = session.get('user_id')
@@ -1510,6 +1552,7 @@ def hex_to_color(hex_color):
 
 @schichtbuch_bp.route('/thema/<int:thema_id>/pdf')
 @login_required
+@menue_zugriff_erforderlich(_MENUE_SCHICHTBUCH_THEMA_ODER)
 def thema_pdf_export(thema_id):
     """PDF-Export für ein Thema"""
     mitarbeiter_id = session.get('user_id')

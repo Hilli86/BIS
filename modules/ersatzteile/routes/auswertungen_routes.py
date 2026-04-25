@@ -5,7 +5,7 @@ Auswertungen Routes - Auswertungen für Bestellungen und Ersatzteilwert
 from flask import render_template, request, session
 from datetime import datetime
 from .. import ersatzteile_bp
-from utils import get_db_connection, login_required, get_sichtbare_abteilungen_fuer_mitarbeiter
+from utils import get_db_connection, login_required, get_sichtbare_abteilungen_fuer_mitarbeiter, menue_zugriff_erforderlich
 from utils.abteilungen import get_untergeordnete_abteilungen
 from ..services.auswertung_services import (
     get_bestellungen_auswertung,
@@ -16,6 +16,7 @@ from ..services.auswertung_services import (
 
 @ersatzteile_bp.route('/auswertungen')
 @login_required
+@menue_zugriff_erforderlich('bestellwesen_auswertungen')
 def auswertungen():
     """Auswertungen für Bestellungen und Ersatzteilwert"""
     mitarbeiter_id = session.get('user_id')
