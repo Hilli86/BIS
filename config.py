@@ -99,9 +99,16 @@ class Config:
     BENACHRICHTIGUNGEN_CLEANUP_NUR_GELESENE = os.environ.get('BENACHRICHTIGUNGEN_CLEANUP_NUR_GELESENE', 'True').lower() == 'true'
     BENACHRICHTIGUNGEN_CLEANUP_LIMIT_PRO_MITARBEITER = int(os.environ.get('BENACHRICHTIGUNGEN_CLEANUP_LIMIT_PRO_MITARBEITER', 0)) or None
 
+    # Passwort-Policy (Laenge, Zeichenklassen): True = volle Regeln aus utils.security.
+    # Ueber BIS_PASSWORT_POLICY_STRENG=true|false steuerbar; wird in Development/Production unterschiedlich vorbelegt.
+    PASSWORT_POLICY_STRENG = os.environ.get('BIS_PASSWORT_POLICY_STRENG', 'true').lower() in ('1', 'true', 'yes')
+
+
 class DevelopmentConfig(Config):
     """Entwicklungskonfiguration"""
     DEBUG = True
+    # Lokaler/kleiner Pilot: verschärfte Passwortregeln standardmaessig aus (nur nicht leer).
+    PASSWORT_POLICY_STRENG = os.environ.get('BIS_PASSWORT_POLICY_STRENG', 'false').lower() in ('1', 'true', 'yes')
     # Einstweilen aus: sonst erscheint jede SQL-Abfrage in der Konsole (sqlite3 Trace).
     # Wieder aktivieren oder per Umgebungsvariable: SQL_TRACING=true
     # SQL_TRACING = True
@@ -110,6 +117,8 @@ class ProductionConfig(Config):
     """Produktionskonfiguration"""
     DEBUG = False
     SQL_TRACING = False
+    # Produktiv: strenge Passwort-Policy; abschaltbar nur bewusst per BIS_PASSWORT_POLICY_STRENG=false
+    PASSWORT_POLICY_STRENG = os.environ.get('BIS_PASSWORT_POLICY_STRENG', 'true').lower() in ('1', 'true', 'yes')
 
     # WebAuthn-Parameter muessen im Produktivbetrieb zwingend ueber
     # Umgebungsvariablen gesetzt werden – kein stilles Fallback auf Hostnamen,

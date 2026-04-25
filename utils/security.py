@@ -109,18 +109,40 @@ def safe_redirect_target(target: Optional[str], fallback: str) -> str:
 PASSWORT_MIN_LAENGE = 10
 
 
+def _passwort_policy_streng_laut_config() -> bool:
+    """True = volle Policy; False = nur nicht-leer (siehe config PASSWORT_POLICY_STRENG).
+
+    Ohne Flask-App-Kontext (Skripte/Tests): immer streng, damit bestehende Tests gelten.
+    """
+    try:
+        from flask import current_app, has_app_context
+
+        if has_app_context():
+            return bool(current_app.config.get('PASSWORT_POLICY_STRENG', True))
+    except Exception:
+        pass
+    return True
+
+
 def validate_passwort_policy(passwort: Optional[str]) -> Optional[str]:
     """Prueft ein Passwort gegen die Policy.
 
     Gibt None zurueck, wenn das Passwort akzeptiert ist, ansonsten eine
     deutschsprachige Fehlermeldung fuer den Nutzer.
 
-    Regeln:
+    Ist ``current_app.config['PASSWORT_POLICY_STRENG']`` False, gilt nur: Passwort
+    darf nicht leer sein (Whitespace zaehlt als leer).
+
+    Sonst (strenge Policy):
     - Mindestens `PASSWORT_MIN_LAENGE` Zeichen (10)
     - Mindestens drei der vier Zeichenklassen:
       Kleinbuchstabe, Grossbuchstabe, Ziffer, Sonderzeichen
     - Keine reinen Wiederholungen (z. B. "aaaaaaaaaa")
     """
+    if not _passwort_policy_streng_laut_config():
+        if passwort is None or not str(passwort).strip():
+            return 'Bitte ein Passwort eingeben.'
+        return None
     if passwort is None:
         return 'Bitte ein Passwort eingeben.'
     if len(passwort) < PASSWORT_MIN_LAENGE:

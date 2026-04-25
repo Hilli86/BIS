@@ -76,6 +76,21 @@ def test_validate_passwort_policy_reine_wiederholung():
     assert validate_passwort_policy("aaaaaaaaaaaa") is not None
 
 
+def test_validate_passwort_policy_ohne_strenge_nur_nicht_leer():
+    from app import app
+
+    with app.app_context():
+        old = app.config.get('PASSWORT_POLICY_STRENG', True)
+        try:
+            app.config['PASSWORT_POLICY_STRENG'] = False
+            assert validate_passwort_policy('kurz') is None
+            assert validate_passwort_policy('x') is None
+            assert validate_passwort_policy('') is not None
+            assert validate_passwort_policy(None) is not None
+        finally:
+            app.config['PASSWORT_POLICY_STRENG'] = old
+
+
 # ---------------------------------------------------------------------------
 # resolve_under_base
 # ---------------------------------------------------------------------------
