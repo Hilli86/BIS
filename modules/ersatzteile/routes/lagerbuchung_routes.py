@@ -506,6 +506,7 @@ def lagerbuchung(ersatzteil_id):
 @ersatzteile_bp.route('/thema/<int:thema_id>/verknuepfen', methods=['POST'])
 @login_required
 @menue_zugriff_erforderlich('ersatzteile_lagerbuchungen')
+@permission_required('artikel_buchen')
 def thema_verknuepfen(thema_id):
     """Ersatzteil mit Thema verknüpfen (mit automatischer Lagerbuchung)"""
     mitarbeiter_id = session.get('user_id')

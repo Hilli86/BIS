@@ -1,4 +1,5 @@
 {% extends "layout/base.html" %}
+{% set kann_ersatzteil_buchen = 'artikel_buchen' in session.get('user_berechtigungen', []) or 'admin' in session.get('user_berechtigungen', []) %}
 {% block styles %}
 <style>
   .bis-dt-resp { max-width: 13.5rem; }
@@ -106,7 +107,9 @@
     </div>
   </div>
 
+  {% if kann_ersatzteil_buchen %}
   {% include 'wartungen/_durchfuehrung_artikel_positionen_batch.html' %}
+  {% endif %}
 
   <div class="mb-3 d-flex flex-wrap gap-2">
     {% if protokoll_kontext and protokoll_kontext.herkunft == 'jahresuebersicht' %}
@@ -211,7 +214,9 @@
     </div>
   </div>
 
+  {% if kann_ersatzteil_buchen %}
   {% include 'wartungen/_durchfuehrung_artikel_positionen.html' %}
+  {% endif %}
 
   {% include 'wartungen/_durchfuehrung_angebot_kosten_neu_block.html' %}
 

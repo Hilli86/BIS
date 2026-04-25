@@ -2,6 +2,7 @@
 {% from 'components/datei_upload.html' import datei_upload %}
 {% from 'components/datei_liste.html' import datei_liste %}
 {% block content %}
+{% set kann_ersatzteil_zuordnen = 'artikel_buchen' in session.get('user_berechtigungen', []) or 'admin' in session.get('user_berechtigungen', []) %}
 <div class="card mb-4 shadow-sm">
   <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
     <h5 class="mb-0">Wartungsinformation</h5>
@@ -216,7 +217,7 @@
   </div>
 </div>
 
-{% if kann_protokollieren %}
+{% if kann_protokollieren and kann_ersatzteil_zuordnen %}
 <div class="card mb-4 shadow-sm">
   <div class="card-header bg-warning text-dark">
     <h5 class="mb-0">Ersatzteil zuordnen</h5>
@@ -297,6 +298,7 @@
 </div>
 {% endif %}
 
+{% if kann_protokollieren and kann_ersatzteil_zuordnen %}
 <div class="modal fade" id="ersatzteilModalWd" tabindex="-1" aria-labelledby="ersatzteilModalWdLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
     <div class="modal-content">
@@ -320,6 +322,7 @@
     </div>
   </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

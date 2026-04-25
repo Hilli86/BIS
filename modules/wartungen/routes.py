@@ -17,7 +17,12 @@ from flask import (
 )
 from werkzeug.utils import secure_filename
 
-from utils import get_db_connection, login_required, menue_zugriff_erforderlich
+from utils import (
+    get_db_connection,
+    login_required,
+    menue_zugriff_erforderlich,
+    permission_required,
+)
 from utils.file_handling import (
     save_uploaded_file,
     create_upload_folder,
@@ -1331,14 +1336,16 @@ def durchfuehrung_neu(plan_id):
                             n_sb, sb_errs = _save_serviceberichte_files(
                                 conn, dfid, mitarbeiter_id, sb_files, sb_besch, sb_typ,
                             )
-                            eids = request.form.getlist('ersatzteil_id[]')
-                            mengen = request.form.getlist('ersatzteil_menge[]')
-                            bems = request.form.getlist('ersatzteil_bemerkung[]')
-                            ks = request.form.getlist('ersatzteil_kostenstelle[]')
-                            n_lb = services.process_ersatzteile_fuer_wartungsdurchfuehrung(
-                                dfid, eids, mengen, bems, mitarbeiter_id, conn,
-                                is_admin=adm, ersatzteil_kostenstellen=ks,
-                            )
+                            n_lb = 0
+                            if adm or 'artikel_buchen' in session.get('user_berechtigungen', []):
+                                eids = request.form.getlist('ersatzteil_id[]')
+                                mengen = request.form.getlist('ersatzteil_menge[]')
+                                bems = request.form.getlist('ersatzteil_bemerkung[]')
+                                ks = request.form.getlist('ersatzteil_kostenstelle[]')
+                                n_lb = services.process_ersatzteile_fuer_wartungsdurchfuehrung(
+                                    dfid, eids, mengen, bems, mitarbeiter_id, conn,
+                                    is_admin=adm, ersatzteil_kostenstellen=ks,
+                                )
                             conn.commit()
                             for e in sb_errs:
                                 flash(e, 'warning')
@@ -1478,37 +1485,38 @@ def durchfuehrung_mehrere():
                                         if naechste_plan:
                                             naechste_aktualisiert = True
 
-                                    eids = request.form.getlist('ersatzteil_id[]')
-                                    ap_ids = request.form.getlist('artikel_plan_id[]')
-                                    mengen = request.form.getlist('ersatzteil_menge[]')
-                                    ebems = request.form.getlist('ersatzteil_bemerkung[]')
-                                    eks = request.form.getlist('ersatzteil_kostenstelle[]')
-                                    by_plan = defaultdict(list)
-                                    for i, eid_raw in enumerate(eids):
-                                        if not (eid_raw or '').strip():
-                                            continue
-                                        raw_ap = ap_ids[i] if i < len(ap_ids) else ''
-                                        try:
-                                            target_pid = int(raw_ap)
-                                        except (TypeError, ValueError):
-                                            continue
-                                        if target_pid not in plan_to_dfid:
-                                            continue
-                                        by_plan[target_pid].append(i)
                                     n_lb_total = 0
-                                    for target_pid, indices in by_plan.items():
-                                        dfid = plan_to_dfid[target_pid]
-                                        se = [eids[j] for j in indices]
-                                        sm = [
-                                            mengen[j] if j < len(mengen) else '1'
-                                            for j in indices
-                                        ]
-                                        sb = [ebems[j] if j < len(ebems) else '' for j in indices]
-                                        sk = [eks[j] if j < len(eks) else '' for j in indices]
-                                        n_lb_total += services.process_ersatzteile_fuer_wartungsdurchfuehrung(
-                                            dfid, se, sm, sb, mitarbeiter_id, conn,
-                                            is_admin=adm, ersatzteil_kostenstellen=sk,
-                                        )
+                                    if adm or 'artikel_buchen' in session.get('user_berechtigungen', []):
+                                        eids = request.form.getlist('ersatzteil_id[]')
+                                        ap_ids = request.form.getlist('artikel_plan_id[]')
+                                        mengen = request.form.getlist('ersatzteil_menge[]')
+                                        ebems = request.form.getlist('ersatzteil_bemerkung[]')
+                                        eks = request.form.getlist('ersatzteil_kostenstelle[]')
+                                        by_plan = defaultdict(list)
+                                        for i, eid_raw in enumerate(eids):
+                                            if not (eid_raw or '').strip():
+                                                continue
+                                            raw_ap = ap_ids[i] if i < len(ap_ids) else ''
+                                            try:
+                                                target_pid = int(raw_ap)
+                                            except (TypeError, ValueError):
+                                                continue
+                                            if target_pid not in plan_to_dfid:
+                                                continue
+                                            by_plan[target_pid].append(i)
+                                        for target_pid, indices in by_plan.items():
+                                            dfid = plan_to_dfid[target_pid]
+                                            se = [eids[j] for j in indices]
+                                            sm = [
+                                                mengen[j] if j < len(mengen) else '1'
+                                                for j in indices
+                                            ]
+                                            sb = [ebems[j] if j < len(ebems) else '' for j in indices]
+                                            sk = [eks[j] if j < len(eks) else '' for j in indices]
+                                            n_lb_total += services.process_ersatzteile_fuer_wartungsdurchfuehrung(
+                                                dfid, se, sm, sb, mitarbeiter_id, conn,
+                                                is_admin=adm, ersatzteil_kostenstellen=sk,
+                                            )
 
                                     conn.commit()
                                     msg_batch = f'{len(pairs)} Durchführungen gespeichert.'
@@ -1574,6 +1582,7 @@ def durchfuehrung_mehrere():
 @wartungen_bp.route('/durchfuehrung/<int:durchfuehrung_id>/ersatzteil-verknuepfen', methods=['POST'])
 @login_required
 @menue_zugriff_erforderlich('wartungen_protokolle')
+@permission_required('artikel_buchen')
 def durchfuehrung_ersatzteil_verknuepfen(durchfuehrung_id):
     mitarbeiter_id = session.get('user_id')
     adm = is_admin()
