@@ -266,7 +266,7 @@ def health_check():
 
 
 # Blueprints registrieren
-from modules import auth_bp, schichtbuch_bp, admin_bp, ersatzteile_bp, dashboard_bp, import_bp, errors_bp, diverses_bp, search_bp, produktion_bp, wartungen_bp, print_agent_bp
+from modules import auth_bp, schichtbuch_bp, admin_bp, ersatzteile_bp, dashboard_bp, import_bp, errors_bp, diverses_bp, search_bp, produktion_bp, wartungen_bp, print_agent_bp, technik_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(schichtbuch_bp)
@@ -280,6 +280,7 @@ app.register_blueprint(search_bp)
 app.register_blueprint(produktion_bp)
 app.register_blueprint(wartungen_bp)
 app.register_blueprint(print_agent_bp)
+app.register_blueprint(technik_bp)
 
 
 @app.route('/service-worker.js')

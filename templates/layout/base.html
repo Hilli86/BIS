@@ -1087,6 +1087,13 @@
     {% endif %}
     {% endif %}
 
+    {% if menue_sichtbar('technik_uebersichten') %}
+    <h6>Technik</h6>
+    <a href="{{ url_for('technik.uebersichten') }}" class="{% if request.endpoint == 'technik.uebersichten' %}active{% endif %}">
+      🗺️ Übersichten
+    </a>
+    {% endif %}
+
     {% endif %}
 
     {% if menue_sichtbar('produktion_etikettierung') or menue_sichtbar('produktion_etiketten_drucken') %}

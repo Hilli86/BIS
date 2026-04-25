@@ -25,7 +25,7 @@ def init_security_headers(app) -> Talisman:
     is_prod = app.config.get('FLASK_ENV_EFFECTIVE') == 'production' or not app.debug
 
     # HINWEIS: Die Templates enthalten zahlreiche inline-<script>-Bloecke und
-    # inline-Event-Handler (onclick, onsubmit, onchange, ...)  insbesondere in
+    # inline-Event-Handler (onclick, onsubmit, onchange, ...) ï¿½ insbesondere in
     # den Listen-Templates fuer Zeilennavigation. Damit diese weiterhin
     # funktionieren, wird 'unsafe-inline' fuer `script-src` zugelassen und
     # bewusst KEIN Nonce eingesetzt: Aktiviert man Nonces, ignorieren moderne
@@ -52,7 +52,8 @@ def init_security_headers(app) -> Talisman:
         'frame-ancestors': "'self'",
         'base-uri': "'self'",
         'form-action': "'self'",
-        'object-src': "'none'",
+        # Technik-ï¿½bersichten: SVG per <object> von /static/ (Hotspots via contentDocument)
+        'object-src': "'self'",
         # Emscripten/OpenCV nutzt haefig Worker mit blob:-URLs
         'worker-src': ["'self'", "'blob:'"],
         'manifest-src': "'self'",

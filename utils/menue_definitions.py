@@ -40,6 +40,7 @@ MENUE_DEFINITIONEN = [
     {'schluessel': 'diverses_dokumente', 'bezeichnung': 'Dokumente erfassen', 'gruppe': 'Dashboard', 'berechtigung': None},
     {'schluessel': 'produktion_etikettierung', 'bezeichnung': 'Etikettierung', 'gruppe': 'Produktion', 'berechtigung': None},
     {'schluessel': 'produktion_etiketten_drucken', 'bezeichnung': 'Verpackung', 'gruppe': 'Produktion', 'berechtigung': None},
+    {'schluessel': 'technik_uebersichten', 'bezeichnung': 'Übersichten', 'gruppe': 'Technik', 'berechtigung': None},
 ]
 
 

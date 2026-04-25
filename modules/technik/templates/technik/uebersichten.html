@@ -1,0 +1,183 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="bis-toolbar justify-between mb-4">
+    <h1 class="mb-0 bis-toolbar-title">Übersichten</h1>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-header bg-secondary text-white d-flex align-items-center gap-2 py-3">
+      <i class="bi bi-diagram-3 fs-5"></i>
+      <h2 class="h5 mb-0">Technik-Layouts</h2>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small mb-3">
+        Wählen Sie ein Layout. Die Darstellung erfolgt als SVG; später können Bereiche für Kameras oder Schalter konfiguriert werden.
+      </p>
+
+      <label for="technik-diagram-select" class="form-label d-md-none mb-1">Layout wählen</label>
+      <select id="technik-diagram-select" class="form-select d-md-none mb-3" aria-label="Layout wählen">
+        {% for d in diagramme %}
+        <option value="{{ d.id }}"{% if d.id == current_diagram.id %} selected{% endif %}>{{ d.title }}</option>
+        {% endfor %}
+      </select>
+
+      <div class="row g-3">
+        <div class="col-md-4 col-lg-3 d-none d-md-flex flex-column">
+          <label for="technik-diagram-filter" class="form-label small text-muted mb-1">Layout suchen</label>
+          <input type="search" id="technik-diagram-filter" class="form-control form-control-sm mb-2" placeholder="Filter…" autocomplete="off" aria-label="Layout filtern">
+          <div class="list-group list-group-flush border rounded overflow-auto flex-grow-1" id="technik-diagram-list" style="max-height: 70vh;">
+            {% for d in diagramme %}
+            <a href="{{ url_for('technik.uebersichten', diagram=d.id) }}"
+               class="list-group-item list-group-item-action{% if d.id == current_diagram.id %} active{% endif %}"
+               data-title="{{ d.title|lower }}">{{ d.title }}</a>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="col-md-8 col-lg-9">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+            <strong class="text-body">{{ current_diagram.title }}</strong>
+            <a href="{{ current_svg_url }}" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener noreferrer">SVG in neuem Tab</a>
+          </div>
+          <div class="border rounded overflow-auto bg-light" style="min-height: 320px;">
+            <object id="technik-svg-object"
+                    type="image/svg+xml"
+                    data="{{ current_svg_url }}"
+                    class="w-100 d-block"
+                    style="min-height: 480px;"
+                    title="{{ current_diagram.title }}">
+              <p class="p-3 mb-0">Ihr Browser kann das SVG nicht einbetten.
+                <a href="{{ current_svg_url }}">Datei direkt öffnen</a></p>
+            </object>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="technikLayoutHotspotModal" tabindex="-1" aria-labelledby="technikLayoutHotspotModalTitel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h5 class="modal-title" id="technikLayoutHotspotModalTitel">Detail</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+      </div>
+      <div class="modal-body" id="technikLayoutHotspotModalBody" aria-live="polite">
+        <dl class="row small mb-0" id="technikLayoutHotspotModalDl"></dl>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var sel = document.getElementById('technik-diagram-select');
+  if (sel) {
+    sel.addEventListener('change', function () {
+      var u = new URL(window.location.href);
+      u.searchParams.set('diagram', this.value);
+      window.location.href = u.toString();
+    });
+  }
+  var filter = document.getElementById('technik-diagram-filter');
+  var list = document.getElementById('technik-diagram-list');
+  if (filter && list) {
+    filter.addEventListener('input', function () {
+      var q = (this.value || '').toLowerCase().trim();
+      list.querySelectorAll('a[data-title]').forEach(function (a) {
+        var t = a.getAttribute('data-title') || '';
+        a.style.display = !q || t.indexOf(q) !== -1 ? '' : 'none';
+      });
+    });
+  }
+
+  // Klickflächen: pro Eintrag in LAYOUT_HOTSPOTS (siehe routes); Felder/Modal aus LAYOUT_CONFIG.
+  (function () {
+    var LAYOUT_HOTSPOTS = {{ layout_hotspots|tojson }};
+    var LAYOUT_CONFIG = {{ layout_hotspot_config|tojson }};
+    if (!LAYOUT_HOTSPOTS || !LAYOUT_HOTSPOTS.length) return;
+    if (!LAYOUT_CONFIG || !LAYOUT_CONFIG.felder || !LAYOUT_CONFIG.felder.length) return;
+    var obj = document.getElementById('technik-svg-object');
+    if (!obj) return;
+
+    function tornummerFromId(id) {
+      if (!id) return '';
+      var s = String(id);
+      if (/^SLT/i.test(s)) return s.replace(/^SLT/i, '');
+      return s;
+    }
+    function wertFuerFeld(f, h) {
+      if (f.format === 'strip_slt' && f.key === 'id') return tornummerFromId(h.id);
+      var v = h[f.key];
+      if (v === null || v === undefined) return '';
+      return String(v);
+    }
+    function showHotspotModal(h) {
+      if (!h || !h.id) return;
+      var titel = document.getElementById('technikLayoutHotspotModalTitel');
+      if (titel) titel.textContent = LAYOUT_CONFIG.modal_titel || 'Detail';
+      var dl = document.getElementById('technikLayoutHotspotModalDl');
+      if (dl) {
+        while (dl.firstChild) dl.removeChild(dl.firstChild);
+        LAYOUT_CONFIG.felder.forEach(function (f) {
+          if (!f || !f.key) return;
+          var dt = document.createElement('dt');
+          dt.className = 'col-sm-4 text-muted';
+          dt.textContent = f.label || f.key;
+          var dd = document.createElement('dd');
+          dd.className = f.key === 'id' || f.format === 'strip_slt' ? 'col-sm-8 font-monospace' : 'col-sm-8';
+          var raw = wertFuerFeld(f, h);
+          dd.textContent = raw === '' ? '—' : raw;
+          dl.appendChild(dt);
+          dl.appendChild(dd);
+        });
+      }
+      var modalEl = document.getElementById('technikLayoutHotspotModal');
+      if (modalEl && window.bootstrap) {
+        window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      }
+    }
+    function findGByDataCellId(svg, cellId) {
+      var n = null;
+      svg.querySelectorAll('g[data-cell-id]').forEach(function (node) {
+        if (n) return;
+        if ((node.getAttribute('data-cell-id') || '').trim() === cellId) n = node;
+      });
+      return n;
+    }
+    function bindSvg(svgDoc) {
+      var svg = svgDoc && svgDoc.querySelector && svgDoc.querySelector('svg');
+      if (!svg) return;
+      LAYOUT_HOTSPOTS.forEach(function (h) {
+        if (!h || !h.id) return;
+        var g = findGByDataCellId(svg, h.id);
+        if (!g) {
+          if (window.console && console.warn) {
+            console.warn('Technik-Layout: Kein Hotspot-Element f\u00fcr data-cell-id="', h.id, '" im SVG');
+          }
+          return;
+        }
+        g.style.cursor = 'pointer';
+        g.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          showHotspotModal(h);
+        });
+      });
+    }
+    if (obj.contentDocument && obj.contentDocument.querySelector('svg')) {
+      bindSvg(obj.contentDocument);
+    } else {
+      obj.addEventListener('load', function onLoad() {
+        obj.removeEventListener('load', onLoad);
+        try {
+          if (obj.contentDocument) bindSvg(obj.contentDocument);
+        } catch (e) { /* cross-origin: kein Zugriff */ }
+      });
+    }
+  })();
+})();
+</script>
+{% endblock %}
