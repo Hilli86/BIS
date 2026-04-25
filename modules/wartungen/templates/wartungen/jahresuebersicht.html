@@ -72,9 +72,54 @@
     background-color: var(--bs-secondary, #6c757d);
     box-shadow: 0 0 0 1px var(--bs-body-bg, #fff);
   }
+  /* Fester Klon des Tabellenkopfes: JS (#jahresmatrix-floating-thead), da position:sticky
+     innerhalb von overflow-x:auto nicht im Viewport haftet. */
+  .jahresmatrix-floating-thead {
+    position: fixed;
+    top: 56px;
+    z-index: 1041;
+    box-sizing: border-box;
+    pointer-events: none;
+    max-width: 100%;
+  }
+  .jahresmatrix-floating-thead:not([hidden]) {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  }
+  .jahresmatrix-floating-thead-clip {
+    overflow: hidden;
+    width: 100%;
+    max-width: 100%;
+    background: var(--bs-body-bg, #fff);
+  }
+  .jahresmatrix-floating-thead-pan {
+    will-change: transform;
+    /* Breite/Transform per JS, synchron zu #jahresmatrix-scroll-main */
+  }
+  .jahresmatrix-floating-thead .jahresmatrix-sticky-first-col {
+    /* Kein position:sticky im Klon – gesamter Quellkopf wird per translateX mitgescrollt. */
+    position: static !important;
+    left: auto !important;
+    box-shadow: none !important;
+  }
+  .jahresmatrix-floating-thead-pan table {
+    margin-bottom: 0;
+  }
+  .jahresmatrix-floating-thead .btn,
+  .jahresmatrix-floating-thead a,
+  .jahresmatrix-floating-thead input,
+  .jahresmatrix-floating-thead select {
+    pointer-events: auto;
+  }
+  /* Kein sichtbares doppeltes Kopfzeile: Klon ersetzt die Darstellung, Platz bleibt. */
+  #jahresmatrix-scroll-main table thead.jahresmatrix-thead-ghost th {
+    visibility: hidden;
+  }
   /* Erste Spalte („Wartung“) beim horizontalen Scrollen fixieren */
   #jahresmatrix-scroll-main {
     position: relative;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
   }
   #jahresmatrix-scroll-main .jahresmatrix-sticky-first-col {
     position: sticky;
@@ -96,6 +141,16 @@
   }
   #jahresmatrix-scroll-main table.table-hover tbody tr:hover > .jahresmatrix-sticky-first-col {
     background-color: var(--bs-table-hover-bg, rgba(0, 0, 0, 0.075));
+  }
+  @media print {
+    .jahresmatrix-floating-thead,
+    .jahresmatrix-floating-thead-clip,
+    .jahresmatrix-floating-thead-pan {
+      display: none !important;
+    }
+    #jahresmatrix-scroll-main table thead.jahresmatrix-thead-ghost th {
+      visibility: visible !important;
+    }
   }
 </style>
 <h1 class="mb-4">Wartungen – Jahresübersicht</h1>
@@ -314,6 +369,11 @@
     </div>
   </div>
 </div>
+<div id="jahresmatrix-floating-thead" class="jahresmatrix-floating-thead" hidden aria-hidden="true" role="presentation">
+  <div class="jahresmatrix-floating-thead-clip">
+    <div class="jahresmatrix-floating-thead-pan"></div>
+  </div>
+</div>
 <div id="jahresmatrix-dock-scroll" class="jahresmatrix-dock-scroll" hidden>
   <div class="jahresmatrix-dock-scroll-inner" aria-hidden="true"></div>
 </div>
@@ -442,6 +502,157 @@
         updateDockScrollbar();
       });
     }
+
+    (function jahresmatrixFloatingThead() {
+      if (!main) return;
+      var floatEl = document.getElementById('jahresmatrix-floating-thead');
+      if (!floatEl) return;
+      var clip = floatEl.querySelector('.jahresmatrix-floating-thead-clip');
+      var pan = floatEl.querySelector('.jahresmatrix-floating-thead-pan');
+      if (!clip || !pan) return;
+      var table = main.querySelector('table');
+      if (!table) return;
+      var thead = table.querySelector('thead');
+      if (!thead) return;
+      var JTOP = 56;
+      var cloneBuilt = false;
+
+      function buildClone() {
+        pan.innerHTML = '';
+        var ct = table.cloneNode(true);
+        var rm = ct.querySelectorAll('tbody, tfoot');
+        for (var r = 0; r < rm.length; r++) {
+          rm[r].remove();
+        }
+        var batchBtn = ct.querySelector('#btn-jahres-matrix-batch');
+        if (batchBtn) {
+          batchBtn.removeAttribute('id');
+          var origB = document.getElementById('btn-jahres-matrix-batch');
+          if (origB) {
+            batchBtn.addEventListener('click', function (e) {
+              e.preventDefault();
+              e.stopPropagation();
+              origB.click();
+            });
+          }
+        }
+        pan.appendChild(ct);
+        cloneBuilt = true;
+      }
+
+      /* Klon: nur Kopfzeile – gleiche Spaltenbreiten wie die voll befüllte Quelltabelle. */
+      function syncColumnWidths() {
+        if (!cloneBuilt) return;
+        var ct = pan.querySelector('table');
+        if (!ct) return;
+        var origThs = thead.querySelectorAll('th');
+        var cloneThs = ct.querySelectorAll('thead th');
+        if (origThs.length !== cloneThs.length) return;
+        var fullW = table.scrollWidth;
+        if (!fullW) return;
+        ct.style.tableLayout = 'fixed';
+        ct.style.width = fullW + 'px';
+        ct.style.maxWidth = fullW + 'px';
+        var n = origThs.length;
+        var accW = 0;
+        for (var i = 0; i < n; i++) {
+          var w;
+          if (i === n - 1) {
+            w = Math.max(0, fullW - accW);
+          } else {
+            w = origThs[i].getBoundingClientRect().width;
+            w = Math.max(0, w);
+            accW += w;
+          }
+          cloneThs[i].style.boxSizing = 'border-box';
+          cloneThs[i].style.width = w + 'px';
+          cloneThs[i].style.minWidth = w + 'px';
+          cloneThs[i].style.maxWidth = w + 'px';
+        }
+      }
+
+      function syncFloatPan() {
+        if (!cloneBuilt || !pan.firstChild) return;
+        pan.style.width = (table.scrollWidth || table.offsetWidth) + 'px';
+        pan.style.transform = 'translateX(' + (-main.scrollLeft) + 'px)';
+      }
+
+      function updateFloatingThead() {
+        var tabRect = table.getBoundingClientRect();
+        var thRect = thead.getBoundingClientRect();
+        var show = thRect.top < JTOP && tabRect.bottom > JTOP && thRect.height > 0;
+        if (show) {
+          if (!cloneBuilt) {
+            buildClone();
+          }
+          var mrect = main.getBoundingClientRect();
+          floatEl.style.left = Math.max(0, Math.round(mrect.left)) + 'px';
+          floatEl.style.width = Math.max(0, Math.round(mrect.width)) + 'px';
+          floatEl.removeAttribute('hidden');
+          floatEl.setAttribute('aria-hidden', 'false');
+          var hh = thRect.height > 0 ? thRect.height : thead.offsetHeight;
+          clip.style.height = Math.max(0, Math.round(hh)) + 'px';
+          thead.classList.add('jahresmatrix-thead-ghost');
+          /* Kurz warten, bis Layout/Fonts greifen, dann nocheinmal (Rundung). */
+          requestAnimationFrame(function () {
+            syncColumnWidths();
+            syncFloatPan();
+            requestAnimationFrame(function () {
+              syncColumnWidths();
+              syncFloatPan();
+            });
+          });
+        } else {
+          floatEl.setAttribute('hidden', '');
+          floatEl.setAttribute('aria-hidden', 'true');
+          thead.classList.remove('jahresmatrix-thead-ghost');
+        }
+      }
+
+      function invalidateClone() {
+        cloneBuilt = false;
+        try {
+          if (floatEl) {
+            floatEl.setAttribute('hidden', '');
+            floatEl.setAttribute('aria-hidden', 'true');
+          }
+        } catch (e) { /* ignore */ }
+        thead.classList.remove('jahresmatrix-thead-ghost');
+        pan.innerHTML = '';
+        updateFloatingThead();
+      }
+
+      main.addEventListener('scroll', function () {
+        updateFloatingThead();
+        syncFloatPan();
+      });
+      window.addEventListener('scroll', function () {
+        updateFloatingThead();
+        syncFloatPan();
+      }, { passive: true });
+      window.addEventListener('resize', function () {
+        invalidateClone();
+      });
+      if (typeof ResizeObserver !== 'undefined') {
+        var roTimer;
+        var roHead = new ResizeObserver(function () {
+          if (roTimer) clearTimeout(roTimer);
+          roTimer = setTimeout(function () { invalidateClone(); }, 200);
+        });
+        roHead.observe(main);
+      }
+      window.addEventListener('load', function () {
+        if (cloneBuilt && floatEl && !floatEl.hasAttribute('hidden')) {
+          syncColumnWidths();
+          syncFloatPan();
+        }
+      });
+      updateFloatingThead();
+      requestAnimationFrame(function () {
+        updateFloatingThead();
+        syncFloatPan();
+      });
+    })();
 
     var modalEl = document.getElementById('wartungJahrModal');
     if (!modalEl || typeof bootstrap === 'undefined') {
