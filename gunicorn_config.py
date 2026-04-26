@@ -58,6 +58,11 @@ def post_fork(server, worker):
         dispose_all_engines()
     except Exception as exc:
         server.log.warning('post_fork: dispose_all_engines fehlgeschlagen: %s', exc)
+    try:
+        from modules.technik.mqtt_runtime import start_technik_mqtt_threads
+        start_technik_mqtt_threads()
+    except Exception as exc:
+        server.log.warning('post_fork: Technik-MQTT-Threads: %s', exc)
 
 
 def on_starting(server):

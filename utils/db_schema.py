@@ -920,5 +920,28 @@ WebAuthnState = Table(
 )
 
 
+# ---------------------------------------------------------------------------
+# MQTT / Echtzeit Technik
+# ---------------------------------------------------------------------------
+
+MqttKonfiguration = Table(
+    'MqttKonfiguration', metadata,
+    _pk(),
+    Column('Aktiv', Integer, nullable=False, server_default=text('0')),
+    Column('BrokerHost', Text),
+    Column('BrokerPort', Integer, nullable=False, server_default=text('1883')),
+    Column('UseTls', Integer, nullable=False, server_default=text('0')),
+    Column('TlsInsecure', Integer, nullable=False, server_default=text('0')),
+    Column('CaPfad', Text),
+    Column('Benutzername', Text),
+    Column('PasswortKrypt', Text),
+    Column('TopicPrefixBeleuchtung', Text, nullable=False),
+    Column('MqttClientId', Text),
+    Column('RedisUrl', Text),
+    Column('GeaendertAm', DateTime, server_default=text('CURRENT_TIMESTAMP')),
+    Index('idx_mqtt_konf_aktiv', 'Aktiv'),
+)
+
+
 # Liste aller Kern-Tabellennamen, die vom App-Start-Healthcheck erwartet werden.
 CORE_TABLE_NAMES = tuple(t.name for t in metadata.sorted_tables)

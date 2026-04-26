@@ -36,6 +36,35 @@ app.config.from_object(config[config_name])
 app.config['FLASK_ENV_EFFECTIVE'] = config_name
 
 
+def _configure_bis_technik_loggers() -> None:
+    """Handler auf Logger 'bis' (bis.mqtt, bis.technik.sse propagieren dorthin).
+
+    Nach Alembic fileConfig() sind bis-Logger oft disabled — erneut aufrufen und disabled=False.
+    """
+    debug_mqtt = os.environ.get('BIS_MQTT_DEBUG', '').strip().lower() in ('1', 'true', 'yes', 'on')
+    import sys
+
+    bis = logging.getLogger('bis')
+    bis.disabled = False
+    if not bis.handlers:
+        h = logging.StreamHandler(sys.stderr)
+        h.setLevel(logging.DEBUG)
+        h.setFormatter(logging.Formatter('%(asctime)s [%(name)s] %(levelname)s: %(message)s', datefmt='%H:%M:%S'))
+        bis.addHandler(h)
+        bis.propagate = False
+    bis.setLevel(logging.DEBUG if debug_mqtt else logging.INFO)
+
+    for name, level in (
+        ('bis.mqtt', logging.DEBUG if debug_mqtt else logging.INFO),
+        ('bis.technik.sse', logging.INFO),
+    ):
+        lg = logging.getLogger(name)
+        lg.handlers.clear()
+        lg.setLevel(level)
+        lg.propagate = True
+        lg.disabled = False
+
+
 _FORBIDDEN_SECRET_KEYS = frozenset({
     '',
     DEV_SECRET_KEY_FALLBACK,
@@ -133,6 +162,9 @@ def run_startup_tasks(app):
 if os.environ.get('BIS_RUN_STARTUP_TASKS', '1') == '1':
     run_startup_tasks(app)
 
+# Nach Alembic (fileConfig): Technik-Logger reaktivieren und Handler setzen
+_configure_bis_technik_loggers()
+
 # Upload-Ordner erstellen falls nicht vorhanden (idempotent, pro Worker unproblematisch)
 from utils.folder_setup import create_all_upload_folders
 create_all_upload_folders(app)
@@ -202,6 +234,24 @@ _PASSWORT_WECHSEL_ERLAUBTE_ENDPUNKTE = {
     'static',
     'health_check',
 }
+
+
+_technik_mqtt_lazy_started = False
+
+
+@app.before_request
+def _start_technik_mqtt_lazy():
+    """Flask-Dev-Server (ohne Gunicorn post_fork): MQTT/Redis-Threads einmalig starten."""
+    global _technik_mqtt_lazy_started
+    if _technik_mqtt_lazy_started:
+        return None
+    _technik_mqtt_lazy_started = True
+    try:
+        from modules.technik.mqtt_runtime import start_technik_mqtt_threads
+        start_technik_mqtt_threads()
+    except Exception as e:
+        app.logger.debug('Technik-MQTT Lazy-Start: %s', e)
+    return None
 
 
 @app.before_request
@@ -281,6 +331,13 @@ app.register_blueprint(produktion_bp)
 app.register_blueprint(wartungen_bp)
 app.register_blueprint(print_agent_bp)
 app.register_blueprint(technik_bp)
+
+# MQTT/Redis-Hintergrundthreads: brauchen app.app_context() für MqttKonfiguration
+try:
+    from modules.technik.mqtt_runtime import set_flask_app
+    set_flask_app(app)
+except Exception as _mqtt_app_ref_exc:
+    logging.getLogger(__name__).debug('set_flask_app (MQTT): %s', _mqtt_app_ref_exc)
 
 
 @app.route('/service-worker.js')

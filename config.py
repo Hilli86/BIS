@@ -68,6 +68,9 @@ class Config:
     # Bei Gunicorn-Multi-Worker muss ein geteilter Store genutzt werden,
     # z. B. redis://Redis-Service:6379/0 (Docker-Compose-Dienstname).
     RATELIMIT_STORAGE_URI = os.environ.get('RATELIMIT_STORAGE_URI', 'memory://')
+    # Optional: dedizierter Redis für Technik-Beleuchtung (Echtzeit). Fallback siehe
+    # `utils.beleuchtung_redis.resolve_redis_url` (Admin-Feld, dann BIS_REDIS_URL, dann RATELIMIT…).
+    BIS_REDIS_URL = _env_str_strip_optional(os.environ.get('BIS_REDIS_URL'))
     
     # E-Mail-Konfiguration für Benachrichtigungen
     MAIL_ENABLED = os.environ.get('MAIL_ENABLED', 'False').lower() == 'true'

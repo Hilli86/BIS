@@ -1,6 +1,7 @@
 {% extends "layout/base.html" %}
 
 {% block content %}
+{# Beleuchtung: Styles nur im per <object> geladenen SVG (injectBeleuchtungLampStyles), nicht hier. #}
 <div class="container-fluid">
   <div class="bis-toolbar justify-between mb-4">
     <h1 class="mb-0 bis-toolbar-title">Übersichten</h1>
@@ -13,8 +14,16 @@
     </div>
     <div class="card-body">
       <p class="text-muted small mb-3">
-        Wählen Sie ein Layout. Die Darstellung erfolgt als SVG; später können Bereiche für Kameras oder Schalter konfiguriert werden.
+        Wählen Sie ein Layout. Die Darstellung erfolgt als SVG. Beleuchtung: die <strong>ID muss</strong> zum letzten Topic-Segment passen (z. B. <code class="small">…/Beleuchtung/45329</code> → <code class="small">45329</code>). In der <code class="small">.svg</code> können Sie Lampen-Gruppen mit Präfix <code class="small">BL</code> kennzeichnen, z. B. <code class="small">data-bis-lamp-id="BL45329"</code> (oder <code class="small">data-cell-id</code> / <code class="small">id</code> derselben Form) — die Anzeige findet dazu auch <code class="small">45329</code> aus dem Topic. <strong>Im exportierten SVG</strong> muss das Attribut an der sichtbaren <code class="small">&lt;g&gt;</code> stehen. Status: <code class="small">UTF8Value</code> <code class="small">"1"</code> = grün, <code class="small">""</code> = transparent.
       </p>
+      {% if current_diagram.id == 'beleuchtung' and beleuchtung_redis_configured is false %}
+      <div class="alert alert-warning small py-2" role="status">
+        Kein Redis für Echtzeit-Daten. Bitte <code class="small">BIS_REDIS_URL</code> bzw. Redis in den <a href="{{ url_for('admin.mqtt_konfiguration') }}">MQTT-Einstellungen</a> hinterlegen.
+      </div>
+      {% elif current_diagram.id == 'beleuchtung' and beleuchtung_redis_configured is true %}
+      {# Hinweis wird erst nach SVG-Laden per JS gesetzt (Echtzeit startet verzögert). #}
+      <p class="small text-muted mb-0" id="beleuchtung-sse-hinweis" aria-live="polite"></p>
+      {% endif %}
 
       <label for="technik-diagram-select" class="form-label d-md-none mb-1">Layout wählen</label>
       <select id="technik-diagram-select" class="form-select d-md-none mb-3" aria-label="Layout wählen">
@@ -178,6 +187,177 @@
       });
     }
   })();
+
+  {% if current_diagram.id == 'beleuchtung' %}
+  (function () {
+    var streamUrl = {{ url_for('technik.beleuchtung_stream')|tojson }};
+    var init = {{ (beleuchtung_initial or {})|tojson }};
+    var statusEl = document.getElementById('beleuchtung-sse-hinweis');
+    var obj = document.getElementById('technik-svg-object');
+    if (!obj) return;
+    var dbg = new URLSearchParams(window.location.search).get('beleuchtung_debug') === '1';
+    var lastStates = (init && init.states) ? init.states : {};
+    var BIS_BELEUCHTUNG_LAMP_CSS = [
+      '.bis-lampe-unk{opacity:0.6;}',
+      '.bis-lampe-an ellipse,.bis-lampe-an circle{fill:#198754!important;stroke:#000!important;}',
+      '.bis-lampe-an path[fill="none"],.bis-lampe-an line[fill="none"],.bis-lampe-an polyline[fill="none"],.bis-lampe-an polygon[fill="none"]{stroke:#000!important;}',
+      '.bis-lampe-an rect[fill]:not([fill="none"]):not([fill^="url"]){fill:#198754!important;}',
+      '.bis-lampe-aus ellipse,.bis-lampe-aus circle{fill:#fff!important;stroke:#212529!important;}',
+      '.bis-lampe-aus path[fill="none"],.bis-lampe-aus line[fill="none"],.bis-lampe-aus polyline[fill="none"],.bis-lampe-aus polygon[fill="none"]{stroke:#212529!important;}',
+      '.bis-lampe-aus rect[fill]:not([fill="none"]):not([fill^="url"]){fill:#fff!important;stroke:#212529!important;}'
+    ].join('');
+
+    function injectBeleuchtungLampStyles(svgDoc) {
+      if (!svgDoc) return;
+      var root = svgDoc.querySelector('svg');
+      if (!root) return;
+      var st = svgDoc.getElementById('bis-beleuchtung-lamp-css');
+      if (st) {
+        st.textContent = BIS_BELEUCHTUNG_LAMP_CSS;
+        return;
+      }
+      st = svgDoc.createElementNS('http://www.w3.org/2000/svg', 'style');
+      st.setAttribute('id', 'bis-beleuchtung-lamp-css');
+      st.setAttribute('type', 'text/css');
+      st.textContent = BIS_BELEUCHTUNG_LAMP_CSS;
+      root.insertBefore(st, root.firstChild);
+    }
+
+    function setStatus(text, ok) {
+      if (!statusEl) return;
+      statusEl.textContent = text;
+      statusEl.className = 'small mb-0 ' + (ok ? 'text-success' : 'text-warning');
+    }
+
+    function stateToClasses(st) {
+      if (!st || !st.state) return ['bis-lampe-unk', 'unbekannt'];
+      var o = st.state.on;
+      if (o === true) return ['bis-lampe-an', 'ein'];
+      if (o === false) return ['bis-lampe-aus', 'aus'];
+      return ['bis-lampe-unk', 'unbekannt'];
+    }
+    /* Topic 45329 ↔ SVG u. a. data-cell-id="BL45329" */
+    function lampIdSvgCandidates(lampId) {
+      var s = String(lampId).trim();
+      var out = [];
+      function add(x) {
+        if (x === '' || x === null || x === undefined) return;
+        if (out.indexOf(x) < 0) out.push(x);
+      }
+      add(s);
+      if (/^\d+$/.test(s)) add('BL' + s);
+      if (/^bl\d+$/i.test(s)) add(s.replace(/^bl/i, ''));
+      return out;
+    }
+    function escAttr(val) {
+      return (window.CSS && typeof CSS.escape === 'function') ? CSS.escape(String(val)) : String(val).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    }
+    function findLampGroup(svg, lampId) {
+      var cands = lampIdSvgCandidates(lampId);
+      var doc = svg && svg.ownerDocument;
+      var i, c, e, g;
+      for (i = 0; i < cands.length; i++) {
+        c = cands[i];
+        e = escAttr(c);
+        g = svg.querySelector('g[data-bis-lamp-id="' + e + '"]')
+          || svg.querySelector('g[data-cell-id="' + e + '"]')
+          || svg.querySelector('g[id="' + e + '"]');
+        if (g) return g;
+        if (doc && doc.getElementById) {
+          g = doc.getElementById(c);
+          if (g && (g.tagName === 'g' || g.tagName === 'G')) return g;
+        }
+      }
+      return null;
+    }
+    function applyLampState(lampId, payload) {
+      if (!lampId) return;
+      var svgDoc = obj.contentDocument;
+      if (!svgDoc) return;
+      var svg = svgDoc.querySelector('svg');
+      if (!svg) return;
+      var idStr = String(lampId);
+      var g = findLampGroup(svg, idStr);
+      if (!g) {
+        if (dbg) console.warn('[beleuchtung] kein <g> für lamp_id', idStr, '(gesucht u. a. als BL' + idStr + ' — data-bis-lamp-id / data-cell-id / id)');
+        return;
+      }
+      g.classList.remove('bis-lampe-an', 'bis-lampe-aus', 'bis-lampe-unk');
+      var cl = stateToClasses(payload);
+      g.classList.add(cl[0]);
+      g.setAttribute('title', 'Lampe ' + lampId + ': ' + cl[1]);
+    }
+    function applyAllFromStates(states) {
+      if (!states) return;
+      Object.keys(states).forEach(function (k) { applyLampState(k, states[k]); });
+    }
+    function whenSvgReady(fn) {
+      function run() {
+        if (!obj || !obj.contentDocument || !obj.contentDocument.querySelector('svg')) return;
+        try {
+          injectBeleuchtungLampStyles(obj.contentDocument);
+          fn();
+        } catch (e) { if (dbg) console.warn(e); }
+      }
+      if (obj.contentDocument && obj.contentDocument.querySelector('svg')) {
+        run();
+        return;
+      }
+      obj.addEventListener('load', function onObjLoad() {
+        obj.removeEventListener('load', onObjLoad);
+        run();
+      });
+    }
+    function reapplyAll() {
+      whenSvgReady(function () { applyAllFromStates(lastStates); });
+    }
+    function scheduleAfterPaint(fn) {
+      if (window.requestAnimationFrame) {
+        requestAnimationFrame(function () { requestAnimationFrame(fn); });
+      } else {
+        setTimeout(fn, 0);
+      }
+    }
+    whenSvgReady(function onSvgForBeleuchtung() {
+      applyAllFromStates(lastStates);
+      if (init && init.ok === false) {
+        if (statusEl) setStatus('Echtzeit nicht verfügbar (Redis).', false);
+        return;
+      }
+      if (!window.EventSource) {
+        if (statusEl) setStatus('EventSource (SSE) im Browser nicht verfügbar.', false);
+        return;
+      }
+      scheduleAfterPaint(function startEchtzeit() {
+        if (statusEl) {
+          statusEl.textContent = 'Echtzeit: Verbindung wird hergestellt…';
+          statusEl.className = 'small text-muted mb-0';
+        }
+        var ev = new EventSource(streamUrl);
+        ev.addEventListener('init', function (e) {
+          try {
+            var d = JSON.parse(e.data);
+            if (d.states) lastStates = d.states;
+            reapplyAll();
+            setStatus('Echtzeit verbunden (SSE).', true);
+          } catch (err) { setStatus('Init-Daten ungültig.', false); }
+        });
+        ev.onmessage = function (e) {
+          try {
+            var d = JSON.parse(e.data);
+            if (d.lamp_id) {
+              lastStates[d.lamp_id] = d;
+              whenSvgReady(function () { applyLampState(d.lamp_id, d); });
+            }
+          } catch (err) { if (dbg) console.warn('SSE message', err); }
+        };
+        ev.onerror = function () {
+          setStatus('Echtzeit unterbrochen, versuche Wiederverbindung…', false);
+        };
+      });
+    });
+  })();
+  {% endif %}
 })();
 </script>
 {% endblock %}

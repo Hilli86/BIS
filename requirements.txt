@@ -38,5 +38,8 @@ alembic==1.18.4
 # pg_config auf dem Zielsystem installiert sein muss.
 psycopg[binary]==3.2.3
 
+# MQTT-Client (Technik / Beleuchtung Live-Status)
+paho-mqtt==2.1.0
+
 # Tests (CI / lokale Qualitätssicherung)
 pytest==9.0.3

@@ -1699,6 +1699,33 @@ def init_database_schema(db_path, verbose=False):
             'CREATE INDEX idx_mitarbeiter_menue_sichtbarkeit_menue ON MitarbeiterMenueSichtbarkeit(MenueSchluessel)'
         ])
 
+        # ========== 36. MqttKonfiguration (Einstellungszeile, meist ID=1) ==========
+        create_table_if_not_exists(conn, 'MqttKonfiguration', '''
+            CREATE TABLE MqttKonfiguration (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                Aktiv INTEGER NOT NULL DEFAULT 0,
+                BrokerHost TEXT,
+                BrokerPort INTEGER NOT NULL DEFAULT 1883,
+                UseTls INTEGER NOT NULL DEFAULT 0,
+                TlsInsecure INTEGER NOT NULL DEFAULT 0,
+                CaPfad TEXT,
+                Benutzername TEXT,
+                PasswortKrypt TEXT,
+                TopicPrefixBeleuchtung TEXT NOT NULL,
+                MqttClientId TEXT,
+                RedisUrl TEXT,
+                GeaendertAm TEXT
+            )
+        ''', [
+            'CREATE INDEX idx_mqtt_konf_aktiv ON MqttKonfiguration(Aktiv)'
+        ])
+        row = conn.execute("SELECT COUNT(*) AS c FROM MqttKonfiguration").fetchone()
+        if row and row['c'] == 0:
+            conn.execute(
+                "INSERT INTO MqttKonfiguration (Aktiv, BrokerPort, TopicPrefixBeleuchtung) "
+                "VALUES (0, 1883, 'IPS/BM/Beleuchtung')"
+            )
+
         conn.commit()
 
     except Exception as e:

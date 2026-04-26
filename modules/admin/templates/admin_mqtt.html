@@ -1,0 +1,146 @@
+{% extends "layout/base.html" %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <h1 class="mb-0">MQTT-Broker</h1>
+    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-link ms-auto">Zurück zum Admin</a>
+  </div>
+
+  <p class="text-muted small">
+    Einstellungen für den MQTT-Broker (z.&nbsp;B. IP-Symcon/Beleuchtung). Live-Status und Mehr-Worker
+    setzen voraus, dass <strong>Redis</strong> erreichbar ist (siehe Redis-URL oder <code class="small">BIS_REDIS_URL</code> in der
+    Umgebung bzw. <code class="small">RATELIMIT_STORAGE_URI=redis://…</code>).
+  </p>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="mb-3">
+        {% for category, message in messages %}
+          <div class="alert alert-{{ 'danger' if category == 'error' else category }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <div class="card">
+    <div class="card-header">Broker &amp; Echtzeit</div>
+    <div class="card-body">
+      <form method="post" action="{{ url_for('admin.mqtt_konfiguration_save') }}">
+        {{ csrf_field() }}
+        <div class="row g-3">
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="aktiv" id="mqttAktiv" value="on"
+                     {% if cfg.Aktiv %}checked{% endif %}>
+              <label class="form-check-label" for="mqttAktiv">MQTT-Empfang aktiv</label>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="brokerHost">Broker-Host <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" name="broker_host" id="brokerHost" value="{{ cfg.BrokerHost or '' }}" placeholder="mqtt.example.com">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label" for="brokerPort">Port</label>
+            <input type="number" class="form-control" name="broker_port" id="brokerPort" value="{{ cfg.BrokerPort or 1883 }}">
+          </div>
+          <div class="col-md-4 d-flex flex-column justify-content-end">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="use_tls" id="useTls" value="on" {% if cfg.UseTls %}checked{% endif %}>
+              <label class="form-check-label" for="useTls">TLS (MQTT über SSL)</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="tls_insecure" id="tlsInsecure" value="on" {% if cfg.TlsInsecure %}checked{% endif %}>
+              <label class="form-check-label" for="tlsInsecure" title="Nur Test/Entwicklung">TLS: Zertifikat nicht prüfen</label>
+            </div>
+          </div>
+          <div class="col-12 col-md-8">
+            <label class="form-label" for="caPfad">CA-Zertifikatsdatei (optional)</label>
+            <input type="text" class="form-control font-monospace" name="ca_pfad" id="caPfad" value="{{ cfg.CaPfad or '' }}" placeholder="Pfad zur CA-Bundle-Datei">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="benutzername">Benutzername</label>
+            <input type="text" class="form-control" name="benutzername" id="benutzername" value="{{ cfg.Benutzername or '' }}" autocomplete="off">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="passwort">Passwort</label>
+            <input type="password" class="form-control" name="passwort" id="passwort" value="" placeholder="{% if cfg.has_passwort %}Nur füllen zum Ändern…{% else %}optional{% endif %}" autocomplete="new-password">
+          </div>
+          <div class="col-12 col-md-8">
+            <label class="form-label" for="topicPrefix">Topic-Präfix Beleuchtung</label>
+            <input type="text" class="form-control" name="topic_prefix_beleuchtung" id="topicPrefix" value="{{ cfg.TopicPrefixBeleuchtung or 'IPS/BM/Beleuchtung' }}">
+            <div class="form-text">Erwartet wird <code>…/&lt;lampen-id&gt;</code>, z.&nbsp;B. <code>IPS/BM/Beleuchtung/45329</code>.</div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="clientId">MQTT-Client-ID (optional)</label>
+            <input type="text" class="form-control" name="mqtt_client_id" id="clientId" value="{{ cfg.MqttClientId or '' }}">
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="redisUrl">Redis-URL (optional)</label>
+            <input type="text" class="form-control font-monospace" name="redis_url" id="redisUrl" value="{{ cfg.RedisUrl or '' }}" placeholder="redis://localhost:6379/0">
+            <div class="form-text">Leer = <code class="small">BIS_REDIS_URL</code> bzw. <code class="small">RATELIMIT_STORAGE_URI</code> (falls <code>redis://</code>).</div>
+          </div>
+        </div>
+        <div class="mt-3 d-flex flex-wrap gap-2">
+          <button type="submit" class="btn btn-primary">Speichern</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card mt-3">
+    <div class="card-header">Verbindung testen</div>
+    <div class="card-body">
+      <p class="small text-muted mb-2">Baut eine kurze Verbindung mit den gespeicherten (nicht unbedingt dem obigen Formular) Werten auf.</p>
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="btnMqttTest">Broker-Verbindung testen</button>
+      <div id="mqttTestResult" class="mt-2 small" aria-live="polite"></div>
+    </div>
+  </div>
+</div>
+<script>
+(function() {
+  var btn = document.getElementById('btnMqttTest');
+  if (!btn) return;
+  btn.addEventListener('click', function() {
+    var out = document.getElementById('mqttTestResult');
+    out.textContent = 'Teste…';
+    var token = document.querySelector('input[name="csrf_token"]');
+    if (!token) { out.textContent = 'CSRF-Token fehlt.'; return; }
+    fetch('{{ url_for("admin.mqtt_konfiguration_test") }}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-CSRFToken': token.value
+      },
+      body: 'csrf_token=' + encodeURIComponent(token.value),
+      credentials: 'same-origin'
+    }).then(function(r) {
+      return r.text().then(function(text) {
+        var j = null;
+        try {
+          j = text ? JSON.parse(text) : null;
+        } catch (e) {
+          j = null;
+        }
+        return { r: r, j: j, text: text };
+      });
+    }).then(function(x) {
+      out.className = 'mt-2 small ' + (x.j && x.j.ok ? 'text-success' : 'text-danger');
+      if (x.j && typeof x.j.message === 'string') {
+        out.textContent = (x.j.ok ? '' : 'Fehler: ') + x.j.message;
+        return;
+      }
+      var prefix = 'HTTP ' + x.r.status + (x.r.statusText ? ' ' + x.r.statusText : '');
+      if (x.text && x.text.length < 800) {
+        out.textContent = prefix + ' — ' + (x.text.length > 200 ? x.text.slice(0, 200) + '…' : x.text);
+      } else {
+        out.textContent = prefix + '. Antwort war kein JSON (häufig: Fehlerseite oder CSRF).';
+      }
+    }).catch(function(err) {
+      out.className = 'mt-2 small text-danger';
+      out.textContent = 'Anfrage fehlgeschlagen: ' + (err && err.message ? err.message : String(err));
+    });
+  });
+})();
+</script>
+{% endblock %}

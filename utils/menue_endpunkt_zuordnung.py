@@ -12,6 +12,7 @@ STARTSEITEN_ENDPUNKT_MENUE_SCHLUESSEL = {
     'dashboard.dashboard': 'dashboard',
     'admin.dashboard': 'admin',
     'admin.druck_agents_uebersicht': 'admin_druck_agents',
+    'admin.mqtt_konfiguration': 'admin_mqtt',
     'admin.druck_queue_uebersicht': 'admin_druck_queue',
     'schichtbuch.themaliste': 'schichtbuch_liste',
     'schichtbuch.aufgabenlisten_liste': 'schichtbuch_aufgabenlisten',

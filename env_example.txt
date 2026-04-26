@@ -43,6 +43,16 @@ SQL_TRACING=True
 # Rate-Limiter (mehrere Gunicorn-Worker): Standard ist memory:// (config.py).
 # Für gemeinsame Zähler Redis starten und z. B. setzen:
 # RATELIMIT_STORAGE_URI=redis://127.0.0.1:6379/0
+#
+# Technik: Live-Status Beleuchtung (MQTT + SSE, Mehr-Worker) benötigt Redis.
+# Wenn RATELIMIT_STORAGE_URI schon auf redis:// zeigt, reicht das oft. Sonst:
+# BIS_REDIS_URL=redis://127.0.0.1:6379/1
+# Oder ausschließlich in der DB: Spalte RedisUrl in MqttKonfiguration (Admin → MQTT).
+#
+# Detailliertes Logging für MQTT → Redis → SSE (Fehlersuche, kann viel ausgeben):
+# BIS_MQTT_DEBUG=1
+# (bis.mqtt / bis.technik.sse erscheinen in der Server-Konsole ab INFO, unabhängig vom Root-Log-Level)
+# Dazu im Admin die MQTT-Broker-Daten inkl. Topic-Präfix (Standard IPS/BM/Beleuchtung) eintragen.
 
 # Web-Push (VAPID) – Schlüssel z. B. mit: flask --app app vapid-generate
 # Prüfen: flask --app app vapid-verify

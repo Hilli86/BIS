@@ -1,5 +1,5 @@
-// Service Worker für BIS PWA
-const CACHE_NAME = 'bis-cache-v2-vendor-local';
+// Service Worker für BIS PWA (v3: fetch-Handler cacht nur noch /static/)
+const CACHE_NAME = 'bis-cache-v3-static';
 const urlsToCache = [
   '/',
   '/static/style.css',
@@ -19,7 +19,7 @@ self.addEventListener('install', event => {
     caches.open(CACHE_NAME)
       .then(cache => {
         console.log('Cache geöffnet');
-        return cache.addAll(urlsToCache.filter(url => !url.startsWith('http')));
+        return cache.addAll(urlsToCache);
       })
       .catch(error => {
         console.log('Cache-Fehler:', error);
@@ -46,17 +46,27 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Fetch - Network First Strategie für dynamische Inhalte
+// Netz zuerst; cache.put nur für /static/ (vormals: jede HTML-Seite cachen → viele fehlerhafte put())
 self.addEventListener('fetch', event => {
   event.respondWith(
     fetch(event.request)
       .then(response => {
-        // Speichere erfolgreiche GET-Anfragen im Cache
-        if (event.request.method === 'GET' && response.status === 200) {
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then(cache => {
-            cache.put(event.request, responseClone);
-          });
+        if (
+          event.request.method === 'GET' &&
+          response.status === 200 &&
+          response.type !== 'opaque' &&
+          response.type !== 'opaqueredirect'
+        ) {
+          try {
+            const url = new URL(event.request.url);
+            if (url.origin === self.location.origin && url.pathname.startsWith('/static/')) {
+              const responseClone = response.clone();
+              caches
+                .open(CACHE_NAME)
+                .then((cache) => cache.put(event.request, responseClone))
+                .catch(function () { /* z. B. Quota */ });
+            }
+          } catch (e) { /* ungültige URL */ }
         }
         return response;
       })

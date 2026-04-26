@@ -13,6 +13,7 @@ MENUE_DEFINITIONEN = [
     {'schluessel': 'dashboard', 'bezeichnung': 'Dashboard', 'gruppe': None, 'berechtigung': None},
     {'schluessel': 'admin', 'bezeichnung': 'Adminbereich', 'gruppe': None, 'berechtigung': ['admin']},
     {'schluessel': 'admin_druck_agents', 'bezeichnung': 'Druck-Agents', 'gruppe': 'Adminbereich', 'berechtigung': ['admin']},
+    {'schluessel': 'admin_mqtt', 'bezeichnung': 'MQTT-Broker', 'gruppe': 'Adminbereich', 'berechtigung': ['admin']},
     {'schluessel': 'admin_druck_queue', 'bezeichnung': 'Druck-Queue', 'gruppe': 'Adminbereich', 'berechtigung': ['admin']},
     {'schluessel': 'schichtbuch_liste', 'bezeichnung': 'Themenliste', 'gruppe': 'Schichtbuch', 'berechtigung': None},
     {'schluessel': 'schichtbuch_aufgabenlisten', 'bezeichnung': 'Aufgabenlisten', 'gruppe': 'Schichtbuch', 'berechtigung': None},
@@ -114,7 +115,8 @@ def ist_menue_zugriff_erlaubt(menue_schluessel: str) -> bool:
     """
     Prüft, ob der aktuelle Benutzer den Menüpunkt effektiv nutzen darf
     (Spiegel von get_menue_sichtbarkeit in session['user_menue_sichtbarkeit']).
-    Fehlender Schlüssel: False (fail-closed), außer bewusst anders geregelt.
+    Fehlender Schlüssel: Fallback auf Standardlogik (neue Menüeinträge nach App-Update
+    ohne sofort erneute Anmeldung).
     """
     from flask import session
 
@@ -123,4 +125,11 @@ def ist_menue_zugriff_erlaubt(menue_schluessel: str) -> bool:
     sicht = session.get('user_menue_sichtbarkeit', {})
     if not isinstance(sicht, dict):
         return False
-    return bool(sicht.get(menue_schluessel))
+    if menue_schluessel in sicht:
+        return bool(sicht[menue_schluessel])
+    if 'user_id' not in session and not session.get('is_guest'):
+        return False
+    berechtigungen = session.get('user_berechtigungen', [])
+    if not isinstance(berechtigungen, list):
+        return False
+    return _standard_sichtbar(menue_schluessel, berechtigungen)

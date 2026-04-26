@@ -453,6 +453,8 @@ server {
 }
 ```
 
+Hinter nginx sollte der Live-Status Technik/Beleuchtung (Server-Sent Events) nicht gepuffert werden und lang genug warten, z. B. in der betreffenden `location` oder global: `proxy_buffering off;` und `proxy_read_timeout` größer als 60s (siehe auch `BIS_REDIS_URL` bzw. Admin MQTT-Redis-URL in `env_example.txt`).
+
 ### Nginx-Konfiguration aktivieren:
 
 ```bash

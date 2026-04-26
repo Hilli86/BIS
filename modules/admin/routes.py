@@ -3,6 +3,8 @@ Admin Routes - Stammdaten-Verwaltung
 Mitarbeiter, Abteilungen, Bereiche, Gewerke, Tätigkeiten, Status
 """
 
+import logging
+
 from flask import render_template, request, redirect, url_for, flash, jsonify
 from werkzeug.security import generate_password_hash
 from . import admin_bp
@@ -21,6 +23,8 @@ from utils.menue_definitions import get_alle_menue_definitionen, get_menue_sicht
 from utils.auth_redirect import LOGIN_STARTSEITEN_AUSWAHL, normalisiere_startseite_endpunkt
 from utils.db_sql import upsert_ignore
 from modules.wartungen import services as wartungen_services
+
+_log_admin_mqtt = logging.getLogger('bis.admin.mqtt')
 
 
 def ajax_response(message, success=True, status_code=None, **extra):
@@ -2642,3 +2646,173 @@ def mitarbeiter_menue_sichtbarkeit(mid):
         return ajax_response('Menü-Sichtbarkeit erfolgreich aktualisiert.')
     except Exception as e:
         return ajax_response(f'Fehler: {str(e)}', success=False, status_code=500)
+
+
+# ========== MQTT (Technik / Beleuchtung) ==========
+
+
+@admin_bp.route('/mqtt', methods=['GET'])
+@admin_required
+@menue_zugriff_erforderlich('admin_mqtt')
+def mqtt_konfiguration():
+    with get_db_connection() as conn:
+        row = conn.execute('SELECT * FROM MqttKonfiguration ORDER BY ID LIMIT 1').fetchone()
+    if not row:
+        flash('MqttKonfiguration fehlt in der Datenbank (Migration ausführen).', 'danger')
+        return redirect(url_for('admin.dashboard'))
+    d = dict(row)
+    d['has_passwort'] = bool((d.get('PasswortKrypt') or '').strip())
+    return render_template('admin_mqtt.html', cfg=d)
+
+
+@admin_bp.route('/mqtt/save', methods=['POST'])
+@admin_required
+@menue_zugriff_erforderlich('admin_mqtt')
+def mqtt_konfiguration_save():
+    from flask import current_app
+    from utils.fernet_secrets import encrypt_text
+    from modules.technik.mqtt_runtime import invalidate_mqtt_konfig_cache
+
+    aktiv = 1 if request.form.get('aktiv') == 'on' else 0
+    host = (request.form.get('broker_host') or '').strip() or None
+    port = int(request.form.get('broker_port') or 1883)
+    use_tls = 1 if request.form.get('use_tls') == 'on' else 0
+    tls_insecure = 1 if request.form.get('tls_insecure') == 'on' else 0
+    ca = (request.form.get('ca_pfad') or '').strip() or None
+    user = (request.form.get('benutzername') or '').strip() or None
+    pass_neu = (request.form.get('passwort') or '')
+    topic_p = (request.form.get('topic_prefix_beleuchtung') or 'IPS/BM/Beleuchtung').strip()
+    mcid = (request.form.get('mqtt_client_id') or '').strip() or None
+    redis_u = (request.form.get('redis_url') or '').strip() or None
+
+    with get_db_connection() as conn:
+        cur = conn.execute('SELECT ID, PasswortKrypt FROM MqttKonfiguration ORDER BY ID LIMIT 1').fetchone()
+        if not cur:
+            flash('MqttKonfiguration nicht gefunden.', 'danger')
+            return redirect(url_for('admin.mqtt_konfiguration'))
+        if pass_neu:
+            krypt = encrypt_text(pass_neu, current_app.config.get('SECRET_KEY'))
+        else:
+            krypt = cur['PasswortKrypt']
+        conn.execute(
+            '''
+            UPDATE MqttKonfiguration SET
+                Aktiv = ?,
+                BrokerHost = ?,
+                BrokerPort = ?,
+                UseTls = ?,
+                TlsInsecure = ?,
+                CaPfad = ?,
+                Benutzername = ?,
+                PasswortKrypt = ?,
+                TopicPrefixBeleuchtung = ?,
+                MqttClientId = ?,
+                RedisUrl = ?,
+                GeaendertAm = CURRENT_TIMESTAMP
+            WHERE ID = ?
+            ''',
+            (aktiv, host, port, use_tls, tls_insecure, ca, user, krypt, topic_p, mcid, redis_u, cur['ID']),
+        )
+    invalidate_mqtt_konfig_cache()
+    flash('MQTT-Einstellungen gespeichert.', 'success')
+    return redirect(url_for('admin.mqtt_konfiguration'))
+
+
+@admin_bp.route('/mqtt/test', methods=['POST'])
+@admin_required
+@menue_zugriff_erforderlich('admin_mqtt')
+def mqtt_konfiguration_test():
+    from flask import current_app
+    from utils.fernet_secrets import decrypt_text
+    import paho.mqtt.client as mqtt
+    import time
+    import uuid
+
+    c = None
+    try:
+        with get_db_connection() as conn:
+            row = conn.execute('SELECT * FROM MqttKonfiguration ORDER BY ID LIMIT 1').fetchone()
+        if not row:
+            return jsonify({'ok': False, 'message': 'Kein Eintrag in MqttKonfiguration.'}), 400
+        d = dict(row)
+        if not (d.get('BrokerHost') or '').strip():
+            return jsonify({'ok': False, 'message': 'Kein Broker-Host konfiguriert. Bitte zuerst speichern.'}), 400
+        sk = current_app.config.get('SECRET_KEY')
+        pw = ''
+        if d.get('PasswortKrypt'):
+            try:
+                pw = decrypt_text(d.get('PasswortKrypt'), sk) or ''
+            except Exception as de:
+                return jsonify({'ok': False, 'message': f'Passwort entschlüsseln fehlgeschlagen: {de}'}), 400
+        user = (d.get('Benutzername') or '').strip() or None
+        use_tls = int(d.get('UseTls') or 0) == 1
+        tls_insec = int(d.get('TlsInsecure') or 0) == 1
+        ca = (d.get('CaPfad') or '').strip() or None
+        host = (d.get('BrokerHost') or '').strip()
+        port = int(d.get('BrokerPort') or 1883)
+        result = {'ok': False, 'message': 'Unbekannter Fehler (kein CONNACK).'}
+        event = {'done': False, 'err': None}
+
+        def on_connect_cl(client, userdata, flags, reason_code, properties):
+            if reason_code and getattr(reason_code, 'is_failure', False):
+                result['ok'] = False
+                result['message'] = f'Broker (CONNACK) meldet Fehler: {reason_code}'
+            else:
+                result['ok'] = True
+                result['message'] = 'Test: Verbindung hergestellt (CONNACK).'
+            event['done'] = True
+            try:
+                client.disconnect()
+            except Exception:
+                pass
+
+        def on_connect_fail_cl(client, userdata):
+            # Paho: Netz/TLS schlägt fehl, bevor CONNACK
+            if not event.get('done'):
+                result['ok'] = False
+                result['message'] = 'Verbindungsaufbau abgebrochen (Netz/TLS, siehe Server-Log).'
+                event['err'] = 'on_connect_fail'
+            event['done'] = True
+
+        c = mqtt.Client(
+            callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
+            client_id=f'bis-mqtt-test-{uuid.uuid4().hex[:8]}',
+            protocol=mqtt.MQTTv311,
+        )
+        c.on_connect = on_connect_cl
+        c.on_connect_fail = on_connect_fail_cl
+        if user:
+            c.username_pw_set(user, pw)
+        if use_tls:
+            c.tls_set(ca_certs=ca)
+            if tls_insec:
+                c.tls_insecure_set(True)
+        c.connect(host, port, keepalive=10)
+        c.loop_start()
+        t0 = time.time()
+        while not event.get('done'):
+            if time.time() - t0 > 8:
+                result['ok'] = False
+                result['message'] = (
+                    f'Keine Antwort vom Broker binnen 8s ({host!r}:{port}, TLS={use_tls}). '
+                    'Adresse/Firewall/Port prüfen oder länger warten, falls der Broker träge reagiert.'
+                )
+                break
+            time.sleep(0.05)
+    except OSError as e:
+        return jsonify({'ok': False, 'message': f'Netzwerk: {e} (Host {host!r}, Port {port})'}), 400
+    except Exception as e:
+        return jsonify({'ok': False, 'message': f'{type(e).__name__}: {e}'}), 400
+    finally:
+        if c is not None:
+            try:
+                c.loop_stop()
+                c.disconnect()
+            except Exception:
+                pass
+    msg = (result or {}).get('message', '')
+    if (result or {}).get('ok'):
+        _log_admin_mqtt.info('Admin MQTT-Test: OK — %s', msg)
+    else:
+        _log_admin_mqtt.warning('Admin MQTT-Test: fehlgeschlagen — %s', msg)
+    return jsonify(result), 200 if result.get('ok') else 400

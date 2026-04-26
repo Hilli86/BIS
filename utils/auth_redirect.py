@@ -19,6 +19,7 @@ LOGIN_STARTSEITEN_AUSWAHL = [
     ('dashboard.dashboard', 'Dashboard'),
     ('admin.dashboard', 'Adminbereich'),
     ('admin.druck_agents_uebersicht', 'Admin: Druck-Agents'),
+    ('admin.mqtt_konfiguration', 'Admin: MQTT'),
     ('admin.druck_queue_uebersicht', 'Admin: Druck-Queue'),
     ('schichtbuch.themaliste', 'Schichtbuch: Themenliste'),
     ('schichtbuch.aufgabenlisten_liste', 'Schichtbuch: Aufgabenlisten'),
