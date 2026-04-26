@@ -2,11 +2,7 @@
 
 {% block content %}
 <div class="container-fluid mt-4">
-  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-    <h1 class="mb-0">Druck-Queue</h1>
-    <a href="{{ url_for('admin.druck_agents_uebersicht') }}" class="btn btn-outline-primary btn-sm ms-auto">Druck-Agents</a>
-    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-link">Zurueck zum Admin-Dashboard</a>
-  </div>
+  <h1 class="mb-3">Druck-Queue</h1>
 
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}

@@ -1,34 +1,11 @@
 {% extends "layout/base.html" %}
 
 {% block content %}
-<h1>Admin – Stammdaten</h1>
+<div class="container-fluid">
+<h1 class="mb-3">Admin – Stammdaten</h1>
+<p class="text-muted small mb-3 d-md-none">Weitere Bereiche öffnen Sie über das Menü-Symbol (links oben).</p>
 
-<ul class="nav nav-tabs mb-3" role="tablist">
-  <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-mitarbeiter">Mitarbeiter</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-berechtigungen">Berechtigungen</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-abteilung">Abteilungen</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-bereich">Bereiche</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-gewerk">Gewerke</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-fremdfirma">Fremdfirmen</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-taetigkeit">Tätigkeiten</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-status">Status</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-kategorie">Ersatzteil-Kategorien</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-kostenstelle">Kostenstellen</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-lagerort">Lagerorte</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-lagerplatz">Lagerplätze</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-lieferant">Lieferanten</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-firmendaten">Firmendaten</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-datenbank">Datenbank</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-etikettendrucker">Etikettendrucker</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-etiketten">Etiketten</a></li>
-  <li class="nav-item ms-auto"><a class="nav-link" href="{{ url_for('admin.druck_agents_uebersicht') }}">Druck-Agents</a></li>
-  <li class="nav-item"><a class="nav-link" href="{{ url_for('admin.mqtt_konfiguration') }}">MQTT</a></li>
-  <li class="nav-item"><a class="nav-link" href="{{ url_for('admin.druck_queue_uebersicht') }}">Druck-Queue</a></li>
-  <li class="nav-item"><a class="nav-link" href="{{ url_for('admin.login_logs') }}">Login-Logs</a></li>
-  <li class="nav-item"><a class="nav-link" href="{{ url_for('dashboard.dashboard') }}">Zurück zum Dashboard</a></li>
-  </ul>
-
-<div class="tab-content">
+<div class="tab-content" id="adminStammdatenTabContent">
   <!-- Mitarbeiter -->
   <div class="tab-pane fade show active" id="tab-mitarbeiter">
     <div class="card mb-3">
@@ -1517,11 +1494,35 @@
     </div>
   </div>
 </div>
+</div>
 
 {% endblock %}
 
 {% block scripts %}
 <script>
+(function () {
+  function activateTabFromHash() {
+    const hash = window.location.hash;
+    if (!hash || !hash.startsWith('#tab-')) {
+      return;
+    }
+    const target = document.querySelector(hash);
+    if (!target || !target.classList.contains('tab-pane')) {
+      return;
+    }
+    const container = target.closest('.tab-content');
+    if (!container) {
+      return;
+    }
+    container.querySelectorAll('.tab-pane').forEach(function (pane) {
+      pane.classList.remove('show', 'active');
+    });
+    target.classList.add('show', 'active');
+  }
+  document.addEventListener('DOMContentLoaded', activateTabFromHash);
+  window.addEventListener('hashchange', activateTabFromHash);
+})();
+
 // Toast-Benachrichtigung anzeigen
 function showToast(message, type = 'success') {
   // Toast-Container erstellen falls nicht vorhanden

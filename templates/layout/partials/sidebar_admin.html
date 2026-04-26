@@ -1,0 +1,84 @@
+{% set ad = url_for('admin.dashboard') %}
+    <a href="{{ url_for('dashboard.dashboard') }}" class="{% if request.endpoint == 'dashboard.dashboard' %}active{% endif %}">
+      <i class="bi bi-house-door"></i> Zurück zur App
+    </a>
+
+    <h6>Stammdaten</h6>
+    <a href="{{ ad }}#tab-mitarbeiter">
+      Mitarbeiter
+    </a>
+    <a href="{{ ad }}#tab-berechtigungen">
+      Berechtigungen
+    </a>
+    <a href="{{ ad }}#tab-abteilung">
+      Abteilungen
+    </a>
+    <a href="{{ ad }}#tab-bereich">
+      Bereiche
+    </a>
+    <a href="{{ ad }}#tab-gewerk">
+      Gewerke
+    </a>
+    <a href="{{ ad }}#tab-fremdfirma">
+      Fremdfirmen
+    </a>
+    <a href="{{ ad }}#tab-taetigkeit">
+      Tätigkeiten
+    </a>
+    <a href="{{ ad }}#tab-status">
+      Status
+    </a>
+    <a href="{{ ad }}#tab-kategorie">
+      Ersatzteil-Kategorien
+    </a>
+    <a href="{{ ad }}#tab-kostenstelle">
+      Kostenstellen
+    </a>
+    <a href="{{ ad }}#tab-lagerort">
+      Lagerorte
+    </a>
+    <a href="{{ ad }}#tab-lagerplatz">
+      Lagerplätze
+    </a>
+    <a href="{{ ad }}#tab-lieferant">
+      Lieferanten
+    </a>
+    <a href="{{ ad }}#tab-firmendaten">
+      Firmendaten
+    </a>
+    <a href="{{ ad }}#tab-datenbank">
+      Datenbank
+    </a>
+
+    <h6>Druck &amp; Etiketten</h6>
+    <a href="{{ ad }}#tab-etikettendrucker">
+      Etikettendrucker
+    </a>
+    <a href="{{ ad }}#tab-etiketten">
+      Etiketten
+    </a>
+    {% if menue_sichtbar('admin_druck_agents') %}
+    <a href="{{ url_for('admin.druck_agents_uebersicht') }}" class="{% if request.endpoint == 'admin.druck_agents_uebersicht' %}active{% endif %}">
+      Druck-Agents
+    </a>
+    {% endif %}
+    {% if menue_sichtbar('admin_druck_queue') %}
+    <a href="{{ url_for('admin.druck_queue_uebersicht') }}" class="{% if request.endpoint == 'admin.druck_queue_uebersicht' %}active{% endif %}">
+      Druck-Queue
+    </a>
+    {% endif %}
+    {% if menue_sichtbar('admin') %}
+    <a href="{{ url_for('admin.zebra_test') }}" class="{% if request.endpoint == 'admin.zebra_test' %}active{% endif %}">
+      Zebra-Testdruck
+    </a>
+    {% endif %}
+
+    <h6>System</h6>
+    {% if menue_sichtbar('admin_mqtt') %}
+    <a href="{{ url_for('admin.mqtt_konfiguration') }}" class="{% if request.endpoint == 'admin.mqtt_konfiguration' %}active{% endif %}">
+      MQTT-Broker
+    </a>
+    {% endif %}
+    <a href="{{ url_for('admin.login_logs') }}" class="{% if request.endpoint == 'admin.login_logs' %}active{% endif %}">
+      Login-Logs
+    </a>
