@@ -393,7 +393,7 @@ TECHNIK_LAYOUT_HOTSPOTS = {
             'soll': 'ca. 0,5 - 3%',
         },
         {
-            'id': 'HG02',
+            'id': 'HS02',
             'name': 'Hygieneschleuse 2',
             'ort': 'Verpackung',
             'produkt': 'Laska Hygieneschleuse',
@@ -425,7 +425,7 @@ TECHNIK_LAYOUT_HOTSPOTS = {
             'soll': 'ca. 0,5 - 3%',
         },
         {
-            'id': 'ST01',
+            'id': 'SR01',
             'name': 'Stiefelreiniger 1',
             'ort': 'Stiegenhaus',
             'produkt': 'Laska Stiefelreiniger',
@@ -433,7 +433,7 @@ TECHNIK_LAYOUT_HOTSPOTS = {
             'soll': 'ca. 0,5 - 3%',
         },
         {
-            'id': 'ST02',
+            'id': 'SR02',
             'name': 'Stiefelreiniger 2',
             'ort': 'Technik',
             'produkt': 'Laska Stiefelreiniger',
