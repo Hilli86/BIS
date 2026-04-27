@@ -24,7 +24,8 @@ def _truthy(s: str) -> bool:
 
 def parse_topic_lamp_id(topic: str, prefix: str) -> str | None:
     """
-    topic z. B. IPS/BM/Beleuchtung/45329, prefix IPS/BM/Beleuchtung
+    topic z. B. IPS/BM/Beleuchtung/45329 oder IPS/BM/Beleuchtung/45329/update,
+    prefix IPS/BM/Beleuchtung
     Rückgabe: 45329
     """
     p = (prefix or '').strip().rstrip('/')
@@ -33,9 +34,20 @@ def parse_topic_lamp_id(topic: str, prefix: str) -> str | None:
     if not topic.startswith(p + '/'):
         return None
     rest = topic[len(p) + 1 :]
-    if not rest or '/' in rest:
+    if not rest:
         return None
-    return rest
+    parts = [p for p in rest.split('/') if p]
+    if not parts:
+        return None
+    if len(parts) == 1:
+        lamp = parts[0]
+    elif len(parts) == 2 and parts[1].lower() == 'update':
+        lamp = parts[0]
+    else:
+        return None
+    if not re.match(r'^\d+$', lamp):
+        return None
+    return lamp
 
 
 def normalize_symcon_payload(raw: bytes | str | dict) -> dict[str, Any]:

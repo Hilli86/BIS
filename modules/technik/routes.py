@@ -6,6 +6,7 @@ import json
 import os
 import queue
 import logging
+import re
 
 from flask import (
     Response,
@@ -30,13 +31,14 @@ from utils.beleuchtung_redis import (
 _REDIS_CONNECT_TIMEOUT_HTTP = 0.5
 from utils.decorators import login_required, menue_zugriff_erforderlich
 from modules.technik.sse_broadcast import count_subscribers, register_subscriber, unregister_subscriber
+from modules.technik.mqtt_commands import publish_beleuchtung_command
 
 from . import technik_bp
 
 log_sse = logging.getLogger('bis.technik.sse')
 
-# Registrierte Diagramme: id (URL-Parameter diagram), Anzeigename, Dateiname unter Daten/…/Technik/Layouts/ (bzw. static-Fallback)
-TECHNIK_DIAGRAMME = [
+# Standard-Diagramme inkl. Metadaten; die tatsächliche Liste wird dynamisch aus dem Layout-Ordner erzeugt.
+TECHNIK_STANDARD_DIAGRAMME = [
     {
         'id': 'schnelllauftore',
         'title': 'Schnelllauftore',
@@ -446,8 +448,54 @@ TECHNIK_LAYOUT_HOTSPOTS = {
 }
 
 
-def _diagram_by_id(diagram_id: str):
-    for d in TECHNIK_DIAGRAMME:
+def _normalize_layout_stem(stem: str) -> str:
+    return re.sub(r'[^a-z0-9]+', '', (stem or '').lower())
+
+
+def _build_layout_diagramme() -> list[dict]:
+    known_by_stem = {}
+    for d in TECHNIK_STANDARD_DIAGRAMME:
+        stem = _normalize_layout_stem(os.path.splitext(d.get('layout_filename') or '')[0])
+        if stem:
+            known_by_stem[stem] = d
+
+    data_dir = (current_app.config.get('TECHNIK_LAYOUTS_FOLDER') or '').strip()
+    files = []
+    if data_dir and os.path.isdir(data_dir):
+        try:
+            files = sorted(
+                [n for n in os.listdir(data_dir) if n.lower().endswith('.svg')],
+                key=lambda x: x.lower(),
+            )
+        except OSError:
+            files = []
+
+    used_ids = set()
+    out = []
+    for fname in files:
+        stem_raw = os.path.splitext(fname)[0]
+        stem_norm = _normalize_layout_stem(stem_raw)
+        base = known_by_stem.get(stem_norm)
+        if base:
+            did = base['id']
+            title = base['title']
+        else:
+            did = re.sub(r'[^a-z0-9]+', '-', stem_raw.lower()).strip('-') or 'layout'
+            title = stem_raw.replace('_', ' ').strip() or fname
+
+        candidate = did
+        i = 2
+        while candidate in used_ids:
+            candidate = f'{did}-{i}'
+            i += 1
+        used_ids.add(candidate)
+        out.append({'id': candidate, 'title': title, 'layout_filename': fname})
+
+    return out
+
+
+def _diagram_by_id(diagram_id: str, diagramme: list[dict]):
+    for d in diagramme:
         if d['id'] == diagram_id:
             return d
     return None
@@ -476,7 +524,8 @@ def _resolve_technik_layout_file(diagram: dict) -> str | None:
 @login_required
 @menue_zugriff_erforderlich('technik_uebersichten')
 def technik_layout_svg(diagram_id: str):
-    d = _diagram_by_id((diagram_id or '').strip())
+    diagramme = _build_layout_diagramme()
+    d = _diagram_by_id((diagram_id or '').strip(), diagramme)
     if not d:
         abort(404)
     path = _resolve_technik_layout_file(d)
@@ -489,13 +538,14 @@ def technik_layout_svg(diagram_id: str):
 @login_required
 @menue_zugriff_erforderlich('technik_uebersichten')
 def uebersichten():
-    if not TECHNIK_DIAGRAMME:
+    diagramme = _build_layout_diagramme()
+    if not diagramme:
         abort(404)
 
     requested = (request.args.get('diagram') or '').strip()
-    current = _diagram_by_id(requested) if requested else None
+    current = _diagram_by_id(requested, diagramme) if requested else None
     if current is None:
-        current = TECHNIK_DIAGRAMME[0]
+        current = diagramme[0]
 
     svg_url = url_for('technik.technik_layout_svg', diagram_id=current['id'])
     layout_hotspots = TECHNIK_LAYOUT_HOTSPOTS.get(current['id'], [])
@@ -518,7 +568,7 @@ def uebersichten():
 
     return render_template(
         'technik/uebersichten.html',
-        diagramme=TECHNIK_DIAGRAMME,
+        diagramme=diagramme,
         current_diagram=current,
         current_svg_url=svg_url,
         layout_hotspots=layout_hotspots,
@@ -526,6 +576,42 @@ def uebersichten():
         beleuchtung_initial=beleuchtung_initial,
         beleuchtung_redis_configured=beleuchtung_redis_configured,
     )
+
+
+@technik_bp.route('/beleuchtung/command', methods=['POST'])
+@login_required
+@menue_zugriff_erforderlich('technik_uebersichten')
+def beleuchtung_command():
+    payload = request.get_json(silent=True) or {}
+    raw_id = str(payload.get('id') or '').strip()
+    if not raw_id:
+        return jsonify({'ok': False, 'message': 'Fehlende ID.'}), 400
+
+    m = re.match(r'^(?:BL)?(\d+)$', raw_id, flags=re.IGNORECASE)
+    if not m:
+        return jsonify({'ok': False, 'message': 'Ungültige BL-ID.'}), 400
+    lamp_id = m.group(1)
+
+    target_on = payload.get('target_on')
+    if isinstance(target_on, bool):
+        on_bool = target_on
+    elif isinstance(target_on, (int, float)):
+        on_bool = bool(int(target_on))
+    elif isinstance(target_on, str):
+        t = target_on.strip().lower()
+        if t in ('1', 'true', 'on', 'ein', 'an'):
+            on_bool = True
+        elif t in ('0', 'false', 'off', 'aus'):
+            on_bool = False
+        else:
+            return jsonify({'ok': False, 'message': 'Ungültiger Zielzustand.'}), 400
+    else:
+        return jsonify({'ok': False, 'message': 'Ungültiger Zielzustand.'}), 400
+
+    ok, info = publish_beleuchtung_command(lamp_id=lamp_id, target_on=on_bool)
+    if not ok:
+        return jsonify({'ok': False, 'message': info}), 502
+    return jsonify({'ok': True, 'id': lamp_id, 'target_on': on_bool, 'topic': info})
 
 
 @technik_bp.route('/beleuchtung/zustand')
