@@ -6,8 +6,9 @@
 
   <p class="text-muted small">
     Einstellungen für den MQTT-Broker (z.&nbsp;B. IP-Symcon/Beleuchtung). Live-Status und Mehr-Worker
-    setzen voraus, dass <strong>Redis</strong> erreichbar ist (siehe Redis-URL oder <code class="small">BIS_REDIS_URL</code> in der
-    Umgebung bzw. <code class="small">RATELIMIT_STORAGE_URI=redis://…</code>).
+    setzen voraus, dass <strong>Redis</strong> erreichbar ist (siehe Redis-URL, optional <code class="small">BIS_REDIS_URL</code> /
+    <code class="small">RATELIMIT_STORAGE_URI</code>; in Docker-Containern leer: automatisch
+    <code class="small">redis://Redis-Service:6379/0</code> wie in docker-compose).
   </p>
 
   {% with messages = get_flashed_messages(with_categories=true) %}
@@ -75,7 +76,7 @@
           <div class="col-12">
             <label class="form-label" for="redisUrl">Redis-URL (optional)</label>
             <input type="text" class="form-control font-monospace" name="redis_url" id="redisUrl" value="{{ cfg.RedisUrl or '' }}" placeholder="redis://localhost:6379/0">
-            <div class="form-text">Leer = <code class="small">BIS_REDIS_URL</code> bzw. <code class="small">RATELIMIT_STORAGE_URI</code> (falls <code>redis://</code>).</div>
+            <div class="form-text">Leer: zuerst <code class="small">BIS_REDIS_URL</code> / <code class="small">RATELIMIT_STORAGE_URI</code> (falls <code>redis://</code>); im Linux-Container sonst <code class="small">redis://Redis-Service:6379/0</code> (docker-compose).</div>
           </div>
         </div>
         <div class="mt-3 d-flex flex-wrap gap-2">

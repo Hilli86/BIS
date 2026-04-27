@@ -14,7 +14,9 @@ Storage-Backend: Standard ist `memory://` (pro Prozess). Für Multi-Worker-
 Betrieb (Gunicorn) muss ein geteilter Store genutzt werden, typischerweise
 Redis. Konfiguration über `RATELIMIT_STORAGE_URI` in der App-Config (z. B.
 `redis://Redis-Service:6379/0`). `Limiter.init_app(app)` liest diesen Wert
-automatisch aus `app.config`.
+automatisch aus `app.config`. Steht Redis nicht zur Verfügung, führt
+``RATELIMIT_IN_MEMORY_FALLBACK_ENABLED=true`` (siehe ``config.py``) dazu, dass
+flask-limiter auf prozesslokalen Speicher wechselt statt mit 500 abzubrechen.
 """
 
 from flask import request

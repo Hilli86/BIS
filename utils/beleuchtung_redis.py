@@ -5,6 +5,17 @@ from __future__ import annotations
 import os
 import re
 
+# Wie in docker-compose.yml (Dienstname im Compose-Stack erreichbar)
+REDIS_URL_DOCKER_COMPOSE_DEFAULT = 'redis://Redis-Service:6379/0'
+
+
+def running_in_docker() -> bool:
+    """True, wenn die App in einem typischen Linux-Container läuft (Docker-Desktop/WSL, Linux)."""
+    try:
+        return os.path.exists('/.dockerenv')
+    except OSError:
+        return False
+
 # Hash: Feld = lamp_id, Wert = JSON (kanonisierter Status)
 REDIS_HASH_BELEUCHTUNG = 'bis:beleuchtung:state'
 
@@ -15,7 +26,8 @@ REDIS_CHANNEL_BELEUCHTUNG = 'bis:beleuchtung:events'
 def resolve_redis_url(app_config: dict | None, db_redis_url: str | None) -> str | None:
     """
     Priorität: explizite DB-Spalte RedisUrl, dann BIS_REDIS_URL, dann
-    RATELIMIT_STORAGE_URI wenn redis://, sonst None.
+    RATELIMIT_STORAGE_URI wenn redis://, sonst im Linux-Container Fallback auf
+    den Compose-Standard (redis://Redis-Service:6379/0), lokal None.
     """
     if db_redis_url and str(db_redis_url).strip():
         return str(db_redis_url).strip()
@@ -24,13 +36,19 @@ def resolve_redis_url(app_config: dict | None, db_redis_url: str | None) -> str 
         return env
     if not app_config:
         rl = (os.environ.get('RATELIMIT_STORAGE_URI') or '').strip()
-        if rl.startswith('redis://') or rl.startswith('rediss://'):
-            return rl
-        return None
-    rl = (app_config.get('RATELIMIT_STORAGE_URI') or '').strip()
+    else:
+        rl = (app_config.get('RATELIMIT_STORAGE_URI') or '').strip()
     if rl.startswith('redis://') or rl.startswith('rediss://'):
         return rl
+    if running_in_docker():
+        return REDIS_URL_DOCKER_COMPOSE_DEFAULT
     return None
+
+
+def _app_config_for_resolve():
+    from flask import has_app_context, current_app
+
+    return current_app.config if has_app_context() else None
 
 
 def is_redis_configured_for_technik() -> bool:
@@ -44,7 +62,10 @@ def is_redis_configured_for_technik() -> bool:
     if not has_app_context():
         return False
     row = get_mqtt_konfiguration()
-    u = resolve_redis_url(None, (row or {}).get('RedisUrl') if row else None)
+    u = resolve_redis_url(
+        _app_config_for_resolve(),
+        (row or {}).get('RedisUrl') if row else None,
+    )
     return bool(u and str(u).strip())
 
 
@@ -68,7 +89,10 @@ def get_redis_connection_for_technik(connect_timeout: float | None = None) -> "r
             with a.app_context():
                 row = get_mqtt_konfiguration()
 
-    u = resolve_redis_url(None, (row or {}).get('RedisUrl') if row else None)
+    u = resolve_redis_url(
+        _app_config_for_resolve(),
+        (row or {}).get('RedisUrl') if row else None,
+    )
     if not u:
         return None
     t = 3.0 if connect_timeout is None else connect_timeout

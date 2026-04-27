@@ -44,6 +44,9 @@ services:
       # Rate-Limiter-Storage: gemeinsamer Store ueber Redis-Service, damit
       # Limits prozessuebergreifend zaehlen.
       RATELIMIT_STORAGE_URI: redis://Redis-Service:6379/0
+      # Verbindungsfehler zu Redis sonst 500 z. B. bei Login (flask-limiter) —
+      # Fallback: Limits pro Gunicorn-Worker im Speicher statt harter Fehler.
+      RATELIMIT_IN_MEMORY_FALLBACK_ENABLED: "true"
     volumes:
       # Persistente Daten (Datenbank + Uploads); Host-Pfad in .env: BIS_DATA_HOST
       - ${BIS_DATA_HOST:?BIS_DATA_HOST fehlt in .env siehe env_docker_example.txt}:/data

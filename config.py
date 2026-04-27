@@ -22,6 +22,18 @@ def _env_str_strip_optional(value):
     return s or None
 
 
+def _default_ratelimit_storage_uri() -> str:
+    """Ohne gesetzte Variable: lokal memory://, im Linux-Container Compose-Redis (docker-compose)."""
+    from utils.beleuchtung_redis import REDIS_URL_DOCKER_COMPOSE_DEFAULT, running_in_docker
+
+    raw = os.environ.get('RATELIMIT_STORAGE_URI')
+    if raw is not None and str(raw).strip():
+        return str(raw).strip()
+    if running_in_docker():
+        return REDIS_URL_DOCKER_COMPOSE_DEFAULT
+    return 'memory://'
+
+
 class Config:
     """Basis-Konfiguration für die Flask-Anwendung"""
     
@@ -66,10 +78,15 @@ class Config:
     # SQL-Tracing (nur für Entwicklung)
     SQL_TRACING = os.environ.get('SQL_TRACING', 'False').lower() == 'true'
 
-    # Rate-Limiter Storage: im Single-Process-Betrieb (Dev) reicht memory://.
-    # Bei Gunicorn-Multi-Worker muss ein geteilter Store genutzt werden,
-    # z. B. redis://Redis-Service:6379/0 (Docker-Compose-Dienstname).
-    RATELIMIT_STORAGE_URI = os.environ.get('RATELIMIT_STORAGE_URI', 'memory://')
+    # Rate-Limiter Storage: lokal per Default memory://, im Linux-Container ohne
+    # RATELIMIT_STORAGE_URI automatisch docker-compose-Redis (utils.beleuchtung_redis).
+    # Gunicorn-Multi-Worker: geteilter Store; z. B. redis://Redis-Service:6379/0.
+    RATELIMIT_STORAGE_URI = _default_ratelimit_storage_uri()
+    # flask-limiter: bei Redis-Ausfall nicht mit 500 abbrechen, sondern einmalig auf
+    # MemoryStorage pro Prozess wechseln (Docker-Compose setzt true, siehe dort).
+    RATELIMIT_IN_MEMORY_FALLBACK_ENABLED = os.environ.get(
+        'RATELIMIT_IN_MEMORY_FALLBACK_ENABLED', 'false'
+    ).lower() in ('1', 'true', 'yes')
     # Optional: dedizierter Redis für Technik-Beleuchtung (Echtzeit). Fallback siehe
     # `utils.beleuchtung_redis.resolve_redis_url` (Admin-Feld, dann BIS_REDIS_URL, dann RATELIMIT…).
     BIS_REDIS_URL = _env_str_strip_optional(os.environ.get('BIS_REDIS_URL'))
