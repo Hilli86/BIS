@@ -49,12 +49,12 @@
             <strong class="text-body">{{ current_diagram.title }}</strong>
             <a href="{{ current_svg_url }}" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener noreferrer">SVG in neuem Tab</a>
           </div>
-          <div class="border rounded overflow-auto bg-light" style="min-height: 320px;">
+          <div class="border rounded overflow-auto bg-transparent" style="min-height: 320px;">
             <object id="technik-svg-object"
                     type="image/svg+xml"
                     data="{{ current_svg_url }}"
-                    class="w-100 d-block"
-                    style="min-height: 480px;"
+                    class="w-100 d-block bg-transparent"
+                    style="min-height: 480px; background: transparent;"
                     title="{{ current_diagram.title }}">
               <p class="p-3 mb-0">Ihr Browser kann das SVG nicht einbetten.
                 <a href="{{ current_svg_url }}">Datei direkt öffnen</a></p>
@@ -101,6 +101,22 @@
       });
     });
   }
+
+  /* SVG-Root im eingebetteten Dokument: kein opaker Flächenhintergrund (Zeichenfläche bleibt in den .svg-Dateien). */
+  (function () {
+    var obj = document.getElementById('technik-svg-object');
+    if (!obj) return;
+    function clearRootBg() {
+      try {
+        var doc = obj.contentDocument;
+        if (!doc) return;
+        var svg = doc.querySelector('svg');
+        if (svg) svg.style.backgroundColor = 'transparent';
+      } catch (e) { /* cross-origin */ }
+    }
+    if (obj.contentDocument && obj.contentDocument.querySelector('svg')) clearRootBg();
+    else obj.addEventListener('load', clearRootBg);
+  })();
 
   // Klickflächen: pro Eintrag in LAYOUT_HOTSPOTS (siehe routes); Felder/Modal aus LAYOUT_CONFIG.
   (function () {

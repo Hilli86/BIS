@@ -454,7 +454,7 @@ def _diagram_by_id(diagram_id: str):
 
 
 def _resolve_technik_layout_file(diagram: dict) -> str | None:
-    """Zuerst Datei unter TECHNIK_LAYOUTS_FOLDER, sonst Fallback static/technik/Layouts/ (siehe Bundledateien im Image)."""
+    """Datei unter TECHNIK_LAYOUTS_FOLDER (Datenverzeichnis)."""
     name = (diagram.get('layout_filename') or '').strip()
     if not name or '..' in name or '/' in name or '\\' in name:
         return None
@@ -469,9 +469,6 @@ def _resolve_technik_layout_file(diagram: dict) -> str | None:
         p = os.path.join(data_dir, name)
         if os.path.isfile(p):
             return p
-    static_fb = os.path.join(current_app.root_path, 'static', 'technik', 'Layouts', name)
-    if os.path.isfile(static_fb):
-        return static_fb
     return None
 
 
