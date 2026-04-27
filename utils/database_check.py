@@ -84,6 +84,15 @@ def initialize_database_on_startup(app):
         try:
             _run_alembic_upgrade(app, db_url)
             print('[OK] Alembic upgrade head abgeschlossen')
+            # Haertung fuer Legacy-SQLite-Dateien:
+            # Alembic-0001 verwendet metadata.create_all(checkfirst=True) und fuegt
+            # damit auf bestehenden Tabellen keine spaeteren Spalten hinzu.
+            # Deshalb im SQLite-Betrieb unmittelbar danach den idempotenten
+            # Legacy-Schema-Abgleich laufen lassen (fehlende Spalten/Indizes).
+            if sqlite_path is not None:
+                print('[INFO] Pruefe auf fehlende Spalten und Indexes...')
+                init_database_schema(sqlite_path, verbose=False)
+                print('[OK] Spaltenpruefung abgeschlossen')
         except Exception as exc:
             print(f'[FEHLER] Alembic-Migration fehlgeschlagen: {exc}')
             sys.exit(1)
