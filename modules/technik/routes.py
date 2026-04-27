@@ -28,7 +28,7 @@ from utils.beleuchtung_redis import (
 )
 
 # Kurzes Connect-Timeout für Web-Anfragen (kein Blockieren im Sekundenbereich, wenn Redis aus ist)
-_REDIS_CONNECT_TIMEOUT_HTTP = 0.5
+_REDIS_CONNECT_TIMEOUT_HTTP = 0.2
 from utils.decorators import login_required, menue_zugriff_erforderlich
 from modules.technik.sse_broadcast import count_subscribers, register_subscriber, unregister_subscriber
 from modules.technik.mqtt_commands import publish_beleuchtung_command

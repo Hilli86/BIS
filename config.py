@@ -87,6 +87,14 @@ class Config:
     RATELIMIT_IN_MEMORY_FALLBACK_ENABLED = os.environ.get(
         'RATELIMIT_IN_MEMORY_FALLBACK_ENABLED', 'false'
     ).lower() in ('1', 'true', 'yes')
+    # Wird an redis.from_url (flask-limits) weitergereicht: bei totem Redis nicht
+    # jede Anfrage Sekunden warten, bis der Connect fehlschlägt.
+    RATELIMIT_STORAGE_OPTIONS = {
+        'socket_connect_timeout': float(
+            os.environ.get('RATELIMIT_REDIS_SOCKET_CONNECT_TIMEOUT', '0.25')
+        ),
+        'socket_timeout': float(os.environ.get('RATELIMIT_REDIS_SOCKET_TIMEOUT', '1.0')),
+    }
     # Optional: dedizierter Redis für Technik-Beleuchtung (Echtzeit). Fallback siehe
     # `utils.beleuchtung_redis.resolve_redis_url` (Admin-Feld, dann BIS_REDIS_URL, dann RATELIMIT…).
     BIS_REDIS_URL = _env_str_strip_optional(os.environ.get('BIS_REDIS_URL'))

@@ -409,7 +409,11 @@
         var d = JSON.parse(e.data);
         if (d.states) lastStates = d.states;
         reapplyAll();
-        setStatus('Echtzeit verbunden (SSE).', true);
+        if (d.ok === true) {
+          setStatus('Echtzeit verbunden (Redis + SSE).', true);
+        } else {
+          setStatus('Echtzeit: Redis nicht erreichbar (keine Live-Updates, SSE-Verbindung offen).', false);
+        }
       } catch (err) { setStatus('Init-Daten ungültig.', false); }
     });
     ev.onmessage = function (e) {
