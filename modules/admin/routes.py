@@ -335,15 +335,26 @@ def druck_agents_uebersicht():
     one_time_token = request.args.get('neuer_token') or None
     one_time_token_for_id = request.args.get('neuer_token_id', type=int)
     with get_db_connection() as conn:
-        agents = conn.execute('''
-            SELECT a.id, a.name, a.standort, a.active, a.last_seen_at, a.last_ip,
-                   a.created_at, a.updated_at,
-                   (SELECT COUNT(*) FROM zebra_printers p WHERE p.agent_id = a.id) AS drucker_anzahl,
-                   (SELECT COUNT(*) FROM print_jobs j WHERE j.agent_id = a.id AND j.status = 'pending') AS jobs_pending,
-                   (SELECT COUNT(*) FROM print_jobs j WHERE j.agent_id = a.id AND j.status = 'leased') AS jobs_leased
-            FROM print_agents a
-            ORDER BY a.name
-        ''').fetchall()
+        if _table_has_column(conn, 'zebra_printers', 'agent_id'):
+            agents = conn.execute('''
+                SELECT a.id, a.name, a.standort, a.active, a.last_seen_at, a.last_ip,
+                       a.created_at, a.updated_at,
+                       (SELECT COUNT(*) FROM zebra_printers p WHERE p.agent_id = a.id) AS drucker_anzahl,
+                       (SELECT COUNT(*) FROM print_jobs j WHERE j.agent_id = a.id AND j.status = 'pending') AS jobs_pending,
+                       (SELECT COUNT(*) FROM print_jobs j WHERE j.agent_id = a.id AND j.status = 'leased') AS jobs_leased
+                FROM print_agents a
+                ORDER BY a.name
+            ''').fetchall()
+        else:
+            agents = conn.execute('''
+                SELECT a.id, a.name, a.standort, a.active, a.last_seen_at, a.last_ip,
+                       a.created_at, a.updated_at,
+                       0 AS drucker_anzahl,
+                       (SELECT COUNT(*) FROM print_jobs j WHERE j.agent_id = a.id AND j.status = 'pending') AS jobs_pending,
+                       (SELECT COUNT(*) FROM print_jobs j WHERE j.agent_id = a.id AND j.status = 'leased') AS jobs_leased
+                FROM print_agents a
+                ORDER BY a.name
+            ''').fetchall()
     return render_template(
         'admin_druck_agents.html',
         agents=agents,
