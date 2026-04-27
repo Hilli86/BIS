@@ -38,6 +38,8 @@ class Config:
     WARTUNG_UPLOAD_FOLDER = os.path.join(UPLOAD_BASE_FOLDER, 'Wartungen')
     ANGEBOTE_UPLOAD_FOLDER = os.path.join(UPLOAD_BASE_FOLDER, 'Angebote')
     IMPORT_FOLDER = os.path.join(UPLOAD_BASE_FOLDER, 'Import')
+    # Technik-Übersichten (SVG-Layouts); bei Docker-Volume unter …/Daten/Technik/Layouts editierbar ohne Image-Rebuild
+    TECHNIK_LAYOUTS_FOLDER = os.path.join(UPLOAD_BASE_FOLDER, 'Technik', 'Layouts')
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'}
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB max file size
     

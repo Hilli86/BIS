@@ -7,7 +7,17 @@ import os
 import queue
 import logging
 
-from flask import Response, abort, jsonify, render_template, request, stream_with_context, url_for
+from flask import (
+    Response,
+    abort,
+    current_app,
+    jsonify,
+    render_template,
+    request,
+    send_file,
+    stream_with_context,
+    url_for,
+)
 from redis.exceptions import RedisError
 
 from utils.beleuchtung_redis import (
@@ -25,22 +35,22 @@ from . import technik_bp
 
 log_sse = logging.getLogger('bis.technik.sse')
 
-# Registrierte Diagramme: id (URL-Parameter diagram), Anzeigename, Pfad unter static/
+# Registrierte Diagramme: id (URL-Parameter diagram), Anzeigename, Dateiname unter Daten/…/Technik/Layouts/ (bzw. static-Fallback)
 TECHNIK_DIAGRAMME = [
     {
         'id': 'schnelllauftore',
         'title': 'Schnelllauftore',
-        'static_path': 'technik/Layouts/Schnelllauftore.svg',
+        'layout_filename': 'Schnelllauftore.svg',
     },
     {
         'id': 'hygieneanlagen',
         'title': 'Hygieneanlagen',
-        'static_path': 'technik/Layouts/Hygieneanlagen.svg',
+        'layout_filename': 'Hygieneanlagen.svg',
     },
     {
         'id': 'beleuchtung',
         'title': 'Beleuchtung',
-        'static_path': 'technik/Layouts/Beleuchtung.svg',
+        'layout_filename': 'Beleuchtung.svg',
     },
 ]
 
@@ -147,6 +157,41 @@ def _diagram_by_id(diagram_id: str):
     return None
 
 
+def _resolve_technik_layout_file(diagram: dict) -> str | None:
+    """Zuerst Datei unter TECHNIK_LAYOUTS_FOLDER, sonst Fallback static/technik/Layouts/ (siehe Bundledateien im Image)."""
+    name = (diagram.get('layout_filename') or '').strip()
+    if not name or '..' in name or '/' in name or '\\' in name:
+        return None
+    if not name.lower().endswith('.svg'):
+        return None
+    data_dir = (current_app.config.get('TECHNIK_LAYOUTS_FOLDER') or '').strip()
+    if data_dir:
+        try:
+            os.makedirs(data_dir, exist_ok=True)
+        except OSError:
+            pass
+        p = os.path.join(data_dir, name)
+        if os.path.isfile(p):
+            return p
+    static_fb = os.path.join(current_app.root_path, 'static', 'technik', 'Layouts', name)
+    if os.path.isfile(static_fb):
+        return static_fb
+    return None
+
+
+@technik_bp.route('/layout/<string:diagram_id>')
+@login_required
+@menue_zugriff_erforderlich('technik_uebersichten')
+def technik_layout_svg(diagram_id: str):
+    d = _diagram_by_id((diagram_id or '').strip())
+    if not d:
+        abort(404)
+    path = _resolve_technik_layout_file(d)
+    if not path:
+        abort(404)
+    return send_file(path, mimetype='image/svg+xml', max_age=0)
+
+
 @technik_bp.route('/uebersichten')
 @login_required
 @menue_zugriff_erforderlich('technik_uebersichten')
@@ -159,7 +204,7 @@ def uebersichten():
     if current is None:
         current = TECHNIK_DIAGRAMME[0]
 
-    svg_url = url_for('static', filename=current['static_path'])
+    svg_url = url_for('technik.technik_layout_svg', diagram_id=current['id'])
     layout_hotspots = TECHNIK_LAYOUT_HOTSPOTS.get(current['id'], [])
     meta = TECHNIK_LAYOUT_META.get(current['id'], {})
     layout_hotspot_config = {

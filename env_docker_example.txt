@@ -27,6 +27,8 @@
 SECRET_KEY=bitte-durch-eigenen-langen-zufaelligen-wert-ersetzen-min-32-zeichen
 
 # Lokaler Ordner fuer SQLite + Uploads (Host-Pfad). Im Container: /data
+# Technik-SVG-Layouts (Uebersichten): <BIS_DATA_HOST>/Daten/Technik/Layouts/
+# aendern ohne Image neu zu bauen; fehlende Dateien nutzen den Fallback im Image.
 BIS_DATA_HOST=C:/Pfade/anpassen/bis-daten
 
 # Lokaler Ordner fuer unverschluesselte Backups (Host). Im Container: /backup-plain
