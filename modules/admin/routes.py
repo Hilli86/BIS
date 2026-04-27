@@ -27,6 +27,23 @@ from modules.wartungen import services as wartungen_services
 _log_admin_mqtt = logging.getLogger('bis.admin.mqtt')
 
 
+def _table_has_column(conn, table_name, column_name):
+    """Schema-Check für rückwärtskompatible SELECTs auf älteren SQLite-Dateien."""
+    try:
+        rows = conn.execute(f'PRAGMA table_info({table_name})').fetchall()
+    except Exception:
+        return False
+    for row in rows:
+        try:
+            if row['name'] == column_name:
+                return True
+        except Exception:
+            # sqlite3.Row kann je nach Fassade auch indexbasiert sein.
+            if len(row) > 1 and row[1] == column_name:
+                return True
+    return False
+
+
 def ajax_response(message, success=True, status_code=None, **extra):
     """Hilfsfunktion für AJAX/Standard-Responses (optional zusätzliche JSON-Felder via **extra)."""
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -149,23 +166,38 @@ def dashboard():
             mitarbeiter_menue_effektiv[m['ID']] = get_menue_sichtbarkeit_fuer_mitarbeiter(m['ID'], conn)
 
         # Zebra-Drucker und Etikettenformate laden
-        zebra_printers = conn.execute('''
-            SELECT p.id, p.name, p.ip_address, p.description, p.ort, p.active,
-                   p.agent_id, a.name AS agent_name
-            FROM zebra_printers p
-            LEFT JOIN print_agents a ON p.agent_id = a.id
-            ORDER BY COALESCE(p.ort, ''), p.name
-        ''').fetchall()
+        if _table_has_column(conn, 'zebra_printers', 'agent_id'):
+            zebra_printers = conn.execute('''
+                SELECT p.id, p.name, p.ip_address, p.description, p.ort, p.active,
+                       p.agent_id, a.name AS agent_name
+                FROM zebra_printers p
+                LEFT JOIN print_agents a ON p.agent_id = a.id
+                ORDER BY COALESCE(p.ort, ''), p.name
+            ''').fetchall()
+        else:
+            zebra_printers = conn.execute('''
+                SELECT p.id, p.name, p.ip_address, p.description, p.ort, p.active,
+                       NULL AS agent_id, NULL AS agent_name
+                FROM zebra_printers p
+                ORDER BY COALESCE(p.ort, ''), p.name
+            ''').fetchall()
         print_agents_list = conn.execute('''
             SELECT id, name, standort, active
             FROM print_agents
             ORDER BY name
         ''').fetchall()
-        label_formats = conn.execute('''
-            SELECT id, name, description, width_mm, height_mm, orientation, zpl_header, zpl_zusatz
-            FROM label_formats
-            ORDER BY name
-        ''').fetchall()
+        if _table_has_column(conn, 'label_formats', 'zpl_zusatz'):
+            label_formats = conn.execute('''
+                SELECT id, name, description, width_mm, height_mm, orientation, zpl_header, zpl_zusatz
+                FROM label_formats
+                ORDER BY name
+            ''').fetchall()
+        else:
+            label_formats = conn.execute('''
+                SELECT id, name, description, width_mm, height_mm, orientation, zpl_header, '' AS zpl_zusatz
+                FROM label_formats
+                ORDER BY name
+            ''').fetchall()
         
         # Etiketten laden mit zpl_header aus label_formats
         etiketten = conn.execute('''
