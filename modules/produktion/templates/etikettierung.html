@@ -17,6 +17,7 @@
         <div class="accordion" id="linienAccordion">
           {% for linie, artikel_dict in struktur.items() %}
             {% set linie_id = linie|replace(' ', '_')|replace('-', '_')|lower %}
+            {% set linie_loop_index = loop.index %}
             <div class="accordion-item">
               <h2 class="accordion-header" id="heading{{ loop.index }}">
                 <button class="accordion-button {% if not loop.first %}collapsed{% endif %}" type="button"
@@ -37,20 +38,20 @@
                       {% set artikel_id = artikel|replace(' ', '_')|replace('-', '_')|lower %}
                       {% if fotos|length > 0 %}
                         <div class="accordion-item">
-                          <h3 class="accordion-header" id="artikelHeading{{ loop.parent.loop.index }}_{{ loop.index0 }}">
+                          <h3 class="accordion-header" id="artikelHeading{{ linie_loop_index }}_{{ loop.index0 }}">
                             <button class="accordion-button collapsed" type="button"
                                     data-bs-toggle="collapse"
-                                    data-bs-target="#artikelCollapse{{ loop.parent.loop.index }}_{{ loop.index0 }}"
+                                    data-bs-target="#artikelCollapse{{ linie_loop_index }}_{{ loop.index0 }}"
                                     aria-expanded="false"
-                                    aria-controls="artikelCollapse{{ loop.parent.loop.index }}_{{ loop.index0 }}">
+                                    aria-controls="artikelCollapse{{ linie_loop_index }}_{{ loop.index0 }}">
                               {{ artikel }}
                               <span class="badge bg-info ms-2">{{ fotos|length }} Foto{{ 's' if fotos|length != 1 else '' }}</span>
                             </button>
                           </h3>
-                          <div id="artikelCollapse{{ loop.parent.loop.index }}_{{ loop.index0 }}"
+                          <div id="artikelCollapse{{ linie_loop_index }}_{{ loop.index0 }}"
                                class="accordion-collapse collapse"
-                               aria-labelledby="artikelHeading{{ loop.parent.loop.index }}_{{ loop.index0 }}"
-                               data-bs-parent="#artikelAccordion{{ loop.parent.loop.index }}">
+                               aria-labelledby="artikelHeading{{ linie_loop_index }}_{{ loop.index0 }}"
+                               data-bs-parent="#artikelAccordion{{ linie_loop_index }}">
                             <div class="accordion-body">
                               {% set bild_base_path = 'Produktion/Etikettierung/Artikeleinstellungen/' ~ linie ~ '/' ~ artikel ~ '/' %}
 
