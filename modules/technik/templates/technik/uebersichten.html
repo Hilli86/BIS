@@ -18,9 +18,6 @@
       {% endif %}
     </div>
     <div class="card-body">
-      <p class="text-muted small mb-3">
-        Wählen Sie ein Layout. Die Darstellung erfolgt als SVG. Beleuchtung: die <strong>ID muss</strong> zum letzten Topic-Segment passen (z. B. <code class="small">…/Beleuchtung/45329</code> → <code class="small">45329</code>). In der <code class="small">.svg</code> können Sie Lampen-Gruppen mit Präfix <code class="small">BL</code> kennzeichnen, z. B. <code class="small">data-bis-lamp-id="BL45329"</code> (oder <code class="small">data-cell-id</code> / <code class="small">id</code> derselben Form) — die Anzeige findet dazu auch <code class="small">45329</code> aus dem Topic. <strong>Im exportierten SVG</strong> muss das Attribut an der sichtbaren <code class="small">&lt;g&gt;</code> stehen. Status: <code class="small">UTF8Value</code> <code class="small">"1"</code> = grün, <code class="small">""</code> = transparent.
-      </p>
       {% if current_diagram.id == 'beleuchtung' and beleuchtung_redis_configured is false %}
       <div class="alert alert-warning small py-2" role="status">
         Kein Redis für Echtzeit-Daten. Bitte <code class="small">BIS_REDIS_URL</code> bzw. Redis in den <a href="{{ url_for('admin.mqtt_konfiguration') }}">MQTT-Einstellungen</a> hinterlegen.
@@ -36,7 +33,6 @@
 
       <div class="row g-3">
         <div class="col-md-4 col-lg-3 d-none d-md-flex flex-column">
-          <label for="technik-diagram-filter" class="form-label small text-muted mb-1">Layout suchen</label>
           <input type="search" id="technik-diagram-filter" class="form-control form-control-sm mb-2" placeholder="Filter…" autocomplete="off" aria-label="Layout filtern">
           <div class="list-group list-group-flush border rounded overflow-auto flex-grow-1" id="technik-diagram-list" style="max-height: 70vh;">
             {% for d in diagramme %}
